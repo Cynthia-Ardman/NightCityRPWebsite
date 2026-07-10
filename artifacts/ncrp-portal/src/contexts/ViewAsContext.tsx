@@ -39,6 +39,8 @@ function downgrade(me: Me, role: ViewAsRole): Me {
     isCsApprover: false,
     isRipperdoc: false,
     isStoreOwner: false,
+    isNcpd: false,
+    isNcpdCommissioner: false,
   };
   if (role === "ripperdoc") base.isRipperdoc = true;
   if (role === "fixer") base.isFixer = true;

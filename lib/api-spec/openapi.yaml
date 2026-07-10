@@ -29,6 +29,8 @@ tags:
     description: Off-catalog custom requests (off-map property, custom guns, custom cyberware).
   - name: vrchat
     description: Admin/fixer VRChat CyberPsycho control panel (drives each staffer's local agent).
+  - name: ncpd
+    description: NCPD arrest reports, warrants, character records and the Book of Laws.
 
 paths:
   /healthz:
@@ -5378,6 +5380,325 @@ paths:
               schema: { $ref: "#/components/schemas/BreachPracticeStats" }
         "401": { description: Authentication required }
 
+  # ---------------- NCPD ----------------
+  /ncpd/characters:
+    get:
+      operationId: ncpdSearchCharacters
+      tags: [ncpd]
+      summary: Search characters by name or character number (NCPD/fixer/admin only).
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+          description: Name fragment or exact character number.
+      responses:
+        "200":
+          description: Matching characters (identity fields only, max 25)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NcpdCharacterSummary" }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+  /ncpd/characters/{id}/record:
+    get:
+      operationId: getNcpdRecord
+      tags: [ncpd]
+      summary: Full NCPD record for a character (reports, warrants, notes). NCPD/fixer/admin only — never the character's owner by ownership alone.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The character's NCPD record
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NcpdRecord" }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+        "404": { description: Character not found }
+  /ncpd/characters/{id}/notes:
+    post:
+      operationId: createNcpdNote
+      tags: [ncpd]
+      summary: Add an NCPD note to a character (NCPD/fixer/admin only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NcpdNoteInput" }
+      responses:
+        "201":
+          description: The created note
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NcpdNote" }
+        "400": { description: Missing note text }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+        "404": { description: Character not found }
+  /ncpd/notes/{id}:
+    delete:
+      operationId: deleteNcpdNote
+      tags: [ncpd]
+      summary: Delete an NCPD note (NCPD/fixer/admin only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResult" }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+        "404": { description: Note not found }
+  /ncpd/reports:
+    get:
+      operationId: listNcpdReports
+      tags: [ncpd]
+      summary: Recent arrest reports across all characters (NCPD/fixer/admin only).
+      responses:
+        "200":
+          description: Reports, newest first (max 100)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NcpdReport" }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+    post:
+      operationId: createNcpdReport
+      tags: [ncpd]
+      summary: File an arrest report on a character (NCPD/fixer/admin only).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NcpdReportInput" }
+      responses:
+        "201":
+          description: The created report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NcpdReport" }
+        "400": { description: Missing/invalid fields }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+        "404": { description: Character not found }
+  /ncpd/reports/{id}:
+    patch:
+      operationId: updateNcpdReport
+      tags: [ncpd]
+      summary: Edit an arrest report (NCPD/fixer/admin only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NcpdReportUpdate" }
+      responses:
+        "200":
+          description: The updated report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NcpdReport" }
+        "400": { description: Invalid fields }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+        "404": { description: Report not found }
+    delete:
+      operationId: deleteNcpdReport
+      tags: [ncpd]
+      summary: Delete an arrest report (NCPD/fixer/admin only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResult" }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+        "404": { description: Report not found }
+  /ncpd/warrants:
+    get:
+      operationId: listNcpdWarrants
+      tags: [ncpd]
+      summary: Warrants across all characters, optionally filtered by status (NCPD/fixer/admin only).
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [open, served, revoked] }
+      responses:
+        "200":
+          description: Warrants, newest first (max 200)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NcpdWarrant" }
+        "400": { description: Invalid status }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+    post:
+      operationId: createNcpdWarrant
+      tags: [ncpd]
+      summary: Issue a warrant on a character (NCPD/fixer/admin only).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NcpdWarrantInput" }
+      responses:
+        "201":
+          description: The created warrant (status open)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NcpdWarrant" }
+        "400": { description: Missing/invalid fields }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+        "404": { description: Character not found }
+  /ncpd/warrants/{id}:
+    patch:
+      operationId: updateNcpdWarrant
+      tags: [ncpd]
+      summary: Edit a warrant or flip its status (NCPD/fixer/admin only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NcpdWarrantUpdate" }
+      responses:
+        "200":
+          description: The updated warrant
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NcpdWarrant" }
+        "400": { description: Invalid fields }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+        "404": { description: Warrant not found }
+    delete:
+      operationId: deleteNcpdWarrant
+      tags: [ncpd]
+      summary: Delete a warrant (NCPD/fixer/admin only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResult" }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+        "404": { description: Warrant not found }
+  /ncpd/laws:
+    get:
+      operationId: listNcpdLaws
+      tags: [ncpd]
+      summary: The Book of Laws. Public to every signed-in member; severity/punishment/restricted notes are stripped server-side unless the viewer is NCPD/fixer/admin.
+      responses:
+        "200":
+          description: Laws in display order
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NcpdLaw" }
+        "401": { description: Authentication required }
+    post:
+      operationId: createNcpdLaw
+      tags: [ncpd]
+      summary: Add a law (Commissioner/fixer/admin only).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NcpdLawInput" }
+      responses:
+        "201":
+          description: The created law
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NcpdLaw" }
+        "400": { description: Missing/invalid fields }
+        "401": { description: Authentication required }
+        "403": { description: Commissioner/fixer/admin only }
+  /ncpd/laws/{id}:
+    patch:
+      operationId: updateNcpdLaw
+      tags: [ncpd]
+      summary: Edit a law (Commissioner/fixer/admin only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NcpdLawUpdate" }
+      responses:
+        "200":
+          description: The updated law
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NcpdLaw" }
+        "400": { description: Invalid fields }
+        "401": { description: Authentication required }
+        "403": { description: Commissioner/fixer/admin only }
+        "404": { description: Law not found }
+    delete:
+      operationId: deleteNcpdLaw
+      tags: [ncpd]
+      summary: Delete a law (Commissioner/fixer/admin only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResult" }
+        "401": { description: Authentication required }
+        "403": { description: Commissioner/fixer/admin only }
+        "404": { description: Law not found }
+
 components:
   schemas:
     VrchatUserRef:
@@ -6211,6 +6532,8 @@ components:
         isCoordinator: { type: boolean }
         isCsApprover: { type: boolean }
         isRipperdoc: { type: boolean }
+        isNcpd: { type: boolean, description: "True when the member holds the NCPD officer OR Commissioner Discord role (derived from the pinned role ids). Grants access to NCPD records (arrest reports, warrants, notes, lookups) and the restricted law fields." }
+        isNcpdCommissioner: { type: boolean, description: "True when the member holds the NCPD Commissioner Discord role (pinned id). Grants Book of Laws write access on top of officer abilities." }
         isStoreOwner: { type: boolean }
         isStoreEmployee: { type: boolean, description: "Data-derived: true when any of the user's characters is on staff at a store. Drives the Manage Stores nav link for employees who hold no owner role." }
         canCyberpsycho: { type: boolean, description: "True when this user may open the CyberPsycho control panel: ADMIN/FIXER role, or a per-user grant flipped on by an admin." }
@@ -9591,3 +9914,165 @@ components:
         beforeJson: { nullable: true }
         afterJson: { nullable: true }
         createdAt: { type: string, format: date-time }
+
+    OkResult:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+
+    NcpdCharacterSummary:
+      type: object
+      required: [id, name, kind, archived]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        kind: { type: string, enum: [pc, npc] }
+        archetype: { type: ["string", "null"] }
+        archived: { type: boolean }
+
+    NcpdRecordCharacter:
+      type: object
+      required: [id, name, kind, archived, lifeStatus]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        kind: { type: string, enum: [pc, npc] }
+        archetype: { type: ["string", "null"] }
+        archived: { type: boolean }
+        lifeStatus: { type: string }
+        portraitUrl: { type: ["string", "null"] }
+
+    NcpdRecord:
+      type: object
+      required: [character, reports, warrants, notes]
+      properties:
+        character: { $ref: "#/components/schemas/NcpdRecordCharacter" }
+        reports:
+          type: array
+          items: { $ref: "#/components/schemas/NcpdReport" }
+        warrants:
+          type: array
+          items: { $ref: "#/components/schemas/NcpdWarrant" }
+        notes:
+          type: array
+          items: { $ref: "#/components/schemas/NcpdNote" }
+
+    NcpdReport:
+      type: object
+      required: [id, characterId, title, body, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        characterId: { type: integer }
+        characterName: { type: string, description: "Joined character name — present on the cross-character list endpoint." }
+        officerId: { type: ["string", "null"] }
+        officerName: { type: ["string", "null"] }
+        title: { type: string }
+        body: { type: string }
+        charges: { type: ["string", "null"] }
+        arrestedAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    NcpdReportInput:
+      type: object
+      required: [characterId, title, body]
+      properties:
+        characterId: { type: integer }
+        title: { type: string, minLength: 1 }
+        body: { type: string, minLength: 1 }
+        charges: { type: ["string", "null"] }
+        arrestedAt: { type: ["string", "null"], format: date-time }
+
+    NcpdReportUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1 }
+        body: { type: string, minLength: 1 }
+        charges: { type: ["string", "null"] }
+        arrestedAt: { type: ["string", "null"], format: date-time }
+
+    NcpdWarrant:
+      type: object
+      required: [id, characterId, reason, status, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        characterId: { type: integer }
+        characterName: { type: string, description: "Joined character name — present on the cross-character list endpoint." }
+        issuedById: { type: ["string", "null"] }
+        issuedByName: { type: ["string", "null"] }
+        reason: { type: string }
+        status: { type: string, enum: [open, served, revoked] }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    NcpdWarrantInput:
+      type: object
+      required: [characterId, reason]
+      properties:
+        characterId: { type: integer }
+        reason: { type: string, minLength: 1 }
+        notes: { type: ["string", "null"] }
+
+    NcpdWarrantUpdate:
+      type: object
+      properties:
+        reason: { type: string, minLength: 1 }
+        notes: { type: ["string", "null"] }
+        status: { type: string, enum: [open, served, revoked] }
+
+    NcpdNote:
+      type: object
+      required: [id, characterId, note, createdAt]
+      properties:
+        id: { type: integer }
+        characterId: { type: integer }
+        authorId: { type: ["string", "null"] }
+        authorName: { type: ["string", "null"] }
+        note: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    NcpdNoteInput:
+      type: object
+      required: [note]
+      properties:
+        note: { type: string, minLength: 1 }
+
+    NcpdLaw:
+      type: object
+      required: [id, title, body, sortOrder, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        body: { type: string, description: "Public statute text." }
+        severity:
+          type: ["string", "null"]
+          enum: [misdemeanor, felony, null]
+          description: "RESTRICTED — only returned to NCPD/fixer/admin viewers; stripped for everyone else."
+        punishment: { type: ["string", "null"], description: "RESTRICTED — only returned to NCPD/fixer/admin viewers." }
+        restrictedNotes: { type: ["string", "null"], description: "RESTRICTED — only returned to NCPD/fixer/admin viewers." }
+        sortOrder: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    NcpdLawInput:
+      type: object
+      required: [title, body]
+      properties:
+        title: { type: string, minLength: 1 }
+        body: { type: string, minLength: 1 }
+        severity: { type: ["string", "null"], enum: [misdemeanor, felony, null] }
+        punishment: { type: ["string", "null"] }
+        restrictedNotes: { type: ["string", "null"] }
+        sortOrder: { type: integer }
+
+    NcpdLawUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1 }
+        body: { type: string, minLength: 1 }
+        severity: { type: ["string", "null"], enum: [misdemeanor, felony, null] }
+        punishment: { type: ["string", "null"] }
+        restrictedNotes: { type: ["string", "null"] }
+        sortOrder: { type: integer }

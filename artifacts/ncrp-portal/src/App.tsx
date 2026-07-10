@@ -72,6 +72,9 @@ import LoginError from "@/pages/LoginError";
 import SiteLocked from "@/pages/SiteLocked";
 import LogoutError from "@/pages/LogoutError";
 import Settings from "@/pages/Settings";
+import NcpdPage from "@/pages/NcpdPage";
+import NcpdCharacterRecord from "@/pages/NcpdCharacterRecord";
+import LawsPage from "@/pages/LawsPage";
 import VerificationRequired from "@/pages/VerificationRequired";
 import RulesGate from "@/pages/RulesGate";
 
@@ -317,6 +320,9 @@ function AppRoutes() {
           <Route path="/fixer/cyberpsycho">
             <CyberpsychoGuard><CyberPsycho /></CyberpsychoGuard>
           </Route>
+          <Route path="/ncpd" component={NcpdPage} />
+          <Route path="/ncpd/characters/:id" component={NcpdCharacterRecord} />
+          <Route path="/laws" component={LawsPage} />
           <Route path="/items/:uuid" component={InventoryItemDetail} />
           <Route path="/settings" component={Settings} />
           <Route path="/dice" component={DiceRoller} />

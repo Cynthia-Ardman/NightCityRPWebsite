@@ -73,6 +73,8 @@ export const GetMeResponse = zod.object({
   "isCoordinator": zod.boolean().optional(),
   "isCsApprover": zod.boolean(),
   "isRipperdoc": zod.boolean(),
+  "isNcpd": zod.boolean().optional().describe('True when the member holds the NCPD officer OR Commissioner Discord role (derived from the pinned role ids). Grants access to NCPD records (arrest reports, warrants, notes, lookups) and the restricted law fields.'),
+  "isNcpdCommissioner": zod.boolean().optional().describe('True when the member holds the NCPD Commissioner Discord role (pinned id). Grants Book of Laws write access on top of officer abilities.'),
   "isStoreOwner": zod.boolean(),
   "isStoreEmployee": zod.boolean().describe('Data-derived: true when any of the user\'s characters is on staff at a store. Drives the Manage Stores nav link for employees who hold no owner role.'),
   "canCyberpsycho": zod.boolean().optional().describe('True when this user may open the CyberPsycho control panel: ADMIN\/FIXER role, or a per-user grant flipped on by an admin.'),
@@ -11917,5 +11919,338 @@ export const MergeBreachPracticeStatsResponse = zod.object({
   "fastestClearMs": zod.number().nullable().describe('Best (smallest) clear time in ms; null until first solve.')
 })
 }).describe('Per-difficulty personal practice progress for the caller.')
+
+
+/**
+ * @summary Search characters by name or character number (NCPD/fixer/admin only).
+ */
+export const NcpdSearchCharactersQueryParams = zod.object({
+  "q": zod.coerce.string().optional().describe('Name fragment or exact character number.')
+})
+
+export const NcpdSearchCharactersResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "kind": zod.enum(['pc', 'npc']),
+  "archetype": zod.string().nullish(),
+  "archived": zod.boolean()
+})
+export const NcpdSearchCharactersResponse = zod.array(NcpdSearchCharactersResponseItem)
+
+
+/**
+ * @summary Full NCPD record for a character (reports, warrants, notes). NCPD/fixer/admin only — never the character's owner by ownership alone.
+ */
+export const GetNcpdRecordParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetNcpdRecordResponse = zod.object({
+  "character": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "kind": zod.enum(['pc', 'npc']),
+  "archetype": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "lifeStatus": zod.string(),
+  "portraitUrl": zod.string().nullish()
+}),
+  "reports": zod.array(zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string().optional().describe('Joined character name — present on the cross-character list endpoint.'),
+  "officerId": zod.string().nullish(),
+  "officerName": zod.string().nullish(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "charges": zod.string().nullish(),
+  "arrestedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "warrants": zod.array(zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string().optional().describe('Joined character name — present on the cross-character list endpoint.'),
+  "issuedById": zod.string().nullish(),
+  "issuedByName": zod.string().nullish(),
+  "reason": zod.string(),
+  "status": zod.enum(['open', 'served', 'revoked']),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "notes": zod.array(zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "authorId": zod.string().nullish(),
+  "authorName": zod.string().nullish(),
+  "note": zod.string(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Add an NCPD note to a character (NCPD/fixer/admin only).
+ */
+export const CreateNcpdNoteParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const CreateNcpdNoteBody = zod.object({
+  "note": zod.string().min(1)
+})
+
+
+/**
+ * @summary Delete an NCPD note (NCPD/fixer/admin only).
+ */
+export const DeleteNcpdNoteParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteNcpdNoteResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Recent arrest reports across all characters (NCPD/fixer/admin only).
+ */
+export const ListNcpdReportsResponseItem = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string().optional().describe('Joined character name — present on the cross-character list endpoint.'),
+  "officerId": zod.string().nullish(),
+  "officerName": zod.string().nullish(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "charges": zod.string().nullish(),
+  "arrestedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListNcpdReportsResponse = zod.array(ListNcpdReportsResponseItem)
+
+
+/**
+ * @summary File an arrest report on a character (NCPD/fixer/admin only).
+ */
+
+
+
+
+export const CreateNcpdReportBody = zod.object({
+  "characterId": zod.number(),
+  "title": zod.string().min(1),
+  "body": zod.string().min(1),
+  "charges": zod.string().nullish(),
+  "arrestedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Edit an arrest report (NCPD/fixer/admin only).
+ */
+export const UpdateNcpdReportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+export const UpdateNcpdReportBody = zod.object({
+  "title": zod.string().min(1).optional(),
+  "body": zod.string().min(1).optional(),
+  "charges": zod.string().nullish(),
+  "arrestedAt": zod.coerce.date().nullish()
+})
+
+export const UpdateNcpdReportResponse = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string().optional().describe('Joined character name — present on the cross-character list endpoint.'),
+  "officerId": zod.string().nullish(),
+  "officerName": zod.string().nullish(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "charges": zod.string().nullish(),
+  "arrestedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete an arrest report (NCPD/fixer/admin only).
+ */
+export const DeleteNcpdReportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteNcpdReportResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Warrants across all characters, optionally filtered by status (NCPD/fixer/admin only).
+ */
+export const ListNcpdWarrantsQueryParams = zod.object({
+  "status": zod.enum(['open', 'served', 'revoked']).optional()
+})
+
+export const ListNcpdWarrantsResponseItem = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string().optional().describe('Joined character name — present on the cross-character list endpoint.'),
+  "issuedById": zod.string().nullish(),
+  "issuedByName": zod.string().nullish(),
+  "reason": zod.string(),
+  "status": zod.enum(['open', 'served', 'revoked']),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListNcpdWarrantsResponse = zod.array(ListNcpdWarrantsResponseItem)
+
+
+/**
+ * @summary Issue a warrant on a character (NCPD/fixer/admin only).
+ */
+
+
+
+export const CreateNcpdWarrantBody = zod.object({
+  "characterId": zod.number(),
+  "reason": zod.string().min(1),
+  "notes": zod.string().nullish()
+})
+
+
+/**
+ * @summary Edit a warrant or flip its status (NCPD/fixer/admin only).
+ */
+export const UpdateNcpdWarrantParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdateNcpdWarrantBody = zod.object({
+  "reason": zod.string().min(1).optional(),
+  "notes": zod.string().nullish(),
+  "status": zod.enum(['open', 'served', 'revoked']).optional()
+})
+
+export const UpdateNcpdWarrantResponse = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string().optional().describe('Joined character name — present on the cross-character list endpoint.'),
+  "issuedById": zod.string().nullish(),
+  "issuedByName": zod.string().nullish(),
+  "reason": zod.string(),
+  "status": zod.enum(['open', 'served', 'revoked']),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a warrant (NCPD/fixer/admin only).
+ */
+export const DeleteNcpdWarrantParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteNcpdWarrantResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary The Book of Laws. Public to every signed-in member; severity/punishment/restricted notes are stripped server-side unless the viewer is NCPD/fixer/admin.
+ */
+export const ListNcpdLawsResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "body": zod.string().describe('Public statute text.'),
+  "severity": zod.union([zod.literal('misdemeanor'),zod.literal('felony'),zod.literal(null)]).nullish().describe('RESTRICTED — only returned to NCPD\/fixer\/admin viewers; stripped for everyone else.'),
+  "punishment": zod.string().nullish().describe('RESTRICTED — only returned to NCPD\/fixer\/admin viewers.'),
+  "restrictedNotes": zod.string().nullish().describe('RESTRICTED — only returned to NCPD\/fixer\/admin viewers.'),
+  "sortOrder": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListNcpdLawsResponse = zod.array(ListNcpdLawsResponseItem)
+
+
+/**
+ * @summary Add a law (Commissioner/fixer/admin only).
+ */
+
+
+
+
+export const CreateNcpdLawBody = zod.object({
+  "title": zod.string().min(1),
+  "body": zod.string().min(1),
+  "severity": zod.union([zod.literal('misdemeanor'),zod.literal('felony'),zod.literal(null)]).nullish(),
+  "punishment": zod.string().nullish(),
+  "restrictedNotes": zod.string().nullish(),
+  "sortOrder": zod.number().optional()
+})
+
+
+/**
+ * @summary Edit a law (Commissioner/fixer/admin only).
+ */
+export const UpdateNcpdLawParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+export const UpdateNcpdLawBody = zod.object({
+  "title": zod.string().min(1).optional(),
+  "body": zod.string().min(1).optional(),
+  "severity": zod.union([zod.literal('misdemeanor'),zod.literal('felony'),zod.literal(null)]).nullish(),
+  "punishment": zod.string().nullish(),
+  "restrictedNotes": zod.string().nullish(),
+  "sortOrder": zod.number().optional()
+})
+
+export const UpdateNcpdLawResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "body": zod.string().describe('Public statute text.'),
+  "severity": zod.union([zod.literal('misdemeanor'),zod.literal('felony'),zod.literal(null)]).nullish().describe('RESTRICTED — only returned to NCPD\/fixer\/admin viewers; stripped for everyone else.'),
+  "punishment": zod.string().nullish().describe('RESTRICTED — only returned to NCPD\/fixer\/admin viewers.'),
+  "restrictedNotes": zod.string().nullish().describe('RESTRICTED — only returned to NCPD\/fixer\/admin viewers.'),
+  "sortOrder": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a law (Commissioner/fixer/admin only).
+ */
+export const DeleteNcpdLawParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteNcpdLawResponse = zod.object({
+  "ok": zod.boolean()
+})
 
 

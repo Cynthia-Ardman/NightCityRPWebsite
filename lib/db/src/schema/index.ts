@@ -2141,3 +2141,116 @@ export const vrchatInstances = pgTable("vrchat_instances", {
   raw: jsonb("raw").$type<Record<string, unknown>>(),
 });
 export type VrchatInstance = typeof vrchatInstances.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// NCPD (Night City Police Department)
+// ---------------------------------------------------------------------------
+// Officer-filed arrest reports, warrants, per-character NCPD notes and the
+// Book of Laws. Records are visible ONLY to NCPD officers / fixers / admins —
+// never to the character's owner. Laws are public, but severity / punishment /
+// restricted notes are stripped server-side for non-privileged viewers.
+
+// One arrest report, always attached to a specific character.
+export const ncpdArrestReports = pgTable(
+  "ncpd_arrest_reports",
+  {
+    id: serial("id").primaryKey(),
+    characterId: integer("character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "cascade" }),
+    // Filing officer. Snapshot the display name so the report stays legible
+    // even if the user row is later deleted.
+    officerId: text("officer_id").references(() => users.id, { onDelete: "set null" }),
+    officerName: text("officer_name"),
+    title: text("title").notNull(),
+    // Free-form report body (markdown allowed in the portal renderer).
+    body: text("body").notNull(),
+    // Comma/newline separated list of charges as written by the officer.
+    charges: text("charges"),
+    // When the arrest happened in-world (officer-supplied; defaults to filing time).
+    arrestedAt: timestamp("arrested_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => ({
+    charIdx: index("ncpd_reports_char_idx").on(t.characterId),
+  }),
+);
+export type NcpdArrestReport = typeof ncpdArrestReports.$inferSelect;
+
+// An outstanding (or historical) warrant on a character.
+export const ncpdWarrants = pgTable(
+  "ncpd_warrants",
+  {
+    id: serial("id").primaryKey(),
+    characterId: integer("character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "cascade" }),
+    issuedById: text("issued_by_id").references(() => users.id, { onDelete: "set null" }),
+    issuedByName: text("issued_by_name"),
+    reason: text("reason").notNull(),
+    // open | served | revoked. Open warrants surface on the NCPD dashboard.
+    status: text("status").notNull().default("open"),
+    // Optional internal detail (last-known whereabouts, cautions, etc).
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => ({
+    charIdx: index("ncpd_warrants_char_idx").on(t.characterId),
+    statusIdx: index("ncpd_warrants_status_idx").on(t.status),
+  }),
+);
+export type NcpdWarrant = typeof ncpdWarrants.$inferSelect;
+
+// Free-form NCPD notes on a character (surfaced in the records lookup and the
+// staff-only character records tab).
+export const ncpdCharacterNotes = pgTable(
+  "ncpd_character_notes",
+  {
+    id: serial("id").primaryKey(),
+    characterId: integer("character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "cascade" }),
+    authorId: text("author_id").references(() => users.id, { onDelete: "set null" }),
+    authorName: text("author_name"),
+    note: text("note").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    charIdx: index("ncpd_notes_char_idx").on(t.characterId),
+  }),
+);
+export type NcpdCharacterNote = typeof ncpdCharacterNotes.$inferSelect;
+
+// The Book of Laws. `title` + `body` are public to every signed-in member;
+// `severity` (misdemeanor | felony), `punishment` and `restrictedNotes` are
+// stripped server-side unless the viewer is NCPD / fixer / admin. Writable by
+// the Commissioner, fixers and admins.
+export const ncpdLaws = pgTable("ncpd_laws", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  // Public statute text.
+  body: text("body").notNull(),
+  // misdemeanor | felony — restricted field.
+  severity: text("severity"),
+  // Restricted: sentencing guidance for officers.
+  punishment: text("punishment"),
+  // Restricted: internal enforcement notes.
+  restrictedNotes: text("restricted_notes"),
+  // Manual ordering for the public page (lower first, ties by id).
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+export type NcpdLaw = typeof ncpdLaws.$inferSelect;

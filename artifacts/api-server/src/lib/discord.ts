@@ -49,6 +49,13 @@ export const ROLE_NAMES = {
   // injected by applyRoleIdGrants from the Trial Fixer role ID (below), so the
   // distinction is id-derived and survives a Discord role rename.
   TRIAL_FIXER: ["trial-fixer", "trial fixer"],
+  // NCPD officers: may file arrest reports, issue warrants, add NCPD notes and
+  // read the restricted law fields. Matched on the id-derived marker injected
+  // by applyRoleIdGrants from the NCPD role ID (below).
+  NCPD: ["ncpd-officer", "ncpd officer", "ncpd"],
+  // NCPD Commissioner: everything an officer can do PLUS writing the Book of
+  // Laws. Id-derived marker, same pattern as NCPD.
+  NCPD_COMMISSIONER: ["ncpd-commissioner", "ncpd commissioner"],
 };
 
 /**
@@ -96,6 +103,34 @@ export const RIPPERDOC_ROLE_ID = "1356028868103897156";
 export const RIPPERDOC_ROLE_MARKER = "ripperdoc";
 
 /**
+ * Discord role id for the guild's "NCPD" (officer) role. Matched by exact id —
+ * same id-pin pattern as Verified 18+ / Trial Fixer / RipperDoc — so a Discord
+ * rename can't silently drop the website NCPD flag. {@link applyRoleIdGrants}
+ * injects the marker name on login and on every role_sync sweep, so the flag
+ * stays in lockstep with the Discord role in both directions.
+ */
+export const NCPD_ROLE_ID = "1348661391355023469";
+
+/**
+ * Synthetic role NAME injected when a member holds {@link NCPD_ROLE_ID}.
+ * Matches {@link ROLE_NAMES}.NCPD so the name-based hasRole(roles, "NCPD")
+ * check stays true regardless of the Discord role's display name.
+ */
+export const NCPD_ROLE_MARKER = "ncpd-officer";
+
+/**
+ * Discord role id for the guild's "NCPD Commissioner" role. Grants law-book
+ * write access on top of the officer abilities. Same id-pin pattern as above.
+ */
+export const NCPD_COMMISSIONER_ROLE_ID = "1379984424720007310";
+
+/**
+ * Synthetic role NAME injected when a member holds
+ * {@link NCPD_COMMISSIONER_ROLE_ID}. Matches {@link ROLE_NAMES}.NCPD_COMMISSIONER.
+ */
+export const NCPD_COMMISSIONER_ROLE_MARKER = "ncpd-commissioner";
+
+/**
  * Augment a member's resolved role NAMES with synthetic names derived from
  * exact role IDs, so id-gated grants survive Discord role renames and flow
  * through the name-based {@link hasRole} checks used everywhere downstream.
@@ -127,6 +162,18 @@ export function applyRoleIdGrants(names: string[], ids: string[]): string[] {
   // the role_sync cron (added while the role is held, dropped when it's gone).
   if (ids.includes(RIPPERDOC_ROLE_ID) && !out.some((n) => n.toLowerCase() === RIPPERDOC_ROLE_MARKER)) {
     out = [...out, RIPPERDOC_ROLE_MARKER];
+  }
+  // NCPD officer / Commissioner: id-pin the marker names so the website NCPD
+  // flags survive a Discord role rename and reconcile both directions via the
+  // role_sync cron (added while the role is held, dropped when it's gone).
+  if (ids.includes(NCPD_ROLE_ID) && !out.some((n) => n.toLowerCase() === NCPD_ROLE_MARKER)) {
+    out = [...out, NCPD_ROLE_MARKER];
+  }
+  if (
+    ids.includes(NCPD_COMMISSIONER_ROLE_ID) &&
+    !out.some((n) => n.toLowerCase() === NCPD_COMMISSIONER_ROLE_MARKER)
+  ) {
+    out = [...out, NCPD_COMMISSIONER_ROLE_MARKER];
   }
   return out;
 }

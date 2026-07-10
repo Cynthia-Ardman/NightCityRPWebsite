@@ -1149,6 +1149,10 @@ export interface Me {
   isCoordinator?: boolean;
   isCsApprover: boolean;
   isRipperdoc: boolean;
+  /** True when the member holds the NCPD officer OR Commissioner Discord role (derived from the pinned role ids). Grants access to NCPD records (arrest reports, warrants, notes, lookups) and the restricted law fields. */
+  isNcpd?: boolean;
+  /** True when the member holds the NCPD Commissioner Discord role (pinned id). Grants Book of Laws write access on top of officer abilities. */
+  isNcpdCommissioner?: boolean;
   isStoreOwner: boolean;
   /** Data-derived: true when any of the user's characters is on staff at a store. Drives the Manage Stores nav link for employees who hold no owner role. */
   isStoreEmployee: boolean;
@@ -6495,6 +6499,250 @@ export interface AuditLogRow {
   createdAt: string;
 }
 
+export interface OkResult {
+  ok: boolean;
+}
+
+export type NcpdCharacterSummaryKind = typeof NcpdCharacterSummaryKind[keyof typeof NcpdCharacterSummaryKind];
+
+
+export const NcpdCharacterSummaryKind = {
+  pc: 'pc',
+  npc: 'npc',
+} as const;
+
+export interface NcpdCharacterSummary {
+  id: number;
+  name: string;
+  kind: NcpdCharacterSummaryKind;
+  /** @nullable */
+  archetype?: string | null;
+  archived: boolean;
+}
+
+export type NcpdRecordCharacterKind = typeof NcpdRecordCharacterKind[keyof typeof NcpdRecordCharacterKind];
+
+
+export const NcpdRecordCharacterKind = {
+  pc: 'pc',
+  npc: 'npc',
+} as const;
+
+export interface NcpdRecordCharacter {
+  id: number;
+  name: string;
+  kind: NcpdRecordCharacterKind;
+  /** @nullable */
+  archetype?: string | null;
+  archived: boolean;
+  lifeStatus: string;
+  /** @nullable */
+  portraitUrl?: string | null;
+}
+
+export interface NcpdReport {
+  id: number;
+  characterId: number;
+  /** Joined character name — present on the cross-character list endpoint. */
+  characterName?: string;
+  /** @nullable */
+  officerId?: string | null;
+  /** @nullable */
+  officerName?: string | null;
+  title: string;
+  body: string;
+  /** @nullable */
+  charges?: string | null;
+  /** @nullable */
+  arrestedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type NcpdWarrantStatus = typeof NcpdWarrantStatus[keyof typeof NcpdWarrantStatus];
+
+
+export const NcpdWarrantStatus = {
+  open: 'open',
+  served: 'served',
+  revoked: 'revoked',
+} as const;
+
+export interface NcpdWarrant {
+  id: number;
+  characterId: number;
+  /** Joined character name — present on the cross-character list endpoint. */
+  characterName?: string;
+  /** @nullable */
+  issuedById?: string | null;
+  /** @nullable */
+  issuedByName?: string | null;
+  reason: string;
+  status: NcpdWarrantStatus;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NcpdNote {
+  id: number;
+  characterId: number;
+  /** @nullable */
+  authorId?: string | null;
+  /** @nullable */
+  authorName?: string | null;
+  note: string;
+  createdAt: string;
+}
+
+export interface NcpdRecord {
+  character: NcpdRecordCharacter;
+  reports: NcpdReport[];
+  warrants: NcpdWarrant[];
+  notes: NcpdNote[];
+}
+
+export interface NcpdReportInput {
+  characterId: number;
+  /** @minLength 1 */
+  title: string;
+  /** @minLength 1 */
+  body: string;
+  /** @nullable */
+  charges?: string | null;
+  /** @nullable */
+  arrestedAt?: string | null;
+}
+
+export interface NcpdReportUpdate {
+  /** @minLength 1 */
+  title?: string;
+  /** @minLength 1 */
+  body?: string;
+  /** @nullable */
+  charges?: string | null;
+  /** @nullable */
+  arrestedAt?: string | null;
+}
+
+export interface NcpdWarrantInput {
+  characterId: number;
+  /** @minLength 1 */
+  reason: string;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type NcpdWarrantUpdateStatus = typeof NcpdWarrantUpdateStatus[keyof typeof NcpdWarrantUpdateStatus];
+
+
+export const NcpdWarrantUpdateStatus = {
+  open: 'open',
+  served: 'served',
+  revoked: 'revoked',
+} as const;
+
+export interface NcpdWarrantUpdate {
+  /** @minLength 1 */
+  reason?: string;
+  /** @nullable */
+  notes?: string | null;
+  status?: NcpdWarrantUpdateStatus;
+}
+
+export interface NcpdNoteInput {
+  /** @minLength 1 */
+  note: string;
+}
+
+/**
+ * RESTRICTED — only returned to NCPD/fixer/admin viewers; stripped for everyone else.
+ * @nullable
+ */
+export type NcpdLawSeverity = typeof NcpdLawSeverity[keyof typeof NcpdLawSeverity] | null;
+
+
+export const NcpdLawSeverity = {
+  misdemeanor: 'misdemeanor',
+  felony: 'felony',
+} as const;
+
+export interface NcpdLaw {
+  id: number;
+  title: string;
+  /** Public statute text. */
+  body: string;
+  /**
+     * RESTRICTED — only returned to NCPD/fixer/admin viewers; stripped for everyone else.
+     * @nullable
+     */
+  severity?: NcpdLawSeverity;
+  /**
+     * RESTRICTED — only returned to NCPD/fixer/admin viewers.
+     * @nullable
+     */
+  punishment?: string | null;
+  /**
+     * RESTRICTED — only returned to NCPD/fixer/admin viewers.
+     * @nullable
+     */
+  restrictedNotes?: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * @nullable
+ */
+export type NcpdLawInputSeverity = typeof NcpdLawInputSeverity[keyof typeof NcpdLawInputSeverity] | null;
+
+
+export const NcpdLawInputSeverity = {
+  misdemeanor: 'misdemeanor',
+  felony: 'felony',
+} as const;
+
+export interface NcpdLawInput {
+  /** @minLength 1 */
+  title: string;
+  /** @minLength 1 */
+  body: string;
+  /** @nullable */
+  severity?: NcpdLawInputSeverity;
+  /** @nullable */
+  punishment?: string | null;
+  /** @nullable */
+  restrictedNotes?: string | null;
+  sortOrder?: number;
+}
+
+/**
+ * @nullable
+ */
+export type NcpdLawUpdateSeverity = typeof NcpdLawUpdateSeverity[keyof typeof NcpdLawUpdateSeverity] | null;
+
+
+export const NcpdLawUpdateSeverity = {
+  misdemeanor: 'misdemeanor',
+  felony: 'felony',
+} as const;
+
+export interface NcpdLawUpdate {
+  /** @minLength 1 */
+  title?: string;
+  /** @minLength 1 */
+  body?: string;
+  /** @nullable */
+  severity?: NcpdLawUpdateSeverity;
+  /** @nullable */
+  punishment?: string | null;
+  /** @nullable */
+  restrictedNotes?: string | null;
+  sortOrder?: number;
+}
+
 export type DiscordCallbackParams = {
 code?: string;
 state?: string;
@@ -7048,4 +7296,24 @@ export const ListBreachPuzzlesStatus = {
 export type GetMyBreachPendingCount200 = {
   count: number;
 };
+
+export type NcpdSearchCharactersParams = {
+/**
+ * Name fragment or exact character number.
+ */
+q?: string;
+};
+
+export type ListNcpdWarrantsParams = {
+status?: ListNcpdWarrantsStatus;
+};
+
+export type ListNcpdWarrantsStatus = typeof ListNcpdWarrantsStatus[keyof typeof ListNcpdWarrantsStatus];
+
+
+export const ListNcpdWarrantsStatus = {
+  open: 'open',
+  served: 'served',
+  revoked: 'revoked',
+} as const;
 

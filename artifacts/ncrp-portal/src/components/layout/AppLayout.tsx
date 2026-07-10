@@ -5,7 +5,7 @@ import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffer
 import { useEffectiveMe, useViewAs } from "@/contexts/ViewAsContext";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { ONBOARDING_BANNER_LINKS, guidebookSectionHref } from "@/lib/guidebookLinks";
-import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, ShoppingBag, BookOpen, BookMarked, Cpu, CalendarDays, Settings, X, Stethoscope, HeartPulse, Wrench, Building2, Warehouse, Archive, Network, Radio } from "lucide-react";
+import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, ShoppingBag, BookOpen, BookMarked, Cpu, CalendarDays, Settings, X, Stethoscope, HeartPulse, Wrench, Building2, Warehouse, Archive, Network, Radio, Scale, Siren } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -282,6 +282,7 @@ function SidebarContent() {
         <NavItem href="/directory/calendar" icon={CalendarDays} label="Calendar" tone="green" />
         <NavItem href="/directory/stores" icon={Store} label="Stores" tone="green" />
         <NavItem href="/directory/ripperdocs" icon={Stethoscope} label="Ripperdocs" tone="green" />
+        <NavItem href="/laws" icon={Scale} label="Book of Laws" tone="green" />
         {/* Temporary lockdown: lore section is fixer/admin-only until cleanup. */}
         {user && (user.isFixer || user.isAdmin) && (
           <NavItem href="/directory/lore" icon={BookOpen} label="Lore" tone="green" />
@@ -300,6 +301,11 @@ function SidebarContent() {
         {(user?.isRipperdoc || user?.isRipperdocEmployee) && <NavItem href="/clinics" icon={HeartPulse} label="Manage Clinics" tone="magenta" />}
         {(user?.isRipperdoc || user?.isAdmin) && <NavItem href="/ripperdoc" icon={Wrench} label="Ripperdoc Console" tone="magenta" />}
         {user && (user.isFixer || user.isAdmin) && <NavItem href="/fixer" icon={Network} label="Fixer Hub" tone="magenta" />}
+        {/* NCPD database: officers + commissioner get it via their Discord
+            roles; fixers/admins see everything as usual. */}
+        {user && (user.isNcpd || user.isFixer || user.isAdmin) && (
+          <NavItem href="/ncpd" icon={Siren} label="NCPD" tone="magenta" />
+        )}
         {/* Character Archive lists rosters of every sheet; sheet bodies are
             owner/staff-only (see directory.ts), so it lives in the staff-only
             Management group rather than the public Directory. */}

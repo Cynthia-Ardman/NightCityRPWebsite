@@ -46,6 +46,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch as UiSwitch } from "@/components/ui/switch";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
+import NcpdRecordPanel from "@/components/NcpdRecordPanel";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { missionStatusClass, missionStatusLabel } from "@/lib/missionStatus";
 
@@ -151,7 +152,7 @@ export default function CharacterDetail() {
 // the exact same tabs (read + edit) for ANY character. `staffView` switches the
 // Missions feed from the owner's "/missions/mine" to the staff-wide
 // "/missions/owned" board so a moderator sees the target character's missions.
-const CHAR_TAB_VALUES = ["profile", "property", "inventory", "cyberware", "missions", "breach"] as const;
+const CHAR_TAB_VALUES = ["profile", "property", "inventory", "cyberware", "missions", "breach", "ncpd"] as const;
 
 // Cyberware (whether currently installed, category "cyberware", or removed,
 // category "cyberware (removed)") is managed through the ripperdoc flow — it's
@@ -184,6 +185,11 @@ export function CharacterTabsPanel({
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+  // NCPD records tab is staff-only (NCPD officers/commissioner, fixers,
+  // admins) — an ordinary owner never sees their own rap sheet. Hook must sit
+  // ABOVE the early return (React #310).
+  const tabsMe = useEffectiveMe();
+  const canSeeNcpd = !!(tabsMe.data?.isNcpd || tabsMe.data?.isFixer || tabsMe.data?.isAdmin);
   if (!char) return null;
   return (
     <Tabs value={tab} onValueChange={setTab} className="w-full">
@@ -206,6 +212,11 @@ export function CharacterTabsPanel({
         <TabsTrigger value="breach" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-breach">
           <Cpu className="w-4 h-4 mr-2 hidden sm:inline" /> Breach
         </TabsTrigger>
+        {canSeeNcpd && (
+          <TabsTrigger value="ncpd" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-ncpd">
+            <ShieldAlert className="w-4 h-4 mr-2 hidden sm:inline" /> NCPD
+          </TabsTrigger>
+        )}
       </TabsList>
 
       <div className="mt-8">
@@ -235,6 +246,12 @@ export function CharacterTabsPanel({
         <TabsContent value="breach" className="outline-none focus:ring-0">
           <BreachTab characterId={char.id} />
         </TabsContent>
+
+        {canSeeNcpd && (
+          <TabsContent value="ncpd" className="outline-none focus:ring-0">
+            <NcpdRecordPanel characterId={char.id} />
+          </TabsContent>
+        )}
       </div>
     </Tabs>
   );

@@ -26,6 +26,10 @@ export interface Me {
   isCoordinator?: boolean;
   isCsApprover: boolean;
   isRipperdoc: boolean;
+  /** True when the member holds the NCPD officer OR Commissioner Discord role (derived from the pinned role ids). Grants access to NCPD records (arrest reports, warrants, notes, lookups) and the restricted law fields. */
+  isNcpd?: boolean;
+  /** True when the member holds the NCPD Commissioner Discord role (pinned id). Grants Book of Laws write access on top of officer abilities. */
+  isNcpdCommissioner?: boolean;
   isStoreOwner: boolean;
   /** Data-derived: true when any of the user's characters is on staff at a store. Drives the Manage Stores nav link for employees who hold no owner role. */
   isStoreEmployee: boolean;

@@ -186,6 +186,7 @@ import type {
   ListMissionHistoryParams,
   ListMissionsParams,
   ListMyCustomRequestsParams,
+  ListNcpdWarrantsParams,
   ListPendingEditsParams,
   ListPendingSheetsParams,
   ListPublicCharactersParams,
@@ -217,8 +218,23 @@ import type {
   MissionToEventConvertInput,
   MissionUpdateInput,
   MyUnseen,
+  NcpdCharacterSummary,
+  NcpdLaw,
+  NcpdLawInput,
+  NcpdLawUpdate,
+  NcpdNote,
+  NcpdNoteInput,
+  NcpdRecord,
+  NcpdReport,
+  NcpdReportInput,
+  NcpdReportUpdate,
+  NcpdSearchCharactersParams,
+  NcpdWarrant,
+  NcpdWarrantInput,
+  NcpdWarrantUpdate,
   NpcSignupInput,
   OffMapProperty,
+  OkResult,
   OverrideDecisionInput,
   OverridePendingEdit200,
   PayActorsInput,
@@ -24156,5 +24172,1185 @@ export const useMergeBreachPracticeStats = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getMergeBreachPracticeStatsMutationOptions(options));
+    }
+
+export const getNcpdSearchCharactersUrl = (params?: NcpdSearchCharactersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/ncpd/characters?${stringifiedParams}` : `/api/ncpd/characters`
+}
+
+/**
+ * @summary Search characters by name or character number (NCPD/fixer/admin only).
+ */
+export const ncpdSearchCharacters = async (params?: NcpdSearchCharactersParams, options?: RequestInit): Promise<NcpdCharacterSummary[]> => {
+
+  return customFetch<NcpdCharacterSummary[]>(getNcpdSearchCharactersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getNcpdSearchCharactersQueryKey = (params?: NcpdSearchCharactersParams,) => {
+    return [
+    `/api/ncpd/characters`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getNcpdSearchCharactersQueryOptions = <TData = Awaited<ReturnType<typeof ncpdSearchCharacters>>, TError = ErrorType<void>>(params?: NcpdSearchCharactersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof ncpdSearchCharacters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getNcpdSearchCharactersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof ncpdSearchCharacters>>> = ({ signal }) => ncpdSearchCharacters(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof ncpdSearchCharacters>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type NcpdSearchCharactersQueryResult = NonNullable<Awaited<ReturnType<typeof ncpdSearchCharacters>>>
+export type NcpdSearchCharactersQueryError = ErrorType<void>
+
+
+/**
+ * @summary Search characters by name or character number (NCPD/fixer/admin only).
+ */
+
+export function useNcpdSearchCharacters<TData = Awaited<ReturnType<typeof ncpdSearchCharacters>>, TError = ErrorType<void>>(
+ params?: NcpdSearchCharactersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof ncpdSearchCharacters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getNcpdSearchCharactersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetNcpdRecordUrl = (id: number,) => {
+
+
+
+
+  return `/api/ncpd/characters/${id}/record`
+}
+
+/**
+ * @summary Full NCPD record for a character (reports, warrants, notes). NCPD/fixer/admin only — never the character's owner by ownership alone.
+ */
+export const getNcpdRecord = async (id: number, options?: RequestInit): Promise<NcpdRecord> => {
+
+  return customFetch<NcpdRecord>(getGetNcpdRecordUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNcpdRecordQueryKey = (id: number,) => {
+    return [
+    `/api/ncpd/characters/${id}/record`
+    ] as const;
+    }
+
+
+export const getGetNcpdRecordQueryOptions = <TData = Awaited<ReturnType<typeof getNcpdRecord>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNcpdRecord>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNcpdRecordQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNcpdRecord>>> = ({ signal }) => getNcpdRecord(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNcpdRecord>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNcpdRecordQueryResult = NonNullable<Awaited<ReturnType<typeof getNcpdRecord>>>
+export type GetNcpdRecordQueryError = ErrorType<void>
+
+
+/**
+ * @summary Full NCPD record for a character (reports, warrants, notes). NCPD/fixer/admin only — never the character's owner by ownership alone.
+ */
+
+export function useGetNcpdRecord<TData = Awaited<ReturnType<typeof getNcpdRecord>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNcpdRecord>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNcpdRecordQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateNcpdNoteUrl = (id: number,) => {
+
+
+
+
+  return `/api/ncpd/characters/${id}/notes`
+}
+
+/**
+ * @summary Add an NCPD note to a character (NCPD/fixer/admin only).
+ */
+export const createNcpdNote = async (id: number,
+    ncpdNoteInput: NcpdNoteInput, options?: RequestInit): Promise<NcpdNote> => {
+
+  return customFetch<NcpdNote>(getCreateNcpdNoteUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      ncpdNoteInput,)
+  }
+);}
+
+
+
+
+export const getCreateNcpdNoteMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNcpdNote>>, TError,{id: number;data: BodyType<NcpdNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createNcpdNote>>, TError,{id: number;data: BodyType<NcpdNoteInput>}, TContext> => {
+
+const mutationKey = ['createNcpdNote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createNcpdNote>>, {id: number;data: BodyType<NcpdNoteInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createNcpdNote(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateNcpdNoteMutationResult = NonNullable<Awaited<ReturnType<typeof createNcpdNote>>>
+    export type CreateNcpdNoteMutationBody = BodyType<NcpdNoteInput>
+    export type CreateNcpdNoteMutationError = ErrorType<void>
+
+    /**
+ * @summary Add an NCPD note to a character (NCPD/fixer/admin only).
+ */
+export const useCreateNcpdNote = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNcpdNote>>, TError,{id: number;data: BodyType<NcpdNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createNcpdNote>>,
+        TError,
+        {id: number;data: BodyType<NcpdNoteInput>},
+        TContext
+      > => {
+      return useMutation(getCreateNcpdNoteMutationOptions(options));
+    }
+
+export const getDeleteNcpdNoteUrl = (id: number,) => {
+
+
+
+
+  return `/api/ncpd/notes/${id}`
+}
+
+/**
+ * @summary Delete an NCPD note (NCPD/fixer/admin only).
+ */
+export const deleteNcpdNote = async (id: number, options?: RequestInit): Promise<OkResult> => {
+
+  return customFetch<OkResult>(getDeleteNcpdNoteUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteNcpdNoteMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteNcpdNote>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteNcpdNote>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteNcpdNote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteNcpdNote>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteNcpdNote(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteNcpdNoteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteNcpdNote>>>
+
+    export type DeleteNcpdNoteMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete an NCPD note (NCPD/fixer/admin only).
+ */
+export const useDeleteNcpdNote = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteNcpdNote>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteNcpdNote>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteNcpdNoteMutationOptions(options));
+    }
+
+export const getListNcpdReportsUrl = () => {
+
+
+
+
+  return `/api/ncpd/reports`
+}
+
+/**
+ * @summary Recent arrest reports across all characters (NCPD/fixer/admin only).
+ */
+export const listNcpdReports = async ( options?: RequestInit): Promise<NcpdReport[]> => {
+
+  return customFetch<NcpdReport[]>(getListNcpdReportsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListNcpdReportsQueryKey = () => {
+    return [
+    `/api/ncpd/reports`
+    ] as const;
+    }
+
+
+export const getListNcpdReportsQueryOptions = <TData = Awaited<ReturnType<typeof listNcpdReports>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNcpdReports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListNcpdReportsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNcpdReports>>> = ({ signal }) => listNcpdReports({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listNcpdReports>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListNcpdReportsQueryResult = NonNullable<Awaited<ReturnType<typeof listNcpdReports>>>
+export type ListNcpdReportsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Recent arrest reports across all characters (NCPD/fixer/admin only).
+ */
+
+export function useListNcpdReports<TData = Awaited<ReturnType<typeof listNcpdReports>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNcpdReports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListNcpdReportsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateNcpdReportUrl = () => {
+
+
+
+
+  return `/api/ncpd/reports`
+}
+
+/**
+ * @summary File an arrest report on a character (NCPD/fixer/admin only).
+ */
+export const createNcpdReport = async (ncpdReportInput: NcpdReportInput, options?: RequestInit): Promise<NcpdReport> => {
+
+  return customFetch<NcpdReport>(getCreateNcpdReportUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      ncpdReportInput,)
+  }
+);}
+
+
+
+
+export const getCreateNcpdReportMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNcpdReport>>, TError,{data: BodyType<NcpdReportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createNcpdReport>>, TError,{data: BodyType<NcpdReportInput>}, TContext> => {
+
+const mutationKey = ['createNcpdReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createNcpdReport>>, {data: BodyType<NcpdReportInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createNcpdReport(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateNcpdReportMutationResult = NonNullable<Awaited<ReturnType<typeof createNcpdReport>>>
+    export type CreateNcpdReportMutationBody = BodyType<NcpdReportInput>
+    export type CreateNcpdReportMutationError = ErrorType<void>
+
+    /**
+ * @summary File an arrest report on a character (NCPD/fixer/admin only).
+ */
+export const useCreateNcpdReport = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNcpdReport>>, TError,{data: BodyType<NcpdReportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createNcpdReport>>,
+        TError,
+        {data: BodyType<NcpdReportInput>},
+        TContext
+      > => {
+      return useMutation(getCreateNcpdReportMutationOptions(options));
+    }
+
+export const getUpdateNcpdReportUrl = (id: number,) => {
+
+
+
+
+  return `/api/ncpd/reports/${id}`
+}
+
+/**
+ * @summary Edit an arrest report (NCPD/fixer/admin only).
+ */
+export const updateNcpdReport = async (id: number,
+    ncpdReportUpdate: NcpdReportUpdate, options?: RequestInit): Promise<NcpdReport> => {
+
+  return customFetch<NcpdReport>(getUpdateNcpdReportUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      ncpdReportUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateNcpdReportMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateNcpdReport>>, TError,{id: number;data: BodyType<NcpdReportUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateNcpdReport>>, TError,{id: number;data: BodyType<NcpdReportUpdate>}, TContext> => {
+
+const mutationKey = ['updateNcpdReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateNcpdReport>>, {id: number;data: BodyType<NcpdReportUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateNcpdReport(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateNcpdReportMutationResult = NonNullable<Awaited<ReturnType<typeof updateNcpdReport>>>
+    export type UpdateNcpdReportMutationBody = BodyType<NcpdReportUpdate>
+    export type UpdateNcpdReportMutationError = ErrorType<void>
+
+    /**
+ * @summary Edit an arrest report (NCPD/fixer/admin only).
+ */
+export const useUpdateNcpdReport = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateNcpdReport>>, TError,{id: number;data: BodyType<NcpdReportUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateNcpdReport>>,
+        TError,
+        {id: number;data: BodyType<NcpdReportUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateNcpdReportMutationOptions(options));
+    }
+
+export const getDeleteNcpdReportUrl = (id: number,) => {
+
+
+
+
+  return `/api/ncpd/reports/${id}`
+}
+
+/**
+ * @summary Delete an arrest report (NCPD/fixer/admin only).
+ */
+export const deleteNcpdReport = async (id: number, options?: RequestInit): Promise<OkResult> => {
+
+  return customFetch<OkResult>(getDeleteNcpdReportUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteNcpdReportMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteNcpdReport>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteNcpdReport>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteNcpdReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteNcpdReport>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteNcpdReport(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteNcpdReportMutationResult = NonNullable<Awaited<ReturnType<typeof deleteNcpdReport>>>
+
+    export type DeleteNcpdReportMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete an arrest report (NCPD/fixer/admin only).
+ */
+export const useDeleteNcpdReport = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteNcpdReport>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteNcpdReport>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteNcpdReportMutationOptions(options));
+    }
+
+export const getListNcpdWarrantsUrl = (params?: ListNcpdWarrantsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/ncpd/warrants?${stringifiedParams}` : `/api/ncpd/warrants`
+}
+
+/**
+ * @summary Warrants across all characters, optionally filtered by status (NCPD/fixer/admin only).
+ */
+export const listNcpdWarrants = async (params?: ListNcpdWarrantsParams, options?: RequestInit): Promise<NcpdWarrant[]> => {
+
+  return customFetch<NcpdWarrant[]>(getListNcpdWarrantsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListNcpdWarrantsQueryKey = (params?: ListNcpdWarrantsParams,) => {
+    return [
+    `/api/ncpd/warrants`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListNcpdWarrantsQueryOptions = <TData = Awaited<ReturnType<typeof listNcpdWarrants>>, TError = ErrorType<void>>(params?: ListNcpdWarrantsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNcpdWarrants>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListNcpdWarrantsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNcpdWarrants>>> = ({ signal }) => listNcpdWarrants(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listNcpdWarrants>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListNcpdWarrantsQueryResult = NonNullable<Awaited<ReturnType<typeof listNcpdWarrants>>>
+export type ListNcpdWarrantsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Warrants across all characters, optionally filtered by status (NCPD/fixer/admin only).
+ */
+
+export function useListNcpdWarrants<TData = Awaited<ReturnType<typeof listNcpdWarrants>>, TError = ErrorType<void>>(
+ params?: ListNcpdWarrantsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNcpdWarrants>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListNcpdWarrantsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateNcpdWarrantUrl = () => {
+
+
+
+
+  return `/api/ncpd/warrants`
+}
+
+/**
+ * @summary Issue a warrant on a character (NCPD/fixer/admin only).
+ */
+export const createNcpdWarrant = async (ncpdWarrantInput: NcpdWarrantInput, options?: RequestInit): Promise<NcpdWarrant> => {
+
+  return customFetch<NcpdWarrant>(getCreateNcpdWarrantUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      ncpdWarrantInput,)
+  }
+);}
+
+
+
+
+export const getCreateNcpdWarrantMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNcpdWarrant>>, TError,{data: BodyType<NcpdWarrantInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createNcpdWarrant>>, TError,{data: BodyType<NcpdWarrantInput>}, TContext> => {
+
+const mutationKey = ['createNcpdWarrant'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createNcpdWarrant>>, {data: BodyType<NcpdWarrantInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createNcpdWarrant(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateNcpdWarrantMutationResult = NonNullable<Awaited<ReturnType<typeof createNcpdWarrant>>>
+    export type CreateNcpdWarrantMutationBody = BodyType<NcpdWarrantInput>
+    export type CreateNcpdWarrantMutationError = ErrorType<void>
+
+    /**
+ * @summary Issue a warrant on a character (NCPD/fixer/admin only).
+ */
+export const useCreateNcpdWarrant = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNcpdWarrant>>, TError,{data: BodyType<NcpdWarrantInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createNcpdWarrant>>,
+        TError,
+        {data: BodyType<NcpdWarrantInput>},
+        TContext
+      > => {
+      return useMutation(getCreateNcpdWarrantMutationOptions(options));
+    }
+
+export const getUpdateNcpdWarrantUrl = (id: number,) => {
+
+
+
+
+  return `/api/ncpd/warrants/${id}`
+}
+
+/**
+ * @summary Edit a warrant or flip its status (NCPD/fixer/admin only).
+ */
+export const updateNcpdWarrant = async (id: number,
+    ncpdWarrantUpdate: NcpdWarrantUpdate, options?: RequestInit): Promise<NcpdWarrant> => {
+
+  return customFetch<NcpdWarrant>(getUpdateNcpdWarrantUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      ncpdWarrantUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateNcpdWarrantMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateNcpdWarrant>>, TError,{id: number;data: BodyType<NcpdWarrantUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateNcpdWarrant>>, TError,{id: number;data: BodyType<NcpdWarrantUpdate>}, TContext> => {
+
+const mutationKey = ['updateNcpdWarrant'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateNcpdWarrant>>, {id: number;data: BodyType<NcpdWarrantUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateNcpdWarrant(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateNcpdWarrantMutationResult = NonNullable<Awaited<ReturnType<typeof updateNcpdWarrant>>>
+    export type UpdateNcpdWarrantMutationBody = BodyType<NcpdWarrantUpdate>
+    export type UpdateNcpdWarrantMutationError = ErrorType<void>
+
+    /**
+ * @summary Edit a warrant or flip its status (NCPD/fixer/admin only).
+ */
+export const useUpdateNcpdWarrant = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateNcpdWarrant>>, TError,{id: number;data: BodyType<NcpdWarrantUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateNcpdWarrant>>,
+        TError,
+        {id: number;data: BodyType<NcpdWarrantUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateNcpdWarrantMutationOptions(options));
+    }
+
+export const getDeleteNcpdWarrantUrl = (id: number,) => {
+
+
+
+
+  return `/api/ncpd/warrants/${id}`
+}
+
+/**
+ * @summary Delete a warrant (NCPD/fixer/admin only).
+ */
+export const deleteNcpdWarrant = async (id: number, options?: RequestInit): Promise<OkResult> => {
+
+  return customFetch<OkResult>(getDeleteNcpdWarrantUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteNcpdWarrantMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteNcpdWarrant>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteNcpdWarrant>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteNcpdWarrant'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteNcpdWarrant>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteNcpdWarrant(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteNcpdWarrantMutationResult = NonNullable<Awaited<ReturnType<typeof deleteNcpdWarrant>>>
+
+    export type DeleteNcpdWarrantMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a warrant (NCPD/fixer/admin only).
+ */
+export const useDeleteNcpdWarrant = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteNcpdWarrant>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteNcpdWarrant>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteNcpdWarrantMutationOptions(options));
+    }
+
+export const getListNcpdLawsUrl = () => {
+
+
+
+
+  return `/api/ncpd/laws`
+}
+
+/**
+ * @summary The Book of Laws. Public to every signed-in member; severity/punishment/restricted notes are stripped server-side unless the viewer is NCPD/fixer/admin.
+ */
+export const listNcpdLaws = async ( options?: RequestInit): Promise<NcpdLaw[]> => {
+
+  return customFetch<NcpdLaw[]>(getListNcpdLawsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListNcpdLawsQueryKey = () => {
+    return [
+    `/api/ncpd/laws`
+    ] as const;
+    }
+
+
+export const getListNcpdLawsQueryOptions = <TData = Awaited<ReturnType<typeof listNcpdLaws>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNcpdLaws>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListNcpdLawsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNcpdLaws>>> = ({ signal }) => listNcpdLaws({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listNcpdLaws>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListNcpdLawsQueryResult = NonNullable<Awaited<ReturnType<typeof listNcpdLaws>>>
+export type ListNcpdLawsQueryError = ErrorType<void>
+
+
+/**
+ * @summary The Book of Laws. Public to every signed-in member; severity/punishment/restricted notes are stripped server-side unless the viewer is NCPD/fixer/admin.
+ */
+
+export function useListNcpdLaws<TData = Awaited<ReturnType<typeof listNcpdLaws>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNcpdLaws>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListNcpdLawsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateNcpdLawUrl = () => {
+
+
+
+
+  return `/api/ncpd/laws`
+}
+
+/**
+ * @summary Add a law (Commissioner/fixer/admin only).
+ */
+export const createNcpdLaw = async (ncpdLawInput: NcpdLawInput, options?: RequestInit): Promise<NcpdLaw> => {
+
+  return customFetch<NcpdLaw>(getCreateNcpdLawUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      ncpdLawInput,)
+  }
+);}
+
+
+
+
+export const getCreateNcpdLawMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNcpdLaw>>, TError,{data: BodyType<NcpdLawInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createNcpdLaw>>, TError,{data: BodyType<NcpdLawInput>}, TContext> => {
+
+const mutationKey = ['createNcpdLaw'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createNcpdLaw>>, {data: BodyType<NcpdLawInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createNcpdLaw(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateNcpdLawMutationResult = NonNullable<Awaited<ReturnType<typeof createNcpdLaw>>>
+    export type CreateNcpdLawMutationBody = BodyType<NcpdLawInput>
+    export type CreateNcpdLawMutationError = ErrorType<void>
+
+    /**
+ * @summary Add a law (Commissioner/fixer/admin only).
+ */
+export const useCreateNcpdLaw = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNcpdLaw>>, TError,{data: BodyType<NcpdLawInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createNcpdLaw>>,
+        TError,
+        {data: BodyType<NcpdLawInput>},
+        TContext
+      > => {
+      return useMutation(getCreateNcpdLawMutationOptions(options));
+    }
+
+export const getUpdateNcpdLawUrl = (id: number,) => {
+
+
+
+
+  return `/api/ncpd/laws/${id}`
+}
+
+/**
+ * @summary Edit a law (Commissioner/fixer/admin only).
+ */
+export const updateNcpdLaw = async (id: number,
+    ncpdLawUpdate: NcpdLawUpdate, options?: RequestInit): Promise<NcpdLaw> => {
+
+  return customFetch<NcpdLaw>(getUpdateNcpdLawUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      ncpdLawUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateNcpdLawMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateNcpdLaw>>, TError,{id: number;data: BodyType<NcpdLawUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateNcpdLaw>>, TError,{id: number;data: BodyType<NcpdLawUpdate>}, TContext> => {
+
+const mutationKey = ['updateNcpdLaw'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateNcpdLaw>>, {id: number;data: BodyType<NcpdLawUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateNcpdLaw(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateNcpdLawMutationResult = NonNullable<Awaited<ReturnType<typeof updateNcpdLaw>>>
+    export type UpdateNcpdLawMutationBody = BodyType<NcpdLawUpdate>
+    export type UpdateNcpdLawMutationError = ErrorType<void>
+
+    /**
+ * @summary Edit a law (Commissioner/fixer/admin only).
+ */
+export const useUpdateNcpdLaw = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateNcpdLaw>>, TError,{id: number;data: BodyType<NcpdLawUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateNcpdLaw>>,
+        TError,
+        {id: number;data: BodyType<NcpdLawUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateNcpdLawMutationOptions(options));
+    }
+
+export const getDeleteNcpdLawUrl = (id: number,) => {
+
+
+
+
+  return `/api/ncpd/laws/${id}`
+}
+
+/**
+ * @summary Delete a law (Commissioner/fixer/admin only).
+ */
+export const deleteNcpdLaw = async (id: number, options?: RequestInit): Promise<OkResult> => {
+
+  return customFetch<OkResult>(getDeleteNcpdLawUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteNcpdLawMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteNcpdLaw>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteNcpdLaw>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteNcpdLaw'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteNcpdLaw>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteNcpdLaw(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteNcpdLawMutationResult = NonNullable<Awaited<ReturnType<typeof deleteNcpdLaw>>>
+
+    export type DeleteNcpdLawMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a law (Commissioner/fixer/admin only).
+ */
+export const useDeleteNcpdLaw = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteNcpdLaw>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteNcpdLaw>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteNcpdLawMutationOptions(options));
     }
 

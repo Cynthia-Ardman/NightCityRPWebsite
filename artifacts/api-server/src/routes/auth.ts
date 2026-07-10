@@ -350,6 +350,10 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     isArchivist: hasRole(u.roles, "ARCHIVIST"),
     isCsApprover: hasRole(u.roles, "CS_APPROVER"),
     isRipperdoc: hasRole(u.roles, "RIPPERDOC"),
+    // NCPD flags (id-derived markers, see applyRoleIdGrants). A Commissioner is
+    // always also an officer for gating purposes, so isNcpd covers both.
+    isNcpd: hasRole(u.roles, "NCPD") || hasRole(u.roles, "NCPD_COMMISSIONER"),
+    isNcpdCommissioner: hasRole(u.roles, "NCPD_COMMISSIONER"),
     isStoreOwner: hasRole(u.roles, "STORE_OWNER"),
     // Data-derived: true when any of the user's characters is on staff at a
     // store / ripperdoc clinic. Drives the management nav links so employees
