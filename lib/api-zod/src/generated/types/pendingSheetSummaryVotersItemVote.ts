@@ -12,4 +12,5 @@ export type PendingSheetSummaryVotersItemVote = typeof PendingSheetSummaryVoters
 export const PendingSheetSummaryVotersItemVote = {
   approve: 'approve',
   reject: 'reject',
+  pause: 'pause',
 } as const;

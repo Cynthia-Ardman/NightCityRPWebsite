@@ -33,7 +33,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Check, X, Clock, CheckCircle2, XCircle, RotateCcw, ArrowLeft, ShieldCheck, MessageSquareWarning, Pencil, Lock } from "lucide-react";
+import { Check, X, Pause, Clock, CheckCircle2, XCircle, RotateCcw, ArrowLeft, ShieldCheck, MessageSquareWarning, Pencil, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
@@ -261,8 +261,13 @@ export default function PendingEditDetail() {
         <CardContent className="font-mono text-sm space-y-1">
           <div>
             <span className="text-nc-green">{edit.approveCount}</span> approve ·{" "}
-            <span className="text-destructive">{edit.rejectCount}</span> reject ·{" "}
-            threshold <span className="text-nc-cyan">{edit.threshold}</span> of {edit.eligibleVoterCount} eligible reviewers
+            <span className="text-destructive">{edit.rejectCount}</span> reject
+            {(edit.pauseCount ?? 0) > 0 ? (
+              <>
+                {" "}· <span className="text-nc-yellow">{edit.pauseCount}</span> paused
+              </>
+            ) : null}{" "}
+            · threshold <span className="text-nc-cyan">{edit.threshold}</span> of {edit.eligibleVoterCount} eligible reviewers
           </div>
           {edit.decisionSummary && (
             <div className="text-xs text-muted-foreground italic">{edit.decisionSummary}</div>
@@ -321,7 +326,16 @@ export default function PendingEditDetail() {
           <CardContent className="space-y-3">
             {edit.myVote && edit.myVote.vote ? (
               <div className="font-mono text-xs text-muted-foreground">
-                Current vote: <span className={edit.myVote.vote === "approve" ? "text-nc-green" : "text-destructive"}>
+                Current vote:{" "}
+                <span
+                  className={
+                    edit.myVote.vote === "approve"
+                      ? "text-nc-green"
+                      : edit.myVote.vote === "pause"
+                        ? "text-nc-yellow"
+                        : "text-destructive"
+                  }
+                >
                   {edit.myVote.vote.toUpperCase()}
                 </span>
                 {edit.myVote.note ? <span className="italic"> — "{edit.myVote.note}"</span> : null}
@@ -352,6 +366,16 @@ export default function PendingEditDetail() {
                 data-testid="button-reject"
               >
                 <X className="w-4 h-4 mr-1" /> REJECT
+              </Button>
+              <Button
+                onClick={() => vote.mutate({ id: editId, data: { vote: "pause", note: voteNote || undefined } })}
+                disabled={vote.isPending}
+                variant="outline"
+                className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display"
+                data-testid="button-pause"
+                title="Pause marker — doesn't count toward the decision"
+              >
+                <Pause className="w-4 h-4 mr-1" /> PAUSE
               </Button>
             </div>
           </CardContent>

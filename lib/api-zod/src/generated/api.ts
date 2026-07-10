@@ -7285,7 +7285,7 @@ export const ListMySheetsResponseItem = zod.object({
   "voterId": zod.string(),
   "voterName": zod.string().nullish(),
   "voterAvatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject']),
+  "vote": zod.enum(['approve', 'reject', 'pause']),
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date()
 })).optional(),
@@ -7299,8 +7299,9 @@ export const ListMySheetsResponseItem = zod.object({
   "threshold": zod.number().optional(),
   "approveCount": zod.number().optional(),
   "rejectCount": zod.number().optional(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "myVote": zod.union([zod.null(),zod.object({
-  "vote": zod.enum(['approve', 'reject']),
+  "vote": zod.enum(['approve', 'reject', 'pause']),
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date().optional()
 })]).optional(),
@@ -7383,9 +7384,10 @@ export const ListPendingSheetsResponseItem = zod.object({
   "ownerAvatarUrl": zod.string().nullish(),
   "approveCount": zod.number(),
   "rejectCount": zod.number(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "threshold": zod.number(),
   "myVote": zod.union([zod.null(),zod.object({
-  "vote": zod.enum(['approve', 'reject']),
+  "vote": zod.enum(['approve', 'reject', 'pause']),
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date().optional()
 })]).optional(),
@@ -7399,7 +7401,7 @@ export const ListPendingSheetsResponseItem = zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject'])
+  "vote": zod.enum(['approve', 'reject', 'pause'])
 })).optional().describe('Reviewers who have already cast a vote on this sheet. Present on the reviewer-facing pending list.')
 })
 export const ListPendingSheetsResponse = zod.array(ListPendingSheetsResponseItem)
@@ -7473,7 +7475,7 @@ export const GetSheetResponse = zod.object({
   "voterId": zod.string(),
   "voterName": zod.string().nullish(),
   "voterAvatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject']),
+  "vote": zod.enum(['approve', 'reject', 'pause']),
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date()
 })).optional(),
@@ -7487,8 +7489,9 @@ export const GetSheetResponse = zod.object({
   "threshold": zod.number().optional(),
   "approveCount": zod.number().optional(),
   "rejectCount": zod.number().optional(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "myVote": zod.union([zod.null(),zod.object({
-  "vote": zod.enum(['approve', 'reject']),
+  "vote": zod.enum(['approve', 'reject', 'pause']),
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date().optional()
 })]).optional(),
@@ -7621,7 +7624,7 @@ export const UpdateSheetResponse = zod.object({
   "voterId": zod.string(),
   "voterName": zod.string().nullish(),
   "voterAvatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject']),
+  "vote": zod.enum(['approve', 'reject', 'pause']),
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date()
 })).optional(),
@@ -7635,8 +7638,9 @@ export const UpdateSheetResponse = zod.object({
   "threshold": zod.number().optional(),
   "approveCount": zod.number().optional(),
   "rejectCount": zod.number().optional(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "myVote": zod.union([zod.null(),zod.object({
-  "vote": zod.enum(['approve', 'reject']),
+  "vote": zod.enum(['approve', 'reject', 'pause']),
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date().optional()
 })]).optional(),
@@ -7726,7 +7730,7 @@ export const SubmitDraftSheetResponse = zod.object({
   "voterId": zod.string(),
   "voterName": zod.string().nullish(),
   "voterAvatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject']),
+  "vote": zod.enum(['approve', 'reject', 'pause']),
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date()
 })).optional(),
@@ -7740,8 +7744,9 @@ export const SubmitDraftSheetResponse = zod.object({
   "threshold": zod.number().optional(),
   "approveCount": zod.number().optional(),
   "rejectCount": zod.number().optional(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "myVote": zod.union([zod.null(),zod.object({
-  "vote": zod.enum(['approve', 'reject']),
+  "vote": zod.enum(['approve', 'reject', 'pause']),
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date().optional()
 })]).optional(),
@@ -7764,7 +7769,7 @@ export const voteSheetBodyNoteMax = 2000;
 
 
 export const VoteSheetBody = zod.object({
-  "vote": zod.enum(['approve', 'reject']),
+  "vote": zod.enum(['approve', 'reject', 'pause']).describe('Pause is a visible marker only — it never counts toward the decision threshold.'),
   "note": zod.string().max(voteSheetBodyNoteMax).optional()
 })
 
@@ -7773,6 +7778,7 @@ export const VoteSheetResponse = zod.object({
   "decided": zod.union([zod.literal('approved'),zod.literal('rejected'),zod.literal(null)]).nullish(),
   "approveCount": zod.number(),
   "rejectCount": zod.number(),
+  "pauseCount": zod.number().optional(),
   "threshold": zod.number()
 })
 
@@ -7852,7 +7858,7 @@ export const OverrideSheetResponse = zod.object({
   "voterId": zod.string(),
   "voterName": zod.string().nullish(),
   "voterAvatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject']),
+  "vote": zod.enum(['approve', 'reject', 'pause']),
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date()
 })).optional(),
@@ -7866,8 +7872,9 @@ export const OverrideSheetResponse = zod.object({
   "threshold": zod.number().optional(),
   "approveCount": zod.number().optional(),
   "rejectCount": zod.number().optional(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "myVote": zod.union([zod.null(),zod.object({
-  "vote": zod.enum(['approve', 'reject']),
+  "vote": zod.enum(['approve', 'reject', 'pause']),
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date().optional()
 })]).optional(),
@@ -7921,9 +7928,10 @@ export const ListPendingEditsResponseItem = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "approveCount": zod.number(),
   "rejectCount": zod.number(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "threshold": zod.number(),
   "myVote": zod.union([zod.null(),zod.object({
-  "vote": zod.enum(['approve', 'reject']),
+  "vote": zod.enum(['approve', 'reject', 'pause']),
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date().optional()
 })]).optional(),
@@ -7937,7 +7945,7 @@ export const ListPendingEditsResponseItem = zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject'])
+  "vote": zod.enum(['approve', 'reject', 'pause'])
 }))
 })
 export const ListPendingEditsResponse = zod.array(ListPendingEditsResponseItem)
@@ -7972,7 +7980,7 @@ export const GetPendingEditResponse = zod.object({
   "voterId": zod.string(),
   "voterName": zod.string().nullish(),
   "voterAvatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject']),
+  "vote": zod.enum(['approve', 'reject', 'pause']),
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date()
 })),
@@ -7986,8 +7994,9 @@ export const GetPendingEditResponse = zod.object({
   "threshold": zod.number(),
   "approveCount": zod.number(),
   "rejectCount": zod.number(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "myVote": zod.union([zod.null(),zod.object({
-  "vote": zod.enum(['approve', 'reject']).optional(),
+  "vote": zod.enum(['approve', 'reject', 'pause']).optional(),
   "note": zod.string().nullish(),
   "votedAt": zod.coerce.date().optional()
 })]).optional(),
@@ -8011,7 +8020,7 @@ export const votePendingEditBodyNoteMax = 2000;
 
 
 export const VotePendingEditBody = zod.object({
-  "vote": zod.enum(['approve', 'reject']),
+  "vote": zod.enum(['approve', 'reject', 'pause']).describe('Pause is a visible marker only — it never counts toward the decision threshold.'),
   "note": zod.string().max(votePendingEditBodyNoteMax).optional()
 })
 
@@ -8020,6 +8029,7 @@ export const VotePendingEditResponse = zod.object({
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "approveCount": zod.number(),
   "rejectCount": zod.number(),
+  "pauseCount": zod.number().optional(),
   "threshold": zod.number(),
   "eligibleVoterCount": zod.number()
 })
@@ -9469,8 +9479,9 @@ export const ListCustomRequestsResponseItem = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
   "rejectCount": zod.number().optional(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
-  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal('pause'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
@@ -9481,7 +9492,7 @@ export const ListCustomRequestsResponseItem = zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject'])
+  "vote": zod.enum(['approve', 'reject', 'pause'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date(),
   "lastActivityAt": zod.coerce.date().optional()
@@ -9535,8 +9546,9 @@ export const ListMyCustomRequestsResponseItem = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
   "rejectCount": zod.number().optional(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
-  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal('pause'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
@@ -9547,7 +9559,7 @@ export const ListMyCustomRequestsResponseItem = zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject'])
+  "vote": zod.enum(['approve', 'reject', 'pause'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date(),
   "lastActivityAt": zod.coerce.date().optional()
@@ -9576,7 +9588,7 @@ export const voteCustomRequestBodyRetailMin = 0;
 
 
 export const VoteCustomRequestBody = zod.object({
-  "vote": zod.enum(['approve', 'reject']),
+  "vote": zod.enum(['approve', 'reject', 'pause']).describe('Pause is a visible marker only — it never counts toward the decision threshold.'),
   "note": zod.string().max(voteCustomRequestBodyNoteMax).optional(),
   "monthlyRent": zod.number().min(voteCustomRequestBodyMonthlyRentMin).optional().describe('Required on an approve vote for property requests.'),
   "kind": zod.enum(['residential', 'business']).optional().describe('For property approve votes; defaults residential.'),
@@ -9606,8 +9618,9 @@ export const VoteCustomRequestResponse = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
   "rejectCount": zod.number().optional(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
-  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal('pause'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
@@ -9618,7 +9631,7 @@ export const VoteCustomRequestResponse = zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject'])
+  "vote": zod.enum(['approve', 'reject', 'pause'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date(),
   "lastActivityAt": zod.coerce.date().optional()
@@ -9676,8 +9689,9 @@ export const OverrideCustomRequestResponse = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
   "rejectCount": zod.number().optional(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
-  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal('pause'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
@@ -9688,7 +9702,7 @@ export const OverrideCustomRequestResponse = zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject'])
+  "vote": zod.enum(['approve', 'reject', 'pause'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date(),
   "lastActivityAt": zod.coerce.date().optional()
@@ -9738,8 +9752,9 @@ export const ResubmitCustomRequestResponse = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
   "rejectCount": zod.number().optional(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
-  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal('pause'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
@@ -9750,7 +9765,7 @@ export const ResubmitCustomRequestResponse = zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject'])
+  "vote": zod.enum(['approve', 'reject', 'pause'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date(),
   "lastActivityAt": zod.coerce.date().optional()
@@ -9783,8 +9798,9 @@ export const SubmitDraftCustomRequestResponse = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
   "rejectCount": zod.number().optional(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
-  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal('pause'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
@@ -9795,7 +9811,7 @@ export const SubmitDraftCustomRequestResponse = zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject'])
+  "vote": zod.enum(['approve', 'reject', 'pause'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date(),
   "lastActivityAt": zod.coerce.date().optional()
@@ -9836,8 +9852,9 @@ export const UpdateCustomRequestResponse = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
   "rejectCount": zod.number().optional(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
-  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal('pause'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
@@ -9848,7 +9865,7 @@ export const UpdateCustomRequestResponse = zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject'])
+  "vote": zod.enum(['approve', 'reject', 'pause'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date(),
   "lastActivityAt": zod.coerce.date().optional()
@@ -9894,8 +9911,9 @@ export const DecideStockCostRequestResponse = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
   "rejectCount": zod.number().optional(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
-  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal('pause'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
@@ -9906,7 +9924,7 @@ export const DecideStockCostRequestResponse = zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject'])
+  "vote": zod.enum(['approve', 'reject', 'pause'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date(),
   "lastActivityAt": zod.coerce.date().optional()
@@ -9943,8 +9961,9 @@ export const DecideEmployeeInviteResponse = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
   "rejectCount": zod.number().optional(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
-  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal('pause'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
@@ -9955,7 +9974,7 @@ export const DecideEmployeeInviteResponse = zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject'])
+  "vote": zod.enum(['approve', 'reject', 'pause'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date(),
   "lastActivityAt": zod.coerce.date().optional()
@@ -9992,8 +10011,9 @@ export const DecideMissionParticipationResponse = zod.object({
   "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
   "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
   "rejectCount": zod.number().optional(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
   "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
-  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal('pause'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
   "eligibleReviewers": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
@@ -10004,7 +10024,7 @@ export const DecideMissionParticipationResponse = zod.object({
   "id": zod.string(),
   "name": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
-  "vote": zod.enum(['approve', 'reject'])
+  "vote": zod.enum(['approve', 'reject', 'pause'])
 })).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
   "createdAt": zod.coerce.date(),
   "lastActivityAt": zod.coerce.date().optional()

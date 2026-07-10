@@ -9,6 +9,7 @@ import type { CustomRequestVoteInputKind } from './customRequestVoteInputKind';
 import type { CustomRequestVoteInputVote } from './customRequestVoteInputVote';
 
 export interface CustomRequestVoteInput {
+  /** Pause is a visible marker only — it never counts toward the decision threshold. */
   vote: CustomRequestVoteInputVote;
   /** @maxLength 2000 */
   note?: string;

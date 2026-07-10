@@ -44,6 +44,8 @@ export interface PendingEditSummary {
   decidedAt?: Date | null;
   approveCount: number;
   rejectCount: number;
+  /** Pause markers — visible flag only, never counted toward the decision threshold. */
+  pauseCount?: number;
   threshold: number;
   myVote?: ReviewerSelfVote;
   /** Full roster of reviewers eligible to vote on this edit (excludes the submitter). Present on the reviewer-facing pending list. */

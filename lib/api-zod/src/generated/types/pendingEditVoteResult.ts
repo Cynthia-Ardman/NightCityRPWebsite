@@ -12,6 +12,7 @@ export interface PendingEditVoteResult {
   status: PendingEditVoteResultStatus;
   approveCount: number;
   rejectCount: number;
+  pauseCount?: number;
   threshold: number;
   eligibleVoterCount: number;
 }

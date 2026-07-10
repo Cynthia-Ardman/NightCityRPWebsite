@@ -7,7 +7,7 @@
  */
 
 export type PendingEditDetailMyVote = null | {
-  vote?: 'approve' | 'reject';
+  vote?: 'approve' | 'reject' | 'pause';
   /** @nullable */
   note?: string | null;
   votedAt?: Date;

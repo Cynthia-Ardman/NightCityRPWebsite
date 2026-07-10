@@ -7872,8 +7872,9 @@ components:
         overriddenBy: { type: ["string", "null"], description: "Admin user id if approved via override." }
         approveCount: { type: integer, description: "Review tally — present on list responses." }
         rejectCount: { type: integer }
+        pauseCount: { type: integer, description: "Pause markers — visible flag only, never counted toward the decision threshold." }
         threshold: { type: integer, description: "Majority needed among eligible reviewers (excludes the requester)." }
-        myVote: { type: ["string", "null"], enum: [approve, reject, null], description: "The viewer's own vote, if any." }
+        myVote: { type: ["string", "null"], enum: [approve, reject, pause, null], description: "The viewer's own vote, if any." }
         eligibleReviewers:
           type: array
           description: "Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses."
@@ -7888,7 +7889,7 @@ components:
               id: { type: string }
               name: { type: ["string", "null"] }
               avatarUrl: { type: ["string", "null"] }
-              vote: { type: string, enum: [approve, reject] }
+              vote: { type: string, enum: [approve, reject, pause] }
         createdAt: { type: string, format: date-time }
         lastActivityAt: { type: string, format: date-time }
 
@@ -7896,7 +7897,7 @@ components:
       type: object
       required: [vote]
       properties:
-        vote: { type: string, enum: [approve, reject] }
+        vote: { type: string, enum: [approve, reject, pause], description: "Pause is a visible marker only — it never counts toward the decision threshold." }
         note: { type: string, maxLength: 2000 }
         monthlyRent: { type: integer, minimum: 0, description: "Required on an approve vote for property requests." }
         kind: { type: string, enum: [residential, business], description: "For property approve votes; defaults residential." }
@@ -8147,6 +8148,7 @@ components:
         threshold: { type: integer }
         approveCount: { type: integer }
         rejectCount: { type: integer }
+        pauseCount: { type: integer, description: "Pause markers — visible flag only, never counted toward the decision threshold." }
         myVote: { $ref: "#/components/schemas/ReviewerSelfVote" }
         canVote: { type: boolean }
         canRequestChanges: { type: boolean }
@@ -8171,7 +8173,7 @@ components:
         voterId: { type: string }
         voterName: { type: ["string", "null"] }
         voterAvatarUrl: { type: ["string", "null"] }
-        vote: { type: string, enum: [approve, reject] }
+        vote: { type: string, enum: [approve, reject, pause] }
         note: { type: ["string", "null"] }
         votedAt: { type: string, format: date-time }
 
@@ -8181,7 +8183,7 @@ components:
         - type: object
           required: [vote]
           properties:
-            vote: { type: string, enum: [approve, reject] }
+            vote: { type: string, enum: [approve, reject, pause] }
             note: { type: ["string", "null"] }
             votedAt: { type: string, format: date-time }
 
@@ -8200,6 +8202,7 @@ components:
         ownerAvatarUrl: { type: ["string", "null"] }
         approveCount: { type: integer }
         rejectCount: { type: integer }
+        pauseCount: { type: integer, description: "Pause markers — visible flag only, never counted toward the decision threshold." }
         threshold: { type: integer }
         myVote: { $ref: "#/components/schemas/ReviewerSelfVote" }
         eligibleReviewers:
@@ -8216,13 +8219,13 @@ components:
               id: { type: string }
               name: { type: ["string", "null"] }
               avatarUrl: { type: ["string", "null"] }
-              vote: { type: string, enum: [approve, reject] }
+              vote: { type: string, enum: [approve, reject, pause] }
 
     SheetVoteInput:
       type: object
       required: [vote]
       properties:
-        vote: { type: string, enum: [approve, reject] }
+        vote: { type: string, enum: [approve, reject, pause], description: "Pause is a visible marker only — it never counts toward the decision threshold." }
         note: { type: string, maxLength: 2000 }
 
     SheetVoteResult:
@@ -8233,6 +8236,7 @@ components:
         decided: { type: ["string", "null"], enum: [approved, rejected, null] }
         approveCount: { type: integer }
         rejectCount: { type: integer }
+        pauseCount: { type: integer }
         threshold: { type: integer }
 
     CharacterSheetData:
@@ -8400,6 +8404,7 @@ components:
         decidedAt: { type: ["string", "null"], format: date-time }
         approveCount: { type: integer }
         rejectCount: { type: integer }
+        pauseCount: { type: integer, description: "Pause markers — visible flag only, never counted toward the decision threshold." }
         threshold: { type: integer }
         myVote: { $ref: "#/components/schemas/ReviewerSelfVote" }
         eligibleReviewers:
@@ -8415,7 +8420,7 @@ components:
               id: { type: string }
               name: { type: ["string", "null"] }
               avatarUrl: { type: ["string", "null"] }
-              vote: { type: string, enum: [approve, reject] }
+              vote: { type: string, enum: [approve, reject, pause] }
 
     PendingEditVoteRecord:
       type: object
@@ -8425,7 +8430,7 @@ components:
         voterId: { type: string }
         voterName: { type: ["string", "null"] }
         voterAvatarUrl: { type: ["string", "null"] }
-        vote: { type: string, enum: [approve, reject] }
+        vote: { type: string, enum: [approve, reject, pause] }
         note: { type: ["string", "null"] }
         votedAt: { type: string, format: date-time }
 
@@ -8464,12 +8469,13 @@ components:
         threshold: { type: integer }
         approveCount: { type: integer }
         rejectCount: { type: integer }
+        pauseCount: { type: integer, description: "Pause markers — visible flag only, never counted toward the decision threshold." }
         myVote:
           oneOf:
             - type: "null"
             - type: object
               properties:
-                vote: { type: string, enum: [approve, reject] }
+                vote: { type: string, enum: [approve, reject, pause] }
                 note: { type: ["string", "null"] }
                 votedAt: { type: string, format: date-time }
         canVote: { type: boolean }
@@ -8525,7 +8531,7 @@ components:
       type: object
       required: [vote]
       properties:
-        vote: { type: string, enum: [approve, reject] }
+        vote: { type: string, enum: [approve, reject, pause], description: "Pause is a visible marker only — it never counts toward the decision threshold." }
         note: { type: string, maxLength: 2000 }
 
     PendingEditVoteResult:
@@ -8536,6 +8542,7 @@ components:
         status: { type: string, enum: [pending, approved, rejected] }
         approveCount: { type: integer }
         rejectCount: { type: integer }
+        pauseCount: { type: integer }
         threshold: { type: integer }
         eligibleVoterCount: { type: integer }
 

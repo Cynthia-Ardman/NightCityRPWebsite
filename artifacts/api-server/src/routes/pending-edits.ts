@@ -543,6 +543,7 @@ async function hydrateEdits(
     const votes = allVotes.filter((v) => eligibleSet.has(v.voterId));
     const approveCount = votes.filter((v) => v.vote === "approve").length;
     const rejectCount = votes.filter((v) => v.vote === "reject").length;
+    const pauseCount = votes.filter((v) => v.vote === "pause").length;
     const myVote = allVotes.find((v) => v.voterId === opts.viewerId) ?? null;
     return {
       id: r.id,
@@ -566,6 +567,7 @@ async function hydrateEdits(
       decidedAt: r.decidedAt,
       approveCount,
       rejectCount,
+      pauseCount,
       threshold: majorityOf(eligibleCount),
       myVote: myVote ? { vote: myVote.vote, note: myVote.note, votedAt: myVote.votedAt } : null,
       voters: votes.map((v) => ({
@@ -731,6 +733,7 @@ router.get("/pending-edits/:id", requireAuth, async (req, res): Promise<void> =>
   const effectiveVotes = votes.filter((v) => eligibleSet.has(v.voterId));
   const approveCount = effectiveVotes.filter((v) => v.vote === "approve").length;
   const rejectCount = effectiveVotes.filter((v) => v.vote === "reject").length;
+  const pauseCount = effectiveVotes.filter((v) => v.vote === "pause").length;
   const myVote = votes.find((v) => v.voterId === u.id) ?? null;
   // Build a field-by-field before/after preview. We use the snapshot
   // captured at submission time so the reviewer sees what the submitter
@@ -762,6 +765,7 @@ router.get("/pending-edits/:id", requireAuth, async (req, res): Promise<void> =>
     threshold,
     approveCount,
     rejectCount,
+    pauseCount,
     myVote: myVote ? { vote: myVote.vote, note: myVote.note, votedAt: myVote.votedAt } : null,
     canVote: canCast && !isSubmitter && row.status === "pending",
     // Fixers / cs-approvers (not the submitter) can request changes on a pending
@@ -777,7 +781,9 @@ router.get("/pending-edits/:id", requireAuth, async (req, res): Promise<void> =>
 });
 
 const VoteSchema = z.object({
-  vote: z.enum(["approve", "reject"]),
+  // "pause" is a visible marker only — it never counts toward the decision
+  // thresholds and never blocks auto-finalize.
+  vote: z.enum(["approve", "reject", "pause"]),
   note: z.string().trim().max(2000).optional(),
 });
 
@@ -860,6 +866,8 @@ router.post("/pending-edits/:id/vote", requireAuth, async (req, res): Promise<vo
     const effective = allVotes.filter((v) => eligibleSet.has(v.voterId));
     const approves = effective.filter((v) => v.vote === "approve").length;
     const rejects = effective.filter((v) => v.vote === "reject").length;
+    // Pause is a visible marker only — never counted toward the decision.
+    const pauses = effective.filter((v) => v.vote === "pause").length;
     const threshold = majorityOf(eligibleIds.length);
     let decided: "approved" | "rejected" | null = null;
     if (approves >= threshold) decided = "approved";
@@ -887,7 +895,7 @@ router.post("/pending-edits/:id/vote", requireAuth, async (req, res): Promise<vo
         });
       }
     }
-    return { kind: "ok" as const, decided, approves, rejects, threshold, eligibleVoterCount: eligibleIds.length, cleared };
+    return { kind: "ok" as const, decided, approves, rejects, pauses, threshold, eligibleVoterCount: eligibleIds.length, cleared };
   });
 
   if (result.kind === "not_found") {
@@ -904,6 +912,7 @@ router.post("/pending-edits/:id/vote", requireAuth, async (req, res): Promise<vo
     cleared: result.cleared,
     approveCount: result.approves,
     rejectCount: result.rejects,
+    pauseCount: result.pauses,
     threshold: result.threshold,
     eligibleVoterCount: result.eligibleVoterCount,
   });

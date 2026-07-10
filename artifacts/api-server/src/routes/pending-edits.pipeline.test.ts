@@ -106,6 +106,37 @@ describe("pending edit voting — majority threshold", () => {
       .send({ vote: "approve" });
     expect(res.status).toBe(403);
   });
+
+  it("tallies pause as a marker only — it never counts toward the threshold and toggles off", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    await createFixer(); // pool 3 → threshold 2
+    const { char, edit } = await seedPendingEdit({ submitterId: owner.id });
+
+    // Two pauses would meet the threshold if counted — the edit must stay pending.
+    await request(app).post(`/api/pending-edits/${edit.id}/vote`).set("x-test-user", f1.id).send({ vote: "pause" });
+    const p2 = await request(app).post(`/api/pending-edits/${edit.id}/vote`).set("x-test-user", f2.id).send({ vote: "pause" });
+    expect(p2.status).toBe(200);
+    expect(p2.body.status).toBe("pending");
+    expect(p2.body.pauseCount).toBe(2);
+    expect(p2.body.approveCount).toBe(0);
+    expect(p2.body.rejectCount).toBe(0);
+
+    // No effect was applied while paused.
+    const [midChar] = await db.select().from(characters).where(eq(characters.id, char.id));
+    expect(midChar.background).toBe("old story");
+
+    // Re-casting pause toggles it off.
+    const p3 = await request(app).post(`/api/pending-edits/${edit.id}/vote`).set("x-test-user", f2.id).send({ vote: "pause" });
+    expect(p3.body.pauseCount).toBe(1);
+
+    // A remaining pause never blocks approvals from deciding.
+    await request(app).post(`/api/pending-edits/${edit.id}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
+    const a2 = await request(app).post(`/api/pending-edits/${edit.id}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    expect(a2.body.status).toBe("approved");
+    expect(a2.body.pauseCount).toBe(0);
+  });
 });
 
 describe("pending edit override", () => {

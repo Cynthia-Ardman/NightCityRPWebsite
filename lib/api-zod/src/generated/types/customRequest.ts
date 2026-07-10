@@ -53,6 +53,8 @@ export interface CustomRequest {
   /** Review tally — present on list responses. */
   approveCount?: number;
   rejectCount?: number;
+  /** Pause markers — visible flag only, never counted toward the decision threshold. */
+  pauseCount?: number;
   /** Majority needed among eligible reviewers (excludes the requester). */
   threshold?: number;
   /**

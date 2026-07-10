@@ -317,10 +317,19 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
               <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-misc-${r.id}`}>
                 <span className="text-nc-green">{r.approveCount ?? 0}</span>/{r.threshold ?? "?"} approve ·{" "}
                 <span className="text-destructive">{r.rejectCount ?? 0}</span> reject
+                {(r.pauseCount ?? 0) > 0 ? (
+                  <>
+                    {" "}· <span className="text-nc-yellow">{r.pauseCount}</span> paused
+                  </>
+                ) : null}
                 {r.myVote ? (
                   <span className="ml-2">
                     · you voted{" "}
-                    <span className={r.myVote === "approve" ? "text-nc-green" : "text-destructive"}>
+                    <span
+                      className={
+                        r.myVote === "approve" ? "text-nc-green" : r.myVote === "pause" ? "text-nc-yellow" : "text-destructive"
+                      }
+                    >
                       {r.myVote.toUpperCase()}
                     </span>
                   </span>
@@ -360,6 +369,16 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
                         data-testid={`button-reject-misc-${r.id}`}
                       >
                         {r.myVote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                        disabled={voteMut.isPending}
+                        onClick={() => voteMut.mutate({ id: r.id, data: { vote: "pause" } })}
+                        data-testid={`button-pause-misc-${r.id}`}
+                        title="Pause marker — doesn't count toward the decision"
+                      >
+                        {r.myVote === "pause" ? "VOTED PAUSE" : "VOTE PAUSE"}
                       </Button>
                     </>
                   )}
@@ -1243,10 +1262,19 @@ function NewCharactersTab() {
             <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-sheet-${sheet.id}`}>
               <span className="text-nc-green">{sheet.approveCount ?? 0}</span>/{sheet.threshold ?? "?"} approve ·{" "}
               <span className="text-destructive">{sheet.rejectCount ?? 0}</span> reject
+              {(sheet.pauseCount ?? 0) > 0 ? (
+                <>
+                  {" "}· <span className="text-nc-yellow">{sheet.pauseCount}</span> paused
+                </>
+              ) : null}
               {my ? (
                 <span className="ml-2">
                   · you voted{" "}
-                  <span className={my.vote === "approve" ? "text-nc-green" : "text-destructive"}>
+                  <span
+                    className={
+                      my.vote === "approve" ? "text-nc-green" : my.vote === "pause" ? "text-nc-yellow" : "text-destructive"
+                    }
+                  >
                     {my.vote.toUpperCase()}
                   </span>
                 </span>
@@ -1281,6 +1309,16 @@ function NewCharactersTab() {
                           data-testid={`button-reject-sheet-${sheet.id}`}
                         >
                           {my?.vote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                          disabled={busy}
+                          onClick={() => vote.mutate({ id: sheet.id, data: { vote: "pause" } })}
+                          data-testid={`button-pause-sheet-${sheet.id}`}
+                          title="Pause marker — doesn't count toward the decision"
+                        >
+                          {my?.vote === "pause" ? "VOTED PAUSE" : "VOTE PAUSE"}
                         </Button>
                       </>
                     )}

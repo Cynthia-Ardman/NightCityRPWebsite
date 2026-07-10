@@ -12,4 +12,5 @@ export type PendingEditSummaryVotersItemVote = typeof PendingEditSummaryVotersIt
 export const PendingEditSummaryVotersItemVote = {
   approve: 'approve',
   reject: 'reject',
+  pause: 'pause',
 } as const;

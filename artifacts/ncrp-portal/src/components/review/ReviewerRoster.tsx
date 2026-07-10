@@ -5,7 +5,7 @@ export type RosterReviewer = {
   // Display-only: true when this reviewer is a trial fixer (still on probation).
   isTrialFixer?: boolean;
 };
-export type RosterVote = { id: string; vote: "approve" | "reject" };
+export type RosterVote = { id: string; vote: "approve" | "reject" | "pause" };
 
 // Shared "who has voted / who hasn't" panel for the three review pipelines
 // (character edits, character sheets, custom requests). Given the full
@@ -39,8 +39,11 @@ export function ReviewerRoster({
               ? "border-nc-green/70 text-nc-green"
               : vote === "reject"
                 ? "border-destructive/70 text-destructive"
-                : "border-border text-muted-foreground";
-          const status = vote === "approve" ? "Approved" : vote === "reject" ? "Rejected" : "Awaiting";
+                : vote === "pause"
+                  ? "border-nc-yellow/70 text-nc-yellow"
+                  : "border-border text-muted-foreground";
+          const status =
+            vote === "approve" ? "Approved" : vote === "reject" ? "Rejected" : vote === "pause" ? "Paused" : "Awaiting";
           return (
             <span
               key={r.id}

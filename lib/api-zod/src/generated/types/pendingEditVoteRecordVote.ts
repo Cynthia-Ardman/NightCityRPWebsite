@@ -12,4 +12,5 @@ export type PendingEditVoteRecordVote = typeof PendingEditVoteRecordVote[keyof t
 export const PendingEditVoteRecordVote = {
   approve: 'approve',
   reject: 'reject',
+  pause: 'pause',
 } as const;

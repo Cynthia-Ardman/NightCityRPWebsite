@@ -816,12 +816,14 @@ async function attachTallies(
     const votes = (votesById.get(r.id) ?? []).filter((v) => eligibleSet.has(v.voterId));
     const approveCount = votes.filter((v) => v.vote === "approve").length;
     const rejectCount = votes.filter((v) => v.vote === "reject").length;
+    const pauseCount = votes.filter((v) => v.vote === "pause").length;
     const mine = (votesById.get(r.id) ?? []).find((v) => v.voterId === viewerId);
     return {
       ...shape(r),
       lastActivityAt: (activityById.get(r.id) ?? r.createdAt).toISOString(),
       approveCount,
       rejectCount,
+      pauseCount,
       threshold: majorityOf(eligible.length),
       myVote: mine?.vote ?? null,
       ...(includeRoster ? { eligibleReviewers: eligible } : {}),
@@ -1212,9 +1214,12 @@ router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> =
   }
   const rid = parseInt(String(req.params.id), 10);
   const body = req.body ?? {};
-  const vote = body.vote === "approve" ? "approve" : body.vote === "reject" ? "reject" : null;
+  // "pause" is a visible marker only — it never counts toward the decision
+  // thresholds (see tallyReviewVotes) and never blocks auto-finalize.
+  const vote =
+    body.vote === "approve" ? "approve" : body.vote === "reject" ? "reject" : body.vote === "pause" ? "pause" : null;
   if (!vote) {
-    res.status(400).json({ error: "vote must be 'approve' or 'reject'" });
+    res.status(400).json({ error: "vote must be 'approve', 'reject' or 'pause'" });
     return;
   }
   const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
@@ -1353,7 +1358,7 @@ router.post("/requests/:id/vote", requireAuth, async (req, res): Promise<void> =
     });
   }
   const [row] = await selectWhere(eq(customRequests.id, rid));
-  res.json({ ...shape(row), decided: out.decided, approveCount: out.tally.approveCount, rejectCount: out.tally.rejectCount, threshold: out.tally.threshold });
+  res.json({ ...shape(row), decided: out.decided, approveCount: out.tally.approveCount, rejectCount: out.tally.rejectCount, pauseCount: out.tally.pauseCount, threshold: out.tally.threshold });
 });
 
 // POST /requests/:id/override — admin-only immediate approval, bypassing the

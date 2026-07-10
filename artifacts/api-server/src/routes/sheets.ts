@@ -177,6 +177,7 @@ router.get("/sheets/pending", requireAuth, async (req, res): Promise<void> => {
     const votes = allVotes.filter((v) => eligibleSet.has(v.voterId));
     const approveCount = votes.filter((v) => v.vote === "approve").length;
     const rejectCount = votes.filter((v) => v.vote === "reject").length;
+    const pauseCount = votes.filter((v) => v.vote === "pause").length;
     const myVote = allVotes.find((v) => v.voterId === req.user!.id) ?? null;
     const { discordMessageId: _dm, submittedAt: _rawSubmittedAt, ...rest } = r;
     return {
@@ -185,6 +186,7 @@ router.get("/sheets/pending", requireAuth, async (req, res): Promise<void> => {
       lastActivityAt: (activityBySheet.get(r.id) ?? r.createdAt).toISOString(),
       approveCount,
       rejectCount,
+      pauseCount,
       threshold: majorityOf(eligible.length),
       myVote: myVote ? { vote: myVote.vote, note: myVote.note, votedAt: myVote.votedAt } : null,
       eligibleReviewers: eligible,
@@ -244,6 +246,7 @@ router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
   const effectiveVotes = votes.filter((v) => eligibleSet.has(v.voterId));
   const approveCount = effectiveVotes.filter((v) => v.vote === "approve").length;
   const rejectCount = effectiveVotes.filter((v) => v.vote === "reject").length;
+  const pauseCount = effectiveVotes.filter((v) => v.vote === "pause").length;
   const myVote = votes.find((v) => v.voterId === req.user!.id) ?? null;
   res.json({
     ...s,
@@ -256,6 +259,7 @@ router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
     threshold: majorityOf(eligibleIds.length),
     approveCount,
     rejectCount,
+    pauseCount,
     myVote: myVote ? { vote: myVote.vote, note: myVote.note, votedAt: myVote.votedAt } : null,
     // A fixer / cs-approver who is not the owner can vote / request changes on a
     // pending sheet. Admins are excluded here (they use override).
@@ -940,8 +944,10 @@ router.post("/sheets/:id/vote", requireAuth, async (req, res): Promise<void> => 
     return;
   }
   const { vote, note } = req.body ?? {};
-  if (vote !== "approve" && vote !== "reject") {
-    res.status(400).json({ error: "vote must be 'approve' or 'reject'" });
+  // "pause" is a visible marker only — it never counts toward the decision
+  // thresholds (see tallyReviewVotes) and never blocks auto-finalize.
+  if (vote !== "approve" && vote !== "reject" && vote !== "pause") {
+    res.status(400).json({ error: "vote must be 'approve', 'reject' or 'pause'" });
     return;
   }
   const result = await db.transaction(async (tx) => {
@@ -987,7 +993,7 @@ router.post("/sheets/:id/vote", requireAuth, async (req, res): Promise<void> => 
       : `${u.username} voted ${vote} on sheet "${sheet.name}"${decided ? ` → ${decided}` : ""}`,
     after: { vote, cleared, decided, approveCount: tally.approveCount, rejectCount: tally.rejectCount },
   });
-  res.json({ status: sheet.status, decided, approveCount: tally.approveCount, rejectCount: tally.rejectCount, threshold: tally.threshold });
+  res.json({ status: sheet.status, decided, approveCount: tally.approveCount, rejectCount: tally.rejectCount, pauseCount: tally.pauseCount, threshold: tally.threshold });
 });
 
 // POST /sheets/:id/override — admin-only immediate approval, bypassing the

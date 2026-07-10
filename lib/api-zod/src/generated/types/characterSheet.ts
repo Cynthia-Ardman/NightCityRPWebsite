@@ -53,6 +53,8 @@ export interface CharacterSheet {
   threshold?: number;
   approveCount?: number;
   rejectCount?: number;
+  /** Pause markers — visible flag only, never counted toward the decision threshold. */
+  pauseCount?: number;
   myVote?: ReviewerSelfVote;
   canVote?: boolean;
   canRequestChanges?: boolean;

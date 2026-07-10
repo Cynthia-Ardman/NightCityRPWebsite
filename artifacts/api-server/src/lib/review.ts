@@ -119,6 +119,7 @@ export async function tallyReviewVotes(opts: {
 }): Promise<{
   approveCount: number;
   rejectCount: number;
+  pauseCount: number;
   threshold: number;
   eligibleVoterCount: number;
   decided: "approved" | "rejected" | null;
@@ -133,11 +134,14 @@ export async function tallyReviewVotes(opts: {
   const effective = all.filter((v) => eligibleSet.has(v.voterId));
   const approveCount = effective.filter((v) => v.vote === "approve").length;
   const rejectCount = effective.filter((v) => v.vote === "reject").length;
+  // Pause is a visible marker only — it NEVER counts toward the decision
+  // thresholds below and never blocks auto-finalize.
+  const pauseCount = effective.filter((v) => v.vote === "pause").length;
   const threshold = majorityOf(eligibleIds.length);
   let decided: "approved" | "rejected" | null = null;
   if (approveCount >= threshold) decided = "approved";
   else if (rejectCount >= threshold) decided = "rejected";
-  return { approveCount, rejectCount, threshold, eligibleVoterCount: eligibleIds.length, decided };
+  return { approveCount, rejectCount, pauseCount, threshold, eligibleVoterCount: eligibleIds.length, decided };
 }
 
 // The most recent reviewer to have cast a given vote on a subject, or null if
@@ -176,10 +180,10 @@ export async function castReviewVote(opts: {
   subjectType: ReviewSubjectType;
   subjectId: number;
   voterId: string;
-  vote: "approve" | "reject";
+  vote: "approve" | "reject" | "pause";
   note: string | null;
   conn?: DbConn;
-}): Promise<"approve" | "reject" | null> {
+}): Promise<"approve" | "reject" | "pause" | null> {
   const conn = opts.conn ?? db;
   const [existing] = await conn
     .select({ vote: reviewVotes.vote })

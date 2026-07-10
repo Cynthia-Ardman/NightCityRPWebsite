@@ -8,6 +8,7 @@
 import type { SheetVoteInputVote } from './sheetVoteInputVote';
 
 export interface SheetVoteInput {
+  /** Pause is a visible marker only — it never counts toward the decision threshold. */
   vote: SheetVoteInputVote;
   /** @maxLength 2000 */
   note?: string;

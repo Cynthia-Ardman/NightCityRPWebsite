@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Check, X, ShieldCheck, RotateCcw } from "lucide-react";
+import { Check, X, Pause, ShieldCheck, RotateCcw } from "lucide-react";
 import Markdown from "@/components/Markdown";
 import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
 import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
@@ -198,8 +198,13 @@ export default function SheetDetail() {
           <CardContent className="font-mono text-sm space-y-1">
             <div>
               <span className="text-nc-green">{sheet.approveCount ?? 0}</span> approve ·{" "}
-              <span className="text-destructive">{sheet.rejectCount ?? 0}</span> reject ·{" "}
-              threshold <span className="text-nc-cyan">{sheet.threshold ?? "?"}</span> of{" "}
+              <span className="text-destructive">{sheet.rejectCount ?? 0}</span> reject
+              {(sheet.pauseCount ?? 0) > 0 ? (
+                <>
+                  {" "}· <span className="text-nc-yellow">{sheet.pauseCount}</span> paused
+                </>
+              ) : null}{" "}
+              · threshold <span className="text-nc-cyan">{sheet.threshold ?? "?"}</span> of{" "}
               {sheet.eligibleVoterCount ?? sheet.eligibleReviewers.length} eligible reviewers
             </div>
             <ReviewerRoster
@@ -391,8 +396,13 @@ export default function SheetDetail() {
           <CardHeader className="pb-2"><CardTitle className="font-display text-sm tracking-widest text-nc-cyan">VOTE TALLY</CardTitle></CardHeader>
           <CardContent className="font-mono text-sm">
             <span className="text-nc-green">{sheet.approveCount}</span> approve ·{" "}
-            <span className="text-destructive">{sheet.rejectCount}</span> reject ·{" "}
-            threshold <span className="text-nc-cyan">{sheet.threshold}</span> of {sheet.eligibleVoterCount} eligible reviewers
+            <span className="text-destructive">{sheet.rejectCount}</span> reject
+            {(sheet.pauseCount ?? 0) > 0 ? (
+              <>
+                {" "}· <span className="text-nc-yellow">{sheet.pauseCount}</span> paused
+              </>
+            ) : null}{" "}
+            · threshold <span className="text-nc-cyan">{sheet.threshold}</span> of {sheet.eligibleVoterCount} eligible reviewers
           </CardContent>
         </Card>
       )}
@@ -413,7 +423,18 @@ export default function SheetDetail() {
           <CardContent className="space-y-3">
             {sheet.myVote && (
               <div className="font-mono text-xs text-muted-foreground">
-                Current vote: <span className={sheet.myVote.vote === "approve" ? "text-nc-green" : "text-destructive"}>{sheet.myVote.vote.toUpperCase()}</span>
+                Current vote:{" "}
+                <span
+                  className={
+                    sheet.myVote.vote === "approve"
+                      ? "text-nc-green"
+                      : sheet.myVote.vote === "pause"
+                        ? "text-nc-yellow"
+                        : "text-destructive"
+                  }
+                >
+                  {sheet.myVote.vote.toUpperCase()}
+                </span>
                 {sheet.myVote.note ? <span className="italic"> — "{sheet.myVote.note}"</span> : null}
               </div>
             )}
@@ -421,6 +442,7 @@ export default function SheetDetail() {
             <div className="flex gap-2">
               <Button onClick={() => vote.mutate({ id: sheetId, data: { vote: "approve", note: note || undefined } })} disabled={vote.isPending} className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display" data-testid="button-approve"><Check className="w-4 h-4 mr-1" /> APPROVE</Button>
               <Button onClick={() => vote.mutate({ id: sheetId, data: { vote: "reject", note: note || undefined } })} disabled={vote.isPending} variant="destructive" className="rounded-none font-display" data-testid="button-reject"><X className="w-4 h-4 mr-1" /> REJECT</Button>
+              <Button onClick={() => vote.mutate({ id: sheetId, data: { vote: "pause", note: note || undefined } })} disabled={vote.isPending} variant="outline" className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display" data-testid="button-pause" title="Pause marker — doesn't count toward the decision"><Pause className="w-4 h-4 mr-1" /> PAUSE</Button>
             </div>
           </CardContent>
         </Card>

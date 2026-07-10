@@ -662,3 +662,39 @@ describe("custom request voting — toggle (un-vote)", () => {
     expect(rows[0].vote).toBe("reject");
   });
 });
+
+describe("custom request voting — pause marker", () => {
+  it("records pause visibly but never counts it toward the decision threshold", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    await createFixer(); // pool 3 → threshold 2
+
+    const { reqId } = await submitGunRequest(owner.id);
+
+    // Two pauses would exceed the threshold if pause were counted — the
+    // request must stay pending with the pauses tallied separately.
+    const p1 = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "pause" });
+    expect(p1.status).toBe(200);
+    const p2 = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f2.id).send({ vote: "pause" });
+    expect(p2.status).toBe(200);
+    expect(p2.body.decided).toBeNull();
+    expect(p2.body.status).toBe("pending");
+    expect(p2.body.pauseCount).toBe(2);
+    expect(p2.body.approveCount).toBe(0);
+    expect(p2.body.rejectCount).toBe(0);
+
+    // Re-casting pause toggles it off, like approve/reject.
+    const p3 = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f2.id).send({ vote: "pause" });
+    expect(p3.body.pauseCount).toBe(1);
+
+    // One paused reviewer plus one approval never blocks the other approval
+    // from deciding: pause is not a veto.
+    const a1 = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
+    expect(a1.body.decided).toBeNull();
+    // f1 switches pause → approve; the second counted approve decides.
+    const a2 = await request(app).post(`/api/requests/${reqId}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    expect(a2.body.decided).toBe("approved");
+    expect(a2.body.pauseCount).toBe(0);
+  });
+});

@@ -8,6 +8,7 @@
 import type { PendingEditVoteInputVote } from './pendingEditVoteInputVote';
 
 export interface PendingEditVoteInput {
+  /** Pause is a visible marker only — it never counts toward the decision threshold. */
   vote: PendingEditVoteInputVote;
   /** @maxLength 2000 */
   note?: string;

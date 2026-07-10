@@ -128,6 +128,34 @@ describe("sheet voting — majority threshold", () => {
     const [after] = await db.select().from(characterSheets).where(eq(characterSheets.id, sheet.id));
     expect(after.status).toBe("pending");
   });
+
+  it("tallies pause as a marker only — it never counts toward the threshold and toggles off", async () => {
+    const owner = await createUser();
+    const f1 = await createFixer();
+    const f2 = await createFixer();
+    await createFixer(); // pool 3 → threshold 2
+    const sheet = await createPendingSheet(owner.id, "Pause Subject");
+
+    // Two pauses would meet the threshold if counted — the sheet must stay pending.
+    await request(app).post(`/api/sheets/${sheet.id}/vote`).set("x-test-user", f1.id).send({ vote: "pause" });
+    const p2 = await request(app).post(`/api/sheets/${sheet.id}/vote`).set("x-test-user", f2.id).send({ vote: "pause" });
+    expect(p2.status).toBe(200);
+    expect(p2.body.decided).toBeNull();
+    expect(p2.body.status).toBe("pending");
+    expect(p2.body.pauseCount).toBe(2);
+    expect(p2.body.approveCount).toBe(0);
+    expect(p2.body.rejectCount).toBe(0);
+
+    // Re-casting pause toggles it off.
+    const p3 = await request(app).post(`/api/sheets/${sheet.id}/vote`).set("x-test-user", f2.id).send({ vote: "pause" });
+    expect(p3.body.pauseCount).toBe(1);
+
+    // A remaining pause never blocks approvals from deciding.
+    await request(app).post(`/api/sheets/${sheet.id}/vote`).set("x-test-user", f2.id).send({ vote: "approve" });
+    const a2 = await request(app).post(`/api/sheets/${sheet.id}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    expect(a2.body.decided).toBe("approved");
+    expect(a2.body.pauseCount).toBe(0);
+  });
 });
 
 describe("sheet override", () => {

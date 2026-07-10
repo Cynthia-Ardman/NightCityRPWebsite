@@ -16,7 +16,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShieldAlert, CheckCircle2, XCircle } from "lucide-react";
+import { ShieldAlert, CheckCircle2, XCircle, PauseCircle } from "lucide-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
 import { useMarkReviewSeenInstant } from "@/hooks/useReviewSeen";
@@ -78,6 +78,9 @@ function EditRow({
                   {e.rejectCount > 0 && (
                     <span className="font-mono text-xs text-destructive">{e.rejectCount} reject</span>
                   )}
+                  {(e.pauseCount ?? 0) > 0 && (
+                    <span className="font-mono text-xs text-nc-yellow">{e.pauseCount} paused</span>
+                  )}
                   {e.voters.length === 0 ? (
                     <span className="font-mono text-xs text-muted-foreground italic">no votes yet</span>
                   ) : (
@@ -89,11 +92,15 @@ function EditRow({
                           className={`rounded-none font-mono text-[10px] ${
                             v.vote === "approve"
                               ? "border-nc-green/60 text-nc-green"
-                              : "border-destructive/60 text-destructive"
+                              : v.vote === "pause"
+                                ? "border-nc-yellow/60 text-nc-yellow"
+                                : "border-destructive/60 text-destructive"
                           }`}
                         >
                           {v.vote === "approve" ? (
                             <CheckCircle2 className="w-3 h-3 mr-1" />
+                          ) : v.vote === "pause" ? (
+                            <PauseCircle className="w-3 h-3 mr-1" />
                           ) : (
                             <XCircle className="w-3 h-3 mr-1" />
                           )}
@@ -181,10 +188,19 @@ function EditReviewCard({
           <div className="font-mono text-xs text-muted-foreground" data-testid={`tally-edit-${e.id}`}>
             <span className="text-nc-green">{e.approveCount}</span>/{e.threshold} approve ·{" "}
             <span className="text-destructive">{e.rejectCount}</span> reject
+            {(e.pauseCount ?? 0) > 0 ? (
+              <>
+                {" "}· <span className="text-nc-yellow">{e.pauseCount}</span> paused
+              </>
+            ) : null}
             {my ? (
               <span className="ml-2">
                 · you voted{" "}
-                <span className={my.vote === "approve" ? "text-nc-green" : "text-destructive"}>
+                <span
+                  className={
+                    my.vote === "approve" ? "text-nc-green" : my.vote === "pause" ? "text-nc-yellow" : "text-destructive"
+                  }
+                >
                   {my.vote.toUpperCase()}
                 </span>
               </span>
@@ -219,6 +235,16 @@ function EditReviewCard({
                         data-testid={`button-reject-edit-${e.id}`}
                       >
                         {my?.vote === "reject" ? "VOTED REJECT" : "VOTE REJECT"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                        disabled={busy}
+                        onClick={() => vote.mutate({ id: e.id, data: { vote: "pause" } })}
+                        data-testid={`button-pause-edit-${e.id}`}
+                        title="Pause marker — doesn't count toward the decision"
+                      >
+                        {my?.vote === "pause" ? "VOTED PAUSE" : "VOTE PAUSE"}
                       </Button>
                     </>
                   )}

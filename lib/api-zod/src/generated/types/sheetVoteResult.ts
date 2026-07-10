@@ -14,5 +14,6 @@ export interface SheetVoteResult {
   decided?: SheetVoteResultDecided;
   approveCount: number;
   rejectCount: number;
+  pauseCount?: number;
   threshold: number;
 }

@@ -12,4 +12,5 @@ export type ReviewVoteRecordVote = typeof ReviewVoteRecordVote[keyof typeof Revi
 export const ReviewVoteRecordVote = {
   approve: 'approve',
   reject: 'reject',
+  pause: 'pause',
 } as const;

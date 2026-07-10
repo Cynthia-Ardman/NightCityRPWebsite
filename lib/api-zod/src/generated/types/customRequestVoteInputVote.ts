@@ -6,10 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Pause is a visible marker only — it never counts toward the decision threshold.
+ */
 export type CustomRequestVoteInputVote = typeof CustomRequestVoteInputVote[keyof typeof CustomRequestVoteInputVote];
 
 
 export const CustomRequestVoteInputVote = {
   approve: 'approve',
   reject: 'reject',
+  pause: 'pause',
 } as const;

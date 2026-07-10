@@ -16,4 +16,5 @@ export type CustomRequestMyVote = typeof CustomRequestMyVote[keyof typeof Custom
 export const CustomRequestMyVote = {
   approve: 'approve',
   reject: 'reject',
+  pause: 'pause',
 } as const;

@@ -25,6 +25,8 @@ export interface PendingSheetSummary {
   ownerAvatarUrl?: string | null;
   approveCount: number;
   rejectCount: number;
+  /** Pause markers — visible flag only, never counted toward the decision threshold. */
+  pauseCount?: number;
   threshold: number;
   myVote?: ReviewerSelfVote;
   /** Full roster of reviewers eligible to vote on this sheet (excludes the owner). Present on the reviewer-facing pending list. */

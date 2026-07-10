@@ -3681,6 +3681,7 @@ export type CustomRequestMyVote = typeof CustomRequestMyVote[keyof typeof Custom
 export const CustomRequestMyVote = {
   approve: 'approve',
   reject: 'reject',
+  pause: 'pause',
 } as const;
 
 export type CustomRequestVotersItemVote = typeof CustomRequestVotersItemVote[keyof typeof CustomRequestVotersItemVote];
@@ -3689,6 +3690,7 @@ export type CustomRequestVotersItemVote = typeof CustomRequestVotersItemVote[key
 export const CustomRequestVotersItemVote = {
   approve: 'approve',
   reject: 'reject',
+  pause: 'pause',
 } as const;
 
 export type CustomRequestVotersItem = {
@@ -3742,6 +3744,8 @@ export interface CustomRequest {
   /** Review tally — present on list responses. */
   approveCount?: number;
   rejectCount?: number;
+  /** Pause markers — visible flag only, never counted toward the decision threshold. */
+  pauseCount?: number;
   /** Majority needed among eligible reviewers (excludes the requester). */
   threshold?: number;
   /**
@@ -3757,12 +3761,16 @@ export interface CustomRequest {
   lastActivityAt?: string;
 }
 
+/**
+ * Pause is a visible marker only — it never counts toward the decision threshold.
+ */
 export type CustomRequestVoteInputVote = typeof CustomRequestVoteInputVote[keyof typeof CustomRequestVoteInputVote];
 
 
 export const CustomRequestVoteInputVote = {
   approve: 'approve',
   reject: 'reject',
+  pause: 'pause',
 } as const;
 
 /**
@@ -3777,6 +3785,7 @@ export const CustomRequestVoteInputKind = {
 } as const;
 
 export interface CustomRequestVoteInput {
+  /** Pause is a visible marker only — it never counts toward the decision threshold. */
   vote: CustomRequestVoteInputVote;
   /** @maxLength 2000 */
   note?: string;
@@ -4264,6 +4273,7 @@ export type ReviewVoteRecordVote = typeof ReviewVoteRecordVote[keyof typeof Revi
 export const ReviewVoteRecordVote = {
   approve: 'approve',
   reject: 'reject',
+  pause: 'pause',
 } as const;
 
 export interface ReviewVoteRecord {
@@ -4280,7 +4290,7 @@ export interface ReviewVoteRecord {
 }
 
 export type ReviewerSelfVote = null | {
-  vote: 'approve' | 'reject';
+  vote: 'approve' | 'reject' | 'pause';
   /** @nullable */
   note?: string | null;
   votedAt?: string;
@@ -4328,6 +4338,8 @@ export interface CharacterSheet {
   threshold?: number;
   approveCount?: number;
   rejectCount?: number;
+  /** Pause markers — visible flag only, never counted toward the decision threshold. */
+  pauseCount?: number;
   myVote?: ReviewerSelfVote;
   canVote?: boolean;
   canRequestChanges?: boolean;
@@ -4352,6 +4364,7 @@ export type PendingSheetSummaryVotersItemVote = typeof PendingSheetSummaryVoters
 export const PendingSheetSummaryVotersItemVote = {
   approve: 'approve',
   reject: 'reject',
+  pause: 'pause',
 } as const;
 
 export type PendingSheetSummaryVotersItem = {
@@ -4378,6 +4391,8 @@ export interface PendingSheetSummary {
   ownerAvatarUrl?: string | null;
   approveCount: number;
   rejectCount: number;
+  /** Pause markers — visible flag only, never counted toward the decision threshold. */
+  pauseCount?: number;
   threshold: number;
   myVote?: ReviewerSelfVote;
   /** Full roster of reviewers eligible to vote on this sheet (excludes the owner). Present on the reviewer-facing pending list. */
@@ -4386,15 +4401,20 @@ export interface PendingSheetSummary {
   voters?: PendingSheetSummaryVotersItem[];
 }
 
+/**
+ * Pause is a visible marker only — it never counts toward the decision threshold.
+ */
 export type SheetVoteInputVote = typeof SheetVoteInputVote[keyof typeof SheetVoteInputVote];
 
 
 export const SheetVoteInputVote = {
   approve: 'approve',
   reject: 'reject',
+  pause: 'pause',
 } as const;
 
 export interface SheetVoteInput {
+  /** Pause is a visible marker only — it never counts toward the decision threshold. */
   vote: SheetVoteInputVote;
   /** @maxLength 2000 */
   note?: string;
@@ -4427,6 +4447,7 @@ export interface SheetVoteResult {
   decided?: SheetVoteResultDecided;
   approveCount: number;
   rejectCount: number;
+  pauseCount?: number;
   threshold: number;
 }
 
@@ -4557,6 +4578,7 @@ export type PendingEditSummaryVotersItemVote = typeof PendingEditSummaryVotersIt
 export const PendingEditSummaryVotersItemVote = {
   approve: 'approve',
   reject: 'reject',
+  pause: 'pause',
 } as const;
 
 export type PendingEditSummaryVotersItem = {
@@ -4601,6 +4623,8 @@ export interface PendingEditSummary {
   decidedAt?: string | null;
   approveCount: number;
   rejectCount: number;
+  /** Pause markers — visible flag only, never counted toward the decision threshold. */
+  pauseCount?: number;
   threshold: number;
   myVote?: ReviewerSelfVote;
   /** Full roster of reviewers eligible to vote on this edit (excludes the submitter). Present on the reviewer-facing pending list. */
@@ -4614,6 +4638,7 @@ export type PendingEditVoteRecordVote = typeof PendingEditVoteRecordVote[keyof t
 export const PendingEditVoteRecordVote = {
   approve: 'approve',
   reject: 'reject',
+  pause: 'pause',
 } as const;
 
 export interface PendingEditVoteRecord {
@@ -4646,7 +4671,7 @@ export const PendingEditDetailStatus = {
 } as const;
 
 export type PendingEditDetailMyVote = null | {
-  vote?: 'approve' | 'reject';
+  vote?: 'approve' | 'reject' | 'pause';
   /** @nullable */
   note?: string | null;
   votedAt?: string;
@@ -4690,6 +4715,8 @@ export interface PendingEditDetail {
   threshold: number;
   approveCount: number;
   rejectCount: number;
+  /** Pause markers — visible flag only, never counted toward the decision threshold. */
+  pauseCount?: number;
   myVote?: PendingEditDetailMyVote;
   canVote: boolean;
   canRequestChanges?: boolean;
@@ -4827,15 +4854,20 @@ export interface ReviewCloseInput {
   sheetGuns?: ReviewCloseInputSheetGunsItem[];
 }
 
+/**
+ * Pause is a visible marker only — it never counts toward the decision threshold.
+ */
 export type PendingEditVoteInputVote = typeof PendingEditVoteInputVote[keyof typeof PendingEditVoteInputVote];
 
 
 export const PendingEditVoteInputVote = {
   approve: 'approve',
   reject: 'reject',
+  pause: 'pause',
 } as const;
 
 export interface PendingEditVoteInput {
+  /** Pause is a visible marker only — it never counts toward the decision threshold. */
   vote: PendingEditVoteInputVote;
   /** @maxLength 2000 */
   note?: string;
@@ -4855,6 +4887,7 @@ export interface PendingEditVoteResult {
   status: PendingEditVoteResultStatus;
   approveCount: number;
   rejectCount: number;
+  pauseCount?: number;
   threshold: number;
   eligibleVoterCount: number;
 }

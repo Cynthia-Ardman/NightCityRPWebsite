@@ -12,4 +12,5 @@ export type CustomRequestVotersItemVote = typeof CustomRequestVotersItemVote[key
 export const CustomRequestVotersItemVote = {
   approve: 'approve',
   reject: 'reject',
+  pause: 'pause',
 } as const;

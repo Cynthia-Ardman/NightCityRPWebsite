@@ -50,6 +50,8 @@ export interface PendingEditDetail {
   threshold: number;
   approveCount: number;
   rejectCount: number;
+  /** Pause markers — visible flag only, never counted toward the decision threshold. */
+  pauseCount?: number;
   myVote?: PendingEditDetailMyVote;
   canVote: boolean;
   canRequestChanges?: boolean;
