@@ -190,9 +190,13 @@ export function CharacterTabsPanel({
   // ABOVE the early return (React #310).
   const tabsMe = useEffectiveMe();
   const canSeeNcpd = !!(tabsMe.data?.isNcpd || tabsMe.data?.isFixer || tabsMe.data?.isAdmin);
+  // A deep link like #ncpd from a non-privileged user would otherwise select a
+  // tab with no trigger and no content — coerce it back to "profile" once we
+  // know the viewer's roles (avoid coercing while roles are still loading).
+  const effectiveTab = tab === "ncpd" && tabsMe.data && !canSeeNcpd ? "profile" : tab;
   if (!char) return null;
   return (
-    <Tabs value={tab} onValueChange={setTab} className="w-full">
+    <Tabs value={effectiveTab} onValueChange={setTab} className="w-full">
       <TabsList className="bg-card border border-border rounded-none p-0 h-auto flex overflow-x-auto w-full max-w-full no-scrollbar">
         <TabsTrigger value="profile" className="flex-1 rounded-none font-display uppercase tracking-widest data-[state=active]:bg-nc-cyan/10 data-[state=active]:text-nc-cyan data-[state=active]:border-b-2 data-[state=active]:border-nc-cyan py-3 min-w-[100px]" data-testid="tab-profile">
           <Terminal className="w-4 h-4 mr-2 hidden sm:inline" /> Profile
