@@ -283,10 +283,15 @@ export async function createRemoveOffer(opts: {
   buyerCharacterId: number;
   fee?: number | null;
   memo?: string | null;
+  // Where the un-installed chrome ends up: "patient" (default) keeps it in the
+  // character's inventory as removed chrome; "clinic" moves it into the
+  // clinic's ripperdoc stock (the ripperdoc keeps the part).
+  destination?: "patient" | "clinic" | null;
   actor: Actor;
 }): Promise<OfferResult> {
   const kind: OfferKind = "ripperdoc";
   const { venueId, removedItemId, buyerCharacterId, memo, actor } = opts;
+  const destination = opts.destination === "clinic" ? "clinic" : "patient";
 
   const [venue] = await db.select().from(ripperdocs).where(eq(ripperdocs.id, venueId));
   if (!venue) return { status: 404, body: { error: "Venue not found" } };
@@ -324,6 +329,7 @@ export async function createRemoveOffer(opts: {
       [venueColName(kind)]: venueId,
       stockId: null,
       removedItemId,
+      removeDestination: destination,
       cwp,
       itemName: item.name,
       itemCategory: "cyberware",
@@ -350,7 +356,7 @@ export async function createRemoveOffer(opts: {
     targetType: "sale_offer",
     targetId: String(offer.id),
     message: `Initiated removal: ${item.name} from ${buyer.name} ${priceLabel}`,
-    afterJson: { offerType: "remove", fee, cwp, removedItemId, buyerCharacterId: buyer.id } as never,
+    afterJson: { offerType: "remove", fee, cwp, removedItemId, destination, buyerCharacterId: buyer.id } as never,
   });
 
   // Instant removal: uninstall the chrome + charge any fee right now — no buyer
@@ -931,26 +937,53 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
         .returning();
       insertedItem = updated;
     } else if (isRemove) {
-      // Un-install: flip the item out of the "cyberware" category so it stops
-      // counting toward CWP, but keep it in the player's inventory (the default
-      // destination). Guard on the still-installed state for idempotency.
-      const [updated] = await tx
-        .update(inventoryItems)
-        .set({
-          category: "cyberware (removed)",
-          notes: sql`coalesce(${inventoryItems.notes}, '') || ${` · Removed at ${venue.name} on ${today}`}`,
-        })
-        .where(and(
-          eq(inventoryItems.id, offer.removedItemId!),
-          eq(inventoryItems.characterId, buyer.id),
-          eq(inventoryItems.category, "cyberware"),
-        ))
-        .returning();
-      if (!updated) {
-        completionFailReason = "Cyberware to remove was not found (already removed?)";
-        throw new Error("remove-target-miss");
+      // Un-install. Two destinations (offer.removeDestination):
+      //   "patient" (default/null) — flip the item out of the "cyberware"
+      //     category so it stops counting toward CWP, but keep it in the
+      //     player's inventory.
+      //   "clinic" — the item leaves the patient entirely and lands in the
+      //     clinic's ripperdoc stock (the ripperdoc keeps the part).
+      // Both paths guard on the still-installed state for idempotency.
+      const stillInstalled = and(
+        eq(inventoryItems.id, offer.removedItemId!),
+        eq(inventoryItems.characterId, buyer.id),
+        eq(inventoryItems.category, "cyberware"),
+      );
+      if ((offer as { removeDestination?: string | null }).removeDestination === "clinic") {
+        const [taken] = await tx.delete(inventoryItems).where(stillInstalled).returning();
+        if (!taken) {
+          completionFailReason = "Cyberware to remove was not found (already removed?)";
+          throw new Error("remove-target-miss");
+        }
+        // Land the part in clinic stock at price 0 (the doc sets a resale price
+        // later). Keep a "CWP n" tag on the notes — it's the floor a future
+        // install charges when the catalog has no authoritative value.
+        const partCwp = offer.cwp ?? parseCwp(taken.notes) ?? 0;
+        await tx.insert(ripperdocStock).values({
+          ripperdocId: venueId!,
+          name: taken.name,
+          category: "cyberware",
+          price: 0,
+          cost: 0,
+          quantity: Math.max(1, taken.quantity ?? 1),
+          notes: `CWP ${partCwp} · Removed from ${buyer.name} on ${today}`,
+        });
+        removedItem = taken;
+      } else {
+        const [updated] = await tx
+          .update(inventoryItems)
+          .set({
+            category: "cyberware (removed)",
+            notes: sql`coalesce(${inventoryItems.notes}, '') || ${` · Removed at ${venue.name} on ${today}`}`,
+          })
+          .where(stillInstalled)
+          .returning();
+        if (!updated) {
+          completionFailReason = "Cyberware to remove was not found (already removed?)";
+          throw new Error("remove-target-miss");
+        }
+        removedItem = updated;
       }
-      removedItem = updated;
     } else {
       // Sale / install / give: pull from stock and drop into the buyer's inventory.
       const [decremented] = await tx

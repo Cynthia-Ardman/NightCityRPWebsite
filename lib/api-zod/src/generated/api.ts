@@ -6539,7 +6539,8 @@ export const RemoveRipperdocCyberwareBody = zod.object({
   "removedItemId": zod.number().describe('The installed inventory item to uninstall.'),
   "buyerCharacterId": zod.number(),
   "fee": zod.number().min(removeRipperdocCyberwareBodyFeeMin).optional().describe('Optional removal fee. Defaults to 0 (free).'),
-  "memo": zod.string().optional()
+  "memo": zod.string().optional(),
+  "destination": zod.enum(['patient', 'clinic']).optional().describe('Where the removed chrome goes. \'patient\' (default) keeps it in the character\'s inventory as removed chrome; \'clinic\' moves it into the clinic\'s stock.')
 })
 
 export const RemoveRipperdocCyberwareResponse = zod.object({

@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { CyberwareRemoveInputDestination } from './cyberwareRemoveInputDestination';
 
 export interface CyberwareRemoveInput {
   /** The installed inventory item to uninstall. */
@@ -16,4 +17,6 @@ export interface CyberwareRemoveInput {
      */
   fee?: number;
   memo?: string;
+  /** Where the removed chrome goes. 'patient' (default) keeps it in the character's inventory as removed chrome; 'clinic' moves it into the clinic's stock. */
+  destination?: CyberwareRemoveInputDestination;
 }

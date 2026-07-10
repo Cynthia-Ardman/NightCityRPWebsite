@@ -2908,6 +2908,17 @@ export interface CyberwareInstallInput {
   memo?: string;
 }
 
+/**
+ * Where the removed chrome goes. 'patient' (default) keeps it in the character's inventory as removed chrome; 'clinic' moves it into the clinic's stock.
+ */
+export type CyberwareRemoveInputDestination = typeof CyberwareRemoveInputDestination[keyof typeof CyberwareRemoveInputDestination];
+
+
+export const CyberwareRemoveInputDestination = {
+  patient: 'patient',
+  clinic: 'clinic',
+} as const;
+
 export interface CyberwareRemoveInput {
   /** The installed inventory item to uninstall. */
   removedItemId: number;
@@ -2918,6 +2929,8 @@ export interface CyberwareRemoveInput {
      */
   fee?: number;
   memo?: string;
+  /** Where the removed chrome goes. 'patient' (default) keeps it in the character's inventory as removed chrome; 'clinic' moves it into the clinic's stock. */
+  destination?: CyberwareRemoveInputDestination;
 }
 
 export interface InstallOwnedInput {

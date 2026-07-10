@@ -286,6 +286,45 @@ describe("POST /ripperdocs/:id/remove", () => {
     expect(bu.walletBalance).toBe(1000);
   });
 
+  it("destination 'clinic' moves the part out of the patient's inventory into clinic stock", async () => {
+    await setEconomyMode("enabled");
+    const { owner, clinic, buyer, buyerUser } = await seedClinic();
+    await fund(buyerUser.id, 1000);
+    const chrome = await installChrome(buyer.id, buyerUser.id, "Gorilla Arms", 6);
+    const res = await request(app)
+      .post(`/api/ripperdocs/${clinic.id}/remove`)
+      .set("x-test-user", owner.id)
+      .send({ removedItemId: chrome.id, buyerCharacterId: buyer.id, destination: "clinic" });
+    expect(res.status).toBe(200);
+    expect(res.body.offer.status).toBe("approved");
+
+    // Item is gone from the patient entirely.
+    const gone = await db.select().from(inventoryItems).where(eq(inventoryItems.id, chrome.id));
+    expect(gone).toHaveLength(0);
+
+    // ...and landed in the clinic's stock with the CWP tag preserved.
+    const stock = await db
+      .select()
+      .from(ripperdocStock)
+      .where(and(eq(ripperdocStock.ripperdocId, clinic.id), eq(ripperdocStock.name, "Gorilla Arms")));
+    expect(stock).toHaveLength(1);
+    expect(stock[0].category).toBe("cyberware");
+    expect(stock[0].quantity).toBe(1);
+    expect(stock[0].price).toBe(0);
+    expect(parseCwp(stock[0].notes)).toBe(6);
+    expect(stock[0].notes).toContain("Removed from");
+  });
+
+  it("400s on an invalid destination", async () => {
+    const { owner, clinic, buyer, buyerUser } = await seedClinic();
+    const chrome = await installChrome(buyer.id, buyerUser.id, "Optics MK2", 2);
+    const res = await request(app)
+      .post(`/api/ripperdocs/${clinic.id}/remove`)
+      .set("x-test-user", owner.id)
+      .send({ removedItemId: chrome.id, buyerCharacterId: buyer.id, destination: "landfill" });
+    expect(res.status).toBe(400);
+  });
+
   it("leaves the chrome installed and moves nothing when the economy is disabled", async () => {
     await setEconomyMode("disabled");
     const { owner, clinic, buyer, buyerUser } = await seedClinic();

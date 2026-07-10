@@ -891,12 +891,17 @@ router.post("/ripperdocs/:id/give", requireAuth, async (req, res): Promise<void>
 });
 
 // Remove installed cyberware from a character (optional removal fee). The item
-// stays in the player's inventory by default, just no longer counted as CWP.
+// stays in the player's inventory by default ("patient"), just no longer
+// counted as CWP — or, with destination "clinic", moves into the clinic's stock.
 router.post("/ripperdocs/:id/remove", requireAuth, async (req, res): Promise<void> => {
   const venueId = parseInt(String(req.params.id), 10);
-  const { removedItemId, buyerCharacterId, fee, memo } = req.body ?? {};
+  const { removedItemId, buyerCharacterId, fee, memo, destination } = req.body ?? {};
   if (!removedItemId || !buyerCharacterId) {
     res.status(400).json({ error: "removedItemId and buyerCharacterId required" });
+    return;
+  }
+  if (destination != null && destination !== "patient" && destination !== "clinic") {
+    res.status(400).json({ error: "destination must be 'patient' or 'clinic'" });
     return;
   }
   const result = await createRemoveOffer({
@@ -905,6 +910,7 @@ router.post("/ripperdocs/:id/remove", requireAuth, async (req, res): Promise<voi
     buyerCharacterId: parseInt(String(buyerCharacterId), 10),
     fee: fee != null ? Math.max(0, Number(fee) || 0) : null,
     memo,
+    destination: destination ?? null,
     actor: req.user!,
   });
   res.status(result.status).json(result.body);

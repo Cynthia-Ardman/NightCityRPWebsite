@@ -161,6 +161,7 @@ export * from './cyberpsychoAccessInput';
 export * from './cyberpsychoAccessResult';
 export * from './cyberwareInstallInput';
 export * from './cyberwareRemoveInput';
+export * from './cyberwareRemoveInputDestination';
 export * from './cyberwareViolation';
 export * from './cyberwareViolationSlotsItem';
 export * from './cyberwareViolationSlotsItemItemsItem';

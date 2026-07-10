@@ -791,6 +791,12 @@ export const saleOffers = pgTable("sale_offers", {
   // For `remove` offers: the inventory_items row being un-installed from the
   // buyer character. Null for every other offer type.
   removedItemId: integer("removed_item_id"),
+  // For `remove` offers: where the un-installed chrome ends up.
+  //   "patient" (or null, the legacy default) — stays in the patient's
+  //   inventory under the "cyberware (removed)" category.
+  //   "clinic" — the item leaves the patient entirely and lands in the
+  //   clinic's ripperdoc_stock (the ripperdoc keeps the part).
+  removeDestination: text("remove_destination"),
   // For `install_owned` offers: the existing (uninstalled) inventory_items
   // cyberware row the ripperdoc will install onto the buyer character. Unlike
   // `install`, there is no stock leg — the player already owns the piece. Null

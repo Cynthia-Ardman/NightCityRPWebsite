@@ -7389,6 +7389,7 @@ components:
         buyerCharacterId: { type: integer }
         fee: { type: integer, minimum: 0, description: "Optional removal fee. Defaults to 0 (free)." }
         memo: { type: string }
+        destination: { type: string, enum: [patient, clinic], description: "Where the removed chrome goes. 'patient' (default) keeps it in the character's inventory as removed chrome; 'clinic' moves it into the clinic's stock." }
 
     InstallOwnedInput:
       type: object

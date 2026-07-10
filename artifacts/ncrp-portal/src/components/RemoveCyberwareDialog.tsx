@@ -27,6 +27,7 @@ export default function RemoveCyberwareDialog({ venueId, onClose, onDone, preset
   const [itemId, setItemId] = useState<number | null>(null);
   const [fee, setFee] = useState(0);
   const [memo, setMemo] = useState("");
+  const [destination, setDestination] = useState<"patient" | "clinic">("patient");
 
   const remove = useRemoveRipperdocCyberware({ mutation: { onSuccess: onDone } });
   const { data: cap, isFetching } = useGetCharacterCyberware(venueId, target?.id ?? 0, {
@@ -59,7 +60,7 @@ export default function RemoveCyberwareDialog({ venueId, onClose, onDone, preset
               if (!target?.id || !itemId) return;
               remove.mutate({
                 id: venueId,
-                data: { removedItemId: itemId, buyerCharacterId: target.id, fee: fee > 0 ? fee : undefined, memo: memo || undefined },
+                data: { removedItemId: itemId, buyerCharacterId: target.id, fee: fee > 0 ? fee : undefined, memo: memo || undefined, destination },
               });
             }}
           >
@@ -120,6 +121,37 @@ export default function RemoveCyberwareDialog({ venueId, onClose, onDone, preset
               </div>
             )}
 
+            <div>
+              <Label className="text-xs">REMOVED CHROME GOES TO</Label>
+              <div className="grid grid-cols-2 gap-1 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setDestination("patient")}
+                  className={`rounded-none border px-2 py-1.5 text-left transition-colors ${
+                    destination === "patient"
+                      ? "border-primary bg-primary/15 text-foreground"
+                      : "border-border/50 text-muted-foreground hover:border-primary/60"
+                  }`}
+                  data-testid="button-destination-patient"
+                >
+                  PATIENT
+                  <div className="text-[10px] text-muted-foreground">They keep the loose chrome</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDestination("clinic")}
+                  className={`rounded-none border px-2 py-1.5 text-left transition-colors ${
+                    destination === "clinic"
+                      ? "border-primary bg-primary/15 text-foreground"
+                      : "border-border/50 text-muted-foreground hover:border-primary/60"
+                  }`}
+                  data-testid="button-destination-clinic"
+                >
+                  CLINIC STOCK
+                  <div className="text-[10px] text-muted-foreground">Part lands in your inventory</div>
+                </button>
+              </div>
+            </div>
             <div>
               <Label className="text-xs">REMOVAL FEE (OPTIONAL)</Label>
               <Input
