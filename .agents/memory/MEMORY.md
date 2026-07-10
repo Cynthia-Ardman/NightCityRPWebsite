@@ -39,6 +39,7 @@
 - [Request review approve/reject race](request-review-race.md) — both approve AND reject of a reviewable row must lock (FOR UPDATE) + re-check pending status, or reject clobbers an applied approve.
 - [Batch grouping by timestamp](batch-grouping-timestamp.md) — per-row INSERTs get distinct createdAt/now(); group a logical batch on a single JS timestamp written to every row, never the column default.
 - [Legacy actors are lobby-only](legacy-actor-data.md) — bot_actor_attendance is ~16 generic "Open Chaos Lobby" rows with NULL mission_id; no per-mission actor history exists to backfill.
+- [Deploy expression-index trap](deploy-expression-index-trap.md) — index expressions with space-containing literals (coalesce 'epoch' sentinel) break publish migrations; use two partial indexes.
 - [Event actor payout pay-once](event-actor-payout-once.md) — event payouts need a SEPARATE partial unique index on (event_id,user_id); legacy eventId-null standalone path stays unguarded; getEventDetail.paidActorUserIds locks paid NPCs.
 - [Venue sale instant completion](venue-sale-instant-completion.md) — sales charge buyer on operator action via create→completeSaleOffer→delete-if-pending; keep row on needsReconcile; TEST mode returns dryRun 200 leaving pending.
 - Financial/owner decisions: [gate on CURRENT ownerId, not the requestedById snapshotted at creation](financial-decision-current-owner.md); [same rule for owner-action request endpoints](owner-decision-current-ownership.md).

@@ -1195,12 +1195,17 @@ export const eventNpcSignups = pgTable("event_npc_signups", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => ({
-  // One active signup per (event, user, occurrence). coalesce folds the null
-  // (base/single occurrence) case into a sentinel so it participates in
-  // uniqueness too.
-  oneActivePerUserIdx: uniqueIndex("event_npc_signups_active_idx")
-    .on(t.eventId, t.userId, sql`coalesce(${t.occurrenceStartAt}, 'epoch'::timestamptz)`)
-    .where(sql`state = 'signed_up'`),
+  // One active signup per (event, user, occurrence). Split into two plain
+  // partial indexes instead of a coalesce() expression index: Postgres
+  // normalizes the 'epoch' sentinel into a space-containing timestamp literal
+  // that the deploy-time migration differ mangles into invalid DDL
+  // ("::timesta timestamptz_ops" syntax error), blocking production publishes.
+  oneActivePerUserOccIdx: uniqueIndex("event_npc_signups_active_occ_idx")
+    .on(t.eventId, t.userId, t.occurrenceStartAt)
+    .where(sql`state = 'signed_up' AND occurrence_start_at IS NOT NULL`),
+  oneActivePerUserNullOccIdx: uniqueIndex("event_npc_signups_active_null_occ_idx")
+    .on(t.eventId, t.userId)
+    .where(sql`state = 'signed_up' AND occurrence_start_at IS NULL`),
   eventIdx: index("event_npc_signups_event_idx").on(t.eventId),
   userIdx: index("event_npc_signups_user_idx").on(t.userId),
 }));
