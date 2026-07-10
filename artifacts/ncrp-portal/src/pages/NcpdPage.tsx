@@ -5,12 +5,14 @@ import {
   getNcpdSearchCharactersQueryKey,
   useListNcpdReports,
   useListNcpdWarrants,
+  getListNcpdWarrantsQueryKey,
   type NcpdCharacterSummary,
 } from "@workspace/api-client-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import NcpdRecordPanel, { warrantStatusClass } from "@/components/NcpdRecordPanel";
 import { Shield, FileText, AlertTriangle, Search } from "lucide-react";
@@ -81,20 +83,44 @@ export default function NcpdPage() {
   );
 }
 
+const WARRANT_FILTERS = ["open", "served", "revoked", "all"] as const;
+type WarrantFilter = (typeof WARRANT_FILTERS)[number];
+
 function WarrantsBoard() {
-  const { data, isLoading } = useListNcpdWarrants();
+  // The board defaults to OPEN warrants — that is the actionable list an
+  // officer walks in for; served/revoked stay one click away.
+  const [filter, setFilter] = useState<WarrantFilter>("open");
+  const params = filter === "all" ? undefined : { status: filter };
+  const { data, isLoading } = useListNcpdWarrants(params, {
+    query: { queryKey: getListNcpdWarrantsQueryKey(params) },
+  });
   const rows = data ?? [];
-  if (isLoading) return <div className="text-nc-cyan font-display animate-pulse">SCANNING...</div>;
-  if (!rows.length) {
-    return (
-      <Card className="rounded-none border-border bg-card/50">
-        <CardContent className="py-8 font-mono text-muted-foreground text-center">No warrants on file.</CardContent>
-      </Card>
-    );
-  }
   return (
     <div className="space-y-3">
-      {rows.map((w) => (
+      <div className="flex gap-1 flex-wrap" data-testid="filter-warrant-status">
+        {WARRANT_FILTERS.map((f) => (
+          <Button
+            key={f}
+            size="sm"
+            variant={filter === f ? "default" : "outline"}
+            className="rounded-none font-display uppercase text-xs"
+            onClick={() => setFilter(f)}
+            data-testid={`button-warrant-filter-${f}`}
+          >
+            {f}
+          </Button>
+        ))}
+      </div>
+      {isLoading ? (
+        <div className="text-nc-cyan font-display animate-pulse">SCANNING...</div>
+      ) : !rows.length ? (
+        <Card className="rounded-none border-border bg-card/50">
+          <CardContent className="py-8 font-mono text-muted-foreground text-center">
+            {filter === "all" ? "No warrants on file." : `No ${filter} warrants on file.`}
+          </CardContent>
+        </Card>
+      ) : (
+        rows.map((w) => (
         <Card key={w.id} className="rounded-none border-border bg-card/50" data-testid={`card-ncpd-board-warrant-${w.id}`}>
           <CardContent className="py-4 flex items-start justify-between gap-3 flex-wrap">
             <div className="space-y-1">
@@ -114,7 +140,8 @@ function WarrantsBoard() {
             </div>
           </CardContent>
         </Card>
-      ))}
+        ))
+      )}
     </div>
   );
 }
@@ -159,7 +186,10 @@ function ReportsFeed() {
 
 function CharacterLookup() {
   const [q, setQ] = useState("");
-  const enabled = q.trim().length >= 2;
+  // Enable at 2+ chars for names, but allow single-character queries when the
+  // input is numeric — officers look characters up by character number (e.g. "4").
+  const trimmed = q.trim();
+  const enabled = trimmed.length >= 2 || /^\d+$/.test(trimmed);
   const { data, isLoading } = useNcpdSearchCharacters(
     { q: q.trim() },
     { query: { enabled, queryKey: getNcpdSearchCharactersQueryKey({ q: q.trim() }) } },

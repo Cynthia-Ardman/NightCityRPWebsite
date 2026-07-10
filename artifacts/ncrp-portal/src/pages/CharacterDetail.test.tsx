@@ -79,6 +79,9 @@ vi.mock("@workspace/api-client-react", () => {
     useListRipperdocs: () => idleQuery([]),
     useListStores: () => idleQuery([]),
     useListPublicCharacters: () => idleQuery([]),
+    // NcpdRecordPanel (NCPD tab) hooks — the tab is gated off in these tests,
+    // but the module import must still resolve every hook it references.
+    useGetNcpdRecord: () => idleQuery(undefined),
 
     // Mutations
     useSubmitCustomRequest: idleMutation,
@@ -94,6 +97,14 @@ vi.mock("@workspace/api-client-react", () => {
     useSetCharacterLifestyle: idleMutation,
     useUpdateCharacter: idleMutation,
     useDeleteCharacter: idleMutation,
+    useCreateNcpdReport: idleMutation,
+    useUpdateNcpdReport: idleMutation,
+    useDeleteNcpdReport: idleMutation,
+    useCreateNcpdWarrant: idleMutation,
+    useUpdateNcpdWarrant: idleMutation,
+    useDeleteNcpdWarrant: idleMutation,
+    useCreateNcpdNote: idleMutation,
+    useDeleteNcpdNote: idleMutation,
 
     // Query-key helpers
     getGetCharacterHousingQueryKey: queryKey,
@@ -112,6 +123,9 @@ vi.mock("@workspace/api-client-react", () => {
     getListRipperdocsQueryKey: queryKey,
     getListStoresQueryKey: queryKey,
     getListPublicCharactersQueryKey: queryKey,
+    getGetNcpdRecordQueryKey: queryKey,
+    getListNcpdReportsQueryKey: queryKey,
+    getListNcpdWarrantsQueryKey: queryKey,
   };
 });
 
