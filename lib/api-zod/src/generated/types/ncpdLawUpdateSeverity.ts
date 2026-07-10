@@ -13,6 +13,7 @@ export type NcpdLawUpdateSeverity = typeof NcpdLawUpdateSeverity[keyof typeof Nc
 
 
 export const NcpdLawUpdateSeverity = {
+  infraction: 'infraction',
   misdemeanor: 'misdemeanor',
   felony: 'felony',
 } as const;

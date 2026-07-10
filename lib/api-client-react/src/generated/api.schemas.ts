@@ -6538,6 +6538,38 @@ export interface NcpdRecordCharacter {
   lifeStatus: string;
   /** @nullable */
   portraitUrl?: string | null;
+  /** Known affiliations — union of Discord forum tags and staff-managed manual tags. */
+  tags: string[];
+}
+
+export type NcpdRecordVenueVenueType = typeof NcpdRecordVenueVenueType[keyof typeof NcpdRecordVenueVenueType];
+
+
+export const NcpdRecordVenueVenueType = {
+  store: 'store',
+  ripperdoc: 'ripperdoc',
+} as const;
+
+export interface NcpdRecordVenue {
+  venueType: NcpdRecordVenueVenueType;
+  venueId: number;
+  venueName: string;
+  /** @nullable */
+  location?: string | null;
+  /** Employee role — only present on employment entries. */
+  role?: string;
+}
+
+export interface NcpdRecordLease {
+  id: number;
+  address: string;
+  /** @nullable */
+  district?: string | null;
+  /** @nullable */
+  tier?: string | null;
+  /** residential or business */
+  kind: string;
+  monthlyRent: number;
 }
 
 export interface NcpdReport {
@@ -6601,6 +6633,17 @@ export interface NcpdRecord {
   reports: NcpdReport[];
   warrants: NcpdWarrant[];
   notes: NcpdNote[];
+  /** Venues where this character is on the payroll. */
+  employment: NcpdRecordVenue[];
+  /** Venues this character owns. */
+  businesses: NcpdRecordVenue[];
+  /** Active leases held by this character. */
+  housing: NcpdRecordLease[];
+  /**
+     * Owner's account balance (eddies). Null when the character is unclaimed or the balance can't be read.
+     * @nullable
+     */
+  balance?: number | null;
 }
 
 export interface NcpdReportInput {
@@ -6664,6 +6707,7 @@ export type NcpdLawSeverity = typeof NcpdLawSeverity[keyof typeof NcpdLawSeverit
 
 
 export const NcpdLawSeverity = {
+  infraction: 'infraction',
   misdemeanor: 'misdemeanor',
   felony: 'felony',
 } as const;
@@ -6700,6 +6744,7 @@ export type NcpdLawInputSeverity = typeof NcpdLawInputSeverity[keyof typeof Ncpd
 
 
 export const NcpdLawInputSeverity = {
+  infraction: 'infraction',
   misdemeanor: 'misdemeanor',
   felony: 'felony',
 } as const;
@@ -6725,6 +6770,7 @@ export type NcpdLawUpdateSeverity = typeof NcpdLawUpdateSeverity[keyof typeof Nc
 
 
 export const NcpdLawUpdateSeverity = {
+  infraction: 'infraction',
   misdemeanor: 'misdemeanor',
   felony: 'felony',
 } as const;

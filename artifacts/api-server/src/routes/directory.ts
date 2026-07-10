@@ -23,7 +23,7 @@ import {
   inventoryItems,
 } from "@workspace/db";
 import { requireAuth, requireAnyRole } from "../middlewares/auth";
-import { hasRole, addGuildMemberRole, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { hasRole, addGuildMemberRole, grantDeadCharacterRole, RIPPERDOC_ROLE_ID } from "../lib/discord";
 import { sumCwpByCharacter } from "../lib/cyberware";
 import { deriveCyberwareBand } from "../lib/jobs";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
@@ -695,6 +695,13 @@ router.patch("/directory/archive/:id", staffOnly, async (req, res): Promise<void
         });
       }
     });
+  }
+
+  // Staff marking a PC dead grants its owner the Dead Character role
+  // (afterlife-drinks access). Fire-and-forget + idempotent; the hourly
+  // role_sync backfill covers any miss.
+  if (edit.lifeStatus === "dead" && updated.kind === "pc") {
+    grantDeadCharacterRole(updated.ownerId, updated.name, "marked dead (archive edit)");
   }
 
   res.json({

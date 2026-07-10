@@ -103,6 +103,17 @@ export const RIPPERDOC_ROLE_ID = "1356028868103897156";
 export const RIPPERDOC_ROLE_MARKER = "ripperdoc";
 
 /**
+ * Discord role id for the guild's "Dead Character" role, which unlocks the
+ * afterlife-drinks channel. Granted (never auto-revoked) to any player who
+ * owns at least one PC with lifeStatus "dead" — immediately when a character
+ * is marked dead, and backfilled every hourly role_sync sweep so a missed
+ * grant (Discord down, dev environment, pre-existing dead characters) self-
+ * heals. Grant-only on purpose: staff can pull the role manually if a death
+ * is reverted, and an hourly auto-revoke would fight manual grants.
+ */
+export const DEAD_CHARACTER_ROLE_ID = "1525274633337704519";
+
+/**
  * Discord role id for the guild's "NCPD" (officer) role. Matched by exact id —
  * same id-pin pattern as Verified 18+ / Trial Fixer / RipperDoc — so a Discord
  * rename can't silently drop the website NCPD flag. {@link applyRoleIdGrants}
@@ -453,6 +464,35 @@ export async function addGuildMemberRole(
     logger.error({ err, discordUserId, roleId }, "addGuildMemberRole error");
     return { ok: false, error: msg };
   }
+}
+
+/**
+ * Fire-and-forget grant of the Dead Character role (afterlife-drinks access)
+ * to a character's owner. Shared by every write path that can mark a PC dead
+ * (pending-edit close, staff archive edit, admin manual create) so the wiring
+ * can't drift between sites. Safe to call unconditionally: it no-ops for
+ * unclaimed characters and non-snowflake legacy owner ids, and
+ * addGuildMemberRole is idempotent + deployment-gated. Failures are logged
+ * only — the hourly role_sync backfill self-heals any missed grant.
+ */
+export function grantDeadCharacterRole(
+  ownerId: string | null | undefined,
+  characterName: string,
+  context: string,
+): void {
+  if (!ownerId || !/^\d{17,20}$/.test(ownerId)) return;
+  void addGuildMemberRole(
+    ownerId,
+    DEAD_CHARACTER_ROLE_ID,
+    `Dead Character — "${characterName}" ${context}`,
+  ).then((r) => {
+    if (!r.ok) {
+      logger.warn(
+        { ownerId, characterName, context, error: r.error },
+        "Dead Character role grant did not apply; role_sync will retry",
+      );
+    }
+  });
 }
 
 /**

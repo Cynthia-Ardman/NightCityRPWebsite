@@ -7,6 +7,8 @@
  */
 import type { NcpdNote } from './ncpdNote';
 import type { NcpdRecordCharacter } from './ncpdRecordCharacter';
+import type { NcpdRecordLease } from './ncpdRecordLease';
+import type { NcpdRecordVenue } from './ncpdRecordVenue';
 import type { NcpdReport } from './ncpdReport';
 import type { NcpdWarrant } from './ncpdWarrant';
 
@@ -15,4 +17,15 @@ export interface NcpdRecord {
   reports: NcpdReport[];
   warrants: NcpdWarrant[];
   notes: NcpdNote[];
+  /** Venues where this character is on the payroll. */
+  employment: NcpdRecordVenue[];
+  /** Venues this character owns. */
+  businesses: NcpdRecordVenue[];
+  /** Active leases held by this character. */
+  housing: NcpdRecordLease[];
+  /**
+     * Owner's account balance (eddies). Null when the character is unclaimed or the balance can't be read.
+     * @nullable
+     */
+  balance?: number | null;
 }

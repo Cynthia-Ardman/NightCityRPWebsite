@@ -27,7 +27,12 @@ function apiErrorMessage(err: unknown, fallback: string): string {
 
 function severityBadge(severity?: string | null) {
   if (!severity) return null;
-  const cls = severity === "felony" ? "border-destructive text-destructive" : "border-nc-yellow text-nc-yellow";
+  const cls =
+    severity === "felony"
+      ? "border-destructive text-destructive"
+      : severity === "misdemeanor"
+        ? "border-nc-yellow text-nc-yellow"
+        : "border-nc-cyan text-nc-cyan";
   return (
     <Badge variant="outline" className={`rounded-none uppercase font-display text-[10px] ${cls}`}>
       {severity}
@@ -197,7 +202,7 @@ function LawForm({ law, onDone, onError }: { law: NcpdLaw | null; onDone: () => 
     const payload = {
       title,
       body,
-      severity: severity === NO_SEVERITY ? null : (severity as "misdemeanor" | "felony"),
+      severity: severity === NO_SEVERITY ? null : (severity as "infraction" | "misdemeanor" | "felony"),
       punishment: punishment.trim() ? punishment : null,
       restrictedNotes: restrictedNotes.trim() ? restrictedNotes : null,
       ...(sortOrder.trim() !== "" && Number.isFinite(Number(sortOrder)) ? { sortOrder: Number(sortOrder) } : {}),
@@ -248,6 +253,7 @@ function LawForm({ law, onDone, onError }: { law: NcpdLaw | null; onDone: () => 
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NO_SEVERITY}>Unclassified</SelectItem>
+                  <SelectItem value="infraction">Infraction</SelectItem>
                   <SelectItem value="misdemeanor">Misdemeanor</SelectItem>
                   <SelectItem value="felony">Felony</SelectItem>
                 </SelectContent>

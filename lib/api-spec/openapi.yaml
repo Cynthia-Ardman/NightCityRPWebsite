@@ -9933,7 +9933,7 @@ components:
 
     NcpdRecordCharacter:
       type: object
-      required: [id, name, kind, archived, lifeStatus]
+      required: [id, name, kind, archived, lifeStatus, tags]
       properties:
         id: { type: integer }
         name: { type: string }
@@ -9942,10 +9942,35 @@ components:
         archived: { type: boolean }
         lifeStatus: { type: string }
         portraitUrl: { type: ["string", "null"] }
+        tags:
+          type: array
+          items: { type: string }
+          description: "Known affiliations — union of Discord forum tags and staff-managed manual tags."
+
+    NcpdRecordVenue:
+      type: object
+      required: [venueType, venueId, venueName]
+      properties:
+        venueType: { type: string, enum: [store, ripperdoc] }
+        venueId: { type: integer }
+        venueName: { type: string }
+        location: { type: ["string", "null"] }
+        role: { type: string, description: "Employee role — only present on employment entries." }
+
+    NcpdRecordLease:
+      type: object
+      required: [id, address, kind, monthlyRent]
+      properties:
+        id: { type: integer }
+        address: { type: string }
+        district: { type: ["string", "null"] }
+        tier: { type: ["string", "null"] }
+        kind: { type: string, description: "residential or business" }
+        monthlyRent: { type: integer }
 
     NcpdRecord:
       type: object
-      required: [character, reports, warrants, notes]
+      required: [character, reports, warrants, notes, employment, businesses, housing]
       properties:
         character: { $ref: "#/components/schemas/NcpdRecordCharacter" }
         reports:
@@ -9957,6 +9982,21 @@ components:
         notes:
           type: array
           items: { $ref: "#/components/schemas/NcpdNote" }
+        employment:
+          type: array
+          items: { $ref: "#/components/schemas/NcpdRecordVenue" }
+          description: "Venues where this character is on the payroll."
+        businesses:
+          type: array
+          items: { $ref: "#/components/schemas/NcpdRecordVenue" }
+          description: "Venues this character owns."
+        housing:
+          type: array
+          items: { $ref: "#/components/schemas/NcpdRecordLease" }
+          description: "Active leases held by this character."
+        balance:
+          type: ["integer", "null"]
+          description: "Owner's account balance (eddies). Null when the character is unclaimed or the balance can't be read."
 
     NcpdReport:
       type: object
@@ -10048,7 +10088,7 @@ components:
         body: { type: string, description: "Public statute text." }
         severity:
           type: ["string", "null"]
-          enum: [misdemeanor, felony, null]
+          enum: [infraction, misdemeanor, felony, null]
           description: "RESTRICTED — only returned to NCPD/fixer/admin viewers; stripped for everyone else."
         punishment: { type: ["string", "null"], description: "RESTRICTED — only returned to NCPD/fixer/admin viewers." }
         restrictedNotes: { type: ["string", "null"], description: "RESTRICTED — only returned to NCPD/fixer/admin viewers." }
@@ -10062,7 +10102,7 @@ components:
       properties:
         title: { type: string, minLength: 1 }
         body: { type: string, minLength: 1 }
-        severity: { type: ["string", "null"], enum: [misdemeanor, felony, null] }
+        severity: { type: ["string", "null"], enum: [infraction, misdemeanor, felony, null] }
         punishment: { type: ["string", "null"] }
         restrictedNotes: { type: ["string", "null"] }
         sortOrder: { type: integer }
@@ -10072,7 +10112,7 @@ components:
       properties:
         title: { type: string, minLength: 1 }
         body: { type: string, minLength: 1 }
-        severity: { type: ["string", "null"], enum: [misdemeanor, felony, null] }
+        severity: { type: ["string", "null"], enum: [infraction, misdemeanor, felony, null] }
         punishment: { type: ["string", "null"] }
         restrictedNotes: { type: ["string", "null"] }
         sortOrder: { type: integer }

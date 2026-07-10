@@ -16,7 +16,7 @@ import {
 import { isNull, or, ilike, count, inArray } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
-import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, searchGuildMembers, searchGuildChannels, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, addGuildMemberRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, RIPPERDOC_ROLE_ID, RIPPERDOC_ROLE_MARKER, applyRoleIdGrants, externalWritesAllowed, type ThreadAttachment } from "../lib/discord";
+import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, searchGuildMembers, searchGuildChannels, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, addGuildMemberRole, grantDeadCharacterRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, RIPPERDOC_ROLE_ID, RIPPERDOC_ROLE_MARKER, applyRoleIdGrants, externalWritesAllowed, type ThreadAttachment } from "../lib/discord";
 import { resolveOrProvisionUser } from "../lib/userProvision";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
@@ -489,6 +489,13 @@ router.post("/admin/characters", adminOrFixer, async (req, res): Promise<void> =
     actorAvatarUrl: req.user!.avatarUrl,
     message: `${req.user!.username} manually created ${name}${owner ? ` for ${owner.username}` : ""}`,
   });
+
+  // A PC created directly in the "dead" state still earns its owner the Dead
+  // Character role (afterlife-drinks access). Fire-and-forget + idempotent;
+  // the hourly role_sync backfill covers any miss.
+  if (kind === "pc" && lifeStatus === "dead") {
+    grantDeadCharacterRole(ownerId, name, "created dead (admin)");
+  }
 
   res.status(201).json(created);
 });

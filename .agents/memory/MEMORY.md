@@ -143,3 +143,4 @@
 - [CyberPsycho access grant](cyberpsycho-access-grant.md) — panel gated on ADMIN/FIXER OR users.cyberpsycho_access; shared /vrchat/session* stays role-only, never grant-reachable.
 - [Sheet draft optimistic concurrency](sheet-draft-optimistic-concurrency.md) — baseUpdatedAt revision token, 409 stale_draft; SQL re-check must date_trunc to ms (defaultNow() microseconds trap).
 - [Custom-request announce paths](custom-request-announce-paths.md) — reviewable request types must call announceRequest at their insert site; many customRequests insert paths (stores/directory/missions) skip it → no thread.
+- [Character death write paths](character-death-write-paths.md) — lifeStatus flips to dead via 3 write paths + role_sync self-heal; death side effects must wire ALL of them; statuses are active|dead|missing|loa|retired.

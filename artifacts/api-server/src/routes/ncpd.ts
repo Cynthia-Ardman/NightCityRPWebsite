@@ -7,10 +7,16 @@ import {
   ncpdWarrants,
   ncpdCharacterNotes,
   ncpdLaws,
+  stores,
+  storeEmployees,
+  ripperdocs,
+  ripperdocEmployees,
+  housing,
 } from "@workspace/db";
 import { requireAuth, requireAnyRole } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
+import { getBalance } from "../lib/unbelievaboat";
 
 const router: IRouter = Router();
 
@@ -30,7 +36,7 @@ function canSeeRestricted(user: { roles?: string[] | null }): boolean {
 }
 
 const WARRANT_STATUSES = ["open", "served", "revoked"] as const;
-const SEVERITIES = ["misdemeanor", "felony"] as const;
+const SEVERITIES = ["infraction", "misdemeanor", "felony"] as const;
 
 function str(v: unknown): string | null {
   return typeof v === "string" && v.trim() ? v.trim() : null;
@@ -86,23 +92,65 @@ router.get("/ncpd/characters/:id/record", requireAuth, requireNcpd, async (req, 
     res.status(404).json({ error: "character not found" });
     return;
   }
-  const [reports, warrants, notes] = await Promise.all([
-    db
-      .select()
-      .from(ncpdArrestReports)
-      .where(eq(ncpdArrestReports.characterId, id))
-      .orderBy(desc(ncpdArrestReports.createdAt)),
-    db
-      .select()
-      .from(ncpdWarrants)
-      .where(eq(ncpdWarrants.characterId, id))
-      .orderBy(desc(ncpdWarrants.createdAt)),
-    db
-      .select()
-      .from(ncpdCharacterNotes)
-      .where(eq(ncpdCharacterNotes.characterId, id))
-      .orderBy(desc(ncpdCharacterNotes.createdAt)),
-  ]);
+  // Dossier intel alongside the rap sheet: known affiliations (forum +
+  // manual tags), places of employment, businesses owned, residences/leases
+  // and how much money the suspect's account holds. The wallet is USER-level
+  // (UnbelievaBoat), so an unclaimed character has no readable balance —
+  // return null rather than 0 so the UI can say "UNKNOWN". allowStale is fine
+  // here: a dossier is intel, not a money-moving path.
+  const [reports, warrants, notes, employmentStores, employmentClinics, ownedStores, ownedClinics, leases, balance] =
+    await Promise.all([
+      db
+        .select()
+        .from(ncpdArrestReports)
+        .where(eq(ncpdArrestReports.characterId, id))
+        .orderBy(desc(ncpdArrestReports.createdAt)),
+      db
+        .select()
+        .from(ncpdWarrants)
+        .where(eq(ncpdWarrants.characterId, id))
+        .orderBy(desc(ncpdWarrants.createdAt)),
+      db
+        .select()
+        .from(ncpdCharacterNotes)
+        .where(eq(ncpdCharacterNotes.characterId, id))
+        .orderBy(desc(ncpdCharacterNotes.createdAt)),
+      db
+        .select({ venueId: stores.id, venueName: stores.name, location: stores.location, role: storeEmployees.role })
+        .from(storeEmployees)
+        .innerJoin(stores, eq(stores.id, storeEmployees.storeId))
+        .where(eq(storeEmployees.characterId, id)),
+      db
+        .select({ venueId: ripperdocs.id, venueName: ripperdocs.name, location: ripperdocs.location, role: ripperdocEmployees.role })
+        .from(ripperdocEmployees)
+        .innerJoin(ripperdocs, eq(ripperdocs.id, ripperdocEmployees.ripperdocId))
+        .where(eq(ripperdocEmployees.characterId, id)),
+      db
+        .select({ venueId: stores.id, venueName: stores.name, location: stores.location })
+        .from(stores)
+        .where(eq(stores.ownerCharacterId, id)),
+      db
+        .select({ venueId: ripperdocs.id, venueName: ripperdocs.name, location: ripperdocs.location })
+        .from(ripperdocs)
+        .where(eq(ripperdocs.ownerCharacterId, id)),
+      db
+        .select({
+          id: housing.id,
+          address: housing.address,
+          district: housing.district,
+          tier: housing.tier,
+          kind: housing.kind,
+          monthlyRent: housing.monthlyRent,
+        })
+        .from(housing)
+        .where(eq(housing.characterId, id)),
+      c.ownerId ? getBalance(c.ownerId, { allowStale: true }) : Promise.resolve(null),
+    ]);
+  const tagSet = new Set<string>();
+  for (const t of [...(c.appliedTags ?? []), ...(c.manualTags ?? [])]) {
+    const v = typeof t === "string" ? t.trim() : "";
+    if (v) tagSet.add(v);
+  }
   res.json({
     character: {
       id: c.id,
@@ -112,10 +160,21 @@ router.get("/ncpd/characters/:id/record", requireAuth, requireNcpd, async (req, 
       archived: c.archived,
       lifeStatus: c.lifeStatus,
       portraitUrl: c.portraitUrls?.[0] ?? c.portraitUrl ?? null,
+      tags: [...tagSet],
     },
     reports,
     warrants,
     notes,
+    employment: [
+      ...employmentStores.map((e) => ({ ...e, venueType: "store" as const })),
+      ...employmentClinics.map((e) => ({ ...e, venueType: "ripperdoc" as const })),
+    ],
+    businesses: [
+      ...ownedStores.map((b) => ({ ...b, venueType: "store" as const })),
+      ...ownedClinics.map((b) => ({ ...b, venueType: "ripperdoc" as const })),
+    ],
+    housing: leases,
+    balance: typeof balance?.total === "number" ? balance.total : null,
   });
 });
 
@@ -468,7 +527,7 @@ router.post("/ncpd/laws", requireAuth, requireLawWriter, async (req, res): Promi
     return;
   }
   if (severity != null && severity !== "" && !SEVERITIES.includes(severity as (typeof SEVERITIES)[number])) {
-    res.status(400).json({ error: "severity must be misdemeanor or felony" });
+    res.status(400).json({ error: "severity must be infraction, misdemeanor or felony" });
     return;
   }
   const [row] = await db
@@ -522,7 +581,7 @@ router.patch("/ncpd/laws/:id", requireAuth, requireLawWriter, async (req, res): 
   }
   if (severity !== undefined) {
     if (severity != null && severity !== "" && !SEVERITIES.includes(severity as (typeof SEVERITIES)[number])) {
-      res.status(400).json({ error: "severity must be misdemeanor or felony" });
+      res.status(400).json({ error: "severity must be infraction, misdemeanor or felony" });
       return;
     }
     patch.severity = str(severity);

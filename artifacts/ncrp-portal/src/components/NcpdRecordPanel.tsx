@@ -15,6 +15,7 @@ import {
   useDeleteNcpdNote,
   type NcpdReport,
   type NcpdWarrant,
+  type NcpdRecord,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Markdown from "@/components/Markdown";
-import { FileText, AlertTriangle, StickyNote, Plus, Trash2, Pencil, X } from "lucide-react";
+import { FileText, AlertTriangle, StickyNote, Plus, Trash2, Pencil, X, UserSearch } from "lucide-react";
 
 function apiErrorMessage(err: unknown, fallback: string): string {
   const data = (err as { data?: unknown } | null)?.data;
@@ -84,10 +85,125 @@ export default function NcpdRecordPanel({ characterId }: { characterId: number }
           {err}
         </div>
       )}
+      <DossierSection record={record} />
       <WarrantsSection characterId={characterId} warrants={record.warrants} onError={setErr} onChanged={invalidate} />
       <ReportsSection characterId={characterId} reports={record.reports} onError={setErr} onChanged={invalidate} />
       <NotesSection characterId={characterId} notes={record.notes} onError={setErr} onChanged={invalidate} />
     </div>
+  );
+}
+
+function DossierField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="font-display text-[10px] uppercase tracking-widest text-muted-foreground">{label}</p>
+      <div className="font-mono text-sm text-foreground/90">{children}</div>
+    </div>
+  );
+}
+
+// Intel summary the department pulls from the rest of the portal: identity,
+// known affiliations (tags), where the subject works, what they own, where
+// they live, and how flush their account is. All read-only — the source of
+// truth for each field lives on its own admin surface.
+function DossierSection({ record }: { record: NcpdRecord }) {
+  const c = record.character;
+  const venueLine = (v: { venueName: string; location?: string | null; venueType: string; role?: string }) =>
+    `${v.venueName}${v.role ? ` — ${v.role}` : ""} (${v.venueType === "ripperdoc" ? "ripperdoc clinic" : "store"}${v.location ? `, ${v.location}` : ""})`;
+  return (
+    <SectionCard icon={UserSearch} title="SUBJECT DOSSIER">
+      <div className="flex gap-4">
+        {c.portraitUrl ? (
+          <img
+            src={c.portraitUrl}
+            alt={c.name}
+            className="w-24 h-24 object-cover border border-nc-cyan/40 shrink-0"
+            data-testid="img-ncpd-dossier-portrait"
+          />
+        ) : (
+          <div className="w-24 h-24 border border-border bg-black/30 flex items-center justify-center shrink-0">
+            <UserSearch className="w-8 h-8 text-muted-foreground/50" />
+          </div>
+        )}
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-display tracking-wider text-lg text-foreground" data-testid="text-ncpd-dossier-name">{c.name}</p>
+            <Badge variant="outline" className="rounded-none uppercase font-display text-[10px]">{c.kind}</Badge>
+            {c.lifeStatus !== "active" && (
+              <Badge
+                variant="outline"
+                className={`rounded-none uppercase font-display text-[10px] ${
+                  c.lifeStatus === "dead" ? "border-destructive text-destructive" : "border-nc-yellow text-nc-yellow"
+                }`}
+              >
+                {c.lifeStatus}
+              </Badge>
+            )}
+            {c.archived && (
+              <Badge variant="outline" className="rounded-none uppercase font-display text-[10px] border-muted-foreground text-muted-foreground">
+                archived
+              </Badge>
+            )}
+          </div>
+          {c.archetype && <p className="font-mono text-xs text-muted-foreground">{c.archetype}</p>}
+          <div className="flex flex-wrap gap-1" data-testid="list-ncpd-dossier-tags">
+            {c.tags.length ? (
+              c.tags.map((t) => (
+                <Badge key={t} variant="outline" className="rounded-none font-mono text-[10px] border-nc-cyan/40 text-nc-cyan">
+                  {t}
+                </Badge>
+              ))
+            ) : (
+              <span className="font-mono text-xs text-muted-foreground">No known affiliations.</span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 pt-2 border-t border-border/50">
+        <DossierField label="Employment">
+          {record.employment.length ? (
+            <ul className="space-y-0.5" data-testid="list-ncpd-dossier-employment">
+              {record.employment.map((v, i) => (
+                <li key={`${v.venueType}-${v.venueId}-${i}`}>{venueLine(v)}</li>
+              ))}
+            </ul>
+          ) : (
+            <span className="text-muted-foreground">No known employment.</span>
+          )}
+        </DossierField>
+        <DossierField label="Owned businesses">
+          {record.businesses.length ? (
+            <ul className="space-y-0.5" data-testid="list-ncpd-dossier-businesses">
+              {record.businesses.map((v, i) => (
+                <li key={`${v.venueType}-${v.venueId}-${i}`}>{venueLine(v)}</li>
+              ))}
+            </ul>
+          ) : (
+            <span className="text-muted-foreground">No registered businesses.</span>
+          )}
+        </DossierField>
+        <DossierField label="Housing">
+          {record.housing.length ? (
+            <ul className="space-y-0.5" data-testid="list-ncpd-dossier-housing">
+              {record.housing.map((l) => (
+                <li key={l.id}>
+                  {l.address}
+                  {l.district ? `, ${l.district}` : ""}
+                  {l.kind === "business" ? " (business)" : ""}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <span className="text-muted-foreground">No leases on record.</span>
+          )}
+        </DossierField>
+        <DossierField label="Account balance">
+          <span data-testid="text-ncpd-dossier-balance">
+            {record.balance != null ? `${record.balance.toLocaleString()} €$` : <span className="text-muted-foreground">UNKNOWN</span>}
+          </span>
+        </DossierField>
+      </div>
+    </SectionCard>
   );
 }
 

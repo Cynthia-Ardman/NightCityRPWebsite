@@ -11953,7 +11953,8 @@ export const GetNcpdRecordResponse = zod.object({
   "archetype": zod.string().nullish(),
   "archived": zod.boolean(),
   "lifeStatus": zod.string(),
-  "portraitUrl": zod.string().nullish()
+  "portraitUrl": zod.string().nullish(),
+  "tags": zod.array(zod.string()).describe('Known affiliations — union of Discord forum tags and staff-managed manual tags.')
 }),
   "reports": zod.array(zod.object({
   "id": zod.number(),
@@ -11987,7 +11988,30 @@ export const GetNcpdRecordResponse = zod.object({
   "authorName": zod.string().nullish(),
   "note": zod.string(),
   "createdAt": zod.coerce.date()
-}))
+})),
+  "employment": zod.array(zod.object({
+  "venueType": zod.enum(['store', 'ripperdoc']),
+  "venueId": zod.number(),
+  "venueName": zod.string(),
+  "location": zod.string().nullish(),
+  "role": zod.string().optional().describe('Employee role — only present on employment entries.')
+})).describe('Venues where this character is on the payroll.'),
+  "businesses": zod.array(zod.object({
+  "venueType": zod.enum(['store', 'ripperdoc']),
+  "venueId": zod.number(),
+  "venueName": zod.string(),
+  "location": zod.string().nullish(),
+  "role": zod.string().optional().describe('Employee role — only present on employment entries.')
+})).describe('Venues this character owns.'),
+  "housing": zod.array(zod.object({
+  "id": zod.number(),
+  "address": zod.string(),
+  "district": zod.string().nullish(),
+  "tier": zod.string().nullish(),
+  "kind": zod.string().describe('residential or business'),
+  "monthlyRent": zod.number()
+})).describe('Active leases held by this character.'),
+  "balance": zod.number().nullish().describe('Owner\'s account balance (eddies). Null when the character is unclaimed or the balance can\'t be read.')
 })
 
 
@@ -12182,7 +12206,7 @@ export const ListNcpdLawsResponseItem = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "body": zod.string().describe('Public statute text.'),
-  "severity": zod.union([zod.literal('misdemeanor'),zod.literal('felony'),zod.literal(null)]).nullish().describe('RESTRICTED — only returned to NCPD\/fixer\/admin viewers; stripped for everyone else.'),
+  "severity": zod.union([zod.literal('infraction'),zod.literal('misdemeanor'),zod.literal('felony'),zod.literal(null)]).nullish().describe('RESTRICTED — only returned to NCPD\/fixer\/admin viewers; stripped for everyone else.'),
   "punishment": zod.string().nullish().describe('RESTRICTED — only returned to NCPD\/fixer\/admin viewers.'),
   "restrictedNotes": zod.string().nullish().describe('RESTRICTED — only returned to NCPD\/fixer\/admin viewers.'),
   "sortOrder": zod.number(),
@@ -12202,7 +12226,7 @@ export const ListNcpdLawsResponse = zod.array(ListNcpdLawsResponseItem)
 export const CreateNcpdLawBody = zod.object({
   "title": zod.string().min(1),
   "body": zod.string().min(1),
-  "severity": zod.union([zod.literal('misdemeanor'),zod.literal('felony'),zod.literal(null)]).nullish(),
+  "severity": zod.union([zod.literal('infraction'),zod.literal('misdemeanor'),zod.literal('felony'),zod.literal(null)]).nullish(),
   "punishment": zod.string().nullish(),
   "restrictedNotes": zod.string().nullish(),
   "sortOrder": zod.number().optional()
@@ -12223,7 +12247,7 @@ export const UpdateNcpdLawParams = zod.object({
 export const UpdateNcpdLawBody = zod.object({
   "title": zod.string().min(1).optional(),
   "body": zod.string().min(1).optional(),
-  "severity": zod.union([zod.literal('misdemeanor'),zod.literal('felony'),zod.literal(null)]).nullish(),
+  "severity": zod.union([zod.literal('infraction'),zod.literal('misdemeanor'),zod.literal('felony'),zod.literal(null)]).nullish(),
   "punishment": zod.string().nullish(),
   "restrictedNotes": zod.string().nullish(),
   "sortOrder": zod.number().optional()
@@ -12233,7 +12257,7 @@ export const UpdateNcpdLawResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "body": zod.string().describe('Public statute text.'),
-  "severity": zod.union([zod.literal('misdemeanor'),zod.literal('felony'),zod.literal(null)]).nullish().describe('RESTRICTED — only returned to NCPD\/fixer\/admin viewers; stripped for everyone else.'),
+  "severity": zod.union([zod.literal('infraction'),zod.literal('misdemeanor'),zod.literal('felony'),zod.literal(null)]).nullish().describe('RESTRICTED — only returned to NCPD\/fixer\/admin viewers; stripped for everyone else.'),
   "punishment": zod.string().nullish().describe('RESTRICTED — only returned to NCPD\/fixer\/admin viewers.'),
   "restrictedNotes": zod.string().nullish().describe('RESTRICTED — only returned to NCPD\/fixer\/admin viewers.'),
   "sortOrder": zod.number(),

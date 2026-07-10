@@ -13,6 +13,7 @@ export type NcpdLawInputSeverity = typeof NcpdLawInputSeverity[keyof typeof Ncpd
 
 
 export const NcpdLawInputSeverity = {
+  infraction: 'infraction',
   misdemeanor: 'misdemeanor',
   felony: 'felony',
 } as const;

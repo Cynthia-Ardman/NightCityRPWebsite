@@ -14,7 +14,7 @@ import {
 } from "@workspace/db";
 import type { Request } from "express";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole, postToChannel, startThreadFromMessage, addGuildMemberRole, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { hasRole, postToChannel, startThreadFromMessage, addGuildMemberRole, grantDeadCharacterRole, RIPPERDOC_ROLE_ID } from "../lib/discord";
 import { logger } from "../lib/logger";
 import { isReviewer, isEligibleReviewer, listEligibleReviewerIds, listEligibleReviewers, loadLastActivityBySubject, majorityOf, type ReviewActionResult } from "../lib/review";
 import { recordAudit } from "../lib/audit";
@@ -1088,16 +1088,23 @@ export async function closeEdit(req: Request, id: number, note?: string): Promis
     // the RipperDoc Discord role AFTER the tx commits (fire-and-forget). Captured
     // here so the external call stays outside the transaction.
     let ripperGrant: { ownerId: string; name: string } | null = null;
+    let deadGrant: { ownerId: string; name: string } | null = null;
     if (locked.status === "approved") {
       const diff = (locked.proposed_diff ?? {}) as EditableDiff;
       await applyDiff(locked.character_id, diff, tx);
       const sd = (diff as { sheetData?: Record<string, unknown> }).sheetData;
-      if (sd && sd.ripperDoc === true) {
+      if ((sd && sd.ripperDoc === true) || diff.lifeStatus === "dead") {
         const [c] = await tx
-          .select({ ownerId: characters.ownerId, name: characters.name })
+          .select({ ownerId: characters.ownerId, name: characters.name, kind: characters.kind })
           .from(characters)
           .where(eq(characters.id, locked.character_id));
-        if (c?.ownerId) ripperGrant = { ownerId: c.ownerId, name: c.name };
+        if (c?.ownerId && sd?.ripperDoc === true) ripperGrant = { ownerId: c.ownerId, name: c.name };
+        // Approved edit killed the character: its owner earns the Dead
+        // Character role (afterlife-drinks). PCs only — NPC deaths don't
+        // grant the player anything.
+        if (c?.ownerId && diff.lifeStatus === "dead" && c.kind === "pc") {
+          deadGrant = { ownerId: c.ownerId, name: c.name };
+        }
       }
       if (locked.update_note) {
         await tx.insert(characterUpdates).values({
@@ -1118,7 +1125,7 @@ export async function closeEdit(req: Request, id: number, note?: string): Promis
       .update(pendingCharacterEdits)
       .set({ status: "closed", closedAt: new Date(), closedBy: u.id })
       .where(eq(pendingCharacterEdits.id, id));
-    return { kind: "ok" as const, status: locked.status, ripperGrant };
+    return { kind: "ok" as const, status: locked.status, ripperGrant, deadGrant };
   });
   if (result.kind === "error") return { status: result.status, body: result.body };
   if (result.kind === "ok") {
@@ -1141,6 +1148,12 @@ export async function closeEdit(req: Request, id: number, note?: string): Promis
           logger.warn({ editId: id, ownerId, error: r.error }, "RipperDoc role grant (edit) did not apply");
         }
       });
+    }
+    // Approved edit marked the PC dead → owner gets the Dead Character role
+    // (afterlife-drinks access). Same fire-and-forget pattern as above; the
+    // hourly role_sync backfill covers any miss.
+    if (result.deadGrant) {
+      grantDeadCharacterRole(result.deadGrant.ownerId, result.deadGrant.name, "edit approved (marked dead)");
     }
   }
   const [row] = await db.select().from(pendingCharacterEdits).where(eq(pendingCharacterEdits.id, id));

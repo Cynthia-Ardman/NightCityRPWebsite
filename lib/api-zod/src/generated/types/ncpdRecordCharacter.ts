@@ -17,4 +17,6 @@ export interface NcpdRecordCharacter {
   lifeStatus: string;
   /** @nullable */
   portraitUrl?: string | null;
+  /** Known affiliations — union of Discord forum tags and staff-managed manual tags. */
+  tags: string[];
 }

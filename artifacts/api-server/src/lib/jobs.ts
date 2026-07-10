@@ -1,7 +1,7 @@
 import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, activityEvents, botConfig, shopOpens, inventoryItems, stores, ripperdocs } from "@workspace/db";
 import { eq, and, desc, sql, isNotNull, gte, inArray } from "drizzle-orm";
 import { logger } from "./logger";
-import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchAllGuildMemberRoles, VERIFIED_18_ROLE_ID, RULES_ROLE_ID, applyRoleIdGrants, addGuildMemberRole, postToChannel } from "./discord";
+import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchAllGuildMemberRoles, VERIFIED_18_ROLE_ID, RULES_ROLE_ID, DEAD_CHARACTER_ROLE_ID, applyRoleIdGrants, addGuildMemberRole, postToChannel } from "./discord";
 import { reconcileBusinessChannelAccess } from "./businessChannelAccess";
 import { notifyAutoCharge } from "./notifications";
 import { patchBalance } from "./unbelievaboat";
@@ -278,6 +278,16 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       logger.info({ job: name, system: gatedSystem }, "job skipped — Test mode (live gate)");
     } else if (name === "role_sync") {
       const allUsers = await db.select().from(users);
+      // Owners of at least one dead PC get the "Dead Character" Discord role
+      // (afterlife-drinks access). Precompute the owner set once — this doubles
+      // as the backfill for characters that died before the role existed and as
+      // the self-heal for any missed immediate grant. Grant-only (see
+      // DEAD_CHARACTER_ROLE_ID docs): never auto-revoked here.
+      const deadOwnerRows = await db
+        .selectDistinct({ ownerId: characters.ownerId })
+        .from(characters)
+        .where(and(eq(characters.kind, "pc"), eq(characters.lifeStatus, "dead"), isNotNull(characters.ownerId)));
+      const deadOwners = new Set(deadOwnerRows.map((r) => r.ownerId).filter((v): v is string => !!v));
       // Try the cheap path first: one paginated bulk fetch of every guild
       // member's roles (~1 Discord call per 1000 members) instead of 2 calls
       // per registered user. This is what makes a tighter sync interval safe.
@@ -328,6 +338,16 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
               // but surface the failure so a persistently-missing rules role
               // isn't invisible.
               logger.warn({ userId: u.id, discordId: u.discordId, error: granted.error }, "role sync: RULES_ROLE_ID backfill failed; will retry next sync");
+            }
+          }
+          // Backfill the Dead Character role for anyone who owns a dead PC but
+          // is missing it (pre-existing deaths, or an immediate grant that
+          // failed / was suppressed off-deployment). Only when we have a
+          // definite role read so we never re-grant blind on a fetch failure.
+          if (deadOwners.has(u.id) && roleIds !== null && !roleIds.includes(DEAD_CHARACTER_ROLE_ID)) {
+            const granted = await addGuildMemberRole(u.discordId, DEAD_CHARACTER_ROLE_ID, "Dead Character — owns a dead PC (role sync backfill)");
+            if (!granted.ok) {
+              logger.warn({ userId: u.id, discordId: u.discordId, error: granted.error }, "role sync: DEAD_CHARACTER_ROLE_ID backfill failed; will retry next sync");
             }
           }
           // With a definite read, always write `roles` (even empty) so a member

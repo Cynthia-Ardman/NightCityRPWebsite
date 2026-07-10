@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
+import { db, characters, stores, storeEmployees, ripperdocs, housing } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
 
@@ -101,6 +103,81 @@ describe("NCPD character lookup", () => {
     const officer = await createOfficer();
     const res = await request(app).get("/api/ncpd/characters/999999/record").set("x-test-user", officer.id);
     expect(res.status).toBe(404);
+  });
+});
+
+describe("NCPD record dossier enrichment", () => {
+  it("returns tags, employment, businesses, housing and a null balance for an unclaimed character", async () => {
+    const officer = await createOfficer();
+    const c = await createCharacter({ name: "Judy Alvarez" });
+    // Affiliations come from the union of importer-owned forum tags and
+    // staff-managed manual tags, trimmed and de-duplicated.
+    await db
+      .update(characters)
+      .set({ appliedTags: ["Mox", " Netrunner "], manualTags: ["Mox", "BD Editor"] })
+      .where(eq(characters.id, c.id));
+
+    const employer = await createCharacter({ name: "Employer" });
+    const storeOwner = await createUser();
+    const [ownStore] = await db
+      .insert(stores)
+      .values({ ownerId: storeOwner.id, name: "Judy's BDs", location: "Kabuki", ownerCharacterId: c.id })
+      .returning();
+    const [workStore] = await db
+      .insert(stores)
+      .values({ ownerId: storeOwner.id, name: "Lizzie's Bar", location: "Watson", ownerCharacterId: employer.id })
+      .returning();
+    await db.insert(storeEmployees).values({ storeId: workStore.id, characterId: c.id, role: "Technician" });
+    const [clinic] = await db
+      .insert(ripperdocs)
+      .values({ ownerId: storeOwner.id, name: "Viktor's Clinic", location: "Little China", ownerCharacterId: c.id })
+      .returning();
+    const [lease] = await db
+      .insert(housing)
+      .values({ characterId: c.id, address: "Megabuilding H8, Apt 303", district: "Japantown", kind: "residential", monthlyRent: 1200 })
+      .returning();
+
+    const res = await request(app).get(`/api/ncpd/characters/${c.id}/record`).set("x-test-user", officer.id);
+    expect(res.status).toBe(200);
+    expect([...res.body.character.tags].sort()).toEqual(["BD Editor", "Mox", "Netrunner"]);
+    expect(res.body.employment).toHaveLength(1);
+    expect(res.body.employment[0]).toMatchObject({
+      venueType: "store",
+      venueId: workStore.id,
+      venueName: "Lizzie's Bar",
+      location: "Watson",
+      role: "Technician",
+    });
+    const businesses = res.body.businesses as Array<{ venueType: string; venueId: number; venueName: string }>;
+    expect(businesses).toHaveLength(2);
+    expect(businesses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ venueType: "store", venueId: ownStore.id, venueName: "Judy's BDs" }),
+        expect.objectContaining({ venueType: "ripperdoc", venueId: clinic.id, venueName: "Viktor's Clinic" }),
+      ]),
+    );
+    expect(res.body.housing).toHaveLength(1);
+    expect(res.body.housing[0]).toMatchObject({
+      id: lease.id,
+      address: "Megabuilding H8, Apt 303",
+      district: "Japantown",
+      kind: "residential",
+      monthlyRent: 1200,
+    });
+    // Unclaimed character (no ownerId) → wallet unreadable → null, not 0.
+    expect(res.body.balance).toBeNull();
+  });
+
+  it("returns empty dossier collections when nothing is on file", async () => {
+    const officer = await createOfficer();
+    const c = await createCharacter();
+    const res = await request(app).get(`/api/ncpd/characters/${c.id}/record`).set("x-test-user", officer.id);
+    expect(res.status).toBe(200);
+    expect(res.body.character.tags).toEqual([]);
+    expect(res.body.employment).toEqual([]);
+    expect(res.body.businesses).toEqual([]);
+    expect(res.body.housing).toEqual([]);
+    expect(res.body.balance).toBeNull();
   });
 });
 
@@ -255,6 +332,18 @@ describe("Book of Laws", () => {
         .set("x-test-user", u.id)
         .send({ title: `Law by ${u.username}`, body: "Body text" });
       expect(res.status).toBe(201);
+    }
+  });
+
+  it("accepts all three severities including infraction", async () => {
+    const commissioner = await createCommissioner();
+    for (const severity of ["infraction", "misdemeanor", "felony"] as const) {
+      const res = await request(app)
+        .post("/api/ncpd/laws")
+        .set("x-test-user", commissioner.id)
+        .send({ title: `Law (${severity})`, body: "B", severity });
+      expect(res.status, severity).toBe(201);
+      expect(res.body.severity).toBe(severity);
     }
   });
 
