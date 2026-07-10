@@ -341,7 +341,56 @@ export default function DirectoryCalendar() {
         <div className="font-mono text-nc-cyan animate-pulse">Loading calendar...</div>
       ) : (
         <ErrorBoundary>
-          <div className="border border-border bg-card/20">
+          {/* Mobile: the 7-column grid is unreadable on a phone (titles wrap
+              letter-by-letter), so small screens get an agenda list of the same
+              period instead. The grid below is hidden on mobile. */}
+          <div className="md:hidden border border-border bg-card/20 divide-y divide-border/50" data-testid="calendar-agenda">
+            {(() => {
+              const days = cells.filter(
+                (d) => (view === "week" || d.getMonth() === cursor.getMonth()) && (byDay.get(dayKey(d))?.length ?? 0) > 0,
+              );
+              if (days.length === 0) {
+                return (
+                  <div className="p-6 text-center font-mono text-sm text-muted-foreground">
+                    Nothing scheduled this {view === "week" ? "week" : "month"}.
+                  </div>
+                );
+              }
+              return days.map((d) => {
+                const isToday = sameDay(d, today);
+                const dayItems = byDay.get(dayKey(d)) ?? [];
+                return (
+                  <div key={dayKey(d)} className="p-3 space-y-2" data-testid={`agenda-day-${dayKey(d)}`}>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`font-display text-sm tracking-widest ${
+                          isToday ? "bg-nc-cyan text-background px-1.5 py-0.5" : "text-foreground"
+                        }`}
+                      >
+                        {d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }).toUpperCase()}
+                      </span>
+                      {isToday && <span className="font-mono text-[10px] text-nc-cyan">TODAY</span>}
+                      <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+                        {dayItems.length} {dayItems.length === 1 ? "item" : "items"}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      {dayItems.map((it) => (
+                        <CalChip
+                          key={`${it.kind}-${it.id}-${it.occMs}`}
+                          item={it}
+                          onQuickSignup={() => quickNpc.signUp(it.kind, it.id, it.kind === "event" ? it.start.toISOString() : undefined)}
+                          signingUp={quickNpc.pendingKey === `${it.kind}-${it.id}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+
+          <div className="hidden md:block border border-border bg-card/20">
             <div className="grid grid-cols-7 border-b border-border">
               {WEEKDAYS.map((w) => (
                 <div
@@ -503,7 +552,7 @@ function CalChip({
     >
       <Link
         href={item.href}
-        className={`block ${dense ? "px-1 py-0.5" : "px-1.5 py-1"} ${canQuickNpc ? "pr-5" : ""}`}
+        className={`block ${dense ? "px-1 py-0.5" : "px-1.5 py-1"} ${canQuickNpc ? "pr-7 md:pr-5" : ""}`}
         title={`${item.title} · ${item.subtype} · ${time}${statusLabel ? ` · ${statusLabel}` : ""}`}
       >
         <div className={`flex items-center gap-1 font-mono leading-tight ${dense ? "text-[10px]" : "text-[11px]"}`}>
@@ -537,7 +586,7 @@ function CalChip({
             e.stopPropagation();
             onQuickSignup();
           }}
-          className="absolute top-0.5 right-0.5 inline-flex items-center justify-center h-4 w-4 border border-nc-yellow/60 bg-nc-yellow/15 text-nc-yellow hover:bg-nc-yellow/30 disabled:opacity-50"
+          className="absolute top-0.5 right-0.5 inline-flex items-center justify-center h-6 w-6 md:h-4 md:w-4 border border-nc-yellow/60 bg-nc-yellow/15 text-nc-yellow hover:bg-nc-yellow/30 disabled:opacity-50"
           data-testid={`button-quick-npc-${item.kind}-${item.id}`}
           title="Sign up as NPC"
           aria-label={`Sign up as an NPC for ${item.title}`}
