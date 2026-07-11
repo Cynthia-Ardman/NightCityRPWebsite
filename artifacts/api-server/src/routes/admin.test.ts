@@ -8,7 +8,7 @@ vi.mock("../lib/unbelievaboat", () => ({
   getBalance: vi.fn(),
 }));
 
-import { db, characters, users, walletTransactions, auditLog } from "@workspace/db";
+import { db, characters, users, walletTransactions, auditLog, botConfig } from "@workspace/db";
 import { patchBalance } from "../lib/unbelievaboat";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
@@ -110,6 +110,75 @@ describe("POST /admin/characters/:id/checkup", () => {
       .set("x-test-user", admin.id)
       .send({ cyberwareLevel: "bogus" });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /admin/characters/:id/checkup — temporary reset floor", () => {
+  const FLOOR_KEY = "checkup_reset_floor_weeks";
+  const DAY = 86400000;
+
+  const setFloor = (weeks: number) =>
+    db
+      .insert(botConfig)
+      .values({ key: FLOOR_KEY, value: weeks })
+      .onConflictDoUpdate({ target: botConfig.key, set: { value: weeks } });
+
+  const clearFloor = () => db.delete(botConfig).where(eq(botConfig.key, FLOOR_KEY));
+
+  // weeksSinceLastCheckup maps a date D to floor((now - D) / 1w) + 1.
+  const weeksOf = (iso: string) =>
+    Math.floor((Date.now() - new Date(iso).getTime()) / (7 * DAY)) + 1;
+
+  beforeEach(async () => {
+    await clearFloor();
+  });
+
+  it("caps a week-5 character at week 4 when the floor is 4", async () => {
+    await setFloor(4);
+    const admin = await createAdmin();
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id });
+    const fiveWeeksAgo = new Date(Date.now() - 32 * DAY); // ~week 5
+    await db.update(characters).set({ lastCheckupAt: fiveWeeksAgo }).where(eq(characters.id, char.id));
+    const res = await request(app)
+      .post(`/api/admin/characters/${char.id}/checkup`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(res.status).toBe(200);
+    expect(weeksOf(res.body.lastCheckupAt)).toBe(4);
+    await clearFloor();
+  });
+
+  it("leaves a week-3 character untouched when the floor is 4", async () => {
+    await setFloor(4);
+    const admin = await createAdmin();
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id });
+    const threeWeeksAgo = new Date(Date.now() - 16 * DAY); // ~week 3
+    await db.update(characters).set({ lastCheckupAt: threeWeeksAgo }).where(eq(characters.id, char.id));
+    const res = await request(app)
+      .post(`/api/admin/characters/${char.id}/checkup`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(res.status).toBe(200);
+    // Date must be exactly the pre-existing one — never moved backward OR forward.
+    expect(new Date(res.body.lastCheckupAt).getTime()).toBe(threeWeeksAgo.getTime());
+    expect(weeksOf(res.body.lastCheckupAt)).toBe(3);
+    await clearFloor();
+  });
+
+  it("resets fully to now when the floor key is absent", async () => {
+    const admin = await createAdmin();
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id });
+    const fiveWeeksAgo = new Date(Date.now() - 32 * DAY);
+    await db.update(characters).set({ lastCheckupAt: fiveWeeksAgo }).where(eq(characters.id, char.id));
+    const res = await request(app)
+      .post(`/api/admin/characters/${char.id}/checkup`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(res.status).toBe(200);
+    expect(Date.now() - new Date(res.body.lastCheckupAt).getTime()).toBeLessThan(60_000);
   });
 });
 

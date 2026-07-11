@@ -27,3 +27,6 @@ Side effect (intended): the 7-day `checkupIsCurrent` meds-suppression now also k
 
 ## Former index detail (full)
 null lastCheckupAt must NOT mean max meds streak; createdAt is the implicit initial checkup (7-day grace) across 4 surfaces (dashboard, meds cron, char card, ripperdoc console); meds-charge/DM tests must backdate or pass vacuously + assert patchBalance ([test trap](cyberware-checkup-grace-test-trap.md)).
+
+## Temporary checkup reset floor (event mode)
+`bot_config.checkup_reset_floor_weeks` = N (number, admin-set via System Flags UI; missing/0/non-numeric = off, clamped to CYBERWARE_MAX_STREAK). While set, the checkup endpoint caps the reset instead of clearing it: new lastCheckupAt = max(lastCheckupAt ?? createdAt, now - (N-1) weeks) — week >N drops to exactly week N, week <=N is left untouched. Because billing/display use household max(lastCheckupAt ?? createdAt), the single checkup write path covers all surfaces. Effective date must mirror billing's `??` fallback, NOT max() with createdAt — the floor caps relative to the date the player is actually billed on. Delete the key to end the event. Audit rows get a "[floor: capped at week N]" note.

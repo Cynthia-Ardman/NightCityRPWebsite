@@ -20,7 +20,7 @@ import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscor
 import { resolveOrProvisionUser } from "../lib/userProvision";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
-import { runJob, deriveCyberwareBand } from "../lib/jobs";
+import { runJob, deriveCyberwareBand, weeksSinceLastCheckup, CYBERWARE_MAX_STREAK } from "../lib/jobs";
 import { recordAudit } from "../lib/audit";
 import { auditLog, classifyWalletCategory } from "@workspace/db";
 import { parseCwp, cwpForItem } from "../lib/cyberware";
@@ -585,6 +585,30 @@ router.delete("/admin/characters/:id/owner", adminOrFixer, async (req, res): Pro
 // admin tokens.
 const CYBERWARE_LEVELS = new Set(["none", "medium", "high", "extreme"]);
 
+// TEMPORARY event/amnesty mode: when bot_config.checkup_reset_floor_weeks is a
+// positive number N, a checkup no longer resets the meds streak to week 1 —
+// instead it caps it at week N. Concretely the recorded checkup date becomes
+// max(character's current effective date, now - (N-1) weeks), so:
+//   - someone on week 5+ drops to exactly week N (e.g. 4), and
+//   - someone already at or below week N keeps their current date untouched
+//     (a checkup never moves the effective date BACKWARD — see
+//     .agents/memory/checkup-streak-creation-floor.md).
+// Missing key / 0 / non-numeric = normal behavior (full reset to now).
+// Admins flip this in the System Flags UI; delete the key to end the event.
+export const CHECKUP_FLOOR_KEY = "checkup_reset_floor_weeks";
+
+async function checkupResetFloorWeeks(): Promise<number> {
+  try {
+    const [row] = await db.select().from(botConfig).where(eq(botConfig.key, CHECKUP_FLOOR_KEY));
+    const n = typeof row?.value === "number" ? row.value : Number(row?.value);
+    if (!Number.isFinite(n) || n < 1) return 0;
+    return Math.min(Math.floor(n), CYBERWARE_MAX_STREAK);
+  } catch {
+    // Fail-safe: on a read error, behave normally (full reset).
+    return 0;
+  }
+}
+
 router.post("/admin/characters/:id/checkup", requireAuth, async (req, res): Promise<void> => {
   const u = req.user!;
   if (!hasRole(u.roles ?? [], "ADMIN") && !hasRole(u.roles ?? [], "RIPPERDOC")) {
@@ -608,7 +632,22 @@ router.post("/admin/characters/:id/checkup", requireAuth, async (req, res): Prom
     return;
   }
   const now = new Date();
-  const patch: Record<string, unknown> = { lastCheckupAt: now, checkupStreak: 0 };
+  // Temporary floor mode (see CHECKUP_FLOOR_KEY above): cap the reset at week
+  // N instead of clearing it. weeksSinceLastCheckup() maps a date D to
+  // floor((now-D)/1w)+1, so "exactly week N" = now - (N-1) weeks.
+  const floorWeeks = await checkupResetFloorWeeks();
+  let checkupDate = now;
+  if (floorWeeks >= 1) {
+    const floorDate = new Date(now.getTime() - (floorWeeks - 1) * 7 * 86400000);
+    // Effective date mirrors billing exactly: lastCheckupAt when set, else
+    // createdAt (the implicit initial checkup). Do NOT max() with createdAt —
+    // billing derives weeks from lastCheckupAt whenever present, and the floor
+    // must cap relative to the same date the player is actually billed on.
+    const effective = c.lastCheckupAt ?? c.createdAt ?? null;
+    checkupDate = effective && effective.getTime() > floorDate.getTime() ? effective : floorDate;
+  }
+  const floorApplied = floorWeeks >= 1 && checkupDate.getTime() !== now.getTime();
+  const patch: Record<string, unknown> = { lastCheckupAt: checkupDate, checkupStreak: 0 };
   if (rawLevel) patch.cyberwareLevel = rawLevel;
   const [updated] = await db
     .update(characters)
@@ -630,16 +669,21 @@ router.post("/admin/characters/:id/checkup", requireAuth, async (req, res): Prom
       .where(eq(users.id, updated.ownerId))
       .limit(1);
     if (owner?.discordId) {
+      // Mirror weeks: 0 for a normal full reset; under floor mode, the capped
+      // week count minus 1 (the mirror historically stores "completed weeks",
+      // matching weeks:0 for a just-now checkup where weeksSince = 1).
+      const mirrorWeeks = Math.max(0, weeksSinceLastCheckup(checkupDate, now) - 1);
       await db
         .insert(botCyberwareStatus)
-        .values({ userId: owner.discordId, weeks: 0, lastProcessed: now, updatedAt: now })
+        .values({ userId: owner.discordId, weeks: mirrorWeeks, lastProcessed: now, updatedAt: now })
         .onConflictDoUpdate({
           target: botCyberwareStatus.userId,
-          set: { weeks: 0, lastProcessed: now, updatedAt: now },
+          set: { weeks: mirrorWeeks, lastProcessed: now, updatedAt: now },
         });
     }
   }
-  const levelNote = rawLevel ? ` (level: ${rawLevel})` : "";
+  const floorNote = floorApplied ? ` [floor: capped at week ${floorWeeks}]` : "";
+  const levelNote = (rawLevel ? ` (level: ${rawLevel})` : "") + floorNote;
   await db.insert(activityEvents).values({
     kind: "checkup",
     actorId: req.user!.id,
