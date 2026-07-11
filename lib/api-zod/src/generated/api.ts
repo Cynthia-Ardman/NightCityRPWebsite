@@ -12009,6 +12009,20 @@ export const GetNcpdRecordResponse = zod.object({
   "note": zod.string(),
   "createdAt": zod.coerce.date()
 })),
+  "fines": zod.array(zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string().optional().describe('Joined character name — present on the player \'my fines\' endpoint.'),
+  "issuedById": zod.string().nullish(),
+  "officerName": zod.string().nullish(),
+  "amount": zod.number().describe('Fine amount in eddies (positive).'),
+  "reason": zod.string(),
+  "status": zod.enum(['unpaid', 'paid', 'void']),
+  "paidAt": zod.coerce.date().nullish(),
+  "paidByUserId": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})).describe('Fines levied on this character by NCPD officers.'),
   "employment": zod.array(zod.object({
   "venueType": zod.enum(['store', 'ripperdoc']),
   "venueId": zod.number(),
@@ -12139,6 +12153,86 @@ export const DeleteNcpdReportParams = zod.object({
 
 export const DeleteNcpdReportResponse = zod.object({
   "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Issue a fine against a character (NCPD/fixer/admin only).
+ */
+
+
+
+
+export const CreateNcpdFineBody = zod.object({
+  "characterId": zod.number(),
+  "amount": zod.number().min(1),
+  "reason": zod.string().min(1)
+})
+
+
+/**
+ * @summary Fines levied on characters the authenticated player currently owns.
+ */
+export const ListMyNcpdFinesResponseItem = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string().optional().describe('Joined character name — present on the player \'my fines\' endpoint.'),
+  "issuedById": zod.string().nullish(),
+  "officerName": zod.string().nullish(),
+  "amount": zod.number().describe('Fine amount in eddies (positive).'),
+  "reason": zod.string(),
+  "status": zod.enum(['unpaid', 'paid', 'void']),
+  "paidAt": zod.coerce.date().nullish(),
+  "paidByUserId": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListMyNcpdFinesResponse = zod.array(ListMyNcpdFinesResponseItem)
+
+
+/**
+ * @summary Void an unpaid fine (NCPD/fixer/admin only).
+ */
+export const VoidNcpdFineParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const VoidNcpdFineResponse = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string().optional().describe('Joined character name — present on the player \'my fines\' endpoint.'),
+  "issuedById": zod.string().nullish(),
+  "officerName": zod.string().nullish(),
+  "amount": zod.number().describe('Fine amount in eddies (positive).'),
+  "reason": zod.string(),
+  "status": zod.enum(['unpaid', 'paid', 'void']),
+  "paidAt": zod.coerce.date().nullish(),
+  "paidByUserId": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Pay an outstanding fine from the character owner's wallet.
+ */
+export const PayNcpdFineParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PayNcpdFineResponse = zod.object({
+  "id": zod.number(),
+  "characterId": zod.number(),
+  "characterName": zod.string().optional().describe('Joined character name — present on the player \'my fines\' endpoint.'),
+  "issuedById": zod.string().nullish(),
+  "officerName": zod.string().nullish(),
+  "amount": zod.number().describe('Fine amount in eddies (positive).'),
+  "reason": zod.string(),
+  "status": zod.enum(['unpaid', 'paid', 'void']),
+  "paidAt": zod.coerce.date().nullish(),
+  "paidByUserId": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
 })
 
 

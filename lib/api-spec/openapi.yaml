@@ -5556,6 +5556,82 @@ paths:
         "401": { description: Authentication required }
         "403": { description: NCPD/fixer/admin only }
         "404": { description: Report not found }
+  /ncpd/fines:
+    post:
+      operationId: createNcpdFine
+      tags: [ncpd]
+      summary: Issue a fine against a character (NCPD/fixer/admin only).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NcpdFineInput" }
+      responses:
+        "201":
+          description: The created fine (status unpaid)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NcpdFine" }
+        "400": { description: Missing/invalid fields }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+        "404": { description: Character not found }
+  /ncpd/fines/mine:
+    get:
+      operationId: listMyNcpdFines
+      tags: [ncpd]
+      summary: Fines levied on characters the authenticated player currently owns.
+      responses:
+        "200":
+          description: Fines on the requester's characters, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NcpdFine" }
+        "401": { description: Authentication required }
+  /ncpd/fines/{id}:
+    delete:
+      operationId: voidNcpdFine
+      tags: [ncpd]
+      summary: Void an unpaid fine (NCPD/fixer/admin only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The voided fine
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NcpdFine" }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+        "404": { description: Fine not found }
+        "409": { description: Fine is not unpaid }
+  /ncpd/fines/{id}/pay:
+    post:
+      operationId: payNcpdFine
+      tags: [ncpd]
+      summary: Pay an outstanding fine from the character owner's wallet.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The paid fine
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NcpdFine" }
+        "400": { description: Invalid id / no linked wallet }
+        "401": { description: Authentication required }
+        "402": { description: Insufficient funds }
+        "403": { description: Not the character owner }
+        "404": { description: Fine or character not found }
+        "409": { description: Fine already paid / economy disabled }
   /ncpd/warrants:
     get:
       operationId: listNcpdWarrants
@@ -10009,7 +10085,7 @@ components:
 
     NcpdRecord:
       type: object
-      required: [character, reports, warrants, notes, employment, businesses, housing]
+      required: [character, reports, warrants, notes, fines, employment, businesses, housing]
       properties:
         character: { $ref: "#/components/schemas/NcpdRecordCharacter" }
         reports:
@@ -10021,6 +10097,10 @@ components:
         notes:
           type: array
           items: { $ref: "#/components/schemas/NcpdNote" }
+        fines:
+          type: array
+          items: { $ref: "#/components/schemas/NcpdFine" }
+          description: "Fines levied on this character by NCPD officers."
         employment:
           type: array
           items: { $ref: "#/components/schemas/NcpdRecordVenue" }
@@ -10117,6 +10197,31 @@ components:
       required: [note]
       properties:
         note: { type: string, minLength: 1 }
+
+    NcpdFine:
+      type: object
+      required: [id, characterId, amount, reason, status, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        characterId: { type: integer }
+        characterName: { type: string, description: "Joined character name — present on the player 'my fines' endpoint." }
+        issuedById: { type: ["string", "null"] }
+        officerName: { type: ["string", "null"] }
+        amount: { type: integer, description: "Fine amount in eddies (positive)." }
+        reason: { type: string }
+        status: { type: string, enum: [unpaid, paid, void] }
+        paidAt: { type: ["string", "null"], format: date-time }
+        paidByUserId: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    NcpdFineInput:
+      type: object
+      required: [characterId, amount, reason]
+      properties:
+        characterId: { type: integer }
+        amount: { type: integer, minimum: 1 }
+        reason: { type: string, minLength: 1 }
 
     NcpdLaw:
       type: object

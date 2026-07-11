@@ -13,9 +13,12 @@ import {
   useDeleteNcpdWarrant,
   useCreateNcpdNote,
   useDeleteNcpdNote,
+  useCreateNcpdFine,
+  useVoidNcpdFine,
   type NcpdReport,
   type NcpdWarrant,
   type NcpdRecord,
+  type NcpdFine,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Markdown from "@/components/Markdown";
-import { FileText, AlertTriangle, StickyNote, Plus, Trash2, Pencil, X, UserSearch } from "lucide-react";
+import { FileText, AlertTriangle, StickyNote, Plus, Trash2, Pencil, X, UserSearch, Banknote } from "lucide-react";
 
 function apiErrorMessage(err: unknown, fallback: string): string {
   const data = (err as { data?: unknown } | null)?.data;
@@ -87,6 +90,7 @@ export default function NcpdRecordPanel({ characterId }: { characterId: number }
       )}
       <DossierSection record={record} />
       <WarrantsSection characterId={characterId} warrants={record.warrants} onError={setErr} onChanged={invalidate} />
+      <FinesSection characterId={characterId} fines={record.fines ?? []} onError={setErr} onChanged={invalidate} />
       <ReportsSection characterId={characterId} reports={record.reports} onError={setErr} onChanged={invalidate} />
       <NotesSection characterId={characterId} notes={record.notes} onError={setErr} onChanged={invalidate} />
     </div>
@@ -218,6 +222,140 @@ function SectionCard({ icon: Icon, title, action, children }: { icon: any; title
       </CardHeader>
       <CardContent className="space-y-3">{children}</CardContent>
     </Card>
+  );
+}
+
+function fineStatusClass(status: string): string {
+  switch (status) {
+    case "unpaid":
+      return "border-nc-yellow text-nc-yellow";
+    case "paid":
+      return "border-nc-green text-nc-green";
+    default:
+      return "border-muted-foreground text-muted-foreground";
+  }
+}
+
+// Officers levy fines here; the character's owner pays them from the portal's
+// "My Offers" page. A PAID badge (with the paid date) is the officer's
+// notification that a fine was settled.
+function FinesSection({
+  characterId,
+  fines,
+  onError,
+  onChanged,
+}: {
+  characterId: number;
+  fines: NcpdFine[];
+  onError: (m: string | null) => void;
+  onChanged: () => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const create = useCreateNcpdFine();
+  const del = useVoidNcpdFine();
+
+  const resetForm = () => {
+    setAdding(false);
+    setAmount("");
+    setReason("");
+  };
+
+  const amt = Number(amount);
+  const amtValid = Number.isSafeInteger(amt) && amt > 0;
+
+  return (
+    <SectionCard
+      icon={Banknote}
+      title="FINES"
+      action={
+        <Button size="sm" variant="outline" className="rounded-none font-display" onClick={() => (adding ? resetForm() : setAdding(true))} data-testid="button-ncpd-add-fine">
+          {adding ? <X className="w-4 h-4 mr-1" /> : <Plus className="w-4 h-4 mr-1" />} {adding ? "CANCEL" : "ISSUE FINE"}
+        </Button>
+      }
+    >
+      {adding && (
+        <div className="border border-border p-4 space-y-3 bg-black/20">
+          <div className="space-y-1">
+            <Label className="font-mono text-xs uppercase">Amount (€$)</Label>
+            <Input
+              type="number"
+              min={1}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="rounded-none"
+              data-testid="input-ncpd-fine-amount"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="font-mono text-xs uppercase">Reason</Label>
+            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Illegal weapon possession" className="rounded-none" data-testid="input-ncpd-fine-reason" />
+          </div>
+          <Button
+            size="sm"
+            className="rounded-none font-display"
+            disabled={!amtValid || !reason.trim() || create.isPending}
+            onClick={() => {
+              onError(null);
+              create.mutate(
+                { data: { characterId, amount: amt, reason } },
+                {
+                  onSuccess: () => {
+                    resetForm();
+                    onChanged();
+                  },
+                  onError: (e) => onError(apiErrorMessage(e, "Failed to issue fine")),
+                },
+              );
+            }}
+            data-testid="button-ncpd-fine-submit"
+          >
+            ISSUE FINE
+          </Button>
+        </div>
+      )}
+      {!fines.length ? (
+        <p className="font-mono text-sm text-muted-foreground">No fines on file.</p>
+      ) : (
+        fines.map((f) => (
+          <div key={f.id} className="border border-border p-4 flex items-start justify-between gap-2" data-testid={`card-ncpd-fine-${f.id}`}>
+            <div className="space-y-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className={`rounded-none uppercase font-display text-[10px] ${fineStatusClass(f.status)}`}>
+                  {f.status}
+                </Badge>
+                <span className="font-mono text-nc-yellow text-sm">€${f.amount.toLocaleString()}</span>
+                <span className="font-mono text-xs text-muted-foreground">
+                  Issued {fmtDate(f.createdAt)}
+                  {f.officerName ? ` by ${f.officerName}` : ""}
+                  {f.status === "paid" && f.paidAt ? ` · paid ${fmtDate(f.paidAt)}` : ""}
+                </span>
+              </div>
+              <p className="font-mono text-sm text-foreground/90 break-words">{f.reason}</p>
+            </div>
+            {f.status === "unpaid" && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-destructive shrink-0"
+                disabled={del.isPending}
+                onClick={() => {
+                  onError(null);
+                  del.mutate(
+                    { id: f.id },
+                    { onSuccess: onChanged, onError: (e) => onError(apiErrorMessage(e, "Failed to void fine")) },
+                  );
+                }}
+                data-testid={`button-ncpd-fine-void-${f.id}`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            )}
+          </div>
+        ))
+      )}
+    </SectionCard>
   );
 }
 

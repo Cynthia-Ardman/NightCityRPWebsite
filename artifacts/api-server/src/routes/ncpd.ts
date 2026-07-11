@@ -8,6 +8,7 @@ import {
   ncpdWarrants,
   ncpdCharacterNotes,
   ncpdLaws,
+  ncpdFines,
   stores,
   storeEmployees,
   ripperdocs,
@@ -15,9 +16,10 @@ import {
   housing,
 } from "@workspace/db";
 import { requireAuth, requireAnyRole } from "../middlewares/auth";
-import { hasRole } from "../lib/discord";
+import { hasRole, sendDirectMessage } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
 import { getBalance } from "../lib/unbelievaboat";
+import { applyWalletDelta } from "../lib/economy";
 
 const router: IRouter = Router();
 
@@ -99,7 +101,7 @@ router.get("/ncpd/characters/:id/record", requireAuth, requireNcpd, async (req, 
   // (UnbelievaBoat), so an unclaimed character has no readable balance —
   // return null rather than 0 so the UI can say "UNKNOWN". allowStale is fine
   // here: a dossier is intel, not a money-moving path.
-  const [reports, warrants, notes, employmentStores, employmentClinics, ownedStores, ownedClinics, leases, balance] =
+  const [reports, warrants, notes, fines, employmentStores, employmentClinics, ownedStores, ownedClinics, leases, balance] =
     await Promise.all([
       db
         .select()
@@ -116,6 +118,11 @@ router.get("/ncpd/characters/:id/record", requireAuth, requireNcpd, async (req, 
         .from(ncpdCharacterNotes)
         .where(eq(ncpdCharacterNotes.characterId, id))
         .orderBy(desc(ncpdCharacterNotes.createdAt)),
+      db
+        .select()
+        .from(ncpdFines)
+        .where(eq(ncpdFines.characterId, id))
+        .orderBy(desc(ncpdFines.createdAt)),
       db
         .select({ venueId: stores.id, venueName: stores.name, location: stores.location, role: storeEmployees.role })
         .from(storeEmployees)
@@ -166,6 +173,7 @@ router.get("/ncpd/characters/:id/record", requireAuth, requireNcpd, async (req, 
     reports,
     warrants,
     notes,
+    fines,
     employment: [
       ...employmentStores.map((e) => ({ ...e, venueType: "store" as const })),
       ...employmentClinics.map((e) => ({ ...e, venueType: "ripperdoc" as const })),
@@ -392,6 +400,202 @@ router.delete("/ncpd/reports/:id", requireAuth, requireNcpd, async (req, res): P
     before: existing,
   });
   res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// Fines
+// ---------------------------------------------------------------------------
+//
+// An officer issues a fine against a character; the character's CURRENT owner
+// pays it from their UnbelievaBoat wallet. Issuing is NCPD-gated; paying and
+// listing "my fines" are owner-scoped and open to any authenticated player.
+
+// Player-facing: every fine levied on a character the requester currently owns
+// (surfaced in the portal's "My Offers" page). Ordered newest first, unpaid
+// before paid so outstanding balances lead.
+router.get("/ncpd/fines/mine", requireAuth, async (req, res): Promise<void> => {
+  const rows = await db
+    .select({ fine: ncpdFines, characterName: characters.name })
+    .from(ncpdFines)
+    .innerJoin(characters, eq(characters.id, ncpdFines.characterId))
+    .where(and(eq(characters.ownerId, req.user!.id), or(eq(ncpdFines.status, "unpaid"), eq(ncpdFines.status, "paid"))))
+    .orderBy(desc(ncpdFines.createdAt));
+  res.json(rows.map((r) => ({ ...r.fine, characterName: r.characterName })));
+});
+
+// Officer issues a fine. Amount is always positive eddies.
+router.post("/ncpd/fines", requireAuth, requireNcpd, async (req, res): Promise<void> => {
+  const { characterId, amount, reason } = req.body ?? {};
+  const cid = Number(characterId);
+  const amt = Number(amount);
+  const r = str(reason);
+  if (!Number.isSafeInteger(cid) || !r) {
+    res.status(400).json({ error: "characterId and reason are required" });
+    return;
+  }
+  if (!Number.isSafeInteger(amt) || amt <= 0) {
+    res.status(400).json({ error: "amount must be a positive whole number" });
+    return;
+  }
+  const c = await loadCharacter(cid);
+  if (!c) {
+    res.status(404).json({ error: "character not found" });
+    return;
+  }
+  const [row] = await db
+    .insert(ncpdFines)
+    .values({
+      characterId: cid,
+      issuedById: req.user!.id,
+      officerName: req.user!.username,
+      amount: amt,
+      reason: r,
+    })
+    .returning();
+  void recordAudit({
+    req,
+    category: "character",
+    action: "ncpd_fine_issued",
+    targetType: "character",
+    targetId: cid,
+    message: `NCPD fine of €$${amt.toLocaleString()} issued to ${c.name}: ${r}`,
+    after: row,
+  });
+  // Best-effort DM to the character's current owner so they know to pay it.
+  if (c.ownerId) {
+    void (async () => {
+      const [owner] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, c.ownerId!));
+      if (owner?.discordId) {
+        await sendDirectMessage(
+          owner.discordId,
+          `🚨 **NCPD Fine Issued** — ${c.name} has been fined **€$${amt.toLocaleString()}**.\nReason: ${r}\nPay it from the "My Offers" page in the Night City portal.`,
+        );
+      }
+    })();
+  }
+  res.status(201).json(row);
+});
+
+// Officer voids an UNPAID fine (issued in error). Paid fines are permanent.
+router.delete("/ncpd/fines/:id", requireAuth, requireNcpd, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const [existing] = await db.select().from(ncpdFines).where(eq(ncpdFines.id, id));
+  if (!existing) {
+    res.status(404).json({ error: "fine not found" });
+    return;
+  }
+  if (existing.status !== "unpaid") {
+    res.status(409).json({ error: "only unpaid fines can be voided" });
+    return;
+  }
+  const [row] = await db
+    .update(ncpdFines)
+    .set({ status: "void" })
+    .where(and(eq(ncpdFines.id, id), eq(ncpdFines.status, "unpaid")))
+    .returning();
+  if (!row) {
+    res.status(409).json({ error: "fine is no longer unpaid" });
+    return;
+  }
+  void recordAudit({
+    req,
+    category: "character",
+    action: "ncpd_fine_voided",
+    targetType: "character",
+    targetId: existing.characterId,
+    message: `NCPD fine #${id} voided`,
+    before: existing,
+    after: row,
+  });
+  res.json(row);
+});
+
+// Player pays an outstanding fine. Must be the character's CURRENT owner. The
+// debit goes through applyWalletDelta (idempotent, reserve-before-call) with
+// the characterId set so the charge appears in the character's wallet history.
+router.post("/ncpd/fines/:id/pay", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id)) {
+    res.status(400).json({ error: "invalid fine id" });
+    return;
+  }
+  const result = await db.transaction(async (tx) => {
+    // Lock the fine row so two concurrent pay attempts can't both debit.
+    const [fine] = await tx.select().from(ncpdFines).where(eq(ncpdFines.id, id)).for("update");
+    if (!fine) return { http: 404 as const, error: "fine not found" };
+    const [c] = await tx.select().from(characters).where(eq(characters.id, fine.characterId));
+    if (!c) return { http: 404 as const, error: "character not found" };
+    // Gate on the CURRENT owner, never a snapshot taken at issue time.
+    if (c.ownerId !== req.user!.id) return { http: 403 as const, error: "you do not own this character" };
+    if (fine.status === "paid") return { http: 409 as const, error: "fine already paid" };
+    if (fine.status !== "unpaid") return { http: 409 as const, error: "fine is not payable" };
+
+    const [owner] = await tx.select({ discordId: users.discordId }).from(users).where(eq(users.id, req.user!.id));
+    if (!owner?.discordId) return { http: 400 as const, error: "your account has no linked Discord wallet" };
+
+    const debit = await applyWalletDelta({
+      userId: req.user!.id,
+      discordId: owner.discordId,
+      amount: -fine.amount,
+      source: "website",
+      kind: "ncpd_fine",
+      reason: `NCPD fine: ${fine.reason}`,
+      characterId: fine.characterId,
+      relatedEntityType: "ncpd_fine",
+      relatedEntityId: fine.id,
+      idempotencyKey: `ncpd-fine:${fine.id}`,
+    });
+    if (!debit.ok) {
+      if (debit.status === "insufficient_funds") {
+        return { http: 402 as const, error: "Insufficient funds to pay this fine." };
+      }
+      if (debit.status === "disabled") {
+        return { http: 409 as const, error: "The economy is currently disabled." };
+      }
+      if (debit.status === "dry_run") {
+        // Test mode: no money moved. Still mark the fine paid so flows are testable.
+      } else {
+        return { http: 409 as const, error: debit.error ?? "Payment could not be processed." };
+      }
+    }
+    const [row] = await tx
+      .update(ncpdFines)
+      .set({ status: "paid", paidAt: new Date(), paidByUserId: req.user!.id })
+      .where(and(eq(ncpdFines.id, id), eq(ncpdFines.status, "unpaid")))
+      .returning();
+    if (!row) return { http: 409 as const, error: "fine is no longer unpaid" };
+    return { http: 200 as const, fine: row, character: c };
+  });
+
+  if (result.http !== 200) {
+    res.status(result.http).json({ error: result.error });
+    return;
+  }
+
+  const fine = result.fine;
+  const c = result.character;
+  void recordAudit({
+    req,
+    category: "character",
+    action: "ncpd_fine_paid",
+    targetType: "character",
+    targetId: fine.characterId,
+    message: `NCPD fine #${fine.id} of €$${fine.amount.toLocaleString()} paid`,
+    after: fine,
+  });
+  // Notify the issuing officer that the fine was settled.
+  if (fine.issuedById) {
+    void (async () => {
+      const [officer] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, fine.issuedById!));
+      if (officer?.discordId) {
+        await sendDirectMessage(
+          officer.discordId,
+          `✅ **NCPD Fine Paid** — ${c.name} has paid the €$${fine.amount.toLocaleString()} fine you issued.\nReason: ${fine.reason}`,
+        );
+      }
+    })();
+  }
+  res.json(fine);
 });
 
 // ---------------------------------------------------------------------------

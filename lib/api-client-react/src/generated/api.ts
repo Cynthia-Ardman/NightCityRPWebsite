@@ -219,6 +219,8 @@ import type {
   MissionUpdateInput,
   MyUnseen,
   NcpdCharacterSummary,
+  NcpdFine,
+  NcpdFineInput,
   NcpdLaw,
   NcpdLawInput,
   NcpdLawUpdate,
@@ -24843,6 +24845,294 @@ export const useDeleteNcpdReport = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDeleteNcpdReportMutationOptions(options));
+    }
+
+export const getCreateNcpdFineUrl = () => {
+
+
+
+
+  return `/api/ncpd/fines`
+}
+
+/**
+ * @summary Issue a fine against a character (NCPD/fixer/admin only).
+ */
+export const createNcpdFine = async (ncpdFineInput: NcpdFineInput, options?: RequestInit): Promise<NcpdFine> => {
+
+  return customFetch<NcpdFine>(getCreateNcpdFineUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      ncpdFineInput,)
+  }
+);}
+
+
+
+
+export const getCreateNcpdFineMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNcpdFine>>, TError,{data: BodyType<NcpdFineInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createNcpdFine>>, TError,{data: BodyType<NcpdFineInput>}, TContext> => {
+
+const mutationKey = ['createNcpdFine'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createNcpdFine>>, {data: BodyType<NcpdFineInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createNcpdFine(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateNcpdFineMutationResult = NonNullable<Awaited<ReturnType<typeof createNcpdFine>>>
+    export type CreateNcpdFineMutationBody = BodyType<NcpdFineInput>
+    export type CreateNcpdFineMutationError = ErrorType<void>
+
+    /**
+ * @summary Issue a fine against a character (NCPD/fixer/admin only).
+ */
+export const useCreateNcpdFine = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNcpdFine>>, TError,{data: BodyType<NcpdFineInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createNcpdFine>>,
+        TError,
+        {data: BodyType<NcpdFineInput>},
+        TContext
+      > => {
+      return useMutation(getCreateNcpdFineMutationOptions(options));
+    }
+
+export const getListMyNcpdFinesUrl = () => {
+
+
+
+
+  return `/api/ncpd/fines/mine`
+}
+
+/**
+ * @summary Fines levied on characters the authenticated player currently owns.
+ */
+export const listMyNcpdFines = async ( options?: RequestInit): Promise<NcpdFine[]> => {
+
+  return customFetch<NcpdFine[]>(getListMyNcpdFinesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyNcpdFinesQueryKey = () => {
+    return [
+    `/api/ncpd/fines/mine`
+    ] as const;
+    }
+
+
+export const getListMyNcpdFinesQueryOptions = <TData = Awaited<ReturnType<typeof listMyNcpdFines>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyNcpdFines>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyNcpdFinesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyNcpdFines>>> = ({ signal }) => listMyNcpdFines({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyNcpdFines>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyNcpdFinesQueryResult = NonNullable<Awaited<ReturnType<typeof listMyNcpdFines>>>
+export type ListMyNcpdFinesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Fines levied on characters the authenticated player currently owns.
+ */
+
+export function useListMyNcpdFines<TData = Awaited<ReturnType<typeof listMyNcpdFines>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyNcpdFines>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyNcpdFinesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getVoidNcpdFineUrl = (id: number,) => {
+
+
+
+
+  return `/api/ncpd/fines/${id}`
+}
+
+/**
+ * @summary Void an unpaid fine (NCPD/fixer/admin only).
+ */
+export const voidNcpdFine = async (id: number, options?: RequestInit): Promise<NcpdFine> => {
+
+  return customFetch<NcpdFine>(getVoidNcpdFineUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getVoidNcpdFineMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof voidNcpdFine>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof voidNcpdFine>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['voidNcpdFine'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof voidNcpdFine>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  voidNcpdFine(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VoidNcpdFineMutationResult = NonNullable<Awaited<ReturnType<typeof voidNcpdFine>>>
+
+    export type VoidNcpdFineMutationError = ErrorType<void>
+
+    /**
+ * @summary Void an unpaid fine (NCPD/fixer/admin only).
+ */
+export const useVoidNcpdFine = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof voidNcpdFine>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof voidNcpdFine>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getVoidNcpdFineMutationOptions(options));
+    }
+
+export const getPayNcpdFineUrl = (id: number,) => {
+
+
+
+
+  return `/api/ncpd/fines/${id}/pay`
+}
+
+/**
+ * @summary Pay an outstanding fine from the character owner's wallet.
+ */
+export const payNcpdFine = async (id: number, options?: RequestInit): Promise<NcpdFine> => {
+
+  return customFetch<NcpdFine>(getPayNcpdFineUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getPayNcpdFineMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof payNcpdFine>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof payNcpdFine>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['payNcpdFine'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof payNcpdFine>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  payNcpdFine(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PayNcpdFineMutationResult = NonNullable<Awaited<ReturnType<typeof payNcpdFine>>>
+
+    export type PayNcpdFineMutationError = ErrorType<void>
+
+    /**
+ * @summary Pay an outstanding fine from the character owner's wallet.
+ */
+export const usePayNcpdFine = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof payNcpdFine>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof payNcpdFine>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getPayNcpdFineMutationOptions(options));
     }
 
 export const getListNcpdWarrantsUrl = (params?: ListNcpdWarrantsParams,) => {

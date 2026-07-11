@@ -6649,11 +6649,43 @@ export interface NcpdNote {
   createdAt: string;
 }
 
+export type NcpdFineStatus = typeof NcpdFineStatus[keyof typeof NcpdFineStatus];
+
+
+export const NcpdFineStatus = {
+  unpaid: 'unpaid',
+  paid: 'paid',
+  void: 'void',
+} as const;
+
+export interface NcpdFine {
+  id: number;
+  characterId: number;
+  /** Joined character name — present on the player 'my fines' endpoint. */
+  characterName?: string;
+  /** @nullable */
+  issuedById?: string | null;
+  /** @nullable */
+  officerName?: string | null;
+  /** Fine amount in eddies (positive). */
+  amount: number;
+  reason: string;
+  status: NcpdFineStatus;
+  /** @nullable */
+  paidAt?: string | null;
+  /** @nullable */
+  paidByUserId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface NcpdRecord {
   character: NcpdRecordCharacter;
   reports: NcpdReport[];
   warrants: NcpdWarrant[];
   notes: NcpdNote[];
+  /** Fines levied on this character by NCPD officers. */
+  fines: NcpdFine[];
   /** Venues where this character is on the payroll. */
   employment: NcpdRecordVenue[];
   /** Venues this character owns. */
@@ -6718,6 +6750,14 @@ export interface NcpdWarrantUpdate {
 export interface NcpdNoteInput {
   /** @minLength 1 */
   note: string;
+}
+
+export interface NcpdFineInput {
+  characterId: number;
+  /** @minimum 1 */
+  amount: number;
+  /** @minLength 1 */
+  reason: string;
 }
 
 /**

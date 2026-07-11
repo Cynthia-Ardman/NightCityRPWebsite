@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { NcpdFine } from './ncpdFine';
 import type { NcpdNote } from './ncpdNote';
 import type { NcpdRecordCharacter } from './ncpdRecordCharacter';
 import type { NcpdRecordLease } from './ncpdRecordLease';
@@ -17,6 +18,8 @@ export interface NcpdRecord {
   reports: NcpdReport[];
   warrants: NcpdWarrant[];
   notes: NcpdNote[];
+  /** Fines levied on this character by NCPD officers. */
+  fines: NcpdFine[];
   /** Venues where this character is on the payroll. */
   employment: NcpdRecordVenue[];
   /** Venues this character owns. */

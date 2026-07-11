@@ -2254,3 +2254,41 @@ export const ncpdLaws = pgTable("ncpd_laws", {
     .$onUpdate(() => new Date()),
 });
 export type NcpdLaw = typeof ncpdLaws.$inferSelect;
+
+// A fine issued by an NCPD officer against a character. The officer sets the
+// amount and a reason; the player (the character's CURRENT owner) pays it from
+// their UnbelievaBoat wallet, which debits their balance and records a ledger
+// row that surfaces in the character's transaction history. Status flips to
+// 'paid' on payment (visible to the issuing officer on the dossier) and 'void'
+// if the officer cancels an unpaid fine.
+export const ncpdFines = pgTable(
+  "ncpd_fines",
+  {
+    id: serial("id").primaryKey(),
+    characterId: integer("character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "cascade" }),
+    // Issuing officer. Snapshot the display name so the fine stays legible even
+    // if the user row is later deleted.
+    issuedById: text("issued_by_id").references(() => users.id, { onDelete: "set null" }),
+    officerName: text("officer_name"),
+    // Fine amount in eddies (always positive; debited from the payer on pay).
+    amount: integer("amount").notNull(),
+    reason: text("reason").notNull(),
+    // unpaid | paid | void
+    status: text("status").notNull().default("unpaid"),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    // The user who actually paid (the character's owner at payment time).
+    paidByUserId: text("paid_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => ({
+    charIdx: index("ncpd_fines_char_idx").on(t.characterId),
+    statusIdx: index("ncpd_fines_status_idx").on(t.status),
+  }),
+);
+export type NcpdFine = typeof ncpdFines.$inferSelect;

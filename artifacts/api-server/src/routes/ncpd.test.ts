@@ -1,11 +1,27 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import { db, characters, stores, storeEmployees, ripperdocs, housing } from "@workspace/db";
+import { db, characters, stores, storeEmployees, ripperdocs, housing, users, botConfig } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
 
 const app = buildTestApp();
+
+// The overdraw guard in applyWalletDelta runs before the test-mode dry-run
+// branch, so a debit still needs a funded balance to reach "paid".
+const fund = (userId: string, amount: number) =>
+  db.update(users).set({ walletBalance: amount }).where(eq(users.id, userId));
+
+async function setFlag(key: string, value: boolean) {
+  await db.insert(botConfig).values({ key, value }).onConflictDoUpdate({ target: botConfig.key, set: { value } });
+}
+// "test" mode: economy on but not live → applyWalletDelta returns dry_run, so
+// pay flows are exercisable without moving real UnbelievaBoat money.
+async function setEconomyMode(mode: "disabled" | "test" | "enabled") {
+  await setFlag("economy_enabled", mode !== "disabled");
+  await setFlag("master_live_mode", mode === "enabled");
+  await setFlag("economy_live_mode", mode === "enabled");
+}
 
 // Role markers as injected by applyRoleIdGrants for the id-pinned Discord
 // roles (see lib/discord.ts ROLE_NAMES.NCPD / NCPD_COMMISSIONER).
@@ -315,6 +331,151 @@ describe("NCPD notes", () => {
     const del = await request(app).delete(`/api/ncpd/notes/${created.body.id}`).set("x-test-user", officer.id);
     expect(del.status).toBe(200);
     expect(del.body).toEqual({ ok: true });
+  });
+});
+
+describe("NCPD fines", () => {
+  it("officer issues a fine, it appears on the record and in the owner's list", async () => {
+    const officer = await createOfficer();
+    const owner = await createUser();
+    const c = await createCharacter({ ownerId: owner.id });
+
+    const created = await request(app)
+      .post("/api/ncpd/fines")
+      .set("x-test-user", officer.id)
+      .send({ characterId: c.id, amount: 500, reason: "Illegal weapon possession" });
+    expect(created.status).toBe(201);
+    expect(created.body).toMatchObject({ status: "unpaid", amount: 500, officerName: officer.username });
+
+    const record = await request(app).get(`/api/ncpd/characters/${c.id}/record`).set("x-test-user", officer.id);
+    expect(record.status).toBe(200);
+    expect(record.body.fines).toHaveLength(1);
+    expect(record.body.fines[0].id).toBe(created.body.id);
+
+    const mine = await request(app).get("/api/ncpd/fines/mine").set("x-test-user", owner.id);
+    expect(mine.status).toBe(200);
+    expect(mine.body).toHaveLength(1);
+    expect(mine.body[0]).toMatchObject({ id: created.body.id, characterName: c.name });
+  });
+
+  it("rejects non-positive and non-integer amounts", async () => {
+    const officer = await createOfficer();
+    const c = await createCharacter();
+    for (const amount of [0, -50, 1.5]) {
+      const res = await request(app)
+        .post("/api/ncpd/fines")
+        .set("x-test-user", officer.id)
+        .send({ characterId: c.id, amount, reason: "x" });
+      expect(res.status, String(amount)).toBe(400);
+    }
+  });
+
+  it("blocks plain players from issuing fines (403)", async () => {
+    const player = await createUser();
+    const c = await createCharacter();
+    const res = await request(app)
+      .post("/api/ncpd/fines")
+      .set("x-test-user", player.id)
+      .send({ characterId: c.id, amount: 100, reason: "x" });
+    expect(res.status).toBe(403);
+  });
+
+  it("only the current owner sees and can pay the fine", async () => {
+    const officer = await createOfficer();
+    const owner = await createUser();
+    const stranger = await createUser();
+    const c = await createCharacter({ ownerId: owner.id });
+    await setEconomyMode("test");
+    await fund(owner.id, 5000);
+    const fine = (
+      await request(app)
+        .post("/api/ncpd/fines")
+        .set("x-test-user", officer.id)
+        .send({ characterId: c.id, amount: 250, reason: "Speeding" })
+    ).body;
+
+    const strangerList = await request(app).get("/api/ncpd/fines/mine").set("x-test-user", stranger.id);
+    expect(strangerList.body).toHaveLength(0);
+
+    const strangerPay = await request(app).post(`/api/ncpd/fines/${fine.id}/pay`).set("x-test-user", stranger.id);
+    expect(strangerPay.status).toBe(403);
+
+    const pay = await request(app).post(`/api/ncpd/fines/${fine.id}/pay`).set("x-test-user", owner.id);
+    expect(pay.status).toBe(200);
+    expect(pay.body.status).toBe("paid");
+    expect(pay.body.paidAt).toBeTruthy();
+
+    // Idempotent: paying again is a no-op conflict, not a double charge.
+    const again = await request(app).post(`/api/ncpd/fines/${fine.id}/pay`).set("x-test-user", owner.id);
+    expect(again.status).toBe(409);
+  });
+
+  it("refuses payment with insufficient funds (402) and leaves the fine unpaid", async () => {
+    const officer = await createOfficer();
+    const owner = await createUser();
+    const c = await createCharacter({ ownerId: owner.id });
+    await setEconomyMode("test");
+    await fund(owner.id, 100);
+    const fine = (
+      await request(app)
+        .post("/api/ncpd/fines")
+        .set("x-test-user", officer.id)
+        .send({ characterId: c.id, amount: 250, reason: "Speeding" })
+    ).body;
+
+    const pay = await request(app).post(`/api/ncpd/fines/${fine.id}/pay`).set("x-test-user", owner.id);
+    expect(pay.status).toBe(402);
+
+    const mine = await request(app).get("/api/ncpd/fines/mine").set("x-test-user", owner.id);
+    expect(mine.body).toHaveLength(1);
+    expect(mine.body[0].status).toBe("unpaid");
+  });
+
+  it("refuses payment when the economy is disabled (409) and leaves the fine unpaid", async () => {
+    const officer = await createOfficer();
+    const owner = await createUser();
+    const c = await createCharacter({ ownerId: owner.id });
+    await setEconomyMode("disabled");
+    await fund(owner.id, 5000);
+    const fine = (
+      await request(app)
+        .post("/api/ncpd/fines")
+        .set("x-test-user", officer.id)
+        .send({ characterId: c.id, amount: 250, reason: "Speeding" })
+    ).body;
+
+    const pay = await request(app).post(`/api/ncpd/fines/${fine.id}/pay`).set("x-test-user", owner.id);
+    expect(pay.status).toBe(409);
+
+    const mine = await request(app).get("/api/ncpd/fines/mine").set("x-test-user", owner.id);
+    expect(mine.body[0].status).toBe("unpaid");
+  });
+
+  it("voids an unpaid fine but refuses to void a paid one", async () => {
+    const officer = await createOfficer();
+    const owner = await createUser();
+    const c = await createCharacter({ ownerId: owner.id });
+    await setEconomyMode("test");
+    await fund(owner.id, 5000);
+    const unpaid = (
+      await request(app)
+        .post("/api/ncpd/fines")
+        .set("x-test-user", officer.id)
+        .send({ characterId: c.id, amount: 100, reason: "A" })
+    ).body;
+    const voided = await request(app).delete(`/api/ncpd/fines/${unpaid.id}`).set("x-test-user", officer.id);
+    expect(voided.status).toBe(200);
+    expect(voided.body.status).toBe("void");
+
+    const paidFine = (
+      await request(app)
+        .post("/api/ncpd/fines")
+        .set("x-test-user", officer.id)
+        .send({ characterId: c.id, amount: 100, reason: "B" })
+    ).body;
+    await request(app).post(`/api/ncpd/fines/${paidFine.id}/pay`).set("x-test-user", owner.id);
+    const cannotVoid = await request(app).delete(`/api/ncpd/fines/${paidFine.id}`).set("x-test-user", officer.id);
+    expect(cannotVoid.status).toBe(409);
   });
 });
 

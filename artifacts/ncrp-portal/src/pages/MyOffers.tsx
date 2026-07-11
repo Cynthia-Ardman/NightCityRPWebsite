@@ -4,15 +4,25 @@ import {
   useListMyOffers,
   useApproveOffer,
   useDenyOffer,
+  useListMyNcpdFines,
+  usePayNcpdFine,
   getListMyOffersQueryKey,
   getGetMyWalletQueryKey,
+  getListMyNcpdFinesQueryKey,
   type SaleOffer,
+  type NcpdFine,
 } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ShoppingBag, Check, X } from "lucide-react";
+import { ShoppingBag, Check, X, Banknote } from "lucide-react";
 import { OfferTypeBadge, OfferStatusBadge } from "@/components/offers/offerBadges";
+
+function fineApiError(err: unknown): string | null {
+  const data = (err as { data?: unknown } | null)?.data;
+  const msg = (data as { error?: unknown } | null)?.error;
+  return typeof msg === "string" && msg.trim() ? msg : null;
+}
 
 export default function MyOffers() {
   const { data: me } = useAuthMe();
@@ -25,6 +35,21 @@ export default function MyOffers() {
   };
   const approve = useApproveOffer({ mutation: { onSuccess: invalidate } });
   const deny = useDenyOffer({ mutation: { onSuccess: invalidate } });
+
+  const { data: fines, isLoading: finesLoading } = useListMyNcpdFines();
+  const invalidateFines = () => {
+    qc.invalidateQueries({ queryKey: getListMyNcpdFinesQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
+  };
+  const payFine = usePayNcpdFine({ mutation: { onSuccess: invalidateFines } });
+  const { unpaidFines, paidFines } = useMemo(() => {
+    const all = (fines ?? []) as NcpdFine[];
+    return {
+      unpaidFines: all.filter((f) => f.status === "unpaid"),
+      paidFines: all.filter((f) => f.status === "paid"),
+    };
+  }, [fines]);
+  const fineErr = fineApiError(payFine.error);
 
   const { pending, history } = useMemo(() => {
     const all = (offers ?? []) as SaleOffer[];
@@ -63,6 +88,82 @@ export default function MyOffers() {
         <div className="border border-destructive/50 bg-destructive/10 px-4 py-2 font-mono text-sm text-destructive" data-testid="text-offer-error">
           {errMsg}
         </div>
+      )}
+
+      {fineErr && (
+        <div className="border border-destructive/50 bg-destructive/10 px-4 py-2 font-mono text-sm text-destructive" data-testid="text-fine-error">
+          {fineErr}
+        </div>
+      )}
+
+      {me && (unpaidFines.length > 0 || paidFines.length > 0 || finesLoading) && (
+        <Card className="rounded-none border-nc-yellow/40 bg-card/50">
+          <CardHeader>
+            <CardTitle className="font-display tracking-widest text-nc-yellow flex items-center gap-2">
+              <Banknote className="w-5 h-5" /> NCPD FINES
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="font-mono text-xs text-muted-foreground">
+              Fines levied against your characters by NCPD officers. Paying one debits your wallet and notifies the issuing officer.
+            </p>
+            {finesLoading ? (
+              <div className="py-8 text-center text-nc-cyan animate-pulse font-display">LOADING...</div>
+            ) : unpaidFines.length === 0 ? (
+              <div className="py-4 text-center text-muted-foreground font-mono text-sm">No outstanding fines.</div>
+            ) : (
+              unpaidFines.map((f) => (
+                <div
+                  key={f.id}
+                  className="border border-nc-yellow/30 bg-card p-4 flex items-start justify-between gap-3"
+                  data-testid={`row-unpaid-fine-${f.id}`}
+                >
+                  <div className="min-w-0">
+                    <div className="font-display text-lg text-foreground">
+                      {f.characterName ?? `Character #${f.characterId}`}
+                    </div>
+                    <div className="font-mono text-sm text-foreground/90 break-words">{f.reason}</div>
+                    <div className="font-mono text-xs text-muted-foreground mt-1">
+                      Issued {f.createdAt ? new Date(f.createdAt).toLocaleDateString() : "—"}
+                      {f.officerName ? ` by ${f.officerName}` : ""}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0 space-y-2">
+                    <div className="text-nc-yellow font-mono text-lg">€${f.amount.toLocaleString()}</div>
+                    <Button
+                      size="sm"
+                      disabled={payFine.isPending}
+                      onClick={() => payFine.mutate({ id: f.id })}
+                      className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display"
+                      data-testid={`button-pay-fine-${f.id}`}
+                    >
+                      <Check className="w-4 h-4 mr-1" /> PAY
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+            {paidFines.length > 0 && (
+              <div className="pt-2 border-t border-border/50 space-y-1">
+                <p className="font-display text-[10px] uppercase tracking-widest text-muted-foreground">Paid fines</p>
+                {paidFines.map((f) => (
+                  <div
+                    key={f.id}
+                    className="flex items-center justify-between gap-3 font-mono text-xs text-muted-foreground"
+                    data-testid={`row-paid-fine-${f.id}`}
+                  >
+                    <span className="truncate">
+                      {f.characterName ?? `Character #${f.characterId}`} · {f.reason}
+                    </span>
+                    <span className="text-nc-green whitespace-nowrap">
+                      €${f.amount.toLocaleString()} · PAID {f.paidAt ? new Date(f.paidAt).toLocaleDateString() : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       <Card className="rounded-none border-border bg-card/50">
