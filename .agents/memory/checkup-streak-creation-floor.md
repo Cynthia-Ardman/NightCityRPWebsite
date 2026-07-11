@@ -24,6 +24,9 @@ description: Why a null lastCheckupAt must NOT mean instant max meds streak — 
 
 Side effect (intended): the 7-day `checkupIsCurrent` meds-suppression now also keys off the effective date, so a <7-day-old chromed PC gets a grace week. Tradeoff (accepted): a newly approved sibling character can move the household effective date forward; gated by sheet approval, not an open exploit.
 
+## New-character streak inheritance (write-side)
+Because the household week = `max(lastCheckupAt ?? createdAt)`, a NEW character row (createdAt=now) would drag the whole household back to week 1. Fix: `householdEffectiveCheckupDate(conn, ownerId, excludeCharacterId?)` in lib/jobs.ts returns that same max over the owner's OTHER billable PCs (pc, approved, non-archived, countsForCyberwareBilling), null when none. Every path where a PC enters billing stamps `lastCheckupAt` with it (only when the char has no checkup yet): sheet-approval fresh insert, sheet-approval linked-char update (excludes self), admin manual create (pc+owner only), admin PUT owner-assign. Stamping is invariant-safe: the inherited date IS the current household max over the others, so the household week never moves — it only prevents the reset. Null (first PC) leaves lastCheckupAt null → createdAt fresh-start behavior. Any FUTURE "PC joins a household" write path must call this helper too.
+
 
 ## Former index detail (full)
 null lastCheckupAt must NOT mean max meds streak; createdAt is the implicit initial checkup (7-day grace) across 4 surfaces (dashboard, meds cron, char card, ripperdoc console); meds-charge/DM tests must backdate or pass vacuously + assert patchBalance ([test trap](cyberware-checkup-grace-test-trap.md)).

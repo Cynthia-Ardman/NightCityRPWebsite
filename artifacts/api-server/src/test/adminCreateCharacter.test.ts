@@ -3,7 +3,7 @@ import request from "supertest";
 import { db, characters, inventoryItems } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { buildTestApp } from "./app";
-import { createUser, createAdmin } from "./testDb";
+import { createUser, createAdmin, createCharacter } from "./testDb";
 
 const app = buildTestApp();
 
@@ -25,6 +25,63 @@ describe("POST /admin/characters (manual character creation)", () => {
     const [row] = await db.select().from(characters).where(eq(characters.id, res.body.id));
     expect(row.name).toBe("V");
     expect(row.approved).toBe(true);
+  });
+
+  it("a manually created PC inherits the owner's household checkup date (meds streak not reset)", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const existing = await createCharacter({ ownerId: player.id });
+    const twoWeeksAgo = new Date(Date.now() - 2 * 7 * 86400000);
+    await db
+      .update(characters)
+      .set({ lastCheckupAt: twoWeeksAgo })
+      .where(eq(characters.id, existing.id));
+
+    const res = await request(app)
+      .post("/api/admin/characters")
+      .set("x-test-user", admin.id)
+      .send({ name: "Second PC", kind: "pc", ownerId: player.id });
+    expect(res.status).toBe(201);
+
+    const [row] = await db.select().from(characters).where(eq(characters.id, res.body.id));
+    expect(row.lastCheckupAt?.getTime()).toBe(twoWeeksAgo.getTime());
+  });
+
+  it("a manually created PC for an owner with no billable PCs gets no checkup date", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const res = await request(app)
+      .post("/api/admin/characters")
+      .set("x-test-user", admin.id)
+      .send({ name: "Only PC", kind: "pc", ownerId: player.id });
+    expect(res.status).toBe(201);
+
+    const [row] = await db.select().from(characters).where(eq(characters.id, res.body.id));
+    expect(row.lastCheckupAt).toBeNull();
+  });
+
+  it("assigning an unclaimed PC to an owner inherits that household's checkup date", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const existing = await createCharacter({ ownerId: player.id });
+    const fourWeeksAgo = new Date(Date.now() - 4 * 7 * 86400000);
+    await db
+      .update(characters)
+      .set({ lastCheckupAt: fourWeeksAgo })
+      .where(eq(characters.id, existing.id));
+
+    // Unclaimed approved PC (e.g. staff-created) with no checkup history.
+    const orphan = await createCharacter({ ownerId: null });
+
+    const res = await request(app)
+      .put(`/api/admin/characters/${orphan.id}/owner`)
+      .set("x-test-user", admin.id)
+      .send({ ownerId: player.id });
+    expect(res.status).toBe(200);
+
+    const [row] = await db.select().from(characters).where(eq(characters.id, orphan.id));
+    expect(row.ownerId).toBe(player.id);
+    expect(row.lastCheckupAt?.getTime()).toBe(fourWeeksAgo.getTime());
   });
 
   it("assigns an owner and marks the character claimed, syncing portraitUrl", async () => {

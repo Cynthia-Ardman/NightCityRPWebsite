@@ -20,7 +20,7 @@ import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscor
 import { resolveOrProvisionUser } from "../lib/userProvision";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
-import { runJob, deriveCyberwareBand, weeksSinceLastCheckup, CYBERWARE_MAX_STREAK } from "../lib/jobs";
+import { runJob, deriveCyberwareBand, weeksSinceLastCheckup, CYBERWARE_MAX_STREAK, householdEffectiveCheckupDate } from "../lib/jobs";
 import { recordAudit } from "../lib/audit";
 import { auditLog, classifyWalletCategory } from "@workspace/db";
 import { parseCwp, cwpForItem } from "../lib/cyberware";
@@ -420,6 +420,11 @@ router.post("/admin/characters", adminOrFixer, async (req, res): Promise<void> =
   }
 
   const created = await db.transaction(async (tx) => {
+    // A manually created, already-approved PC must not reset the owner's
+    // household meds streak — inherit the household's current effective
+    // checkup date (see householdEffectiveCheckupDate in lib/jobs.ts).
+    const inheritedCheckupAt =
+      kind === "pc" && ownerId ? await householdEffectiveCheckupDate(tx, ownerId) : null;
     const [row] = await tx
       .insert(characters)
       .values({
@@ -427,6 +432,7 @@ router.post("/admin/characters", adminOrFixer, async (req, res): Promise<void> =
         kind,
         ownerId,
         claimed: ownerId !== null,
+        ...(inheritedCheckupAt ? { lastCheckupAt: inheritedCheckupAt } : {}),
         archetype,
         background,
         portraitUrls,
@@ -520,9 +526,23 @@ router.put("/admin/characters/:id/owner", adminOrFixer, async (req, res): Promis
     res.status(404).json({ error: "User not found" });
     return;
   }
+  // Joining a household must not reset the new owner's meds streak: if this
+  // PC has never had a checkup, inherit the household's current effective
+  // checkup date (see householdEffectiveCheckupDate in lib/jobs.ts). Safe in
+  // both directions — the stamped date is the household max over the OTHER
+  // billable PCs, so the household week never moves backward or forward
+  // except to undo the reset this fresh row would otherwise cause.
+  const inheritedCheckupAt =
+    c.kind === "pc" && c.approved && !c.lastCheckupAt
+      ? await householdEffectiveCheckupDate(db, ownerId, c.id)
+      : null;
   const [updated] = await db
     .update(characters)
-    .set({ ownerId, claimed: true })
+    .set({
+      ownerId,
+      claimed: true,
+      ...(inheritedCheckupAt ? { lastCheckupAt: inheritedCheckupAt } : {}),
+    })
     .where(eq(characters.id, id))
     .returning();
   await db.insert(activityEvents).values({

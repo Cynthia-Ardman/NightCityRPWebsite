@@ -8,6 +8,7 @@ import { recordAudit } from "../lib/audit";
 import { collectCyberware, buildCyberwareCostMap, entryPoints, validateCyberware } from "../lib/cyberware-cap";
 import { validateSheetFields } from "../lib/sheet-validation";
 import { areCharacterSubmissionsDisabled } from "../lib/characterSubmissions";
+import { householdEffectiveCheckupDate } from "../lib/jobs";
 import {
   isReviewer,
   isEligibleReviewer,
@@ -904,9 +905,20 @@ async function materializeCharacterFromSheet(
     if (linked && linked.ownerId === sheet.ownerId) {
       // Linked-character path only updates fields — it never seeds inventory,
       // so it needs no item params and skips the custom-attribute requirement.
+      // If the character has never had a checkup, inherit the household's
+      // current effective checkup date so this approval doesn't reset the
+      // owner's meds streak (see householdEffectiveCheckupDate).
+      const inherited = linked.lastCheckupAt
+        ? null
+        : await householdEffectiveCheckupDate(tx, sheet.ownerId, linked.id);
       await tx
         .update(characters)
-        .set({ ...fields, approved: true, lifeStatus: "active" })
+        .set({
+          ...fields,
+          approved: true,
+          lifeStatus: "active",
+          ...(inherited ? { lastCheckupAt: inherited } : {}),
+        })
         .where(eq(characters.id, sheet.characterId));
       return sheet.characterId;
     }
@@ -917,6 +929,12 @@ async function materializeCharacterFromSheet(
   const built = buildSheetInventoryRows(sheet.data, cyberCatalog, gunCatalog, params);
   if ("error" in built) return { error: built.error };
 
+  // Inherit the owner's current household checkup date so a freshly approved
+  // character doesn't reset the meds streak to week 1 (the household week is
+  // max(lastCheckupAt ?? createdAt) across billable PCs, and this new row's
+  // createdAt would otherwise become that max). Null (first PC) = fresh start.
+  const inheritedCheckupAt = await householdEffectiveCheckupDate(tx, sheet.ownerId);
+
   const [c] = await tx
     .insert(characters)
     .values({
@@ -925,6 +943,7 @@ async function materializeCharacterFromSheet(
       approved: true,
       claimed: true,
       lifeStatus: "active",
+      ...(inheritedCheckupAt ? { lastCheckupAt: inheritedCheckupAt } : {}),
     })
     .returning();
   await tx.insert(characterStatus).values({ characterId: c.id });

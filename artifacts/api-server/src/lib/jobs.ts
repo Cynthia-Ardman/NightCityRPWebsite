@@ -1,5 +1,5 @@
 import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, activityEvents, botConfig, shopOpens, inventoryItems, stores, ripperdocs } from "@workspace/db";
-import { eq, and, desc, sql, isNotNull, gte, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, isNotNull, gte, inArray, ne } from "drizzle-orm";
 import { logger } from "./logger";
 import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchAllGuildMemberRoles, VERIFIED_18_ROLE_ID, RULES_ROLE_ID, DEAD_CHARACTER_ROLE_ID, applyRoleIdGrants, addGuildMemberRole, postToChannel } from "./discord";
 import { reconcileBusinessChannelAccess } from "./businessChannelAccess";
@@ -67,6 +67,49 @@ export const CYBERWARE_EXCLUDED_LIFE_STATUSES = new Set(["dead", "retired", "loa
 
 export function countsForCyberwareBilling(c: { lifeStatus?: string | null }): boolean {
   return !CYBERWARE_EXCLUDED_LIFE_STATUSES.has((c.lifeStatus ?? "active").toLowerCase());
+}
+
+// The owner's current household "effective last checkup" date: the newest of
+// (lastCheckupAt ?? createdAt) across their billable PCs (approved,
+// non-archived, not dead/retired/LOA) — exactly the reduce the meds cron and
+// dashboard projection use. Returns null when the owner has no billable PCs.
+//
+// Why this exists: a NEWLY approved character must not reset the household
+// meds streak. Because the household week is derived from the max effective
+// date, a fresh row's createdAt=now would drag the whole household back to
+// week 1. Every path that creates/approves a PC for an owner should stamp the
+// new character's lastCheckupAt with this inherited date (when non-null) so
+// the streak stays exactly where it was. Stamping can never CHANGE the
+// household week either — the inherited date is by construction the current
+// household max, so the max is unchanged. When this returns null (first PC),
+// leaving lastCheckupAt null is correct: createdAt acts as the implicit
+// initial checkup (see .agents/memory/checkup-streak-creation-floor.md).
+export async function householdEffectiveCheckupDate(
+  conn: typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0],
+  ownerId: string,
+  excludeCharacterId?: number,
+): Promise<Date | null> {
+  const rows = await conn
+    .select({
+      lastCheckupAt: characters.lastCheckupAt,
+      createdAt: characters.createdAt,
+      lifeStatus: characters.lifeStatus,
+    })
+    .from(characters)
+    .where(and(
+      eq(characters.ownerId, ownerId),
+      eq(characters.kind, "pc"),
+      eq(characters.approved, true),
+      eq(characters.archived, false),
+      ...(excludeCharacterId != null ? [ne(characters.id, excludeCharacterId)] : []),
+    ));
+  let acc: Date | null = null;
+  for (const r of rows) {
+    if (!countsForCyberwareBilling(r)) continue;
+    const eff = r.lastCheckupAt ?? r.createdAt;
+    if (eff && (!acc || eff.getTime() > acc.getTime())) acc = eff;
+  }
+  return acc;
 }
 
 // Cap on how many weeks of skipped checkups the formula will compound.
