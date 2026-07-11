@@ -1238,6 +1238,8 @@ export interface SheetData {
   ripperDoc?: boolean;
   /** Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware). */
   fbc?: boolean;
+  /** Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role). */
+  ncpd?: boolean;
   [key: string]: unknown;
  }
 
@@ -1521,6 +1523,8 @@ export type ArchiveEditInputSheetData = {
   ripperDoc?: boolean;
   /** Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware). */
   fbc?: boolean;
+  /** Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role). */
+  ncpd?: boolean;
 };
 
 export interface ArchiveEditInput {

@@ -96,6 +96,7 @@ export default function ArchiveEditDialog({
     sections?: Record<string, string>;
     ripperDoc?: boolean;
     fbc?: boolean;
+    ncpd?: boolean;
   };
 
   const [name, setName] = useState(character.name);
@@ -119,6 +120,9 @@ export default function ArchiveEditDialog({
   // Full Body Conversion flag (parity with the player/staff edit dialogs).
   // Self-declared, no programmatic effect; persisted into sheetData.
   const [fbc, setFbc] = useState<boolean>(sheet.fbc === true);
+  // NCPD officer flag (parity with the other edit dialogs). Self-declared, no
+  // programmatic effect; persisted into sheetData and drives the officer roster.
+  const [ncpd, setNcpd] = useState<boolean>(sheet.ncpd === true);
   const [commitMessage, setCommitMessage] = useState("");
   // Admin-only destructive delete lives at the bottom of this dialog. The
   // delete button stays disabled until the admin types the literal word DELETE.
@@ -199,7 +203,7 @@ export default function ArchiveEditDialog({
           fixerDiscordId: fixerDiscordId.trim() ? fixerDiscordId.trim() : null,
           playerDiscordId: playerDiscordId.trim() ? playerDiscordId.trim() : null,
           tags,
-          sheetData: { preamble, sections: rowsToSections(rows), ripperDoc, fbc },
+          sheetData: { preamble, sections: rowsToSections(rows), ripperDoc, fbc, ncpd },
         },
       },
       {
@@ -332,6 +336,25 @@ export default function ArchiveEditDialog({
               </label>
               <p className="text-[10px] text-muted-foreground mt-1">
                 Medical-grade only, no advantages. Self-declared, not enforced.
+              </p>
+            </div>
+
+            <div>
+              <Label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">NCPD Officer</Label>
+              <label className="flex h-10 items-center gap-3 border border-input bg-background px-3">
+                <input
+                  type="checkbox"
+                  checked={ncpd}
+                  onChange={(e) => setNcpd(e.target.checked)}
+                  className="accent-nc-cyan"
+                  data-testid="checkbox-edit-ncpd"
+                />
+                <span className="text-xs font-mono uppercase tracking-widest text-nc-cyan">
+                  {ncpd ? "Yes" : "No"}
+                </span>
+              </label>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Lists this character on the NCPD officer roster. Self-declared.
               </p>
             </div>
           </TabsContent>

@@ -188,6 +188,11 @@ export default function EditCharacterDialog({
   const [fbc, setFbc] = useState<boolean>(
     ((character.sheetData ?? {}) as Record<string, unknown>).fbc === true,
   );
+  // NCPD officer flag — self-declared (like FBC, no role grant). Drives the NCPD
+  // officer roster filter. Lives in sheetData alongside ripperDoc/fbc.
+  const [ncpd, setNcpd] = useState<boolean>(
+    ((character.sheetData ?? {}) as Record<string, unknown>).ncpd === true,
+  );
   const [updateNote, setUpdateNote] = useState<string>("");
   // Admin-only destructive delete lives at the bottom of this dialog. The
   // delete button stays disabled until the admin types the literal word DELETE.
@@ -269,6 +274,7 @@ export default function EditCharacterDialog({
     setXanaduGold(character.xanaduGold ?? false);
     setRipperDoc(((character.sheetData ?? {}) as Record<string, unknown>).ripperDoc === true);
     setFbc(((character.sheetData ?? {}) as Record<string, unknown>).fbc === true);
+    setNcpd(((character.sheetData ?? {}) as Record<string, unknown>).ncpd === true);
     setUpdateNote("");
     setDeleteConfirm("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -377,6 +383,7 @@ export default function EditCharacterDialog({
           skills,
           ripperDoc,
           fbc,
+          ncpd,
           // Identity fields mirror the new-character form. Send undefined (which
           // JSON.stringify drops, so the whole-replace clears the key) when
           // empty — this both removes a cleared value and avoids stamping empty
@@ -688,6 +695,25 @@ export default function EditCharacterDialog({
                         </label>
                         <p className="text-[10px] text-muted-foreground mt-1">
                           Medical-grade only, no advantages. Self-declared, not enforced.
+                        </p>
+                      </div>
+
+                      <div>
+                        <Label className="text-xs">NCPD OFFICER</Label>
+                        <label className="flex h-10 items-center gap-3 border border-input bg-background px-3">
+                          <input
+                            type="checkbox"
+                            checked={ncpd}
+                            onChange={(e) => setNcpd(e.target.checked)}
+                            className="accent-nc-cyan"
+                            data-testid="checkbox-edit-ncpd"
+                          />
+                          <span className="text-xs font-mono uppercase tracking-widest text-nc-cyan">
+                            {ncpd ? "Yes" : "No"}
+                          </span>
+                        </label>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Lists this character on the NCPD officer roster. Self-declared.
                         </p>
                       </div>
                     </AccordionContent>

@@ -6730,6 +6730,7 @@ components:
         skills: { type: string }
         ripperDoc: { type: boolean, description: "When true, grants the RipperDoc Discord role to the character's owner on save." }
         fbc: { type: boolean, description: "Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware)." }
+        ncpd: { type: boolean, description: "Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role)." }
 
     PublicCharacterSummary:
       type: object
@@ -6856,6 +6857,7 @@ components:
             sections: { type: object, additionalProperties: { type: string } }
             ripperDoc: { type: boolean, description: "When true, grants the RipperDoc Discord role to the character's owner on save." }
             fbc: { type: boolean, description: "Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware)." }
+            ncpd: { type: boolean, description: "Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role)." }
 
     ArchiveEditResult:
       type: object

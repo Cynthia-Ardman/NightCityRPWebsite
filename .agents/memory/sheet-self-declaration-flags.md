@@ -39,3 +39,11 @@ columns.
 `fbc` is deliberately a pure self-declaration with NO backend logic — no
 validation, no role, no combat-cyberware enforcement (by product decision). Don't
 add enforcement to a self-declaration flag unless explicitly asked.
+
+## Known flags & read-side consumers
+`ripperDoc`, `fbc`, `ncpd`. Not every flag is write-only: `ncpd` has NO role
+grant (self-declared like fbc) but IS read server-side — the `/ncpd/officers`
+roster query filters PCs on `sql\`(characters.sheetData ->> 'ncpd') = 'true'\``
+OR-ed with a legacy `archetype ILIKE '%ncpd%'` fallback (kept so pre-checkbox
+NCPD chars still surface). sheetData is JSONB; `->>` yields text, compare to
+`'true'`. If you add a flag that filters a list, remember to update that query.

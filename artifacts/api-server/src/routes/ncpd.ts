@@ -229,13 +229,19 @@ router.get("/ncpd/officers", requireAuth, requireNcpd, async (_req, res): Promis
         // Officer status is a USER-level Discord role, but a player who holds
         // it may run several PCs of which only one is actually a cop. The
         // roster should list the NCPD characters, not every character the
-        // officer owns — so we key off the character's own archetype, which is
-        // where NCPD affiliation is recorded (e.g. "NCPD / Beat Patrol").
+        // officer owns. The source of truth is the explicit NCPD self-declaration
+        // flag on the sheet (sheetData.ncpd, mirrored from the character-sheet
+        // checkbox). We also keep the legacy archetype match (e.g. "NCPD / Beat
+        // Patrol") as a fallback so characters created before the checkbox still
+        // surface until staff set the flag.
         .where(
           and(
             inArray(characters.ownerId, officerIds),
             eq(characters.kind, "pc"),
-            ilike(characters.archetype, "%ncpd%"),
+            or(
+              sql`(${characters.sheetData} ->> 'ncpd') = 'true'`,
+              ilike(characters.archetype, "%ncpd%"),
+            ),
           ),
         )
         .orderBy(characters.archived, characters.name)

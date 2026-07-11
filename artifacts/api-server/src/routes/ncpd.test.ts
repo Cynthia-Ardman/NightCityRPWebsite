@@ -206,6 +206,9 @@ describe("NCPD officer roster", () => {
     // holding the officer role doesn't make every character a cop), and an
     // NCPD-archetype NPC (hidden — roster is PCs only).
     const cop = await createCharacter({ ownerId: officer.id, name: "Officer PC", kind: "pc", archetype: "NCPD / Beat Patrol" });
+    // A PC flagged via the explicit sheetData.ncpd self-declaration (no NCPD in
+    // its archetype) must also surface — the flag is the source of truth.
+    const flaggedCop = await createCharacter({ ownerId: officer.id, name: "Flagged Cop", kind: "pc", archetype: "Detective", sheetData: { ncpd: true } });
     await createCharacter({ ownerId: officer.id, name: "Side Merc", kind: "pc", archetype: "Merc/Bounty Hunter" });
     await createCharacter({ ownerId: officer.id, name: "Officer NPC", kind: "npc", archetype: "NCPD Detective" });
     // Someone else's PC must never leak into an officer's roster.
@@ -223,8 +226,9 @@ describe("NCPD officer roster", () => {
 
     const officerEntry = roster.find((o) => o.userId === officer.id)!;
     expect(officerEntry.isCommissioner).toBe(false);
-    // Only the NCPD-archetype PC — not the side merc, not the NPC.
-    expect(officerEntry.characters.map((c) => c.id)).toEqual([cop.id]);
+    // Both the NCPD-archetype PC and the sheetData.ncpd-flagged PC — not the
+    // side merc, not the NPC. Ordered by name ("Flagged Cop" < "Officer PC").
+    expect(officerEntry.characters.map((c) => c.id)).toEqual([flaggedCop.id, cop.id]);
 
     const commEntry = roster.find((o) => o.userId === commissioner.id)!;
     expect(commEntry.isCommissioner).toBe(true);

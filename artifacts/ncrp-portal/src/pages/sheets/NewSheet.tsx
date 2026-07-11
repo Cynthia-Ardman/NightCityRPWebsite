@@ -216,6 +216,11 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   // organic body, and bars combat cyberware — but per design we don't enforce
   // any of that in code; we just record the declaration in sheetData.
   const [fbc, setFbc] = useState<boolean>(!!init.fbc);
+  // Marks this character as an NCPD officer. Self-declared like FBC (no role
+  // grant), but it's what surfaces the character on the NCPD officer roster —
+  // holding the NCPD Discord role only says the PLAYER is a cop, this says
+  // which of their characters is.
+  const [ncpd, setNcpd] = useState<boolean>(!!init.ncpd);
 
   // Non-fixers may only create PCs — force PC if a stale NPC value slips in.
   // Wait for auth to resolve first so a fixer's NPC draft is never downgraded
@@ -285,6 +290,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     statsImageUrls: statsImageUrls.filter((u) => u.trim()),
     ripperDoc,
     fbc,
+    ncpd,
   });
 
   const createMut = useSubmitSheet();
@@ -389,7 +395,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     () => JSON.stringify({ fullName: fullName.trim() || "(untitled draft)", payload: buildPayload() }),
     // We want this to recompute whenever any field changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, hooks, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls, ripperDoc, fbc],
+    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, hooks, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls, ripperDoc, fbc, ncpd],
   );
 
   useEffect(() => {
@@ -673,6 +679,22 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
               <span className="text-nc-cyan tracking-widest">FULL BODY CONVERSION (FBC)</span>
               <span className="block text-muted-foreground">
                 FBCs are medical grade only and carry no advantages over a normal human body.
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-3 cursor-pointer" data-testid="checkbox-ncpd-label">
+            <input
+              type="checkbox"
+              data-testid="checkbox-ncpd"
+              className="mt-1 h-4 w-4 accent-nc-cyan"
+              checked={ncpd}
+              onChange={(e) => setNcpd(e.target.checked)}
+            />
+            <span className="font-mono text-xs leading-relaxed">
+              <span className="text-nc-cyan tracking-widest">NCPD OFFICER</span>
+              <span className="block text-muted-foreground">
+                This character serves with the NCPD. Checking this lists them on the NCPD
+                officer roster (only takes effect if you hold the NCPD role in Discord).
               </span>
             </span>
           </label>

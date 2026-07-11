@@ -116,7 +116,8 @@ export const ListMyCharactersResponseItem = zod.object({
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
-  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).')
+  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -183,7 +184,8 @@ export const GetCharacterResponse = zod.object({
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
-  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).')
+  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -246,7 +248,8 @@ export const UpdateCharacterBody = zod.object({
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
-  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).')
+  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
 }).optional(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional(),
   "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal('corporate'),zod.literal(null)]).nullish(),
@@ -279,7 +282,8 @@ export const UpdateCharacterResponse = zod.object({
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
-  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).')
+  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -683,7 +687,8 @@ export const SetCharacterLifestyleResponse = zod.object({
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
-  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).')
+  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -8185,7 +8190,8 @@ export const AdminListUsersResponseItem = zod.object({
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
-  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).')
+  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -8256,7 +8262,8 @@ export const AdminGetUserResponse = zod.object({
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
-  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).')
+  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -8343,7 +8350,8 @@ export const AdminSyncUserRolesResponse = zod.object({
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
-  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).')
+  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -8505,7 +8513,8 @@ export const AdminAssignCharacterOwnerResponse = zod.object({
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
-  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).')
+  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -8561,7 +8570,8 @@ export const AdminClearCharacterOwnerResponse = zod.object({
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
-  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).')
+  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -8757,7 +8767,8 @@ export const GetPublicCharacterResponse = zod.object({
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
-  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).')
+  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -8905,7 +8916,8 @@ export const UpdateArchiveCharacterBody = zod.object({
   "preamble": zod.string(),
   "sections": zod.record(zod.string(), zod.string()),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
-  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).')
+  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
 }).optional()
 })
 
