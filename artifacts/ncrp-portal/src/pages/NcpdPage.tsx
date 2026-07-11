@@ -336,7 +336,7 @@ function OfficersRoster() {
               ))}
             </div>
           ) : (
-            <p className="font-mono text-xs text-muted-foreground pl-12">No player characters on file.</p>
+            <p className="font-mono text-xs text-muted-foreground pl-12">No NCPD characters on file.</p>
           )}
         </div>
       ))}

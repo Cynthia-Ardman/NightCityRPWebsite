@@ -50,6 +50,7 @@ export async function createCharacter(
     approved?: boolean;
     lifeStatus?: string;
     cyberwareLevel?: string;
+    archetype?: string | null;
   } = {},
 ) {
   const [c] = await db
@@ -61,6 +62,7 @@ export async function createCharacter(
       approved: opts.approved ?? true,
       lifeStatus: opts.lifeStatus ?? "active",
       cyberwareLevel: opts.cyberwareLevel ?? "none",
+      archetype: opts.archetype ?? null,
     })
     .returning();
   return c;

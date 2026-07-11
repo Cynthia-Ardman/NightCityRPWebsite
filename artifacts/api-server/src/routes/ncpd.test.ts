@@ -198,15 +198,18 @@ describe("NCPD record dossier enrichment", () => {
 });
 
 describe("NCPD officer roster", () => {
-  it("lists officers with their PCs, commissioner first, PCs only", async () => {
+  it("lists officers with only their NCPD characters, commissioner first", async () => {
     const officer = await createUser({ username: "Zed", roles: OFFICER });
     const commissioner = await createUser({ username: "Adam", roles: COMMISSIONER });
     const outsider = await createUser({ username: "NotACop" });
-    // Officer's own characters: one PC (should show) + one NPC (should NOT).
-    const pc = await createCharacter({ ownerId: officer.id, name: "Officer PC", kind: "pc" });
-    await createCharacter({ ownerId: officer.id, name: "Officer NPC", kind: "npc" });
+    // Officer's characters: an NCPD cop PC (shows), a non-NCPD PC (hidden —
+    // holding the officer role doesn't make every character a cop), and an
+    // NCPD-archetype NPC (hidden — roster is PCs only).
+    const cop = await createCharacter({ ownerId: officer.id, name: "Officer PC", kind: "pc", archetype: "NCPD / Beat Patrol" });
+    await createCharacter({ ownerId: officer.id, name: "Side Merc", kind: "pc", archetype: "Merc/Bounty Hunter" });
+    await createCharacter({ ownerId: officer.id, name: "Officer NPC", kind: "npc", archetype: "NCPD Detective" });
     // Someone else's PC must never leak into an officer's roster.
-    await createCharacter({ ownerId: outsider.id, name: "Civilian", kind: "pc" });
+    await createCharacter({ ownerId: outsider.id, name: "Civilian", kind: "pc", archetype: "NCPD" });
 
     const res = await request(app).get("/api/ncpd/officers").set("x-test-user", officer.id);
     expect(res.status).toBe(200);
@@ -220,7 +223,8 @@ describe("NCPD officer roster", () => {
 
     const officerEntry = roster.find((o) => o.userId === officer.id)!;
     expect(officerEntry.isCommissioner).toBe(false);
-    expect(officerEntry.characters.map((c) => c.id)).toEqual([pc.id]);
+    // Only the NCPD-archetype PC — not the side merc, not the NPC.
+    expect(officerEntry.characters.map((c) => c.id)).toEqual([cop.id]);
 
     const commEntry = roster.find((o) => o.userId === commissioner.id)!;
     expect(commEntry.isCommissioner).toBe(true);

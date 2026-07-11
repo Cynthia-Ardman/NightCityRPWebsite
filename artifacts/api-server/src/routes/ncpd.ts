@@ -226,7 +226,18 @@ router.get("/ncpd/officers", requireAuth, requireNcpd, async (_req, res): Promis
           portraitUrls: characters.portraitUrls,
         })
         .from(characters)
-        .where(and(inArray(characters.ownerId, officerIds), eq(characters.kind, "pc")))
+        // Officer status is a USER-level Discord role, but a player who holds
+        // it may run several PCs of which only one is actually a cop. The
+        // roster should list the NCPD characters, not every character the
+        // officer owns — so we key off the character's own archetype, which is
+        // where NCPD affiliation is recorded (e.g. "NCPD / Beat Patrol").
+        .where(
+          and(
+            inArray(characters.ownerId, officerIds),
+            eq(characters.kind, "pc"),
+            ilike(characters.archetype, "%ncpd%"),
+          ),
+        )
         .orderBy(characters.archived, characters.name)
     : [];
 
