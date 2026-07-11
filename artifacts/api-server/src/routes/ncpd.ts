@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
-import { desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import {
   db,
+  users,
   characters,
   ncpdArrestReports,
   ncpdWarrants,
@@ -176,6 +177,81 @@ router.get("/ncpd/characters/:id/record", requireAuth, requireNcpd, async (req, 
     housing: leases,
     balance: typeof balance?.total === "number" ? balance.total : null,
   });
+});
+
+// ---------------------------------------------------------------------------
+// Officer roster
+// ---------------------------------------------------------------------------
+
+// The NCPD roster: every user who holds an id-derived NCPD role marker
+// (officer or commissioner), paired with their player characters. Officer
+// membership is a USER-level Discord fact (not per-character), so we resolve
+// the members first and then attach each one's PCs. We load the small user
+// set in full and filter with the same hasRole() the access gate uses, so the
+// roster can never drift from who actually has clearance (matching a role
+// renamed in Discord but still id-pinned).
+router.get("/ncpd/officers", requireAuth, requireNcpd, async (_req, res): Promise<void> => {
+  const allUsers = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      globalName: users.globalName,
+      avatarUrl: users.avatarUrl,
+      roles: users.roles,
+    })
+    .from(users);
+  const officers = allUsers
+    .map((u) => ({ ...u, roles: u.roles ?? [] }))
+    .filter((u) => hasRole(u.roles, "NCPD") || hasRole(u.roles, "NCPD_COMMISSIONER"));
+
+  const officerIds = officers.map((u) => u.id);
+  const chars = officerIds.length
+    ? await db
+        .select({
+          id: characters.id,
+          name: characters.name,
+          ownerId: characters.ownerId,
+          archetype: characters.archetype,
+          lifeStatus: characters.lifeStatus,
+          archived: characters.archived,
+          portraitUrl: characters.portraitUrl,
+          portraitUrls: characters.portraitUrls,
+        })
+        .from(characters)
+        .where(and(inArray(characters.ownerId, officerIds), eq(characters.kind, "pc")))
+        .orderBy(characters.archived, characters.name)
+    : [];
+
+  const charsByOwner = new Map<string, typeof chars>();
+  for (const ch of chars) {
+    if (!ch.ownerId) continue;
+    const list = charsByOwner.get(ch.ownerId) ?? [];
+    list.push(ch);
+    charsByOwner.set(ch.ownerId, list);
+  }
+
+  const roster = officers
+    .map((u) => ({
+      userId: u.id,
+      displayName: u.globalName?.trim() || u.username,
+      avatarUrl: u.avatarUrl ?? null,
+      isCommissioner: hasRole(u.roles, "NCPD_COMMISSIONER"),
+      characters: (charsByOwner.get(u.id) ?? []).map((ch) => ({
+        id: ch.id,
+        name: ch.name,
+        archetype: ch.archetype,
+        lifeStatus: ch.lifeStatus,
+        archived: ch.archived,
+        portraitUrl: ch.portraitUrls?.[0] ?? ch.portraitUrl ?? null,
+      })),
+    }))
+    // Commissioner(s) lead the roster, then alphabetical by display name.
+    .sort((a, b) => {
+      if (a.isCommissioner !== b.isCommissioner) return a.isCommissioner ? -1 : 1;
+      return a.displayName.localeCompare(b.displayName);
+    });
+
+  res.json(roster);
 });
 
 // ---------------------------------------------------------------------------

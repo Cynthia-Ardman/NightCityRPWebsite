@@ -6520,6 +6520,27 @@ export interface NcpdCharacterSummary {
   archived: boolean;
 }
 
+export interface NcpdOfficerCharacter {
+  id: number;
+  name: string;
+  /** @nullable */
+  archetype?: string | null;
+  lifeStatus: string;
+  archived: boolean;
+  /** @nullable */
+  portraitUrl?: string | null;
+}
+
+export interface NcpdOfficer {
+  userId: string;
+  displayName: string;
+  /** @nullable */
+  avatarUrl?: string | null;
+  isCommissioner: boolean;
+  /** The officer's player characters (PCs only). */
+  characters: NcpdOfficerCharacter[];
+}
+
 export type NcpdRecordCharacterKind = typeof NcpdRecordCharacterKind[keyof typeof NcpdRecordCharacterKind];
 
 

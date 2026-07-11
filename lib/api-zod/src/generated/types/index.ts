@@ -411,6 +411,8 @@ export * from './ncpdLawUpdate';
 export * from './ncpdLawUpdateSeverity';
 export * from './ncpdNote';
 export * from './ncpdNoteInput';
+export * from './ncpdOfficer';
+export * from './ncpdOfficerCharacter';
 export * from './ncpdRecord';
 export * from './ncpdRecordCharacter';
 export * from './ncpdRecordCharacterKind';

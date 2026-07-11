@@ -224,6 +224,7 @@ import type {
   NcpdLawUpdate,
   NcpdNote,
   NcpdNoteInput,
+  NcpdOfficer,
   NcpdRecord,
   NcpdReport,
   NcpdReportInput,
@@ -24246,6 +24247,83 @@ export function useNcpdSearchCharacters<TData = Awaited<ReturnType<typeof ncpdSe
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getNcpdSearchCharactersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListNcpdOfficersUrl = () => {
+
+
+
+
+  return `/api/ncpd/officers`
+}
+
+/**
+ * @summary NCPD officer roster with each officer's player characters (NCPD/fixer/admin only).
+ */
+export const listNcpdOfficers = async ( options?: RequestInit): Promise<NcpdOfficer[]> => {
+
+  return customFetch<NcpdOfficer[]>(getListNcpdOfficersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListNcpdOfficersQueryKey = () => {
+    return [
+    `/api/ncpd/officers`
+    ] as const;
+    }
+
+
+export const getListNcpdOfficersQueryOptions = <TData = Awaited<ReturnType<typeof listNcpdOfficers>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNcpdOfficers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListNcpdOfficersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNcpdOfficers>>> = ({ signal }) => listNcpdOfficers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listNcpdOfficers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListNcpdOfficersQueryResult = NonNullable<Awaited<ReturnType<typeof listNcpdOfficers>>>
+export type ListNcpdOfficersQueryError = ErrorType<void>
+
+
+/**
+ * @summary NCPD officer roster with each officer's player characters (NCPD/fixer/admin only).
+ */
+
+export function useListNcpdOfficers<TData = Awaited<ReturnType<typeof listNcpdOfficers>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNcpdOfficers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListNcpdOfficersQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -11939,6 +11939,26 @@ export const NcpdSearchCharactersResponse = zod.array(NcpdSearchCharactersRespon
 
 
 /**
+ * @summary NCPD officer roster with each officer's player characters (NCPD/fixer/admin only).
+ */
+export const ListNcpdOfficersResponseItem = zod.object({
+  "userId": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "isCommissioner": zod.boolean(),
+  "characters": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "archetype": zod.string().nullish(),
+  "lifeStatus": zod.string(),
+  "archived": zod.boolean(),
+  "portraitUrl": zod.string().nullish()
+})).describe('The officer\'s player characters (PCs only).')
+})
+export const ListNcpdOfficersResponse = zod.array(ListNcpdOfficersResponseItem)
+
+
+/**
  * @summary Full NCPD record for a character (reports, warrants, notes). NCPD/fixer/admin only — never the character's owner by ownership alone.
  */
 export const GetNcpdRecordParams = zod.object({

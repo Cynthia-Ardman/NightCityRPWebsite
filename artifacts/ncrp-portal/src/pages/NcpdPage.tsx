@@ -6,7 +6,9 @@ import {
   useListNcpdReports,
   useListNcpdWarrants,
   getListNcpdWarrantsQueryKey,
+  useListNcpdOfficers,
   type NcpdCharacterSummary,
+  type NcpdOfficerCharacter,
 } from "@workspace/api-client-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import NcpdRecordPanel, { warrantStatusClass } from "@/components/NcpdRecordPanel";
-import { Shield, FileText, AlertTriangle, Search } from "lucide-react";
+import { Shield, FileText, AlertTriangle, Search, Users, Star, UserSearch } from "lucide-react";
 
 function fmtDate(iso?: string | null): string {
   if (!iso) return "—";
@@ -66,6 +68,9 @@ export default function NcpdPage() {
           <TabsTrigger value="lookup" className={TAB_TRIGGER_CLASS} data-testid="tab-ncpd-lookup">
             <Search className="w-4 h-4 mr-2 hidden sm:inline" /> Lookup
           </TabsTrigger>
+          <TabsTrigger value="officers" className={TAB_TRIGGER_CLASS} data-testid="tab-ncpd-officers">
+            <Users className="w-4 h-4 mr-2 hidden sm:inline" /> Officers
+          </TabsTrigger>
         </TabsList>
         <div className="mt-6">
           <TabsContent value="warrants" className="outline-none focus:ring-0">
@@ -76,6 +81,9 @@ export default function NcpdPage() {
           </TabsContent>
           <TabsContent value="lookup" className="outline-none focus:ring-0">
             <CharacterLookup />
+          </TabsContent>
+          <TabsContent value="officers" className="outline-none focus:ring-0">
+            <OfficersRoster />
           </TabsContent>
         </div>
       </Tabs>
@@ -228,6 +236,110 @@ function CharacterLookup() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function OfficerCharacterCard({ ch }: { ch: NcpdOfficerCharacter }) {
+  return (
+    <Link href={`/ncpd/characters/${ch.id}`}>
+      <Card
+        className="rounded-none border-border bg-card/50 hover:border-nc-cyan transition-all cursor-pointer h-full"
+        data-testid={`card-ncpd-officer-char-${ch.id}`}
+      >
+        <CardContent className="p-3 flex gap-3 items-center">
+          {ch.portraitUrl ? (
+            <img
+              src={ch.portraitUrl}
+              alt={ch.name}
+              className="w-16 h-16 object-cover border border-nc-cyan/40 shrink-0"
+              data-testid={`img-ncpd-officer-char-${ch.id}`}
+            />
+          ) : (
+            <div className="w-16 h-16 border border-border bg-black/30 flex items-center justify-center shrink-0">
+              <UserSearch className="w-6 h-6 text-muted-foreground/50" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="font-display tracking-wider text-foreground truncate">{ch.name}</p>
+            <p className="font-mono text-xs text-muted-foreground truncate">
+              {ch.archetype ? ch.archetype : "—"}
+            </p>
+            {(ch.lifeStatus !== "active" || ch.archived) && (
+              <div className="flex items-center gap-1 flex-wrap">
+                {ch.lifeStatus !== "active" && (
+                  <Badge
+                    variant="outline"
+                    className={`rounded-none uppercase font-display text-[10px] ${
+                      ch.lifeStatus === "dead" ? "border-destructive text-destructive" : "border-nc-yellow text-nc-yellow"
+                    }`}
+                  >
+                    {ch.lifeStatus}
+                  </Badge>
+                )}
+                {ch.archived && (
+                  <Badge variant="outline" className="rounded-none uppercase font-display text-[10px] border-muted-foreground text-muted-foreground">
+                    archived
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
+function OfficersRoster() {
+  const { data, isLoading } = useListNcpdOfficers();
+  const officers = data ?? [];
+  if (isLoading) return <div className="text-nc-cyan font-display animate-pulse">LOADING ROSTER...</div>;
+  if (!officers.length) {
+    return (
+      <Card className="rounded-none border-border bg-card/50">
+        <CardContent className="py-8 font-mono text-muted-foreground text-center">No officers on the roster.</CardContent>
+      </Card>
+    );
+  }
+  return (
+    <div className="space-y-6">
+      {officers.map((o) => (
+        <div key={o.userId} className="space-y-3" data-testid={`section-ncpd-officer-${o.userId}`}>
+          <div className="flex items-center gap-3">
+            {o.avatarUrl ? (
+              <img src={o.avatarUrl} alt={o.displayName} className="w-9 h-9 rounded-full border border-border shrink-0" />
+            ) : (
+              <div className="w-9 h-9 rounded-full border border-border bg-black/30 flex items-center justify-center shrink-0">
+                <Shield className="w-4 h-4 text-muted-foreground/50" />
+              </div>
+            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-display tracking-wider text-foreground" data-testid={`text-ncpd-officer-name-${o.userId}`}>
+                {o.displayName}
+              </span>
+              <Badge
+                variant="outline"
+                className={`rounded-none uppercase font-display text-[10px] ${
+                  o.isCommissioner ? "border-nc-yellow text-nc-yellow" : "border-nc-cyan text-nc-cyan"
+                }`}
+              >
+                {o.isCommissioner && <Star className="w-3 h-3 mr-1" />}
+                {o.isCommissioner ? "Commissioner" : "Officer"}
+              </Badge>
+            </div>
+          </div>
+          {o.characters.length ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {o.characters.map((ch) => (
+                <OfficerCharacterCard key={ch.id} ch={ch} />
+              ))}
+            </div>
+          ) : (
+            <p className="font-mono text-xs text-muted-foreground pl-12">No player characters on file.</p>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

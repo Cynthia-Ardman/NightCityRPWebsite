@@ -181,6 +181,48 @@ describe("NCPD record dossier enrichment", () => {
   });
 });
 
+describe("NCPD officer roster", () => {
+  it("lists officers with their PCs, commissioner first, PCs only", async () => {
+    const officer = await createUser({ username: "Zed", roles: OFFICER });
+    const commissioner = await createUser({ username: "Adam", roles: COMMISSIONER });
+    const outsider = await createUser({ username: "NotACop" });
+    // Officer's own characters: one PC (should show) + one NPC (should NOT).
+    const pc = await createCharacter({ ownerId: officer.id, name: "Officer PC", kind: "pc" });
+    await createCharacter({ ownerId: officer.id, name: "Officer NPC", kind: "npc" });
+    // Someone else's PC must never leak into an officer's roster.
+    await createCharacter({ ownerId: outsider.id, name: "Civilian", kind: "pc" });
+
+    const res = await request(app).get("/api/ncpd/officers").set("x-test-user", officer.id);
+    expect(res.status).toBe(200);
+    const roster: Array<{ userId: string; displayName: string; isCommissioner: boolean; characters: Array<{ id: number; name: string }> }> = res.body;
+    const ids = roster.map((o) => o.userId);
+    expect(ids).toContain(officer.id);
+    expect(ids).toContain(commissioner.id);
+    expect(ids).not.toContain(outsider.id);
+    // Commissioner sorts ahead of the officer.
+    expect(ids.indexOf(commissioner.id)).toBeLessThan(ids.indexOf(officer.id));
+
+    const officerEntry = roster.find((o) => o.userId === officer.id)!;
+    expect(officerEntry.isCommissioner).toBe(false);
+    expect(officerEntry.characters.map((c) => c.id)).toEqual([pc.id]);
+
+    const commEntry = roster.find((o) => o.userId === commissioner.id)!;
+    expect(commEntry.isCommissioner).toBe(true);
+    expect(commEntry.characters).toEqual([]);
+  });
+
+  it("is gated to NCPD/fixer/admin", async () => {
+    const unauth = await request(app).get("/api/ncpd/officers");
+    expect(unauth.status).toBe(401);
+    const player = await createUser();
+    const denied = await request(app).get("/api/ncpd/officers").set("x-test-user", player.id);
+    expect(denied.status).toBe(403);
+    const fixer = await createFixer();
+    const ok = await request(app).get("/api/ncpd/officers").set("x-test-user", fixer.id);
+    expect(ok.status).toBe(200);
+  });
+});
+
 describe("NCPD reports CRUD", () => {
   it("officer can file, edit and delete a report", async () => {
     const officer = await createOfficer();

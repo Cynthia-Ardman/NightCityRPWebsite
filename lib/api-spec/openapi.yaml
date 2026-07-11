@@ -5401,6 +5401,21 @@ paths:
                 items: { $ref: "#/components/schemas/NcpdCharacterSummary" }
         "401": { description: Authentication required }
         "403": { description: NCPD/fixer/admin only }
+  /ncpd/officers:
+    get:
+      operationId: listNcpdOfficers
+      tags: [ncpd]
+      summary: NCPD officer roster with each officer's player characters (NCPD/fixer/admin only).
+      responses:
+        "200":
+          description: Officers, commissioner(s) first then alphabetical
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NcpdOfficer" }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
   /ncpd/characters/{id}/record:
     get:
       operationId: getNcpdRecord
@@ -9930,6 +9945,30 @@ components:
         kind: { type: string, enum: [pc, npc] }
         archetype: { type: ["string", "null"] }
         archived: { type: boolean }
+
+    NcpdOfficerCharacter:
+      type: object
+      required: [id, name, lifeStatus, archived]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        archetype: { type: ["string", "null"] }
+        lifeStatus: { type: string }
+        archived: { type: boolean }
+        portraitUrl: { type: ["string", "null"] }
+
+    NcpdOfficer:
+      type: object
+      required: [userId, displayName, isCommissioner, characters]
+      properties:
+        userId: { type: string }
+        displayName: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+        isCommissioner: { type: boolean }
+        characters:
+          type: array
+          items: { $ref: "#/components/schemas/NcpdOfficerCharacter" }
+          description: "The officer's player characters (PCs only)."
 
     NcpdRecordCharacter:
       type: object
