@@ -39,6 +39,7 @@ import { useToast } from "@/hooks/use-toast";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
 import { ClipboardList, RotateCcw, Pencil, Trash2, MessageSquare, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import ReviewCommentThread from "@/components/ReviewCommentThread";
+import SingleImageUpload from "@/components/SingleImageUpload";
 import PendingEditDiffInline from "@/components/PendingEditDiffInline";
 
 // One unified shape for everything a player has submitted, so custom
@@ -67,6 +68,8 @@ type HistoryRow = {
   reviewedAt?: string | null;
   reviewerNote?: string | null;
   description?: string | null;
+  // Reference image on custom requests, editable alongside title/description.
+  imageUrl?: string | null;
   // Set for custom requests the owner can act on directly (stock-cost).
   customId?: number;
   customType?: CustomRequest["type"];
@@ -208,7 +211,7 @@ export default function MyRequests() {
   const { toast } = useToast();
   // mode "resubmit" = changes_requested flow (edit then send back to queue);
   // mode "save" = still-pending in-queue edit (save only, votes reset server-side).
-  const [editing, setEditing] = useState<{ id: number; title: string; description: string; mode: "save" | "resubmit"; isVenue?: boolean; purpose?: string; location?: string } | null>(null);
+  const [editing, setEditing] = useState<{ id: number; title: string; description: string; mode: "save" | "resubmit"; isVenue?: boolean; purpose?: string; location?: string; imageUrl: string } | null>(null);
   const [discussing, setDiscussing] = useState<string | null>(null);
   // Per-queue ids of the player's own submissions with unseen activity. Drives
   // the per-row unread dot; opening a row's discussion clears it server-side.
@@ -287,7 +290,7 @@ export default function MyRequests() {
   const saveEditing = async () => {
     if (!editing) return;
     try {
-      const data: Record<string, unknown> = { title: editing.title, description: editing.description };
+      const data: Record<string, unknown> = { title: editing.title, description: editing.description, imageUrl: editing.imageUrl };
       if (editing.isVenue) {
         data.purpose = editing.purpose ?? "";
         data.location = editing.location ?? "";
@@ -326,6 +329,7 @@ export default function MyRequests() {
         reviewedAt: r.reviewedAt,
         reviewerNote: r.reviewerNote,
         description: r.description,
+        imageUrl: r.imageUrl ?? null,
         customId: r.id,
         customType: r.type,
         purpose: isVenue ? det.purpose ?? null : null,
@@ -464,7 +468,7 @@ export default function MyRequests() {
                 type="button"
                 size="sm"
                 className="rounded-none bg-nc-cyan text-background font-display text-[10px] tracking-widest"
-                onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "", mode: "resubmit", isVenue: r.customType === "store" || r.customType === "ripperdoc", purpose: r.purpose ?? "", location: r.location ?? "" })}
+                onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "", mode: "resubmit", isVenue: r.customType === "store" || r.customType === "ripperdoc", purpose: r.purpose ?? "", location: r.location ?? "", imageUrl: r.imageUrl ?? "" })}
                 data-testid={`button-edit-resubmit-${r.customId}`}
               >
                 <Pencil className="w-3 h-3 mr-1" /> EDIT & RESUBMIT
@@ -502,7 +506,7 @@ export default function MyRequests() {
                 size="sm"
                 variant="outline"
                 className="rounded-none border-nc-cyan text-nc-cyan font-display text-[10px] tracking-widest"
-                onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "", mode: "save", isVenue: r.customType === "store" || r.customType === "ripperdoc", purpose: r.purpose ?? "", location: r.location ?? "" })}
+                onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "", mode: "save", isVenue: r.customType === "store" || r.customType === "ripperdoc", purpose: r.purpose ?? "", location: r.location ?? "", imageUrl: r.imageUrl ?? "" })}
                 data-testid={`button-edit-draft-${r.customId}`}
               >
                 <Pencil className="w-3 h-3 mr-1" /> EDIT
@@ -530,7 +534,7 @@ export default function MyRequests() {
                 type="button"
                 size="sm"
                 className="rounded-none bg-nc-cyan text-background font-display text-[10px] tracking-widest"
-                onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "", mode: "save", isVenue: r.customType === "store" || r.customType === "ripperdoc", purpose: r.purpose ?? "", location: r.location ?? "" })}
+                onClick={() => setEditing({ id: r.customId!, title: r.title, description: r.description ?? "", mode: "save", isVenue: r.customType === "store" || r.customType === "ripperdoc", purpose: r.purpose ?? "", location: r.location ?? "", imageUrl: r.imageUrl ?? "" })}
                 data-testid={`button-edit-pending-${r.customId}`}
               >
                 <Pencil className="w-3 h-3 mr-1" /> EDIT
@@ -808,6 +812,17 @@ export default function MyRequests() {
                   className="rounded-none mt-1"
                   data-testid="input-edit-description"
                 />
+              </div>
+              <div>
+                <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Reference Image (optional)</label>
+                <div className="mt-1">
+                  <SingleImageUpload
+                    value={editing.imageUrl}
+                    onChange={(url) => setEditing({ ...editing, imageUrl: url })}
+                    testIdPrefix="edit-request-image"
+                    alt="request reference"
+                  />
+                </div>
               </div>
               {editing.isVenue && (
                 <>

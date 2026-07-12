@@ -45,6 +45,7 @@ import {
 } from "@workspace/api-client-react";
 import { formatEddies } from "@/lib/format";
 import SelectOrCustom from "@/components/SelectOrCustom";
+import SingleImageUpload from "@/components/SingleImageUpload";
 import {
   GUN_CATEGORIES,
   GUN_WEAPON_TYPES,
@@ -145,7 +146,7 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
   // Admin in-place edit of a request's content. Keeps existing votes (the
   // backend skips vote-clearing for a non-owner admin edit).
   const [editing, setEditing] = useState<
-    { id: number; title: string; description: string; isVenue: boolean; purpose: string; location: string } | null
+    { id: number; title: string; description: string; isVenue: boolean; purpose: string; location: string; imageUrl: string } | null
   >(null);
 
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
@@ -255,7 +256,7 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
   });
   const saveEdit = () => {
     if (!editing) return;
-    const data: Record<string, unknown> = { title: editing.title, description: editing.description };
+    const data: Record<string, unknown> = { title: editing.title, description: editing.description, imageUrl: editing.imageUrl };
     if (editing.isVenue) {
       data.purpose = editing.purpose;
       data.location = editing.location;
@@ -459,6 +460,7 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
                       isVenue: r.type === "store" || r.type === "ripperdoc",
                       purpose: det?.purpose ?? "",
                       location: det?.location ?? "",
+                      imageUrl: r.imageUrl ?? "",
                     })
                   }
                   data-testid={`button-edit-misc-${r.id}`}
@@ -584,6 +586,17 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
                   className="rounded-none mt-1"
                   data-testid="input-admin-edit-description"
                 />
+              </div>
+              <div>
+                <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Reference Image (optional)</label>
+                <div className="mt-1">
+                  <SingleImageUpload
+                    value={editing.imageUrl}
+                    onChange={(url) => setEditing({ ...editing, imageUrl: url })}
+                    testIdPrefix="admin-edit-request-image"
+                    alt="request reference"
+                  />
+                </div>
               </div>
               {editing.isVenue && (
                 <>
