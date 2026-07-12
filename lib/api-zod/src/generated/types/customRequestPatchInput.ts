@@ -9,7 +9,10 @@
 export interface CustomRequestPatchInput {
   title?: string;
   description?: string;
+  /** Legacy single-image patch; ignored when imageUrls is present. */
   imageUrl?: string;
+  /** Replaces the full reference-image set (max 8). Empty array clears all images. */
+  imageUrls?: string[];
   /** Venue requests only. */
   purpose?: string;
   /** Venue requests only. */

@@ -1060,6 +1060,9 @@ router.post(
           title: d.name,
           description,
           imageUrl,
+          // Keep the multi-image column in sync (imageUrls is the superset;
+          // this staff grant flow still takes a single reference image).
+          imageUrls: imageUrl ? [imageUrl] : [],
           status: "approved",
           reviewedById: req.user!.id,
           reviewedAt: now,

@@ -24,10 +24,12 @@ export interface CustomRequest {
   /** @nullable */
   description?: string | null;
   /**
-     * Optional reference image the player attached.
+     * Legacy single reference image — always the first entry of imageUrls.
      * @nullable
      */
   imageUrl?: string | null;
+  /** All reference images the player attached (ordered). Legacy rows with only imageUrl are surfaced as a one-element array. */
+  imageUrls?: string[];
   /** Optional type-specific payload captured at submit time. For store/ripperdoc carries { purpose, location }. */
   details?: unknown | null;
   status: CustomRequestStatus;

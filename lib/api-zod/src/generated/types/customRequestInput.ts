@@ -15,8 +15,10 @@ export interface CustomRequestInput {
   title: string;
   /** Required for store/ripperdoc requests. */
   description?: string;
-  /** Optional reference image object path. */
+  /** Legacy single reference image object path; ignored when imageUrls is present. */
   imageUrl?: string;
+  /** Optional reference images (object paths, ordered, max 8). */
+  imageUrls?: string[];
   /** Required for store/ripperdoc requests; what the venue is for. */
   purpose?: string;
   /** Required for off-map store/ripperdoc requests; free-text in-world location. */

@@ -3723,10 +3723,12 @@ export interface CustomRequest {
   /** @nullable */
   description?: string | null;
   /**
-     * Optional reference image the player attached.
+     * Legacy single reference image — always the first entry of imageUrls.
      * @nullable
      */
   imageUrl?: string | null;
+  /** All reference images the player attached (ordered). Legacy rows with only imageUrl are surfaced as a one-element array. */
+  imageUrls?: string[];
   /** Optional type-specific payload captured at submit time. For store/ripperdoc carries { purpose, location }. */
   details?: unknown | null;
   status: CustomRequestStatus;
@@ -3847,7 +3849,10 @@ export type CustomRequestVoteResult = CustomRequest & {
 export interface CustomRequestPatchInput {
   title?: string;
   description?: string;
+  /** Legacy single-image patch; ignored when imageUrls is present. */
   imageUrl?: string;
+  /** Replaces the full reference-image set (max 8). Empty array clears all images. */
+  imageUrls?: string[];
   /** Venue requests only. */
   purpose?: string;
   /** Venue requests only. */
@@ -3902,8 +3907,10 @@ export interface CustomRequestInput {
   title: string;
   /** Required for store/ripperdoc requests. */
   description?: string;
-  /** Optional reference image object path. */
+  /** Legacy single reference image object path; ignored when imageUrls is present. */
   imageUrl?: string;
+  /** Optional reference images (object paths, ordered, max 8). */
+  imageUrls?: string[];
   /** Required for store/ripperdoc requests; what the venue is for. */
   purpose?: string;
   /** Required for off-map store/ripperdoc requests; free-text in-world location. */

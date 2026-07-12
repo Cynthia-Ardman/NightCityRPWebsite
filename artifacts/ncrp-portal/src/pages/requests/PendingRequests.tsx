@@ -45,7 +45,7 @@ import {
 } from "@workspace/api-client-react";
 import { formatEddies } from "@/lib/format";
 import SelectOrCustom from "@/components/SelectOrCustom";
-import SingleImageUpload from "@/components/SingleImageUpload";
+import MultiImageUpload from "@/components/MultiImageUpload";
 import {
   GUN_CATEGORIES,
   GUN_WEAPON_TYPES,
@@ -146,7 +146,7 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
   // Admin in-place edit of a request's content. Keeps existing votes (the
   // backend skips vote-clearing for a non-owner admin edit).
   const [editing, setEditing] = useState<
-    { id: number; title: string; description: string; isVenue: boolean; purpose: string; location: string; imageUrl: string } | null
+    { id: number; title: string; description: string; isVenue: boolean; purpose: string; location: string; imageUrls: string[] } | null
   >(null);
 
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
@@ -256,7 +256,7 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
   });
   const saveEdit = () => {
     if (!editing) return;
-    const data: Record<string, unknown> = { title: editing.title, description: editing.description, imageUrl: editing.imageUrl };
+    const data: Record<string, unknown> = { title: editing.title, description: editing.description, imageUrls: editing.imageUrls };
     if (editing.isVenue) {
       data.purpose = editing.purpose;
       data.location = editing.location;
@@ -460,7 +460,7 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
                       isVenue: r.type === "store" || r.type === "ripperdoc",
                       purpose: det?.purpose ?? "",
                       location: det?.location ?? "",
-                      imageUrl: r.imageUrl ?? "",
+                      imageUrls: r.imageUrls ?? (r.imageUrl ? [r.imageUrl] : []),
                     })
                   }
                   data-testid={`button-edit-misc-${r.id}`}
@@ -479,23 +479,24 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
           ) : null
         }
       >
-        {r.imageUrl ? (
+        {(r.imageUrls?.length ? r.imageUrls : r.imageUrl ? [r.imageUrl] : []).map((url, i) => (
           <a
-            href={r.imageUrl}
+            key={url}
+            href={url}
             target="_blank"
             rel="noreferrer"
             className="block border border-border bg-background"
-            data-testid={`link-misc-image-${r.id}`}
+            data-testid={`link-misc-image-${r.id}-${i}`}
           >
             <img
-              src={r.imageUrl}
-              alt={r.title}
+              src={url}
+              alt={`${r.title} (${i + 1})`}
               className="w-full h-40 object-contain"
               loading="lazy"
-              data-testid={`img-misc-request-${r.id}`}
+              data-testid={`img-misc-request-${r.id}-${i}`}
             />
           </a>
-        ) : null}
+        ))}
         {det ? (
           <div className="space-y-1 font-mono text-xs" data-testid={`venue-details-${r.id}`}>
             {det.purpose ? (
@@ -588,11 +589,11 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
                 />
               </div>
               <div>
-                <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Reference Image (optional)</label>
+                <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Reference Images (optional)</label>
                 <div className="mt-1">
-                  <SingleImageUpload
-                    value={editing.imageUrl}
-                    onChange={(url) => setEditing({ ...editing, imageUrl: url })}
+                  <MultiImageUpload
+                    value={editing.imageUrls}
+                    onChange={(urls) => setEditing({ ...editing, imageUrls: urls })}
                     testIdPrefix="admin-edit-request-image"
                     alt="request reference"
                   />

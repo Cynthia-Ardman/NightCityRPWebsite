@@ -703,8 +703,12 @@ export const customRequests = pgTable("custom_requests", {
   // Player-facing label: location/address (property) or item name (gun/cyberware).
   title: text("title").notNull(),
   description: text("description"),
-  // Optional reference image the player attaches at submit time.
+  // Optional reference image the player attaches at submit time. Legacy
+  // single-image field, kept in sync as imageUrls[0] for old consumers.
   imageUrl: text("image_url"),
+  // All reference images (ordered). Superset of imageUrl; legacy rows may have
+  // only imageUrl set, so readers should fall back to [imageUrl].
+  imageUrls: jsonb("image_urls").$type<string[]>(),
   // Optional type-specific payload captured at submit time.
   details: jsonb("details"),
   // On-map venue requests (store/ripperdoc) may reserve a real business

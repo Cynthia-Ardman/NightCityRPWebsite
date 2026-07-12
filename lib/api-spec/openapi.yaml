@@ -8278,7 +8278,11 @@ components:
         requestedByName: { type: ["string", "null"] }
         title: { type: string, description: "Player label: location/address (property), item name (gun/cyberware), or venue name (store/ripperdoc)." }
         description: { type: ["string", "null"] }
-        imageUrl: { type: ["string", "null"], description: "Optional reference image the player attached." }
+        imageUrl: { type: ["string", "null"], description: "Legacy single reference image — always the first entry of imageUrls." }
+        imageUrls:
+          type: array
+          items: { type: string }
+          description: "All reference images the player attached (ordered). Legacy rows with only imageUrl are surfaced as a one-element array."
         details: { description: "Optional type-specific payload captured at submit time. For store/ripperdoc carries { purpose, location }.", nullable: true }
         status: { type: string, enum: [draft, pending, approved, rejected, changes_requested, cancelled, closed] }
         reviewedById: { type: ["string", "null"] }
@@ -8335,7 +8339,11 @@ components:
       properties:
         title: { type: string }
         description: { type: string }
-        imageUrl: { type: string }
+        imageUrl: { type: string, description: "Legacy single-image patch; ignored when imageUrls is present." }
+        imageUrls:
+          type: array
+          items: { type: string }
+          description: "Replaces the full reference-image set (max 8). Empty array clears all images."
         purpose: { type: string, description: "Venue requests only." }
         location: { type: string, description: "Venue requests only." }
 
@@ -8353,7 +8361,11 @@ components:
         characterId: { type: integer }
         title: { type: string }
         description: { type: string, description: "Required for store/ripperdoc requests." }
-        imageUrl: { type: string, description: "Optional reference image object path." }
+        imageUrl: { type: string, description: "Legacy single reference image object path; ignored when imageUrls is present." }
+        imageUrls:
+          type: array
+          items: { type: string }
+          description: "Optional reference images (object paths, ordered, max 8)."
         purpose: { type: string, description: "Required for store/ripperdoc requests; what the venue is for." }
         location: { type: string, description: "Required for off-map store/ripperdoc requests; free-text in-world location." }
         locationKind:

@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
-import SingleImageUpload from "@/components/SingleImageUpload";
+import MultiImageUpload from "@/components/MultiImageUpload";
 
 type RequestType = "property" | "gun" | "cyberware" | "item";
 
@@ -107,7 +107,7 @@ export default function CatalogRequestSection({
   const [characterId, setCharacterId] = useState<string>("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   // Source = which venue the player wants this from (gun→store, cyberware→
   // ripperdoc), or a free-text "Custom" value. Optional; property has no source.
   const [source, setSource] = useState<string>("");
@@ -158,7 +158,7 @@ export default function CatalogRequestSection({
         setTitle("");
         setDescription("");
         setCharacterId("");
-        setImageUrl("");
+        setImageUrls([]);
         setSource("");
         setCustomSource("");
         setSelectedType(type);
@@ -184,7 +184,7 @@ export default function CatalogRequestSection({
     characterId: parseInt(effectiveCharacterId, 10),
     title: title.trim(),
     description: description.trim() || undefined,
-    imageUrl: imageUrl || undefined,
+    imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
     source: resolvedSource || undefined,
     ...(asDraft ? { asDraft: true } : {}),
   });
@@ -344,8 +344,8 @@ export default function CatalogRequestSection({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Reference Image (optional)</Label>
-              <SingleImageUpload value={imageUrl} onChange={setImageUrl} testIdPrefix={`request-${type}`} alt="reference" />
+              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Reference Images (optional)</Label>
+              <MultiImageUpload value={imageUrls} onChange={setImageUrls} testIdPrefix={`request-${type}`} alt="reference" />
             </div>
           </div>
           <DialogFooter>

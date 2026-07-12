@@ -725,6 +725,7 @@ type RequestRow = {
   title: string;
   description: string | null;
   imageUrl: string | null;
+  imageUrls: string[] | null;
   details: unknown;
   status: string;
   reviewedById: string | null;
@@ -735,6 +736,29 @@ type RequestRow = {
   closedBy: string | null;
   createdAt: Date;
 };
+
+// Max reference images per request — generous but keeps payloads/cards sane.
+const MAX_REQUEST_IMAGES = 8;
+
+// Normalize the caller-supplied image inputs into a clean ordered array:
+// prefers the multi-image `imageUrls` array, falls back to the legacy single
+// `imageUrl` string. Trims entries, drops non-strings/empties, dedupes, caps.
+function sanitizeImageUrls(imageUrls: unknown, imageUrl?: unknown): string[] {
+  const raw = Array.isArray(imageUrls)
+    ? imageUrls
+    : typeof imageUrl === "string"
+      ? [imageUrl]
+      : [];
+  const out: string[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "string") continue;
+    const trimmed = entry.trim();
+    if (!trimmed || out.includes(trimmed)) continue;
+    out.push(trimmed);
+    if (out.length >= MAX_REQUEST_IMAGES) break;
+  }
+  return out;
+}
 
 function shape(row: RequestRow): Record<string, unknown> {
   return {
@@ -747,6 +771,9 @@ function shape(row: RequestRow): Record<string, unknown> {
     title: row.title,
     description: row.description,
     imageUrl: row.imageUrl ?? null,
+    // Legacy rows predate the array column and carry only imageUrl, so readers
+    // always get a usable array.
+    imageUrls: row.imageUrls?.length ? row.imageUrls : row.imageUrl ? [row.imageUrl] : [],
     details: row.details ?? null,
     status: row.status,
     reviewedById: row.reviewedById,
@@ -771,6 +798,7 @@ async function selectWhere(predicate: ReturnType<typeof and> | ReturnType<typeof
       title: customRequests.title,
       description: customRequests.description,
       imageUrl: customRequests.imageUrl,
+      imageUrls: customRequests.imageUrls,
       details: customRequests.details,
       status: customRequests.status,
       reviewedById: customRequests.reviewedById,
@@ -989,7 +1017,7 @@ async function notifyRequesterOfDecision(
 // Submit a custom request. Player picks one of their own characters and types
 // a free-text title (location / item name) and description.
 router.post("/requests", requireAuth, async (req, res): Promise<void> => {
-  const { type, characterId, title, description, imageUrl, purpose, location, source, locationKind, listingId, storeKind, attachProperty, asDraft } = req.body ?? {};
+  const { type, characterId, title, description, imageUrl, imageUrls, purpose, location, source, locationKind, listingId, storeKind, attachProperty, asDraft } = req.body ?? {};
   // A draft is the requester's private work-in-progress: it is NOT announced to
   // the cs-approver queue, holds no building reservation, and is invisible to
   // reviewers until the player submits it (POST /requests/:id/submit).
@@ -1102,13 +1130,18 @@ router.post("/requests", requireAuth, async (req, res): Promise<void> => {
     details = { source: source.trim() };
   }
 
+  // Reference images: prefer the multi-image array; fall back to the legacy
+  // single imageUrl field for old clients. The legacy column stays in sync as
+  // the first image so existing single-image consumers keep working.
+  const cleanedImages = sanitizeImageUrls(imageUrls, imageUrl);
   const insertValues = {
     type: reqType,
     characterId: cid,
     requestedById: req.user!.id,
     title: String(title).trim(),
     description: descToStore,
-    imageUrl: typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null,
+    imageUrl: cleanedImages[0] ?? null,
+    imageUrls: cleanedImages,
     details: details as never,
     reservedListingId,
     status: isDraft ? "draft" : "pending",
@@ -1615,7 +1648,14 @@ router.patch("/requests/:id", requireAuth, async (req, res): Promise<void> => {
   const patch: Record<string, unknown> = {};
   if (typeof body.title === "string" && body.title.trim()) patch.title = body.title.trim();
   if (typeof body.description === "string") patch.description = body.description.trim() || null;
-  if (typeof body.imageUrl === "string") patch.imageUrl = body.imageUrl.trim() || null;
+  // Images: the multi-image array wins when present; a legacy single imageUrl
+  // patch (older clients) rewrites the whole set. The legacy column is kept in
+  // sync as the first image either way.
+  if (Array.isArray(body.imageUrls) || typeof body.imageUrl === "string") {
+    const cleaned = sanitizeImageUrls(body.imageUrls, body.imageUrl);
+    patch.imageUrls = cleaned;
+    patch.imageUrl = cleaned[0] ?? null;
+  }
   // Venue purpose/location live in details — merge, never clobber approval.
   if (isVenueType(reqRow.type) && (typeof body.purpose === "string" || typeof body.location === "string")) {
     const det = (reqRow.details ?? {}) as Record<string, unknown>;
