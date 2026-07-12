@@ -687,17 +687,27 @@ function toView(
   // row. myOccurrences lists every active occurrence for calendar badging.
   const startMs = e.startAt.getTime();
   const mine = signups.filter((s) => s.userId === viewer.id);
+  // On a NON-recurring event every row is "the event" regardless of its stored
+  // occurrence timestamp — a start-time edit may have left stale instants
+  // behind, and treating those rows as "not signed up" is what let volunteers
+  // double-sign-up. Prefer the active row when several exist.
+  const matchesOccurrence = (s: EventSignupView): boolean => {
+    if (!e.recurrenceRule) return true;
+    if (s.occurrenceStartAt == null) return true;
+    return new Date(s.occurrenceStartAt).getTime() === startMs;
+  };
+  const myMatches = mine.filter(matchesOccurrence);
   const mySignup =
-    mine.find((s) => {
-      if (s.occurrenceStartAt == null) return true;
-      const t = new Date(s.occurrenceStartAt).getTime();
-      return t === startMs;
-    }) ?? null;
+    myMatches.find((s) => s.state === "signed_up") ?? myMatches[0] ?? null;
   const myOccurrences = Array.from(
     new Set(
       mine
         .filter((s) => s.state === "signed_up")
-        .map((s) => s.occurrenceStartAt ?? iso(e.startAt)!),
+        .map((s) =>
+          e.recurrenceRule
+            ? s.occurrenceStartAt ?? iso(e.startAt)!
+            : iso(e.startAt)!,
+        ),
     ),
   );
   return {
@@ -888,6 +898,15 @@ export async function updateEvent(id: number, patch: Partial<EventInput>): Promi
   const [updated] = Object.keys(set).length
     ? await db.update(events).set(set).where(eq(events.id, id)).returning()
     : [before];
+  // A start-time change on a single (non-recurring) event must carry active
+  // NPC sign-ups along, or they orphan on the old instant and the UI lets
+  // volunteers sign up twice (see restampNpcSignupsForStartChange).
+  if (
+    patch.startAt !== undefined &&
+    updated.startAt.getTime() !== before.startAt.getTime()
+  ) {
+    await restampNpcSignupsForStartChange(id, updated.startAt, !!updated.recurrenceRule);
+  }
   const ctx = await getMissionContext();
   const sync = await syncEventDiscordEvent(updated, ctx.live);
   const afterDiscord = await applyEventSync(id, updated, sync);
@@ -1404,7 +1423,20 @@ export async function reconcileDiscordEvents(live: boolean): Promise<ReconcileRe
         })
         .where(and(eq(events.id, row.id), eq(events.discordSyncedHash, synced as string)))
         .returning({ id: events.id });
-      if (upd.length) result.pulled++;
+      if (upd.length) {
+        result.pulled++;
+        // A pulled start-time change on a single event must carry active NPC
+        // sign-ups along (see restampNpcSignupsForStartChange). Recurring rows
+        // are excluded inside the helper — check BOTH sides' recurrence since
+        // the backfill above may have just linked one.
+        if (c.startAt.getTime() !== row.startAt.getTime()) {
+          await restampNpcSignupsForStartChange(
+            row.id,
+            c.startAt,
+            !!(row.recurrenceRule ?? d.recurrence),
+          );
+        }
+      }
     } else {
       // Website moved (and maybe Discord too). Most-recent-wins: push the
       // website's explicit edit back up. Both-changed is rare because website
@@ -1485,6 +1517,63 @@ export type SignupResult =
   | { ok: true }
   | { ok: false; httpStatus: number; error: string };
 
+// ---------------------------------------------------------------------------
+// When a NON-recurring event's start time changes (staff edit or a Discord
+// pull), active NPC sign-ups stamped with the old start instant become
+// orphaned: the UI no longer matches them to the "current" occurrence, shows
+// the volunteer as not signed up, and lets them sign up AGAIN (the partial
+// unique index only dedupes per-occurrence). Re-stamp active sign-ups to the
+// new start so they follow the event. Recurring events are excluded — their
+// occurrence timestamps are real (Discord rolls startAt forward each week and
+// each occurrence takes its own signup), so re-stamping would corrupt them.
+//
+// Two steps, both idempotent:
+//   1. Re-stamp ONE active row per user (the oldest) to the new start,
+//      skipping users who already hold an active row at the new start (the
+//      partial unique index would reject the collision).
+//   2. Withdraw any remaining active rows still pointing at a stale instant —
+//      after step 1 these are duplicates by definition.
+// ---------------------------------------------------------------------------
+export async function restampNpcSignupsForStartChange(
+  eventId: number,
+  newStartAt: Date,
+  recurring: boolean,
+): Promise<void> {
+  if (recurring) return;
+  const newIso = newStartAt.toISOString();
+  await db.execute(sql`
+    UPDATE event_npc_signups s
+    SET occurrence_start_at = ${newIso}::timestamptz, updated_at = now()
+    FROM (
+      SELECT DISTINCT ON (user_id) id
+      FROM event_npc_signups
+      WHERE event_id = ${eventId} AND state = 'signed_up'
+      ORDER BY user_id, created_at, id
+    ) keep
+    WHERE s.id = keep.id
+      AND (s.occurrence_start_at IS DISTINCT FROM ${newIso}::timestamptz)
+      AND NOT EXISTS (
+        SELECT 1 FROM event_npc_signups o
+        WHERE o.event_id = ${eventId}
+          AND o.user_id = s.user_id
+          AND o.state = 'signed_up'
+          AND o.occurrence_start_at = ${newIso}::timestamptz
+          AND o.id <> s.id
+      )
+  `);
+  // After step 1 every affected user holds an active row AT the new start
+  // (either re-stamped or pre-existing), so any remaining active row on a
+  // different instant — including a legacy NULL-occurrence row — is a
+  // duplicate by definition.
+  await db.execute(sql`
+    UPDATE event_npc_signups
+    SET state = 'withdrawn', updated_at = now()
+    WHERE event_id = ${eventId}
+      AND state = 'signed_up'
+      AND occurrence_start_at IS DISTINCT FROM ${newIso}::timestamptz
+  `);
+}
+
 export async function signUpAsEventNpc(opts: {
   eventId: number;
   userId: string;
@@ -1512,7 +1601,20 @@ export async function signUpAsEventNpc(opts: {
   // Scope the signup to one concrete occurrence. Recurring events default to
   // the current startAt (Discord rolls it forward to the next occurrence);
   // single events store the occurrence too so withdraw/match logic is uniform.
-  const occurrenceStartAt = opts.occurrenceStartAt ?? event.startAt;
+  // For a NON-recurring event, ignore any client-supplied occurrence and pin
+  // to the event's current startAt — a stale client value (from before a
+  // start-time edit) would otherwise mint a second active signup under a
+  // different occurrence, bypassing the per-occurrence unique index.
+  const occurrenceStartAt = event.recurrenceRule
+    ? opts.occurrenceStartAt ?? event.startAt
+    : event.startAt;
+  // Self-heal: on a non-recurring event, re-stamp any active rows still
+  // pointing at a stale start instant (orphaned by a start-time edit that
+  // predates the restamp hook) so the per-occurrence unique index below can
+  // actually dedupe against them instead of letting a second row through.
+  if (!event.recurrenceRule) {
+    await restampNpcSignupsForStartChange(opts.eventId, event.startAt, false);
+  }
   // Idempotent: a partial unique index keeps at most one active sign-up per
   // (event, user, occurrence). onConflictDoNothing avoids a 500 on a
   // double-submit race.
@@ -1536,15 +1638,22 @@ export async function withdrawEventNpcSignup(opts: {
   // When supplied, withdraw only the signup for this occurrence (legacy
   // null-occurrence rows also match — they predate per-occurrence scoping and
   // semantically mean "the current occurrence"). When omitted, withdraw every
-  // active signup on the event (legacy client behavior).
+  // active signup on the event (legacy client behavior). On a NON-recurring
+  // event the occurrence filter is ignored entirely: every active row means
+  // "the event", so withdraw must clear all of them even if a stale
+  // occurrence timestamp survived a start-time edit.
   occurrenceStartAt?: Date | null;
 }): Promise<SignupResult> {
+  const [event] = await db
+    .select({ recurrenceRule: events.recurrenceRule })
+    .from(events)
+    .where(eq(events.id, opts.eventId));
   const conds = [
     eq(eventNpcSignups.eventId, opts.eventId),
     eq(eventNpcSignups.userId, opts.userId),
     eq(eventNpcSignups.state, "signed_up"),
   ];
-  if (opts.occurrenceStartAt != null) {
+  if (opts.occurrenceStartAt != null && event?.recurrenceRule) {
     conds.push(
       or(
         isNull(eventNpcSignups.occurrenceStartAt),

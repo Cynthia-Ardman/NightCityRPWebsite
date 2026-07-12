@@ -11,4 +11,8 @@ Recurring events are stored as ONE row with a recurrence rule; the portal expand
 - Signup defaults occurrence to `event.startAt`; occurrence-scoped withdraw matches exact occurrence OR legacy-NULL rows; omitted occurrence = withdraw all (legacy client behavior).
 - `EventView.mySignup` = current-occurrence signup only (detail page); `EventView.myOccurrences: string[]` = all active occurrence ISOs (calendar/home badging via `myOccurrenceSet(...).has(occ.getTime())` in `eventRecurrence.ts`).
 
-**How to apply:** any new UI surface that badges "signed up" on an expanded occurrence must check `myOccurrences`, NOT `mySignup`; any new signup entry point must pass the occurrence ISO it is rendering.
+**NON-recurring events (no recurrenceRule) are exempt from per-occurrence scoping.** A single event's start-time edit used to orphan sign-ups (row stayed on the old instant → UI showed "not signed up" → duplicate row; the "Tony signed up twice" prod bug). Rules:
+- Every startAt write path on a non-recurring event (staff PATCH, Discord reconcile pull) must call `restampNpcSignupsForStartChange` — re-stamps the oldest active row per user to the new start (NOT EXISTS collision guard), then withdraws every other active row `IS DISTINCT FROM` the new start (incl. legacy NULL dups).
+- Signup pins occurrence to `event.startAt` (ignores client value) and self-heals stale rows before insert; withdraw ignores the occurrence filter; toView matches ANY active row as mySignup.
+
+**How to apply:** any new UI surface that badges "signed up" on an expanded occurrence must check `myOccurrences`, NOT `mySignup`; any new signup entry point must pass the occurrence ISO it is rendering; any NEW code path that writes `events.startAt` must route through the re-stamp helper for non-recurring events.

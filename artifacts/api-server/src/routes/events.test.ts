@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin } from "../test/testDb";
-import { db, eventNpcSignups } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
+import { db, events, eventNpcSignups } from "@workspace/db";
 
 const app = buildTestApp();
 
@@ -116,6 +117,18 @@ describe("NPC sign-ups are per-occurrence", () => {
     return res.body as { id: number; startAt: string };
   }
 
+  // Per-occurrence semantics only apply to RECURRING events (occurrence
+  // timestamps on a single event now always mean "the event"). Recurrence is
+  // normally backfilled from Discord, so tests set it directly.
+  async function markRecurring(eventId: number) {
+    await db
+      .update(events)
+      .set({
+        recurrenceRule: { frequency: 2, interval: 1, byWeekday: [6], count: null, until: null },
+      })
+      .where(eq(events.id, eventId));
+  }
+
   async function getEvent(id: number, userId: string) {
     const res = await request(app).get(`/api/events/${id}`).set("x-test-user", userId);
     expect(res.status).toBe(200);
@@ -163,7 +176,8 @@ describe("NPC sign-ups are per-occurrence", () => {
     const admin = await createAdmin();
     const player = await createUser();
     const event = await createNpcEvent(admin.id);
-    const later = future(24 * 7); // e.g. next week's occurrence of a recurring event
+    await markRecurring(event.id);
+    const later = future(24 * 7); // next week's occurrence of the recurring event
 
     const signup = await request(app)
       .post(`/api/events/${event.id}/npc-signups`)
@@ -182,6 +196,7 @@ describe("NPC sign-ups are per-occurrence", () => {
     const admin = await createAdmin();
     const player = await createUser();
     const event = await createNpcEvent(admin.id);
+    await markRecurring(event.id);
     const later = future(24 * 7);
 
     const first = await request(app)
@@ -241,6 +256,188 @@ describe("NPC sign-ups are per-occurrence", () => {
     view = await getEvent(event.id, player.id);
     expect(view.mySignup).toBeNull();
     expect(view.myOccurrences).toEqual([]);
+  });
+});
+
+describe("start-time changes on single events carry NPC sign-ups along", () => {
+  async function createNpcEvent(adminId: string) {
+    const res = await createValidEvent(adminId, { needsNpcs: true });
+    expect(res.status).toBe(201);
+    return res.body as { id: number; startAt: string };
+  }
+
+  async function activeRows(eventId: number) {
+    return db
+      .select()
+      .from(eventNpcSignups)
+      .where(and(eq(eventNpcSignups.eventId, eventId), eq(eventNpcSignups.state, "signed_up")));
+  }
+
+  it("re-stamps an active signup when a manager edits the start time", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const event = await createNpcEvent(admin.id);
+
+    const signup = await request(app)
+      .post(`/api/events/${event.id}/npc-signups`)
+      .set("x-test-user", player.id)
+      .send({});
+    expect(signup.status).toBe(200);
+
+    const newStart = future(30);
+    const patch = await request(app)
+      .patch(`/api/events/${event.id}`)
+      .set("x-test-user", admin.id)
+      .send({ startAt: newStart, endAt: future(32) });
+    expect(patch.status).toBe(200);
+
+    const rows = await activeRows(event.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].occurrenceStartAt?.toISOString()).toBe(new Date(newStart).toISOString());
+
+    // The viewer still reads as signed up after the move.
+    const view = await request(app).get(`/api/events/${event.id}`).set("x-test-user", player.id);
+    expect(view.status).toBe(200);
+    expect(view.body.mySignup).not.toBeNull();
+    expect(view.body.myOccurrences).toEqual([new Date(newStart).toISOString()]);
+  });
+
+  it("signing up cannot create a duplicate when a stale-occurrence row exists", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const event = await createNpcEvent(admin.id);
+
+    // Simulate a row orphaned by a start-time change from before the fix.
+    await db.insert(eventNpcSignups).values({
+      eventId: event.id,
+      userId: player.id,
+      characterId: null,
+      note: null,
+      state: "signed_up",
+      occurrenceStartAt: new Date(future(24 * 14)),
+    });
+
+    const signup = await request(app)
+      .post(`/api/events/${event.id}/npc-signups`)
+      .set("x-test-user", player.id)
+      .send({});
+    expect(signup.status).toBe(200);
+
+    // Self-heal: the stale row was re-stamped to the current start and the
+    // insert deduped against it — exactly ONE active row remains.
+    const rows = await activeRows(event.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].occurrenceStartAt?.toISOString()).toBe(new Date(event.startAt).toISOString());
+  });
+
+  it("collapses duplicate active rows on a start-time edit (keeps oldest, withdraws the rest)", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const event = await createNpcEvent(admin.id);
+
+    // Two active rows under different occurrences (the pre-fix Tony scenario).
+    const older = await db
+      .insert(eventNpcSignups)
+      .values({
+        eventId: event.id,
+        userId: player.id,
+        characterId: null,
+        note: null,
+        state: "signed_up",
+        occurrenceStartAt: new Date(future(24 * 7)),
+        createdAt: new Date(Date.now() - 3600_000),
+      })
+      .returning();
+    await db.insert(eventNpcSignups).values({
+      eventId: event.id,
+      userId: player.id,
+      characterId: null,
+      note: null,
+      state: "signed_up",
+      occurrenceStartAt: new Date(future(24 * 14)),
+    });
+
+    const newStart = future(48);
+    const patch = await request(app)
+      .patch(`/api/events/${event.id}`)
+      .set("x-test-user", admin.id)
+      .send({ startAt: newStart, endAt: future(50) });
+    expect(patch.status).toBe(200);
+
+    const rows = await activeRows(event.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(older[0].id);
+    expect(rows[0].occurrenceStartAt?.toISOString()).toBe(new Date(newStart).toISOString());
+  });
+
+  it("collapses a legacy NULL-occurrence duplicate alongside a stamped row on edit", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const event = await createNpcEvent(admin.id);
+
+    // Legacy NULL-occurrence row (oldest) plus a stamped row from a later
+    // re-sign-up — the NULL+non-NULL duplicate pair.
+    const legacy = await db
+      .insert(eventNpcSignups)
+      .values({
+        eventId: event.id,
+        userId: player.id,
+        characterId: null,
+        note: null,
+        state: "signed_up",
+        occurrenceStartAt: null,
+        createdAt: new Date(Date.now() - 3600_000),
+      })
+      .returning();
+    await db.insert(eventNpcSignups).values({
+      eventId: event.id,
+      userId: player.id,
+      characterId: null,
+      note: null,
+      state: "signed_up",
+      occurrenceStartAt: new Date(future(24 * 7)),
+    });
+
+    const newStart = future(48);
+    const patch = await request(app)
+      .patch(`/api/events/${event.id}`)
+      .set("x-test-user", admin.id)
+      .send({ startAt: newStart, endAt: future(50) });
+    expect(patch.status).toBe(200);
+
+    const rows = await activeRows(event.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(legacy[0].id);
+    expect(rows[0].occurrenceStartAt?.toISOString()).toBe(new Date(newStart).toISOString());
+  });
+
+  it("does NOT re-stamp occurrences on a recurring event edit", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const event = await createNpcEvent(admin.id);
+    await db
+      .update(events)
+      .set({
+        recurrenceRule: { frequency: 2, interval: 1, byWeekday: [6], count: null, until: null },
+      })
+      .where(eq(events.id, event.id));
+
+    const later = future(24 * 7);
+    const signup = await request(app)
+      .post(`/api/events/${event.id}/npc-signups`)
+      .set("x-test-user", player.id)
+      .send({ occurrenceStartAt: later });
+    expect(signup.status).toBe(200);
+
+    const patch = await request(app)
+      .patch(`/api/events/${event.id}`)
+      .set("x-test-user", admin.id)
+      .send({ startAt: future(30), endAt: future(32) });
+    expect(patch.status).toBe(200);
+
+    const rows = await activeRows(event.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].occurrenceStartAt?.toISOString()).toBe(new Date(later).toISOString());
   });
 });
 
