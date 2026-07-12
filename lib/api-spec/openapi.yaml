@@ -1982,6 +1982,22 @@ paths:
         "400": { description: Bad request }
         "403": { description: Insufficient role. }
         "404": { description: Not found. }
+  /missions/{id}/revert-to-draft:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: revertMissionToDraft
+      tags: [missions]
+      summary: "Return an approved/posted mission to draft for rework (removes it from the public board and tears down its Discord event). Fixer/admin only; completed or cancelled missions cannot be reverted."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionDetail" }
+        "403": { description: Insufficient role. }
+        "404": { description: Not found. }
+        "409": { description: "Wrong state (not approved/posted, completed, or cancelled)." }
   /events/{id}/convert-to-mission:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }

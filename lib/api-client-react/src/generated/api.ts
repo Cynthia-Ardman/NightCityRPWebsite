@@ -9248,6 +9248,76 @@ export const usePostMission = <TError = ErrorType<void>,
       return useMutation(getPostMissionMutationOptions(options));
     }
 
+export const getRevertMissionToDraftUrl = (id: number,) => {
+
+
+
+
+  return `/api/missions/${id}/revert-to-draft`
+}
+
+/**
+ * @summary Return an approved/posted mission to draft for rework (removes it from the public board and tears down its Discord event). Fixer/admin only; completed or cancelled missions cannot be reverted.
+ */
+export const revertMissionToDraft = async (id: number, options?: RequestInit): Promise<MissionDetail> => {
+
+  return customFetch<MissionDetail>(getRevertMissionToDraftUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRevertMissionToDraftMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revertMissionToDraft>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revertMissionToDraft>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['revertMissionToDraft'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revertMissionToDraft>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  revertMissionToDraft(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevertMissionToDraftMutationResult = NonNullable<Awaited<ReturnType<typeof revertMissionToDraft>>>
+
+    export type RevertMissionToDraftMutationError = ErrorType<void>
+
+    /**
+ * @summary Return an approved/posted mission to draft for rework (removes it from the public board and tears down its Discord event). Fixer/admin only; completed or cancelled missions cannot be reverted.
+ */
+export const useRevertMissionToDraft = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revertMissionToDraft>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revertMissionToDraft>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRevertMissionToDraftMutationOptions(options));
+    }
+
 export const getConvertEventToMissionUrl = (id: number,) => {
 
 

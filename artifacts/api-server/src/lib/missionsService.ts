@@ -2115,14 +2115,29 @@ export async function postMission(missionId: number, viewer: MissionViewer, req?
     return { ok: false, error: "Mission was already posted", httpStatus: 409 };
   }
   const sync = await syncMissionDiscordEvent(updated, ctx, m.imageUrl);
-  await db
+  // Persist the Discord sync result only while the mission is still posted: a
+  // concurrent revert-to-draft can win the row back while we were talking to
+  // Discord, and drafts must never own a scheduled event. If we lost the race,
+  // tear down whatever event we just created so it isn't orphaned.
+  const persisted = await db
     .update(missions)
     .set({
       discordEventId: sync.discordEventId,
       discordSyncError: sync.discordSyncError,
       updatedAt: new Date(),
     })
-    .where(eq(missions.id, missionId));
+    .where(and(eq(missions.id, missionId), eq(missions.workflowState, "posted")))
+    .returning({ id: missions.id });
+  if (persisted.length === 0) {
+    if (sync.discordEventId && ctx.live) {
+      try {
+        await deleteGuildScheduledEvent(sync.discordEventId);
+      } catch (err) {
+        logger.error({ err, missionId, eventId: sync.discordEventId }, "Failed to tear down orphaned mission event after lost post race");
+      }
+    }
+    return { ok: false, error: "Mission changed state while posting — refresh and try again", httpStatus: 409 };
+  }
   await recordAudit({
     req,
     actorId: viewer.id,
@@ -2152,6 +2167,77 @@ export async function postMission(missionId: number, viewer: MissionViewer, req?
       logger.error({ err, missionId }, "Mission sign-up announcement failed");
     }
   }
+  return { ok: true };
+}
+
+/**
+ * Return an approved/posted mission to DRAFT so the fixer can rework it and
+ * resubmit through the approval pipeline. Tears down the public Discord
+ * scheduled event (drafts are staff-only and never own one); application and
+ * roster rows are kept as-is — they simply become visible again if the mission
+ * is later re-approved and re-posted. Completed or cancelled missions cannot
+ * be reverted (un-complete or leave cancelled history intact instead).
+ */
+export async function revertMissionToDraft(missionId: number, viewer: MissionViewer, req?: Request): Promise<TransitionResult> {
+  const [m] = await db.select().from(missions).where(eq(missions.id, missionId));
+  if (!m) return { ok: false, error: "Mission not found", httpStatus: 404 };
+  if (m.workflowState !== "approved" && m.workflowState !== "posted") {
+    return {
+      ok: false,
+      error: `Only an approved or posted mission can be returned to draft (current: ${m.workflowState})`,
+      httpStatus: 409,
+    };
+  }
+  if (m.completedAt) {
+    return { ok: false, error: "This mission is completed — un-complete it before returning it to draft", httpStatus: 409 };
+  }
+  if (m.status === "cancelled") {
+    return { ok: false, error: "Cancelled missions cannot be returned to draft", httpStatus: 409 };
+  }
+  // Atomically claim the transition (mirrors postMission): the conditional
+  // WHERE re-checks every guard so a concurrent complete/cancel/post can't
+  // slip past the reads above and get silently clobbered back to draft.
+  const claimed = await db
+    .update(missions)
+    .set({ workflowState: "draft", status: "open", updatedAt: new Date() })
+    .where(
+      and(
+        eq(missions.id, missionId),
+        inArray(missions.workflowState, ["approved", "posted"]),
+        isNull(missions.completedAt),
+        ne(missions.status, "cancelled"),
+      ),
+    )
+    .returning({ id: missions.id });
+  if (claimed.length === 0) {
+    return { ok: false, error: "Mission changed state — refresh and try again", httpStatus: 409 };
+  }
+  // Drafts never own a Discord scheduled event: sync against the new draft
+  // state tears down any existing event (live-gated, never throws). Re-read
+  // the row AFTER the claim — a concurrent postMission may have persisted a
+  // discordEventId between our initial read and the claim, and syncing from
+  // the stale snapshot would skip the teardown entirely.
+  const [fresh] = await db.select().from(missions).where(eq(missions.id, missionId));
+  if (!fresh) return { ok: false, error: "Mission not found", httpStatus: 404 };
+  const ctx = await getMissionContext();
+  const sync = await syncMissionDiscordEvent(fresh, ctx, fresh.imageUrl);
+  if (sync.discordEventId !== fresh.discordEventId || sync.discordSyncError !== fresh.discordSyncError) {
+    // Conditional on still being a draft so we never clobber the event id of
+    // a mission that has already raced forward through re-approval.
+    await db
+      .update(missions)
+      .set({ discordEventId: sync.discordEventId, discordSyncError: sync.discordSyncError, updatedAt: new Date() })
+      .where(and(eq(missions.id, missionId), eq(missions.workflowState, "draft")));
+  }
+  await recordAudit({
+    req,
+    actorId: viewer.id,
+    action: "mission_reverted_to_draft",
+    category: "mission",
+    targetType: "mission",
+    targetId: String(missionId),
+    message: `Returned mission "${m.title}" to draft`,
+  });
   return { ok: true };
 }
 

@@ -126,6 +126,7 @@
 - Review close: [reopen CLEARS votes for ALL three queues](reopen-preserves-votes.md) else finalize-on-read re-decides; [decisionParams entered at close, every materialize branch re-validates](review-params-at-close.md).
 - [Cosmetic auto-apply policy](cosmetic-autoapply-policy.md) — char-edit skips review only when prose word-multiset is unchanged (formatting/re-sectioning); stats=statsImageUrls+inventory_items, NOT sheetData.sections, so sections=prose is safe.
 - [Mission post chokepoint](mission-post-chokepoint.md) — postMission is the single approved→posted→open transition (approveMission delegates); gate "on open" side effects — see topic.
+- [Opposing transition race](mission-post-revert-race.md) — post↔revert pairs: conditional persist of external-effect results + compensating teardown on lost race + re-read after claim.
 - [Mission board markdown preview](mission-board-markdown-preview.md) — color/markdown tags only render where descriptionPreview goes through <Markdown>; plain <p> on board cards shows raw `[c=..]`. Detail page already renders.
 - [Draft mission hard-delete](draft-mission-delete.md) — only workflowState='draft' is hard-deletable (owner-or-manager); anything further must be CANCELLED (preserve history/Discord); lock+re-check FOR UPDATE; FK children cascade.
 - [UB native commands uncontrollable](ub-native-commands.md) — Discord `!work`/`!slut` are UnbelievaBoat-native with no cooldown/config API; website cooldown can't dedupe against them; only fix is disabling them in the UB dashboard.

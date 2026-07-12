@@ -11,6 +11,7 @@ import {
   useSubmitMission,
   useApproveMission,
   usePostMission,
+  useRevertMissionToDraft,
   useApplyToMission,
   useGetDefaultAvailability,
   useWithdrawApplication,
@@ -1179,8 +1180,18 @@ function WorkflowPanel({ data }: { data: MissionDetailModel }) {
   const submit = useSubmitMission({ mutation: { onSuccess: invalidate } });
   const approve = useApproveMission({ mutation: { onSuccess: invalidate } });
   const post = usePostMission({ mutation: { onSuccess: invalidate } });
-  const busy = submit.isPending || approve.isPending || post.isPending;
-  const err = errOf(submit.error) ?? errOf(approve.error) ?? errOf(post.error);
+  const revert = useRevertMissionToDraft({ mutation: { onSuccess: invalidate } });
+  const [confirmRevert, setConfirmRevert] = useState(false);
+  const busy = submit.isPending || approve.isPending || post.isPending || revert.isPending;
+  const err =
+    errOf(submit.error) ?? errOf(approve.error) ?? errOf(post.error) ?? errOf(revert.error);
+  // "Return to draft" pulls an approved/posted mission back for rework. Not
+  // offered once the mission is completed or cancelled — those are history.
+  const canRevert =
+    data.canManage &&
+    (data.workflowState === "posted" || data.workflowState === "approved") &&
+    data.status !== "cancelled" &&
+    !data.completedAt;
 
   return (
     <Card className="rounded-none border-border bg-card/50">
@@ -1250,6 +1261,52 @@ function WorkflowPanel({ data }: { data: MissionDetailModel }) {
               )}
             </>
           )}
+          {canRevert &&
+            (confirmRevert ? (
+              <span className="inline-flex flex-wrap items-center gap-2">
+                <span className="text-nc-yellow text-xs">
+                  Pull this mission off the board? It returns to draft and must be re-approved.
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() =>
+                    revert.mutate(
+                      { id: data.id },
+                      { onSettled: () => setConfirmRevert(false) },
+                    )
+                  }
+                  className="rounded-none bg-destructive text-destructive-foreground hover:bg-destructive/80 font-display tracking-widest"
+                  data-testid="button-revert-to-draft-confirm"
+                >
+                  {revert.isPending ? "RETURNING..." : "CONFIRM"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => setConfirmRevert(false)}
+                  className="rounded-none font-display tracking-widest"
+                  data-testid="button-revert-to-draft-cancel"
+                >
+                  CANCEL
+                </Button>
+              </span>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() => setConfirmRevert(true)}
+                className="rounded-none font-display tracking-widest"
+                data-testid="button-revert-to-draft"
+              >
+                RETURN TO DRAFT
+              </Button>
+            ))}
         </div>
         {err && <div className="text-destructive text-xs" data-testid="text-workflow-error">{err}</div>}
       </CardContent>

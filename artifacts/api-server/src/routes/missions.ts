@@ -42,6 +42,7 @@ import {
   deleteMission,
   approveMission,
   postMission,
+  revertMissionToDraft,
   applyToMission,
   getDefaultAvailability,
   withdrawApplication,
@@ -1141,6 +1142,27 @@ router.post("/missions/:id/post", requireAuth, async (req, res): Promise<void> =
     return;
   }
   res.json(await getMissionDetail(id, viewerOf(req)));
+});
+
+// Return an approved/posted mission to draft for rework (manager; trial
+// fixers may pull back their own). Tears down the Discord scheduled event.
+router.post("/missions/:id/revert-to-draft", requireAuth, async (req, res): Promise<void> => {
+  const id = missionIdParam(req, res);
+  if (id == null) return;
+  if (!(await ensureCanManageMission(req, res, id))) return;
+  const result = await revertMissionToDraft(id, viewerOf(req), req);
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  const detail = await getMissionDetail(id, viewerOf(req));
+  if (detail) {
+    void postMissionThreadUpdate(
+      id,
+      `**${detail.title}** — returned to draft by **${req.user!.username}**\n↩️ Mission pulled from the board for rework; it will need re-approval before going live again.`,
+    );
+  }
+  res.json(detail);
 });
 
 // ---------------- APPLICATIONS ----------------

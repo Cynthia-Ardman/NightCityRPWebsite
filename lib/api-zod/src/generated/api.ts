@@ -4407,6 +4407,147 @@ export const PostMissionResponse = zod.object({
 
 
 /**
+ * @summary Return an approved/posted mission to draft for rework (removes it from the public board and tears down its Discord event). Fixer/admin only; completed or cancelled missions cannot be reverted.
+ */
+export const RevertMissionToDraftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RevertMissionToDraftResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
+  "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "notesForPlayers": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "worldLink": zod.string().nullish().describe('Staff-only world\/join link (null for players).'),
+  "fixerNotes": zod.string().nullish().describe('Fixer-only briefing text. Only returned to viewers who can manage the mission (Fixer tab); null\/omitted for players.'),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "canManage": zod.boolean().describe('True if caller is fixer\/admin (sees Fixer tab + tools).'),
+  "canEdit": zod.boolean().describe('True if caller may edit + submit this mission: full managers OR the trial fixer who owns it. Narrower than canManage (no payments\/post\/complete).'),
+  "canApprove": zod.boolean().describe('True if caller is archivist\/admin (can approve proposals).'),
+  "completedAt": zod.coerce.date().nullish().describe('Set when manually marked completed; while set, actor payments are locked.'),
+  "completedBy": zod.string().nullish().describe('User id who marked the mission completed.'),
+  "completedByName": zod.string().nullish().describe('Display name of who marked the mission completed.'),
+  "canComplete": zod.boolean().describe('True if caller may mark this mission completed (owning fixer\/admin\/archivist, not already completed).'),
+  "canUncomplete": zod.boolean().describe('True if caller may reopen a completed mission (admin\/archivist only).'),
+  "live": zod.boolean().describe('True = Live mode; false = Test mode (no real external effects).'),
+  "assignments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "attendanceCreditedAt": zod.coerce.date().nullish(),
+  "participationStatus": zod.union([zod.literal('accepted'),zod.literal('pending'),zod.literal(null)]).nullish().describe('Whether the assigned player has confirmed the invite. accepted = player accepted; pending = awaiting their response; null = no confirmation request (e.g. fixer self-assigned).'),
+  "paymentStatus": zod.enum(['unpaid', 'paid', 'failed', 'simulated']),
+  "payAmount": zod.number().nullish(),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish()
+})),
+  "actorPayments": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentStatus": zod.enum(['paid', 'failed', 'simulated']),
+  "source": zod.enum(['manual', 'auto']),
+  "paymentError": zod.string().nullish(),
+  "fixerId": zod.string().nullish().describe('User id of the fixer\/admin who issued this actor payment.'),
+  "fixerName": zod.string().nullish().describe('Display name of the fixer\/admin who issued this actor payment.'),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})),
+  "applications": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "availability": zod.array(zod.coerce.date()).optional().describe('When2Meet availability for this applicant: absolute UTC instant strings (30-min blocks). Optional — empty when none supplied.'),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+})).describe('Player applications (full list for managers; empty for players).'),
+  "myApplication": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "availability": zod.array(zod.coerce.date()).optional().describe('When2Meet availability for this applicant: absolute UTC instant strings (30-min blocks). Optional — empty when none supplied.'),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+}),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
+  "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paidAt": zod.coerce.date().nullish()
+}),zod.null()]).optional().describe('The caller\'s own NPC sign-up (any state); null if none.'),
+  "npcSignups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paymentError": zod.string().nullish(),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})).optional().describe('Full NPC sign-up roster (managers only; empty for players).'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
  * @summary Convert (replace) an event into a mission. Fixer/admin only.
  */
 export const ConvertEventToMissionParams = zod.object({

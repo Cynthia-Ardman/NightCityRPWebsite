@@ -1315,6 +1315,101 @@ describe("Mission workflow transitions", () => {
     expect(mockCreateEvent).toHaveBeenCalledTimes(1);
     expect(posted.body.discordEventId).toBe("evt-1");
   });
+
+  it("returns a posted mission to draft and (Live) tears down its Discord event", async () => {
+    await setLiveMode(true);
+    const admin = await createUser({ roles: ["admin"] });
+    const created = await createPostedMission(admin.id, { startAt: futureIso() });
+    expect(created.body.discordEventId).toBe("evt-1");
+
+    const reverted = await request(app)
+      .post(`/api/missions/${created.body.id}/revert-to-draft`)
+      .set("x-test-user", admin.id);
+    expect(reverted.status).toBe(200);
+    expect(reverted.body.workflowState).toBe("draft");
+    expect(reverted.body.status).toBe("open");
+    // Drafts never own a scheduled event — the revert must tear it down.
+    expect(mockDeleteEvent).toHaveBeenCalledTimes(1);
+    expect(mockDeleteEvent.mock.calls[0][0]).toBe("evt-1");
+    const [row] = await db.select().from(missions).where(eq(missions.id, created.body.id));
+    expect(row.discordEventId).toBeNull();
+    expect(row.workflowState).toBe("draft");
+  });
+
+  it("an approved (not yet posted) mission can also be returned to draft", async () => {
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await seedMission({ workflowState: "approved", status: "open" });
+    const reverted = await request(app)
+      .post(`/api/missions/${m.id}/revert-to-draft`)
+      .set("x-test-user", admin.id);
+    expect(reverted.status).toBe(200);
+    expect(reverted.body.workflowState).toBe("draft");
+  });
+
+  it("409s reverting a mission that is still a draft or a proposal", async () => {
+    const admin = await createUser({ roles: ["admin"] });
+    const draft = await seedMission({ workflowState: "draft", status: "open" });
+    const proposal = await seedMission({ workflowState: "proposal", status: "open" });
+    expect(
+      (await request(app).post(`/api/missions/${draft.id}/revert-to-draft`).set("x-test-user", admin.id)).status,
+    ).toBe(409);
+    expect(
+      (await request(app).post(`/api/missions/${proposal.id}/revert-to-draft`).set("x-test-user", admin.id)).status,
+    ).toBe(409);
+  });
+
+  it("409s reverting a completed or cancelled mission — those are history", async () => {
+    const admin = await createUser({ roles: ["admin"] });
+    const done = await seedMission({ workflowState: "posted", status: "completed" });
+    await db.update(missions).set({ completedAt: new Date() }).where(eq(missions.id, done.id));
+    expect(
+      (await request(app).post(`/api/missions/${done.id}/revert-to-draft`).set("x-test-user", admin.id)).status,
+    ).toBe(409);
+
+    const cancelled = await seedMission({ workflowState: "posted", status: "cancelled" });
+    expect(
+      (await request(app).post(`/api/missions/${cancelled.id}/revert-to-draft`).set("x-test-user", admin.id)).status,
+    ).toBe(409);
+  });
+
+  it("a plain user cannot revert a mission to draft (403)", async () => {
+    const user = await createUser();
+    const m = await seedMission({ workflowState: "posted", status: "open" });
+    const res = await request(app).post(`/api/missions/${m.id}/revert-to-draft`).set("x-test-user", user.id);
+    expect(res.status).toBe(403);
+  });
+
+  it("a revert racing a concurrent post never strands a draft with a Discord event", async () => {
+    await setLiveMode(true);
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await seedMission({
+      workflowState: "approved",
+      status: "open",
+      startAt: new Date(Date.now() + 86_400_000),
+    });
+
+    // Simulate the race: while /post is mid-flight talking to Discord (event
+    // creation), a concurrent /revert-to-draft claims the row back. The post
+    // must then refuse to persist the event id onto the now-draft row and
+    // tear down the event it just created.
+    mockCreateEvent.mockImplementationOnce(async () => {
+      const reverted = await request(app)
+        .post(`/api/missions/${m.id}/revert-to-draft`)
+        .set("x-test-user", admin.id);
+      expect(reverted.status).toBe(200);
+      return { ok: true, id: "evt-race" } as never;
+    });
+
+    const posted = await request(app).post(`/api/missions/${m.id}/post`).set("x-test-user", admin.id);
+    expect(posted.status).toBe(409);
+
+    // Invariant: a draft mission never owns a scheduled event, and the event
+    // created by the losing post was deleted rather than orphaned.
+    expect(mockDeleteEvent).toHaveBeenCalledWith("evt-race");
+    const [row] = await db.select().from(missions).where(eq(missions.id, m.id));
+    expect(row.workflowState).toBe("draft");
+    expect(row.discordEventId).toBeNull();
+  });
 });
 
 // ===========================================================================
