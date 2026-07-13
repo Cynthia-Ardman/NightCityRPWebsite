@@ -430,7 +430,7 @@ function HeatmapGrid({
       >
         {hover
           ? `${formatInstant(hover.iso, hour12)} — ${hover.names.join(", ")}`
-          : "Hover a block to see who's free"}
+          : "Hover over a cell to view player availability"}
       </div>
       <div className={GRID_SHELL} data-testid="availability-grid-heatmap">
         <div className="grid" style={{ gridTemplateColumns: `58px repeat(${days.length}, minmax(40px, 1fr))` }}>
