@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { GetCharacterMedical200BillsItem } from './getCharacterMedical200BillsItem';
 import type { GetCharacterMedical200CheckupsItem } from './getCharacterMedical200CheckupsItem';
 import type { GetCharacterMedical200InstalledItem } from './getCharacterMedical200InstalledItem';
 import type { GetCharacterMedical200MedsPaymentsItem } from './getCharacterMedical200MedsPaymentsItem';
@@ -25,4 +26,6 @@ export type GetCharacterMedical200 = {
   installed: GetCharacterMedical200InstalledItem[];
   checkups: GetCharacterMedical200CheckupsItem[];
   medsPayments: GetCharacterMedical200MedsPaymentsItem[];
+  /** Paid (approved) sale offers billed to this character — service bills, purchases, installs, removals — newest first. */
+  bills?: GetCharacterMedical200BillsItem[];
 };

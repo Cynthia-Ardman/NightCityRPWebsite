@@ -9,32 +9,29 @@ import {
   getGetCharacterCyberwareQueryKey,
   useGetCharacterCyberware,
   useCreateInstallOwnedOffer,
+  useSendRipperdocBill,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Syringe, Search, Activity, Plus, Trash2, Stethoscope, Wallet } from "lucide-react";
+import { Syringe, Search, Activity, Plus, Trash2, Stethoscope, Wallet, Receipt, Send } from "lucide-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Redirect } from "wouter";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import CyberwareActionDialog from "@/components/CyberwareActionDialog";
 import RemoveCyberwareDialog from "@/components/RemoveCyberwareDialog";
 
-const LEVELS = ["none", "medium", "high", "extreme"] as const;
-type Level = typeof LEVELS[number];
-
 interface CheckupResult {
   characterId: number;
   lastCheckupAt: string | null;
   checkupStreak: number;
-  cyberwareLevel: Level;
 }
 
 interface DirectoryChar {
   id: number;
   name: string;
-  cyberwareLevel?: Level | null;
+  cyberwareLevel?: string | null;
   checkupStreak?: number | null;
   lastCheckupAt?: string | null;
   archived?: boolean | null;
@@ -60,7 +57,6 @@ export default function RipperdocConsole() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [level, setLevel] = useState<Level | "">("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [clinicId, setClinicId] = useState<number | null>(null);
@@ -71,6 +67,9 @@ export default function RipperdocConsole() {
   // Optional install fee per owned (uninstalled) cyberware item, keyed by
   // inventory item id. Defaults to 0 (free fitting).
   const [installFees, setInstallFees] = useState<Record<number, number>>({});
+  // Freeform service bill for the selected patient (repair, patch-up, etc).
+  const [billAmount, setBillAmount] = useState(0);
+  const [billNote, setBillNote] = useState("");
 
   // Character directory — filter client-side on name for the picker so a doc
   // can type a partial street name without round-tripping.
@@ -178,22 +177,42 @@ export default function RipperdocConsole() {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(level ? { cyberwareLevel: level } : {}),
+        body: JSON.stringify({}),
       });
       const body = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(body.error ?? `HTTP ${r.status}`);
       return body as CheckupResult;
     },
-    onSuccess: (res) => {
-      setFeedback(
-        `Checkup recorded for ${selected?.name ?? "character"} · level: ${res.cyberwareLevel} · streak reset.`,
-      );
+    onSuccess: () => {
+      setFeedback(`Checkup recorded for ${selected?.name ?? "character"} · streak reset.`);
       setError(null);
       refreshPatient();
     },
     onError: (err) => {
       setError(err instanceof Error ? err.message : String(err));
       setFeedback(null);
+    },
+  });
+
+  // Freeform service bill (repair, patch-up, checkup fee…). Leaves a PENDING
+  // offer the patient approves from My Offers; approving debits their wallet
+  // and credits the clinic account.
+  const sendBill = useSendRipperdocBill({
+    mutation: {
+      onSuccess: () => {
+        setFeedback(
+          `Bill sent to ${selected?.name ?? "patient"} — they approve and pay it from My Offers.`,
+        );
+        setError(null);
+        setBillAmount(0);
+        setBillNote("");
+        refreshPatient();
+      },
+      onError: (err) => {
+        const data = (err as { data?: { error?: string } } | null)?.data;
+        setError(data?.error ?? (err instanceof Error ? err.message : String(err)));
+        setFeedback(null);
+      },
     },
   });
 
@@ -255,9 +274,10 @@ export default function RipperdocConsole() {
                           type="button"
                           onClick={() => {
                             setSelectedId(c.id);
-                            setLevel((c.cyberwareLevel as Level) ?? "");
                             setFeedback(null);
                             setError(null);
+                            setBillAmount(0);
+                            setBillNote("");
                           }}
                           className={`w-full text-left px-3 py-2 text-sm font-mono flex items-center justify-between gap-2 transition-colors ${
                             active ? "bg-nc-cyan/15 text-nc-cyan" : "hover:bg-card text-foreground"
@@ -324,28 +344,7 @@ export default function RipperdocConsole() {
                     })()}
                   </div>
                   <div className="text-[10px] font-mono text-muted-foreground/70">
-                    Band is auto-derived from chrome CWP (0-6 none · 7-9 medium · 10-12 high · 13+ extreme). The level buttons below only update the legacy/cosmetic tag.
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-xs font-mono text-nc-cyan">LEGACY LEVEL TAG (OPTIONAL)</Label>
-                  <div className="grid grid-cols-4 gap-1 mt-1">
-                    {LEVELS.map((l) => (
-                      <button
-                        key={l}
-                        type="button"
-                        onClick={() => setLevel(l)}
-                        className={`px-2 py-2 text-xs font-display tracking-widest uppercase border rounded-none ${
-                          level === l
-                            ? "bg-nc-cyan/20 text-nc-cyan border-nc-cyan"
-                            : "border-border text-muted-foreground hover:text-foreground"
-                        }`}
-                        data-testid={`button-level-${l}`}
-                      >
-                        {l}
-                      </button>
-                    ))}
+                    Band is auto-derived from chrome CWP (0-6 none · 7-9 medium · 10-12 high · 13+ extreme).
                   </div>
                 </div>
 
@@ -585,6 +584,109 @@ export default function RipperdocConsole() {
                         <span className={`text-xs font-mono shrink-0 ${p.amount < 0 ? "text-destructive" : "text-nc-green"}`}>
                           {p.amount < 0 ? "" : "+"}€${p.amount.toLocaleString()}
                         </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Freeform service bill for the selected patient */}
+            <Card className="rounded-none border-border bg-card/50">
+              <CardHeader className="border-b border-border">
+                <CardTitle className="font-display tracking-widest text-nc-magenta text-sm flex items-center gap-2">
+                  <Send className="w-4 h-4" /> SEND BILL
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3">
+                {!venueId ? (
+                  <div className="text-xs font-mono text-muted-foreground" data-testid="text-bill-no-clinic">
+                    You don't operate a clinic, so billing is unavailable.
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-[11px] font-mono text-muted-foreground">
+                      Bill {selected!.name} for services rendered (patch-ups, repairs, checkups). They approve and pay it from My Offers; the eddies land in the clinic account.
+                    </p>
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="Amount (€$)"
+                      value={billAmount || ""}
+                      onChange={(e) => setBillAmount(Number(e.target.value))}
+                      className="rounded-none font-mono"
+                      data-testid="input-console-bill-amount"
+                    />
+                    <Input
+                      placeholder="What for? (required)"
+                      maxLength={200}
+                      value={billNote}
+                      onChange={(e) => setBillNote(e.target.value)}
+                      className="rounded-none font-mono"
+                      data-testid="input-console-bill-note"
+                    />
+                    <Button
+                      type="button"
+                      className="w-full rounded-none bg-nc-magenta text-background hover:bg-nc-magenta/80 font-display tracking-widest"
+                      disabled={
+                        !selectedId ||
+                        !Number.isInteger(billAmount) ||
+                        billAmount < 1 ||
+                        !billNote.trim() ||
+                        sendBill.isPending
+                      }
+                      onClick={() => {
+                        if (!venueId || !selectedId) return;
+                        sendBill.mutate({
+                          id: venueId,
+                          data: { buyerCharacterId: selectedId, amount: billAmount, note: billNote.trim() },
+                        });
+                      }}
+                      data-testid="button-console-send-bill"
+                    >
+                      {sendBill.isPending ? "SENDING..." : "SEND BILL"}
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Paid bill history — approved offers billed to this character */}
+            <Card className="rounded-none border-border bg-card/50">
+              <CardHeader className="border-b border-border">
+                <CardTitle className="font-display tracking-widest text-nc-cyan text-sm flex items-center gap-2">
+                  <Receipt className="w-4 h-4" /> PAID BILLS
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                {medicalLoading ? (
+                  <div className="text-xs font-mono text-muted-foreground py-2 animate-pulse">LOADING...</div>
+                ) : (medical?.bills?.length ?? 0) === 0 ? (
+                  <div className="text-xs font-mono text-muted-foreground py-2" data-testid="text-no-bills">
+                    No paid bills on record.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {medical!.bills!.map((b) => (
+                      <div key={b.id} className="border-b border-border/30 pb-2 last:border-b-0" data-testid={`row-bill-${b.id}`}>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-xs font-mono text-foreground truncate">
+                            {b.description}
+                            {b.quantity && b.quantity > 1 ? ` ×${b.quantity}` : ""}
+                          </span>
+                          <span className="text-xs font-mono text-nc-yellow shrink-0">
+                            €${b.amount.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-mono text-muted-foreground">
+                          {b.venueName ?? (b.venueKind === "ripperdoc" ? "Unknown clinic" : "Unknown store")}
+                          {" · "}
+                          <span className="uppercase">{b.offerType}</span>
+                          {b.paidAt ? ` · ${new Date(b.paidAt).toLocaleDateString()}` : ""}
+                        </div>
+                        {b.memo && (
+                          <div className="text-[11px] font-mono text-muted-foreground/70 truncate">{b.memo}</div>
+                        )}
                       </div>
                     ))}
                   </div>

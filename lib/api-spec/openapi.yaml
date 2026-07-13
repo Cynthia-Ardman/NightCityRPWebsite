@@ -3603,6 +3603,23 @@ paths:
                         memo: { type: ["string", "null"] }
                         category: { type: ["string", "null"] }
                         createdAt: { type: ["string", "null"], format: date-time }
+                  bills:
+                    type: array
+                    description: "Paid (approved) sale offers billed to this character — service bills, purchases, installs, removals — newest first."
+                    items:
+                      type: object
+                      required: [id, offerType, description, amount, venueKind]
+                      properties:
+                        id: { type: integer }
+                        offerType: { type: string, description: "sale | install | install_owned | remove | give | service | stock_add" }
+                        description: { type: string, description: "What the bill was for (item name or the freeform service note)." }
+                        category: { type: ["string", "null"] }
+                        quantity: { type: ["integer", "null"] }
+                        amount: { type: integer }
+                        memo: { type: ["string", "null"] }
+                        venueName: { type: ["string", "null"], description: "The store/clinic the bill came from." }
+                        venueKind: { type: string, description: "store | ripperdoc" }
+                        paidAt: { type: ["string", "null"], format: date-time }
         "403": { description: Forbidden }
         "404": { description: Not found }
 

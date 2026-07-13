@@ -7151,6 +7151,30 @@ export type GetCharacterMedical200MedsPaymentsItem = {
   createdAt?: string | null;
 };
 
+export type GetCharacterMedical200BillsItem = {
+  id: number;
+  /** sale | install | install_owned | remove | give | service | stock_add */
+  offerType: string;
+  /** What the bill was for (item name or the freeform service note). */
+  description: string;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  quantity?: number | null;
+  amount: number;
+  /** @nullable */
+  memo?: string | null;
+  /**
+     * The store/clinic the bill came from.
+     * @nullable
+     */
+  venueName?: string | null;
+  /** store | ripperdoc */
+  venueKind: string;
+  /** @nullable */
+  paidAt?: string | null;
+};
+
 export type GetCharacterMedical200 = {
   characterId: number;
   characterName: string;
@@ -7167,6 +7191,8 @@ export type GetCharacterMedical200 = {
   installed: GetCharacterMedical200InstalledItem[];
   checkups: GetCharacterMedical200CheckupsItem[];
   medsPayments: GetCharacterMedical200MedsPaymentsItem[];
+  /** Paid (approved) sale offers billed to this character — service bills, purchases, installs, removals — newest first. */
+  bills?: GetCharacterMedical200BillsItem[];
 };
 
 export type ListPublicCharactersParams = {

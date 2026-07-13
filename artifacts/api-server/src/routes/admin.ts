@@ -800,6 +800,43 @@ router.get("/admin/characters/:id/medical", requireAuth, async (req, res): Promi
       createdAt: row.createdAt?.toISOString() ?? null,
     }));
 
+  // Paid bills: every APPROVED sale offer this character was billed for —
+  // service bills, purchases, installs, removals — with the venue it came
+  // from. status="approved" is the terminal paid state (money already moved).
+  const billRows = await db
+    .select({
+      id: saleOffers.id,
+      offerType: saleOffers.offerType,
+      itemName: saleOffers.itemName,
+      itemCategory: saleOffers.itemCategory,
+      quantity: saleOffers.quantity,
+      totalPrice: saleOffers.totalPrice,
+      memo: saleOffers.memo,
+      decidedAt: saleOffers.decidedAt,
+      createdAt: saleOffers.createdAt,
+      kind: saleOffers.kind,
+      storeName: stores.name,
+      ripperdocName: ripperdocs.name,
+    })
+    .from(saleOffers)
+    .leftJoin(stores, eq(saleOffers.storeId, stores.id))
+    .leftJoin(ripperdocs, eq(saleOffers.ripperdocId, ripperdocs.id))
+    .where(and(eq(saleOffers.buyerCharacterId, id), eq(saleOffers.status, "approved")))
+    .orderBy(desc(saleOffers.decidedAt), desc(saleOffers.createdAt))
+    .limit(200);
+  const bills = billRows.map((b) => ({
+    id: b.id,
+    offerType: b.offerType,
+    description: b.itemName,
+    category: b.itemCategory,
+    quantity: b.quantity,
+    amount: b.totalPrice,
+    memo: b.memo,
+    venueName: b.storeName ?? b.ripperdocName ?? null,
+    venueKind: b.kind,
+    paidAt: (b.decidedAt ?? b.createdAt)?.toISOString() ?? null,
+  }));
+
   res.json({
     characterId: c.id,
     characterName: c.name,
@@ -828,6 +865,7 @@ router.get("/admin/characters/:id/medical", requireAuth, async (req, res): Promi
           : null,
     })),
     medsPayments,
+    bills,
   });
 });
 

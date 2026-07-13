@@ -8811,7 +8811,19 @@ export const GetCharacterMedicalResponse = zod.object({
   "memo": zod.string().nullish(),
   "category": zod.string().nullish(),
   "createdAt": zod.coerce.date().nullish()
-}))
+})),
+  "bills": zod.array(zod.object({
+  "id": zod.number(),
+  "offerType": zod.string().describe('sale | install | install_owned | remove | give | service | stock_add'),
+  "description": zod.string().describe('What the bill was for (item name or the freeform service note).'),
+  "category": zod.string().nullish(),
+  "quantity": zod.number().nullish(),
+  "amount": zod.number(),
+  "memo": zod.string().nullish(),
+  "venueName": zod.string().nullish().describe('The store\/clinic the bill came from.'),
+  "venueKind": zod.string().describe('store | ripperdoc'),
+  "paidAt": zod.coerce.date().nullish()
+})).optional().describe('Paid (approved) sale offers billed to this character — service bills, purchases, installs, removals — newest first.')
 })
 
 

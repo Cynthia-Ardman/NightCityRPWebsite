@@ -214,6 +214,7 @@ export * from './fixerNpcInput';
 export * from './fixerNpcUpdate';
 export * from './getActorReportParams';
 export * from './getCharacterMedical200';
+export * from './getCharacterMedical200BillsItem';
 export * from './getCharacterMedical200CheckupsItem';
 export * from './getCharacterMedical200InstalledItem';
 export * from './getCharacterMedical200MedsPaymentsItem';
