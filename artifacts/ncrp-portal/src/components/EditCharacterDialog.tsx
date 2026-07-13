@@ -353,11 +353,22 @@ export default function EditCharacterDialog({
   });
   const canConfirmDelete = deleteConfirm === "DELETE" && !del.isPending;
 
-  function save(e: React.FormEvent) {
+  async function save(e: React.FormEvent) {
     e.preventDefault();
+    // A cyberware save is mid-flight (its button was clicked separately) —
+    // don't race it with a submit; the user can click SAVE again in a moment.
+    if (savingCyber) return;
     if (!name.trim()) {
       toast({ title: "Name required", variant: "destructive" });
       return;
+    }
+    // Flush any unsaved cyberware edits first (staff only — cyberware applies
+    // immediately, separately from the review-queued fields below). If that
+    // fails, stop here: submitting would close the dialog and silently discard
+    // the edited rows.
+    if (cyberDirty) {
+      const ok = await saveCyberware();
+      if (!ok) return;
     }
     update.mutate({
       id: character.id,
@@ -413,8 +424,16 @@ export default function EditCharacterDialog({
   // Apply cyberware changes immediately (independent of the review-queued
   // character fields). Diff the edited rows against the original snapshot:
   // delete removed rows, patch changed rows, insert new ones — then refresh.
-  async function saveCyberware() {
-    if (savingCyber) return;
+  // True while the cyberware grid has edits that haven't been persisted via
+  // saveCyberware. The main SAVE also flushes these (see save()) so a staffer
+  // who edits chrome and hits SAVE doesn't silently lose the cyberware change —
+  // that exact trap shipped once: an edited description vanished because only
+  // the review-queued fields were submitted.
+  const cyberDirty = isStaff && JSON.stringify(cyberRows) !== JSON.stringify(cyberOriginal);
+
+  // Returns true when every outstanding cyberware change persisted.
+  async function saveCyberware(): Promise<boolean> {
+    if (savingCyber) return false;
     setSavingCyber(true);
     // `working` mirrors the user's full row list and is mutated in place as rows
     // persist (folding in server-assigned ids) so nothing the user typed is lost
@@ -444,6 +463,7 @@ export default function EditCharacterDialog({
       await qc.invalidateQueries({ queryKey: getListArchiveCharactersQueryKey() });
       await qc.invalidateQueries({ queryKey: getGetArchiveCharacterQueryKey(character.id) });
       toast({ title: "Cyberware saved", description: `${character.name}'s chrome is updated.` });
+      return true;
     } catch (err) {
       const data = (err as { response?: { data?: { error?: string } } } | null)?.response?.data;
       toast({
@@ -451,6 +471,7 @@ export default function EditCharacterDialog({
         description: data?.error ?? "Could not update cyberware. Re-saving is safe.",
         variant: "destructive",
       });
+      return false;
     } finally {
       // Commit whatever actually happened back to local state: the form keeps all
       // rows (with real ids for created ones) and the diff baseline reflects the
@@ -504,6 +525,11 @@ export default function EditCharacterDialog({
               </TabsTrigger>
               <TabsTrigger value="cyberware" className={tabTriggerClass} data-testid="tab-edit-cyberware">
                 CYBERWARE
+                {cyberDirty && (
+                  <span className="ml-1.5 text-nc-yellow" title="Unsaved cyberware changes" data-testid="dot-cyberware-dirty">
+                    ●
+                  </span>
+                )}
               </TabsTrigger>
               <TabsTrigger value="gear" className={tabTriggerClass} data-testid="tab-edit-gear">
                 GEAR

@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   invalidateQueries: vi.fn(),
   navigate: vi.fn(),
   toast: vi.fn(),
+  updateInventoryAsync: vi.fn(async () => undefined as unknown),
   // Stable empty-query result. The cyberware hydration effect depends on the
   // inventory/catalog array identity and writes derived rows back to state, so
   // returning a fresh [] per render would re-fire it forever ("Maximum update
@@ -15,6 +16,17 @@ const h = vi.hoisted(() => ({
   emptyQuery: { data: [] as never[], isLoading: false },
   state: {
     isPending: false as boolean,
+    // Effective viewer + inventory query result, overridable per test. The
+    // inventory object must be a STABLE reference for the same reason as
+    // emptyQuery above (the hydration effect keys on its identity).
+    me: { id: 1, isAdmin: false, isFixer: false } as {
+      id: number;
+      isAdmin: boolean;
+      isFixer: boolean;
+    },
+    inventoryQuery: undefined as
+      | undefined
+      | { data: unknown[]; isLoading: boolean },
     capturedOptions: undefined as
       | undefined
       | {
@@ -53,7 +65,7 @@ vi.mock("@workspace/api-client-react", () => ({
   // Cyberware/inventory is edited inline in the dialog; the component calls
   // these unconditionally at the top level, so they must be stubbed even though
   // the non-staff viewer used here never renders the editor.
-  useGetCharacterInventory: () => h.emptyQuery,
+  useGetCharacterInventory: () => h.state.inventoryQuery ?? h.emptyQuery,
   useListCyberware: () => h.emptyQuery,
   useAddInventoryItem: () => ({
     mutate: () => {},
@@ -62,7 +74,7 @@ vi.mock("@workspace/api-client-react", () => ({
   }),
   useUpdateInventoryItem: () => ({
     mutate: () => {},
-    mutateAsync: async () => undefined,
+    mutateAsync: h.updateInventoryAsync,
     isPending: false,
   }),
   useRemoveInventoryItem: () => ({
@@ -71,6 +83,9 @@ vi.mock("@workspace/api-client-react", () => ({
     isPending: false,
   }),
   getGetCharacterInventoryQueryKey: (id: number) => ["character-inventory", id],
+  getGetCharacterQueryKey: (id: number) => ["character", id],
+  getListArchiveCharactersQueryKey: () => ["archive-characters"],
+  getGetArchiveCharacterQueryKey: (id: number) => ["archive-character", id],
   getGetCharacterPendingEditQueryKey: (id: number) => [
     "character-pending-edit",
     id,
@@ -84,7 +99,14 @@ vi.mock("@workspace/api-client-react", () => ({
 // generated me-hook or a surrounding provider. A non-staff viewer keeps the
 // STAFF tab and the inline cyberware editor out of the tree.
 vi.mock("@/contexts/ViewAsContext", () => ({
-  useEffectiveMe: () => ({ data: { id: 1, isAdmin: false, isFixer: false } }),
+  useEffectiveMe: () => ({ data: h.state.me }),
+}));
+
+// The STAFF tab mounts StaffGrantSections (guns/rent-listing grant flows) which
+// pulls a pile of unrelated generated hooks. Stub the whole component — the
+// staff tests here only exercise the cyberware editor + main save.
+vi.mock("@/components/StaffGrantSections", () => ({
+  default: () => null,
 }));
 
 // Render the Radix tab/accordion primitives as plain containers. This keeps
@@ -190,6 +212,10 @@ describe("EditCharacterDialog", () => {
     h.state.isPending = false;
     h.state.capturedOptions = undefined;
     h.state.capturedDeleteOptions = undefined;
+    h.state.me = { id: 1, isAdmin: false, isFixer: false };
+    h.state.inventoryQuery = undefined;
+    h.updateInventoryAsync.mockReset();
+    h.updateInventoryAsync.mockResolvedValue(undefined);
   });
 
   it("prefills every editable field from the passed character", () => {
@@ -548,5 +574,78 @@ describe("EditCharacterDialog", () => {
     expect(
       (screen.getByTestId("input-edit-name") as HTMLInputElement).value,
     ).toBe("Temp Edit");
+  });
+
+  // Regression: a staffer edited a cyberware description in the CYBERWARE tab,
+  // then clicked the main SAVE — the cyberware change was silently discarded
+  // because only the review-queued character fields were submitted. The main
+  // SAVE must now flush unsaved cyberware edits first.
+  describe("staff cyberware flush on main SAVE", () => {
+    const CYBER_ITEM = {
+      id: 7762,
+      category: "cyberware",
+      name: "Chameleon Skin",
+      notes: "CWP 2 · Passive invisibility when still. · slot: Integumentary System",
+    };
+
+    function renderStaffWithChrome() {
+      h.state.me = { id: 1, isAdmin: true, isFixer: false };
+      // Stable object identity — the hydration effect keys on it.
+      h.state.inventoryQuery = { data: [CYBER_ITEM], isLoading: false };
+      return renderDialog();
+    }
+
+    it("flushes dirty cyberware rows before submitting the review fields", async () => {
+      renderStaffWithChrome();
+
+      // Edit the item's description; the dirty dot appears on the tab.
+      fireEvent.change(screen.getByTestId("input-cyber-notes-edit-0"), {
+        target: { value: "Passive invisibility." },
+      });
+      expect(screen.getByTestId("dot-cyberware-dirty")).toBeTruthy();
+
+      fireEvent.click(screen.getByTestId("button-save-edit"));
+
+      // The cyberware change persists via the inventory endpoint…
+      await vi.waitFor(() => expect(h.updateInventoryAsync).toHaveBeenCalledTimes(1));
+      expect(h.updateInventoryAsync).toHaveBeenCalledWith({
+        id: 9,
+        itemId: 7762,
+        data: {
+          name: "Chameleon Skin",
+          notes: "CWP 2 · Passive invisibility. · slot: Integumentary System",
+        },
+      });
+      // …and the main review-queued submission still goes out.
+      await vi.waitFor(() => expect(h.updateMutate).toHaveBeenCalledTimes(1));
+    });
+
+    it("clean cyberware rows do not trigger an inventory write on SAVE", () => {
+      renderStaffWithChrome();
+      fireEvent.click(screen.getByTestId("button-save-edit"));
+      expect(h.updateInventoryAsync).not.toHaveBeenCalled();
+      expect(h.updateMutate).toHaveBeenCalledTimes(1);
+    });
+
+    it("aborts the main submission when the cyberware flush fails", async () => {
+      renderStaffWithChrome();
+      h.updateInventoryAsync.mockRejectedValue({
+        response: { data: { error: "boom" } },
+      });
+
+      fireEvent.change(screen.getByTestId("input-cyber-notes-edit-0"), {
+        target: { value: "Passive invisibility." },
+      });
+      fireEvent.click(screen.getByTestId("button-save-edit"));
+
+      await vi.waitFor(() =>
+        expect(h.toast).toHaveBeenCalledWith(
+          expect.objectContaining({ title: "Cyberware save failed" }),
+        ),
+      );
+      // Nothing was submitted for review — the dialog stays open with the
+      // user's rows intact instead of silently discarding them.
+      expect(h.updateMutate).not.toHaveBeenCalled();
+    });
   });
 });
