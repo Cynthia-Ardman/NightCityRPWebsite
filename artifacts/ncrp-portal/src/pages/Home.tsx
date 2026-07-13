@@ -773,7 +773,13 @@ function NpcSessionBanner() {
     if (e.eventType !== "session" || e.needsNpcs !== true) continue;
     const base = new Date(e.startAt);
     if (Number.isNaN(base.getTime())) continue;
-    const occ = expandOccurrences(base, e.recurrence ?? null, now, horizon)[0];
+    // A session that already STARTED but hasn't ended is still THE session to
+    // volunteer for — look back by the event's own duration so the banner
+    // shows the in-progress session instead of skipping to next week's.
+    const endAt = new Date(e.endAt);
+    const durationMs = Number.isNaN(endAt.getTime()) ? 0 : Math.max(0, endAt.getTime() - base.getTime());
+    const lookback = new Date(now.getTime() - durationMs);
+    const occ = expandOccurrences(base, e.recurrence ?? null, lookback, horizon)[0];
     if (!occ) continue;
     // Signed up for THIS occurrence specifically (signups are per-occurrence
     // on recurring events).
@@ -792,7 +798,8 @@ function NpcSessionBanner() {
   const diffMs = session.start.getTime() - now.getTime();
   const days = Math.floor(diffMs / 86_400_000);
   const hours = Math.floor((diffMs % 86_400_000) / 3_600_000);
-  const countdown = days > 0 ? `in ${days}d ${hours}h` : hours > 0 ? `in ${hours}h` : "starting soon";
+  const countdown =
+    diffMs <= 0 ? "happening now" : days > 0 ? `in ${days}d ${hours}h` : hours > 0 ? `in ${hours}h` : "starting soon";
   const whenStr = `${session.start.toLocaleDateString(undefined, {
     weekday: "short",
     month: "short",

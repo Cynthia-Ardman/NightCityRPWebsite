@@ -19,3 +19,10 @@ have duplicate rows (Discord + website copies sharing a start time); tie-break b
 upgrading `best.mySignup` when either copy has a signup, so a signup on either
 counts. Read `needsNpcs` from the server view (it's already derived via
 `eventNeedsNpcs`), not the raw column.
+
+**In-progress rule:** a session that already STARTED but hasn't ENDED is still
+the target — expanding occurrences from `now` skips it and shows next week's
+(reported: "during session 71 it shows session 72"). Expand from
+`now - (endAt - startAt)` (the event's own duration) so the live occurrence
+survives, and label the countdown "happening now" when `occ <= now`. Once
+`endAt` passes, the lookback naturally excludes it.
