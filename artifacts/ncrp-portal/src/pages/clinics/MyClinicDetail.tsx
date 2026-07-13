@@ -16,6 +16,7 @@ import {
   useGetRipperdocTransactions,
   useListRipperdocOffers,
   useRequestRipperdocStock,
+  useSendRipperdocBill,
   getGetRipperdocQueryKey,
   getGetRipperdocTransactionsQueryKey,
   getListRipperdocOffersQueryKey,
@@ -136,6 +137,28 @@ export default function MyClinicDetail() {
   const [offerPrice, setOfferPrice] = useState(0);
   const [offerCwp, setOfferCwp] = useState(0);
   const [offerQty, setOfferQty] = useState(1);
+  const [billChar, setBillChar] = useState<CharacterPickerValue>(null);
+  const [billAmount, setBillAmount] = useState(0);
+  const [billNote, setBillNote] = useState("");
+  const sendBill = useSendRipperdocBill({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Bill sent", description: "The player will see it in My Offers and can approve to pay." });
+        setBillChar(null);
+        setBillAmount(0);
+        setBillNote("");
+        qc.invalidateQueries({ queryKey: getListRipperdocOffersQueryKey(rid) });
+      },
+      onError: (err) => {
+        const data = (err as { data?: { error?: string } } | null)?.data;
+        toast({
+          title: "Could not send bill",
+          description: data?.error ?? (err instanceof Error ? err.message : "Please try again."),
+          variant: "destructive",
+        });
+      },
+    },
+  });
   // Editable clinic profile fields are buffered locally and persisted via an
   // explicit SAVE button (no silent autosave-on-blur), so the owner gets a
   // clear save affordance and confirmation.
@@ -500,6 +523,49 @@ export default function MyClinicDetail() {
           </CardContent>
         </Card>
       )}
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader>
+          <CardTitle className="font-display tracking-widest">SEND BILL</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="font-mono text-xs text-muted-foreground">
+            Bill a character for services rendered (patch-ups, repairs, checkups). They approve and pay it from My Offers; the eddies land in the clinic account.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
+            <div className="md:col-span-5"><CharacterPicker value={billChar} onChange={setBillChar} testId="input-bill-character" /></div>
+            <Input
+              className="md:col-span-3"
+              type="number"
+              min={1}
+              placeholder="Amount (€$)"
+              value={billAmount || ""}
+              onChange={(e) => setBillAmount(Number(e.target.value))}
+              data-testid="input-bill-amount"
+            />
+            <Input
+              className="md:col-span-4"
+              placeholder="What for? (required)"
+              maxLength={200}
+              value={billNote}
+              onChange={(e) => setBillNote(e.target.value)}
+              data-testid="input-bill-note"
+            />
+          </div>
+          <Button
+            className="rounded-none font-display tracking-widest bg-nc-magenta text-background hover:bg-nc-magenta/80"
+            disabled={!billChar?.id || !Number.isInteger(billAmount) || billAmount < 1 || !billNote.trim() || sendBill.isPending}
+            onClick={() =>
+              sendBill.mutate({
+                id: rid,
+                data: { buyerCharacterId: billChar!.id, amount: billAmount, note: billNote.trim() },
+              })
+            }
+            data-testid="button-send-bill"
+          >
+            {sendBill.isPending ? "SENDING..." : "SEND BILL"}
+          </Button>
+        </CardContent>
+      </Card>
       <VenueOffersPanel offers={offers ?? []} />
       {!!me && (me.isAdmin || me.isFixer) && (
         <StaffVenuePanel

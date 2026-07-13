@@ -2735,6 +2735,7 @@ export const SaleOfferOfferType = {
   give: 'give',
   stock_add: 'stock_add',
   install_owned: 'install_owned',
+  service: 'service',
 } as const;
 
 export type SaleOfferStatus = typeof SaleOfferStatus[keyof typeof SaleOfferStatus];
@@ -2956,6 +2957,21 @@ export interface InstallOwnedInput {
      */
   cwp?: number;
   memo?: string;
+}
+
+export interface ServiceBillInput {
+  /** The character being billed. */
+  buyerCharacterId: number;
+  /**
+     * Bill amount in eurodollars.
+     * @minimum 1
+     */
+  amount: number;
+  /**
+     * What the bill is for (shown to the player).
+     * @maxLength 200
+     */
+  note: string;
 }
 
 export type CharacterCyberwareStatusInstalledItem = {

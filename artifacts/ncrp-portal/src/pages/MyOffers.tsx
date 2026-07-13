@@ -16,7 +16,7 @@ import { useAuthMe } from "@/hooks/useAuthMe";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ShoppingBag, Check, X, Banknote } from "lucide-react";
-import { OfferTypeBadge, OfferStatusBadge } from "@/components/offers/offerBadges";
+import { OfferTypeBadge, OfferStatusBadge, offerNeedsMyDecision } from "@/components/offers/offerBadges";
 
 function fineApiError(err: unknown): string | null {
   const data = (err as { data?: unknown } | null)?.data;
@@ -56,8 +56,7 @@ export default function MyOffers() {
     const sorted = [...all].sort(
       (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime(),
     );
-    const needsDecision = (o: SaleOffer) =>
-      o.status === "pending" && (o.offerType === "stock_add" || o.offerType === "install_owned");
+    const needsDecision = offerNeedsMyDecision;
     return {
       pending: sorted.filter(needsDecision),
       history: sorted.filter((o) => !needsDecision(o)),
@@ -215,6 +214,11 @@ export default function MyOffers() {
                     {o.offerType === "install_owned" && (
                       <div className="font-mono text-[11px] text-nc-magenta mt-1">
                         Fits cyberware you already own · approving installs it{o.totalPrice > 0 ? " and charges the fee" : " at no charge"}
+                      </div>
+                    )}
+                    {o.offerType === "service" && (
+                      <div className="font-mono text-[11px] text-nc-cyan mt-1">
+                        A bill for services rendered · approving pays it from your wallet
                       </div>
                     )}
                   </div>

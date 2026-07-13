@@ -1751,7 +1751,7 @@ export const SellStoreItemResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -1833,7 +1833,7 @@ export const ListStoreOffersParams = zod.object({
 export const ListStoreOffersResponseItem = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -2350,7 +2350,7 @@ export const RemoveRipperdocEmployeeParams = zod.object({
 export const ListMyOffersResponseItem = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -2392,7 +2392,7 @@ export const GetOfferParams = zod.object({
 export const GetOfferResponse = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -2434,7 +2434,7 @@ export const ApproveOfferResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -2494,7 +2494,7 @@ export const DenyOfferParams = zod.object({
 export const DenyOfferResponse = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -6497,7 +6497,7 @@ export const SellRipperdocItemResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -6574,7 +6574,7 @@ export const InstallRipperdocCyberwareResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -6645,7 +6645,7 @@ export const GiveRipperdocItemResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -6718,7 +6718,7 @@ export const RemoveRipperdocCyberwareResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -6791,6 +6791,25 @@ export const CreateInstallOwnedOfferBody = zod.object({
 
 
 /**
+ * @summary Send a freeform service bill to a character (leaves a PENDING offer the player approves from My Offers)
+ */
+export const SendRipperdocBillParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+export const sendRipperdocBillBodyNoteMax = 200;
+
+
+
+export const SendRipperdocBillBody = zod.object({
+  "buyerCharacterId": zod.number().describe('The character being billed.'),
+  "amount": zod.number().min(1).describe('Bill amount in eurodollars.'),
+  "note": zod.string().max(sendRipperdocBillBodyNoteMax).describe('What the bill is for (shown to the player).')
+})
+
+
+/**
  * @summary CWP capacity + installed cyberware for a character (clinic operators only)
  */
 export const GetCharacterCyberwareParams = zod.object({
@@ -6853,7 +6872,7 @@ export const ListRipperdocOffersParams = zod.object({
 export const ListRipperdocOffersResponseItem = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),

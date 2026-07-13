@@ -26,7 +26,7 @@ import { hasRole, sendDirectMessage } from "../lib/discord";
 import { reconcileBusinessChannelAccess } from "../lib/businessChannelAccess";
 import { logger } from "../lib/logger";
 import { applyWalletDelta, MAX_WALLET_BALANCE } from "../lib/economy";
-import { createOffer, createRemoveOffer, createStockAddOffer, createInstallOwnedOffer } from "../lib/saleOffers";
+import { createOffer, createRemoveOffer, createStockAddOffer, createInstallOwnedOffer, createServiceBillOffer } from "../lib/saleOffers";
 import { cwpForItem, parseCwp } from "../lib/cyberware";
 import { checkCwpCapacity } from "../lib/cyberware-cap";
 import { isStaffRoles as isStaff } from "../lib/roleChecks";
@@ -978,6 +978,35 @@ router.post("/ripperdocs/:id/install-owned", requireAuth, async (req, res): Prom
     fee: price != null ? Math.max(0, Number(price) || 0) : null,
     cwp: cwp != null ? Math.max(0, Number(cwp) || 0) : null,
     memo,
+    actor: req.user!,
+  });
+  res.status(result.status).json(result.body);
+});
+
+// Send a freeform service bill to a character (repair, patch-up, etc). Leaves
+// a PENDING offer the player approves from My Offers; approving debits their
+// wallet and credits the clinic account. See lib/saleOffers.ts
+// createServiceBillOffer.
+router.post("/ripperdocs/:id/bill", requireAuth, async (req, res): Promise<void> => {
+  const venueId = parseInt(String(req.params.id), 10);
+  const { buyerCharacterId, amount, note } = req.body ?? {};
+  if (!buyerCharacterId || amount == null || !note) {
+    res.status(400).json({ error: "buyerCharacterId, amount and note required" });
+    return;
+  }
+  // Coerce and reject malformed numbers here so bad payloads get a
+  // deterministic 400 instead of NaN leaking into DB lookups.
+  const charId = Number(buyerCharacterId);
+  const amt = Number(amount);
+  if (!Number.isInteger(charId) || charId <= 0 || !Number.isFinite(amt)) {
+    res.status(400).json({ error: "buyerCharacterId and amount must be numbers" });
+    return;
+  }
+  const result = await createServiceBillOffer({
+    venueId,
+    buyerCharacterId: charId,
+    amount: amt,
+    note: String(note),
     actor: req.user!,
   });
   res.status(result.status).json(result.body);

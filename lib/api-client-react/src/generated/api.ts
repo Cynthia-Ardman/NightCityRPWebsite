@@ -273,6 +273,7 @@ import type {
   SearchFixerPlayersParams,
   SearchInventoryByOwnerParams,
   SearchMissionActorsParams,
+  ServiceBillInput,
   SheetVoteInput,
   SheetVoteResult,
   SinkInput,
@@ -12337,6 +12338,78 @@ export const useCreateInstallOwnedOffer = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getCreateInstallOwnedOfferMutationOptions(options));
+    }
+
+export const getSendRipperdocBillUrl = (id: number,) => {
+
+
+
+
+  return `/api/ripperdocs/${id}/bill`
+}
+
+/**
+ * @summary Send a freeform service bill to a character (leaves a PENDING offer the player approves from My Offers)
+ */
+export const sendRipperdocBill = async (id: number,
+    serviceBillInput: ServiceBillInput, options?: RequestInit): Promise<SaleOffer> => {
+
+  return customFetch<SaleOffer>(getSendRipperdocBillUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      serviceBillInput,)
+  }
+);}
+
+
+
+
+export const getSendRipperdocBillMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendRipperdocBill>>, TError,{id: number;data: BodyType<ServiceBillInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendRipperdocBill>>, TError,{id: number;data: BodyType<ServiceBillInput>}, TContext> => {
+
+const mutationKey = ['sendRipperdocBill'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendRipperdocBill>>, {id: number;data: BodyType<ServiceBillInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  sendRipperdocBill(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendRipperdocBillMutationResult = NonNullable<Awaited<ReturnType<typeof sendRipperdocBill>>>
+    export type SendRipperdocBillMutationBody = BodyType<ServiceBillInput>
+    export type SendRipperdocBillMutationError = ErrorType<void>
+
+    /**
+ * @summary Send a freeform service bill to a character (leaves a PENDING offer the player approves from My Offers)
+ */
+export const useSendRipperdocBill = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendRipperdocBill>>, TError,{id: number;data: BodyType<ServiceBillInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendRipperdocBill>>,
+        TError,
+        {id: number;data: BodyType<ServiceBillInput>},
+        TContext
+      > => {
+      return useMutation(getSendRipperdocBillMutationOptions(options));
     }
 
 export const getGetCharacterCyberwareUrl = (id: number,

@@ -2724,6 +2724,28 @@ paths:
         "403": { description: Not authorized to operate this clinic }
         "404": { description: "Venue, character, or cyberware not found" }
         "409": { description: Character unclaimed or CWP capacity exceeded }
+  /ripperdocs/{id}/bill:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: sendRipperdocBill
+      tags: [ripperdocs]
+      summary: Send a freeform service bill to a character (leaves a PENDING offer the player approves from My Offers)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ServiceBillInput" }
+      responses:
+        "201":
+          description: Pending service bill created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SaleOffer" }
+        "400": { description: "Missing/invalid amount or note, or character archived" }
+        "403": { description: Not authorized to operate this clinic }
+        "404": { description: Venue or character not found }
+        "409": { description: Character unclaimed }
   /ripperdocs/{id}/characters/{characterId}/cyberware:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -7707,7 +7729,7 @@ components:
       properties:
         id: { type: integer }
         kind: { type: string, enum: [store, ripperdoc] }
-        offerType: { type: string, enum: [sale, install, remove, give, stock_add, install_owned], description: "What the offer does. Defaults to sale." }
+        offerType: { type: string, enum: [sale, install, remove, give, stock_add, install_owned, service], description: "What the offer does. Defaults to sale." }
         cwp: { type: ["integer", "null"], description: "Per-unit cyberware points (install) or the points removed (remove)." }
         removedItemId: { type: ["integer", "null"], description: "The installed inventory item a remove offer uninstalls." }
         installItemId: { type: ["integer", "null"], description: "The buyer-owned uninstalled inventory item an install_owned offer fits." }
@@ -7838,6 +7860,14 @@ components:
         price: { type: integer, minimum: 0, description: "Optional install fee. Defaults to 0 (free)." }
         cwp: { type: integer, minimum: 0, description: "Operator CWP override; only used when the catalog has no authoritative value." }
         memo: { type: string }
+
+    ServiceBillInput:
+      type: object
+      required: [buyerCharacterId, amount, note]
+      properties:
+        buyerCharacterId: { type: integer, description: "The character being billed." }
+        amount: { type: integer, minimum: 1, description: "Bill amount in eurodollars." }
+        note: { type: string, maxLength: 200, description: "What the bill is for (shown to the player)." }
 
     CharacterCyberwareStatus:
       type: object

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ViewAsControl, ViewAsBanner } from "@/components/layout/ViewAsControl";
+import { offerNeedsMyDecision } from "@/components/offers/offerBadges";
 import ncrpLogo from "@assets/image_1780331782394.png";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -146,10 +147,11 @@ function SidebarContent() {
   const [location] = useLocation();
   const { data: offers } = useListMyOffers({ query: { enabled: !!user, queryKey: getListMyOffersQueryKey() } });
   // Only count offers the player can actually act on here. The My Offers page
-  // only surfaces a decision UI for pending stock-add proposals; other pending
+  // only surfaces a decision UI for some pending offer types; other pending
   // rows (e.g. a give/sale that failed to auto-complete) have no button, so
-  // counting them produced a phantom badge the user could never clear.
-  const pendingOffers = (offers ?? []).filter((o) => o.status === "pending" && o.offerType === "stock_add").length;
+  // counting them produced a phantom badge the user could never clear. The
+  // predicate is shared with the page so the two can't drift.
+  const pendingOffers = (offers ?? []).filter(offerNeedsMyDecision).length;
   // Staff review queue counter (misc requests + new-character sheets awaiting
   // approval). Only fetched for staff so regular players never trigger the
   // staff-scoped endpoints.

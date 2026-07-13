@@ -19,4 +19,5 @@ export const SaleOfferOfferType = {
   give: 'give',
   stock_add: 'stock_add',
   install_owned: 'install_owned',
+  service: 'service',
 } as const;

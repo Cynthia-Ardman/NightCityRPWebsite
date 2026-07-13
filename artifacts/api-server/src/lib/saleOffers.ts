@@ -36,7 +36,12 @@ import { logger } from "./logger";
 //               stock leg (the player owns the piece); leaves a PENDING offer
 //               the player approves from My Offers; optional install fee via
 //               unitPrice. References installItemId.
-export type OfferType = "sale" | "install" | "remove" | "give" | "stock_add" | "install_owned";
+//   service   — ripperdoc only: a freeform bill for work performed (repair,
+//               patch-up, etc). No stock or inventory leg at all — approving
+//               just debits the buyer and credits the clinic (commission via
+//               the normal path, costBasis null => full amount is profit).
+//               Leaves a PENDING offer the player approves from My Offers.
+export type OfferType = "sale" | "install" | "remove" | "give" | "stock_add" | "install_owned" | "service";
 
 // ---------------------------------------------------------------------------
 // Buyer-approval sale offers. The store/ripperdoc operator creates an offer;
@@ -481,6 +486,98 @@ export async function createInstallOwnedOffer(opts: {
   return { status: 201, body: offer };
 }
 
+// Freeform service bill: a clinic operator bills a character for work performed
+// (repair, patch-up, checkup fee, etc). No stock or inventory leg — approving
+// just debits the buyer's wallet and credits the clinic account (commission via
+// the normal path; costBasis stays null so the full amount counts as profit).
+// NO auto-completion: the offer is left PENDING for the player to approve from
+// My Offers, exactly like install_owned.
+export async function createServiceBillOffer(opts: {
+  venueId: number;
+  buyerCharacterId: number;
+  amount: number;
+  note: string;
+  actor: Actor;
+}): Promise<OfferResult> {
+  const kind: OfferKind = "ripperdoc";
+  const { venueId, buyerCharacterId, actor } = opts;
+
+  const note = (opts.note ?? "").trim();
+  if (!note) return { status: 400, body: { error: "A note describing the service is required" } };
+  if (note.length > 200) return { status: 400, body: { error: "Note must be 200 characters or fewer" } };
+  const amount = Math.floor(Number(opts.amount));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { status: 400, body: { error: "Amount must be a positive number" } };
+  }
+
+  const [venue] = await db.select().from(ripperdocs).where(eq(ripperdocs.id, venueId));
+  if (!venue) return { status: 404, body: { error: "Venue not found" } };
+  if (!(await isOperator(kind, venue, venueId, actor))) {
+    return { status: 403, body: { error: "Not authorized to operate this clinic" } };
+  }
+
+  const [buyer] = await db.select().from(characters).where(eq(characters.id, buyerCharacterId));
+  if (!buyer) return { status: 404, body: { error: "Character not found" } };
+  if (buyer.archived) return { status: 400, body: { error: "Character is archived" } };
+  if (!buyer.ownerId) return { status: 409, body: { error: "Character is unclaimed" } };
+
+  const seller = await resolveSeller(kind, venue, venueId, actor);
+  const expiresAt = new Date(Date.now() + OFFER_TTL_DAYS * 24 * 60 * 60 * 1000);
+
+  const [offer] = await db
+    .insert(saleOffers)
+    .values({
+      kind,
+      offerType: "service",
+      [venueColName(kind)]: venueId,
+      stockId: null,
+      cwp: null,
+      itemName: note,
+      itemCategory: "service",
+      unitPrice: amount,
+      quantity: 1,
+      totalPrice: amount,
+      buyerCharacterId: buyer.id,
+      buyerUserId: buyer.ownerId,
+      sellerCharacterId: seller.sellerCharacterId,
+      sellerEmployeeId: seller.sellerEmployeeId,
+      commissionPct: seller.commissionPct,
+      createdById: actor.id,
+      memo: null,
+      status: "pending",
+      expiresAt,
+    } as never)
+    .returning();
+
+  await db.insert(auditLog).values({
+    category: "shop",
+    action: "sale_offer_create",
+    actorId: actor.id,
+    actorName: actor.username,
+    targetType: "sale_offer",
+    targetId: String(offer.id),
+    message: `Sent service bill to ${buyer.name}: ${note} for €$${amount}`,
+    afterJson: { offerType: "service", amount, buyerCharacterId: buyer.id, venueId } as never,
+  });
+
+  // Best-effort player DM (the in-portal surface is /offers/mine). NO
+  // auto-completion: the player must approve before any money moves.
+  try {
+    const [u] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, offer.buyerUserId));
+    if (u?.discordId) {
+      await sendDirectMessage(
+        u.discordId,
+        `**${venue.name}** sent **${buyer.name}** a bill for €$${amount}: ${note}\n` +
+          `Approve or deny it here: ${offerLink()}`,
+      );
+    }
+  } catch (err) {
+    logger.warn({ err, offerId: offer.id }, "service bill player DM failed");
+  }
+
+  return { status: 201, body: offer };
+}
+
 // Admin proposes adding a cyberware piece to ANOTHER venue's stock for a price
 // the venue pays on approval. The offer's "buyer" is the venue owner (the
 // approver); nothing moves until they accept (or deny — a pure status flip).
@@ -824,6 +921,7 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
   const offerType: OfferType = (offer.offerType as OfferType) ?? "sale";
   const isRemove = offerType === "remove";
   const isInstallOwned = offerType === "install_owned";
+  const isService = offerType === "service";
   const hasMoney = offer.totalPrice > 0;
   const venueTable = venueTableFor(kind);
   const stockTable = stockTableFor(kind);
@@ -851,6 +949,7 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
     const debitReason =
       offerType === "install" || isInstallOwned ? `Cyberware install: ${offer.itemName} @ ${venue.name}`
       : offerType === "remove" ? `Cyberware removal: ${offer.itemName} @ ${venue.name}`
+      : isService ? `Service: ${offer.itemName} @ ${venue.name}`
       : `Purchase: ${offer.itemName} x${offer.quantity} @ ${venue.name}`;
     const debit = await applyWalletDelta({
       userId: buyerUser.id,
@@ -984,6 +1083,9 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
         }
         removedItem = updated;
       }
+    } else if (isService) {
+      // Service bill: pure money movement — no stock leg, no inventory leg.
+      // The debit above + the venue credit below are the whole effect.
     } else {
       // Sale / install / give: pull from stock and drop into the buyer's inventory.
       const [decremented] = await tx
@@ -1037,6 +1139,7 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
       const ledgerMemo =
         offerType === "install" ? `Installed ${offer.itemName}`
         : offerType === "remove" ? `Removed ${offer.itemName}`
+        : isService ? `Service: ${offer.itemName}`
         : `Sold ${offer.itemName} x${offer.quantity}`;
       await tx.insert(walletTransactions).values({
         [venueColName(kind)]: venueId,
@@ -1170,6 +1273,7 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
     offerType === "install" ? "had installed"
     : offerType === "remove" ? "had removed"
     : offerType === "give" ? "received"
+    : isService ? "paid for"
     : "bought";
   const priceTail = hasMoney ? `for €$${offer.totalPrice}` : "for free";
   await db.insert(auditLog).values({
@@ -1189,7 +1293,9 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
     actorAvatarUrl: actor.avatarUrl,
     message: isRemove
       ? `${buyer.name} ${verbPast} ${offer.itemName} at ${venue.name} ${priceTail}`
-      : `${buyer.name} ${verbPast} ${offer.itemName} x${offer.quantity} ${offerType === "give" ? "from" : offerType === "install" ? "at" : "from"} ${venue.name} ${priceTail}`,
+      : isService
+        ? `${buyer.name} ${verbPast} ${offer.itemName} at ${venue.name} ${priceTail}`
+        : `${buyer.name} ${verbPast} ${offer.itemName} x${offer.quantity} ${offerType === "give" ? "from" : offerType === "install" ? "at" : "from"} ${venue.name} ${priceTail}`,
   });
 
   const [finalOffer] = await db.select().from(saleOffers).where(eq(saleOffers.id, offerId));

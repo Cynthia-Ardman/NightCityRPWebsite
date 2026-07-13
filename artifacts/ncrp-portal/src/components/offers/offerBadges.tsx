@@ -5,6 +5,16 @@ import { Badge } from "@/components/ui/badge";
 // panel render every offer type/status identically (previously the venue panel
 // was missing install_owned / stock_add labels that players saw correctly).
 
+// Single source of truth for "can the viewer act on this offer from My Offers?"
+// The nav badge count and the page's pending list MUST share this predicate,
+// or the badge counts rows the user can never clear (phantom badge).
+export function offerNeedsMyDecision(o: SaleOffer): boolean {
+  return (
+    o.status === "pending" &&
+    (o.offerType === "stock_add" || o.offerType === "install_owned" || o.offerType === "service")
+  );
+}
+
 export function OfferTypeBadge({ offer }: { offer: SaleOffer }) {
   const t = offer.offerType ?? "sale";
   if (t === "sale") return null;
@@ -17,7 +27,7 @@ export function OfferTypeBadge({ offer }: { offer: SaleOffer }) {
           ? "bg-nc-yellow text-background"
           : "bg-nc-cyan text-background";
   const label =
-    t === "stock_add" ? "STOCK ADD" : t === "install_owned" ? "INSTALL (OWNED)" : t.toUpperCase();
+    t === "stock_add" ? "STOCK ADD" : t === "install_owned" ? "INSTALL (OWNED)" : t === "service" ? "BILL" : t.toUpperCase();
   return (
     <Badge className={`rounded-none font-mono ${cls}`}>
       {label}

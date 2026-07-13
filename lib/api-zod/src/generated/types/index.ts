@@ -519,6 +519,7 @@ export * from './saleOfferStatus';
 export * from './searchFixerPlayersParams';
 export * from './searchInventoryByOwnerParams';
 export * from './searchMissionActorsParams';
+export * from './serviceBillInput';
 export * from './sheetData';
 export * from './sheetDataSections';
 export * from './sheetVoteInput';
