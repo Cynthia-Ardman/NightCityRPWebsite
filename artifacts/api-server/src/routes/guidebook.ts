@@ -3,6 +3,7 @@ import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
+  botConfig,
   guidebookPages,
   guidebookPendingEdits,
   users,
@@ -203,6 +204,62 @@ router.get("/guidebook", requireAuth, async (req, res): Promise<void> => {
 // section picker. Any signed-in user.
 router.get("/guidebook/sections", requireAuth, (_req, res): void => {
   res.json(GUIDEBOOK_SECTIONS);
+});
+
+// ---- Weapons & Guns mechanics text (code-defined page, admin-editable) -----
+//
+// The Weapons guidebook page and the gun-catalog hover blurbs share their
+// wording (single source so they can't drift). Defaults live in the portal's
+// gunMechanics module; admins can override any piece of the text here. Only
+// the OVERRIDES are stored (bot_config key below) — the client merges them
+// over its code defaults, so anything an admin never touched keeps tracking
+// future default-copy updates.
+const GUN_MECHANICS_KEY = "gun_mechanics_overrides";
+
+const blurb = z.string().trim().min(1).max(600);
+const gunMechanicsOverridesSchema = z
+  .object({
+    categories: z.record(z.enum(["Power", "Tech", "Smart"]), blurb).optional(),
+    powers: z.record(z.enum(["L", "M", "H"]), blurb).optional(),
+    restrictions: z.record(z.enum(["Basic", "Controlled", "Restricted"]), blurb).optional(),
+    calibers: z
+      .record(z.enum(["L", "M", "H"]), z.array(z.string().trim().min(1).max(60)).max(40))
+      .optional(),
+    miscRules: z.array(z.string().trim().min(1).max(1000)).max(40).optional(),
+  })
+  .strict();
+
+router.get("/guidebook/gun-mechanics", requireAuth, async (_req, res): Promise<void> => {
+  const [row] = await db.select().from(botConfig).where(eq(botConfig.key, GUN_MECHANICS_KEY));
+  const parsed = gunMechanicsOverridesSchema.safeParse(row?.value ?? {});
+  res.json({ overrides: parsed.success ? parsed.data : {} });
+});
+
+// Replace the override set wholesale (the editor always submits the complete
+// set of admin-customized fields; omitted fields fall back to code defaults).
+router.put("/guidebook/gun-mechanics", requireAuth, async (req, res): Promise<void> => {
+  if (!isAdmin(req.user!)) {
+    res.status(403).json({ error: "Requires admin role" });
+    return;
+  }
+  const parsed = gunMechanicsOverridesSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid overrides" });
+    return;
+  }
+  await db
+    .insert(botConfig)
+    .values({ key: GUN_MECHANICS_KEY, value: parsed.data })
+    .onConflictDoUpdate({ target: botConfig.key, set: { value: parsed.data } });
+  await recordAudit({
+    req,
+    category: "guidebook",
+    action: "gun_mechanics_update",
+    targetType: "bot_config",
+    message: "Updated Weapons & Guns guidebook text overrides",
+    after: parsed.data,
+  });
+  res.json({ overrides: parsed.data });
 });
 
 // ---- Fixer-proposed edits (declared before /:id to avoid capture) ----------

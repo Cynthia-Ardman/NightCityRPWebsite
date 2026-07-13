@@ -89,23 +89,65 @@ export const GUN_MISC_RULES: string[] = [
   "Smart EMP guns have a low, percent-based chance to EMP.",
 ];
 
+// Admin text overrides (stored server-side, fetched via the API). Only fields
+// an admin actually customized are present; everything else falls back to the
+// code defaults above so untouched copy keeps tracking default updates.
+export type GunMechanicsOverrides = {
+  categories?: Record<string, string>;
+  powers?: Record<string, string>;
+  restrictions?: Record<string, string>;
+  calibers?: Record<string, string[]>;
+  miscRules?: string[];
+};
+
+function withBlurb(entry: MechanicEntry, override: string | undefined): MechanicEntry {
+  return override?.trim() ? { label: entry.label, blurb: override.trim() } : entry;
+}
+
 // Resolve a stored category value to its mechanics blurb (or null if it's a
 // custom/off-list value we don't have copy for).
-export function categoryInfo(category: string | null | undefined): MechanicEntry | null {
+export function categoryInfo(
+  category: string | null | undefined,
+  overrides?: GunMechanicsOverrides | null,
+): MechanicEntry | null {
   const key = canonicalLabel(category, GUN_CATEGORIES);
-  return GUN_CATEGORY_INFO[key] ?? null;
+  const base = GUN_CATEGORY_INFO[key];
+  return base ? withBlurb(base, overrides?.categories?.[key]) : null;
 }
 
 // Resolve a stored power-level value to its mechanics blurb.
-export function powerInfo(powerLevel: string | null | undefined): MechanicEntry | null {
+export function powerInfo(
+  powerLevel: string | null | undefined,
+  overrides?: GunMechanicsOverrides | null,
+): MechanicEntry | null {
   const key = canonicalLabel(powerLevel, GUN_POWER_LEVELS, GUN_POWER_LEVEL_ALIASES);
-  return GUN_POWER_INFO[key] ?? null;
+  const base = GUN_POWER_INFO[key];
+  return base ? withBlurb(base, overrides?.powers?.[key]) : null;
 }
 
 // Resolve a stored restriction value to its acquisition blurb.
-export function restrictionInfo(restriction: string | null | undefined): MechanicEntry | null {
+export function restrictionInfo(
+  restriction: string | null | undefined,
+  overrides?: GunMechanicsOverrides | null,
+): MechanicEntry | null {
   const key = canonicalLabel(restriction, GUN_RESTRICTIONS);
-  return GUN_RESTRICTION_INFO[key] ?? null;
+  const base = GUN_RESTRICTION_INFO[key];
+  return base ? withBlurb(base, overrides?.restrictions?.[key]) : null;
+}
+
+// Caliber examples for a tier, honoring any admin override.
+export function calibersFor(
+  tier: "L" | "M" | "H",
+  overrides?: GunMechanicsOverrides | null,
+): string[] {
+  const o = overrides?.calibers?.[tier];
+  return o && o.length > 0 ? o : GUN_CALIBERS[tier];
+}
+
+// Misc weapon rules, honoring any admin override.
+export function miscRules(overrides?: GunMechanicsOverrides | null): string[] {
+  const o = overrides?.miscRules;
+  return o && o.length > 0 ? o : GUN_MISC_RULES;
 }
 
 // Pick the swatch color for a gun's power tier, using the palette appropriate to

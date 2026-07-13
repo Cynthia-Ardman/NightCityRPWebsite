@@ -36,6 +36,7 @@ import {
   powerInfo,
   powerColor,
 } from "@/components/catalog/gunMechanics";
+import { useGunMechanicsOverrides } from "@/components/catalog/useGunMechanics";
 import { useSort, sortRows, SortableTh } from "@/components/catalog/sortableTable";
 
 const ALL = "__all__";
@@ -369,8 +370,9 @@ export default function CatalogGuns() {
 // blurbs come from the shared gunMechanics module (same source as the Weapons
 // guidebook page), so wording can never drift.
 function GunCategoryCell({ gun }: { gun: Gun }) {
+  const overrides = useGunMechanicsOverrides();
   const label = canonicalLabel(gun.category, GUN_CATEGORIES);
-  const info = categoryInfo(gun.category);
+  const info = categoryInfo(gun.category, overrides);
   if (!info) return <span>{label}</span>;
   return (
     <HoverCard openDelay={120} closeDelay={60}>
@@ -396,8 +398,9 @@ function GunCategoryCell({ gun }: { gun: Gun }) {
 // Power-level cell: a tier swatch tinted by the gun's category family (Power vs
 // Tech/Smart) plus a hover explanation of what that tier means.
 function GunPowerCell({ gun }: { gun: Gun }) {
+  const overrides = useGunMechanicsOverrides();
   const label = canonicalLabel(gun.powerLevel, GUN_POWER_LEVELS, GUN_POWER_LEVEL_ALIASES);
-  const info = powerInfo(gun.powerLevel);
+  const info = powerInfo(gun.powerLevel, overrides);
   const color = powerColor(gun.category, gun.powerLevel);
   return (
     <span className="inline-flex items-center gap-2">

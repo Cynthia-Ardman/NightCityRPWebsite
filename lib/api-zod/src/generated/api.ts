@@ -10900,6 +10900,198 @@ export const ListGuidebookSectionsResponse = zod.array(ListGuidebookSectionsResp
 
 
 /**
+ * @summary Admin text overrides for the code-defined Weapons & Guns guidebook page (merged over client defaults).
+ */
+export const getGunMechanicsOverridesResponseOverridesCategoriesPowerMax = 600;
+
+export const getGunMechanicsOverridesResponseOverridesCategoriesTechMax = 600;
+
+export const getGunMechanicsOverridesResponseOverridesCategoriesSmartMax = 600;
+
+export const getGunMechanicsOverridesResponseOverridesPowersLMax = 600;
+
+export const getGunMechanicsOverridesResponseOverridesPowersMMax = 600;
+
+export const getGunMechanicsOverridesResponseOverridesPowersHMax = 600;
+
+export const getGunMechanicsOverridesResponseOverridesRestrictionsBasicMax = 600;
+
+export const getGunMechanicsOverridesResponseOverridesRestrictionsControlledMax = 600;
+
+export const getGunMechanicsOverridesResponseOverridesRestrictionsRestrictedMax = 600;
+
+export const getGunMechanicsOverridesResponseOverridesCalibersLItemMax = 60;
+
+export const getGunMechanicsOverridesResponseOverridesCalibersLMax = 40;
+
+export const getGunMechanicsOverridesResponseOverridesCalibersMItemMax = 60;
+
+export const getGunMechanicsOverridesResponseOverridesCalibersMMax = 40;
+
+export const getGunMechanicsOverridesResponseOverridesCalibersHItemMax = 60;
+
+export const getGunMechanicsOverridesResponseOverridesCalibersHMax = 40;
+
+export const getGunMechanicsOverridesResponseOverridesMiscRulesItemMax = 1000;
+
+export const getGunMechanicsOverridesResponseOverridesMiscRulesMax = 40;
+
+
+
+export const GetGunMechanicsOverridesResponse = zod.object({
+  "overrides": zod.object({
+  "categories": zod.object({
+  "Power": zod.string().min(1).max(getGunMechanicsOverridesResponseOverridesCategoriesPowerMax).optional(),
+  "Tech": zod.string().min(1).max(getGunMechanicsOverridesResponseOverridesCategoriesTechMax).optional(),
+  "Smart": zod.string().min(1).max(getGunMechanicsOverridesResponseOverridesCategoriesSmartMax).optional()
+}).optional().describe('Blurbs keyed on gun category.'),
+  "powers": zod.object({
+  "L": zod.string().min(1).max(getGunMechanicsOverridesResponseOverridesPowersLMax).optional(),
+  "M": zod.string().min(1).max(getGunMechanicsOverridesResponseOverridesPowersMMax).optional(),
+  "H": zod.string().min(1).max(getGunMechanicsOverridesResponseOverridesPowersHMax).optional()
+}).optional().describe('Blurbs keyed on power tier.'),
+  "restrictions": zod.object({
+  "Basic": zod.string().min(1).max(getGunMechanicsOverridesResponseOverridesRestrictionsBasicMax).optional(),
+  "Controlled": zod.string().min(1).max(getGunMechanicsOverridesResponseOverridesRestrictionsControlledMax).optional(),
+  "Restricted": zod.string().min(1).max(getGunMechanicsOverridesResponseOverridesRestrictionsRestrictedMax).optional()
+}).optional().describe('Blurbs keyed on restriction tier.'),
+  "calibers": zod.object({
+  "L": zod.array(zod.string().min(1).max(getGunMechanicsOverridesResponseOverridesCalibersLItemMax)).max(getGunMechanicsOverridesResponseOverridesCalibersLMax).optional(),
+  "M": zod.array(zod.string().min(1).max(getGunMechanicsOverridesResponseOverridesCalibersMItemMax)).max(getGunMechanicsOverridesResponseOverridesCalibersMMax).optional(),
+  "H": zod.array(zod.string().min(1).max(getGunMechanicsOverridesResponseOverridesCalibersHItemMax)).max(getGunMechanicsOverridesResponseOverridesCalibersHMax).optional()
+}).optional().describe('Caliber example lists keyed on power tier.'),
+  "miscRules": zod.array(zod.string().min(1).max(getGunMechanicsOverridesResponseOverridesMiscRulesItemMax)).max(getGunMechanicsOverridesResponseOverridesMiscRulesMax).optional()
+}).describe('Admin overrides for the code-defined Weapons & Guns page. Only customized fields are stored; anything omitted falls back to the code defaults shared with the gun-catalog hover blurbs.')
+})
+
+
+/**
+ * @summary Replace the Weapons & Guns text overrides (admin only).
+ */
+export const updateGunMechanicsOverridesBodyCategoriesPowerMax = 600;
+
+export const updateGunMechanicsOverridesBodyCategoriesTechMax = 600;
+
+export const updateGunMechanicsOverridesBodyCategoriesSmartMax = 600;
+
+export const updateGunMechanicsOverridesBodyPowersLMax = 600;
+
+export const updateGunMechanicsOverridesBodyPowersMMax = 600;
+
+export const updateGunMechanicsOverridesBodyPowersHMax = 600;
+
+export const updateGunMechanicsOverridesBodyRestrictionsBasicMax = 600;
+
+export const updateGunMechanicsOverridesBodyRestrictionsControlledMax = 600;
+
+export const updateGunMechanicsOverridesBodyRestrictionsRestrictedMax = 600;
+
+export const updateGunMechanicsOverridesBodyCalibersLItemMax = 60;
+
+export const updateGunMechanicsOverridesBodyCalibersLMax = 40;
+
+export const updateGunMechanicsOverridesBodyCalibersMItemMax = 60;
+
+export const updateGunMechanicsOverridesBodyCalibersMMax = 40;
+
+export const updateGunMechanicsOverridesBodyCalibersHItemMax = 60;
+
+export const updateGunMechanicsOverridesBodyCalibersHMax = 40;
+
+export const updateGunMechanicsOverridesBodyMiscRulesItemMax = 1000;
+
+export const updateGunMechanicsOverridesBodyMiscRulesMax = 40;
+
+
+
+export const UpdateGunMechanicsOverridesBody = zod.object({
+  "categories": zod.object({
+  "Power": zod.string().min(1).max(updateGunMechanicsOverridesBodyCategoriesPowerMax).optional(),
+  "Tech": zod.string().min(1).max(updateGunMechanicsOverridesBodyCategoriesTechMax).optional(),
+  "Smart": zod.string().min(1).max(updateGunMechanicsOverridesBodyCategoriesSmartMax).optional()
+}).optional().describe('Blurbs keyed on gun category.'),
+  "powers": zod.object({
+  "L": zod.string().min(1).max(updateGunMechanicsOverridesBodyPowersLMax).optional(),
+  "M": zod.string().min(1).max(updateGunMechanicsOverridesBodyPowersMMax).optional(),
+  "H": zod.string().min(1).max(updateGunMechanicsOverridesBodyPowersHMax).optional()
+}).optional().describe('Blurbs keyed on power tier.'),
+  "restrictions": zod.object({
+  "Basic": zod.string().min(1).max(updateGunMechanicsOverridesBodyRestrictionsBasicMax).optional(),
+  "Controlled": zod.string().min(1).max(updateGunMechanicsOverridesBodyRestrictionsControlledMax).optional(),
+  "Restricted": zod.string().min(1).max(updateGunMechanicsOverridesBodyRestrictionsRestrictedMax).optional()
+}).optional().describe('Blurbs keyed on restriction tier.'),
+  "calibers": zod.object({
+  "L": zod.array(zod.string().min(1).max(updateGunMechanicsOverridesBodyCalibersLItemMax)).max(updateGunMechanicsOverridesBodyCalibersLMax).optional(),
+  "M": zod.array(zod.string().min(1).max(updateGunMechanicsOverridesBodyCalibersMItemMax)).max(updateGunMechanicsOverridesBodyCalibersMMax).optional(),
+  "H": zod.array(zod.string().min(1).max(updateGunMechanicsOverridesBodyCalibersHItemMax)).max(updateGunMechanicsOverridesBodyCalibersHMax).optional()
+}).optional().describe('Caliber example lists keyed on power tier.'),
+  "miscRules": zod.array(zod.string().min(1).max(updateGunMechanicsOverridesBodyMiscRulesItemMax)).max(updateGunMechanicsOverridesBodyMiscRulesMax).optional()
+}).describe('Admin overrides for the code-defined Weapons & Guns page. Only customized fields are stored; anything omitted falls back to the code defaults shared with the gun-catalog hover blurbs.')
+
+export const updateGunMechanicsOverridesResponseOverridesCategoriesPowerMax = 600;
+
+export const updateGunMechanicsOverridesResponseOverridesCategoriesTechMax = 600;
+
+export const updateGunMechanicsOverridesResponseOverridesCategoriesSmartMax = 600;
+
+export const updateGunMechanicsOverridesResponseOverridesPowersLMax = 600;
+
+export const updateGunMechanicsOverridesResponseOverridesPowersMMax = 600;
+
+export const updateGunMechanicsOverridesResponseOverridesPowersHMax = 600;
+
+export const updateGunMechanicsOverridesResponseOverridesRestrictionsBasicMax = 600;
+
+export const updateGunMechanicsOverridesResponseOverridesRestrictionsControlledMax = 600;
+
+export const updateGunMechanicsOverridesResponseOverridesRestrictionsRestrictedMax = 600;
+
+export const updateGunMechanicsOverridesResponseOverridesCalibersLItemMax = 60;
+
+export const updateGunMechanicsOverridesResponseOverridesCalibersLMax = 40;
+
+export const updateGunMechanicsOverridesResponseOverridesCalibersMItemMax = 60;
+
+export const updateGunMechanicsOverridesResponseOverridesCalibersMMax = 40;
+
+export const updateGunMechanicsOverridesResponseOverridesCalibersHItemMax = 60;
+
+export const updateGunMechanicsOverridesResponseOverridesCalibersHMax = 40;
+
+export const updateGunMechanicsOverridesResponseOverridesMiscRulesItemMax = 1000;
+
+export const updateGunMechanicsOverridesResponseOverridesMiscRulesMax = 40;
+
+
+
+export const UpdateGunMechanicsOverridesResponse = zod.object({
+  "overrides": zod.object({
+  "categories": zod.object({
+  "Power": zod.string().min(1).max(updateGunMechanicsOverridesResponseOverridesCategoriesPowerMax).optional(),
+  "Tech": zod.string().min(1).max(updateGunMechanicsOverridesResponseOverridesCategoriesTechMax).optional(),
+  "Smart": zod.string().min(1).max(updateGunMechanicsOverridesResponseOverridesCategoriesSmartMax).optional()
+}).optional().describe('Blurbs keyed on gun category.'),
+  "powers": zod.object({
+  "L": zod.string().min(1).max(updateGunMechanicsOverridesResponseOverridesPowersLMax).optional(),
+  "M": zod.string().min(1).max(updateGunMechanicsOverridesResponseOverridesPowersMMax).optional(),
+  "H": zod.string().min(1).max(updateGunMechanicsOverridesResponseOverridesPowersHMax).optional()
+}).optional().describe('Blurbs keyed on power tier.'),
+  "restrictions": zod.object({
+  "Basic": zod.string().min(1).max(updateGunMechanicsOverridesResponseOverridesRestrictionsBasicMax).optional(),
+  "Controlled": zod.string().min(1).max(updateGunMechanicsOverridesResponseOverridesRestrictionsControlledMax).optional(),
+  "Restricted": zod.string().min(1).max(updateGunMechanicsOverridesResponseOverridesRestrictionsRestrictedMax).optional()
+}).optional().describe('Blurbs keyed on restriction tier.'),
+  "calibers": zod.object({
+  "L": zod.array(zod.string().min(1).max(updateGunMechanicsOverridesResponseOverridesCalibersLItemMax)).max(updateGunMechanicsOverridesResponseOverridesCalibersLMax).optional(),
+  "M": zod.array(zod.string().min(1).max(updateGunMechanicsOverridesResponseOverridesCalibersMItemMax)).max(updateGunMechanicsOverridesResponseOverridesCalibersMMax).optional(),
+  "H": zod.array(zod.string().min(1).max(updateGunMechanicsOverridesResponseOverridesCalibersHItemMax)).max(updateGunMechanicsOverridesResponseOverridesCalibersHMax).optional()
+}).optional().describe('Caliber example lists keyed on power tier.'),
+  "miscRules": zod.array(zod.string().min(1).max(updateGunMechanicsOverridesResponseOverridesMiscRulesItemMax)).max(updateGunMechanicsOverridesResponseOverridesMiscRulesMax).optional()
+}).describe('Admin overrides for the code-defined Weapons & Guns page. Only customized fields are stored; anything omitted falls back to the code defaults shared with the gun-catalog hover blurbs.')
+})
+
+
+/**
  * @summary List proposed Guidebook edits awaiting decision (fixer/admin).
  */
 export const listGuidebookEditsQueryStatusDefault = `pending`;

@@ -420,11 +420,17 @@ function HeatmapGrid({
           </div>
           <ClockFormatToggle hour12={hour12} onChange={onChangeHour12} />
         </div>
-        <div className="text-[11px] text-muted-foreground min-h-[15px]" data-testid="availability-hover">
-          {hover
-            ? `${formatInstant(hover.iso, hour12)} — ${hover.names.join(", ")}`
-            : "Hover a block to see who's free"}
-        </div>
+      </div>
+      {/* One fixed-height, truncating line: long name lists must never wrap,
+          or the grid shifts under the cursor and the hovered cell oscillates. */}
+      <div
+        className="text-[11px] text-muted-foreground h-[15px] leading-[15px] whitespace-nowrap overflow-hidden text-ellipsis"
+        title={hover ? `${formatInstant(hover.iso, hour12)} — ${hover.names.join(", ")}` : undefined}
+        data-testid="availability-hover"
+      >
+        {hover
+          ? `${formatInstant(hover.iso, hour12)} — ${hover.names.join(", ")}`
+          : "Hover a block to see who's free"}
       </div>
       <div className={GRID_SHELL} data-testid="availability-grid-heatmap">
         <div className="grid" style={{ gridTemplateColumns: `58px repeat(${days.length}, minmax(40px, 1fr))` }}>

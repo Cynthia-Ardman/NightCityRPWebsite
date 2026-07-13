@@ -138,6 +138,7 @@ import type {
   GetActorReportParams,
   GetCharacterMedical200,
   GetCharacterPendingEdit200,
+  GetGunMechanicsOverrides200,
   GetMyBreachPendingCount200,
   GuidebookBrowse,
   GuidebookEditDecision,
@@ -149,6 +150,7 @@ import type {
   GuidebookPageUpdate,
   GuidebookPendingEdit,
   GuidebookSectionMeta,
+  GunMechanicsOverrides,
   HealthStatus,
   HousingLease,
   HousingLeaseInput,
@@ -295,6 +297,7 @@ import type {
   TransferInput,
   UpcomingBills,
   UpdateCharacter409,
+  UpdateGunMechanicsOverrides200,
   UploadUrlRequest,
   UploadUrlResponse,
   UserWallet,
@@ -21626,6 +21629,154 @@ export function useListGuidebookSections<TData = Awaited<ReturnType<typeof listG
 
 
 
+
+export const getGetGunMechanicsOverridesUrl = () => {
+
+
+
+
+  return `/api/guidebook/gun-mechanics`
+}
+
+/**
+ * @summary Admin text overrides for the code-defined Weapons & Guns guidebook page (merged over client defaults).
+ */
+export const getGunMechanicsOverrides = async ( options?: RequestInit): Promise<GetGunMechanicsOverrides200> => {
+
+  return customFetch<GetGunMechanicsOverrides200>(getGetGunMechanicsOverridesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGunMechanicsOverridesQueryKey = () => {
+    return [
+    `/api/guidebook/gun-mechanics`
+    ] as const;
+    }
+
+
+export const getGetGunMechanicsOverridesQueryOptions = <TData = Awaited<ReturnType<typeof getGunMechanicsOverrides>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGunMechanicsOverrides>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGunMechanicsOverridesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGunMechanicsOverrides>>> = ({ signal }) => getGunMechanicsOverrides({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGunMechanicsOverrides>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGunMechanicsOverridesQueryResult = NonNullable<Awaited<ReturnType<typeof getGunMechanicsOverrides>>>
+export type GetGunMechanicsOverridesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Admin text overrides for the code-defined Weapons & Guns guidebook page (merged over client defaults).
+ */
+
+export function useGetGunMechanicsOverrides<TData = Awaited<ReturnType<typeof getGunMechanicsOverrides>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGunMechanicsOverrides>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGunMechanicsOverridesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUpdateGunMechanicsOverridesUrl = () => {
+
+
+
+
+  return `/api/guidebook/gun-mechanics`
+}
+
+/**
+ * @summary Replace the Weapons & Guns text overrides (admin only).
+ */
+export const updateGunMechanicsOverrides = async (gunMechanicsOverrides: GunMechanicsOverrides, options?: RequestInit): Promise<UpdateGunMechanicsOverrides200> => {
+
+  return customFetch<UpdateGunMechanicsOverrides200>(getUpdateGunMechanicsOverridesUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      gunMechanicsOverrides,)
+  }
+);}
+
+
+
+
+export const getUpdateGunMechanicsOverridesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGunMechanicsOverrides>>, TError,{data: BodyType<GunMechanicsOverrides>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateGunMechanicsOverrides>>, TError,{data: BodyType<GunMechanicsOverrides>}, TContext> => {
+
+const mutationKey = ['updateGunMechanicsOverrides'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateGunMechanicsOverrides>>, {data: BodyType<GunMechanicsOverrides>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateGunMechanicsOverrides(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateGunMechanicsOverridesMutationResult = NonNullable<Awaited<ReturnType<typeof updateGunMechanicsOverrides>>>
+    export type UpdateGunMechanicsOverridesMutationBody = BodyType<GunMechanicsOverrides>
+    export type UpdateGunMechanicsOverridesMutationError = ErrorType<void>
+
+    /**
+ * @summary Replace the Weapons & Guns text overrides (admin only).
+ */
+export const useUpdateGunMechanicsOverrides = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateGunMechanicsOverrides>>, TError,{data: BodyType<GunMechanicsOverrides>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateGunMechanicsOverrides>>,
+        TError,
+        {data: BodyType<GunMechanicsOverrides>},
+        TContext
+      > => {
+      return useMutation(getUpdateGunMechanicsOverridesMutationOptions(options));
+    }
 
 export const getListGuidebookEditsUrl = (params?: ListGuidebookEditsParams,) => {
   const normalizedParams = new URLSearchParams();

@@ -4836,6 +4836,42 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/GuidebookSectionMeta" }
+  /guidebook/gun-mechanics:
+    get:
+      operationId: getGunMechanicsOverrides
+      tags: [guidebook]
+      summary: Admin text overrides for the code-defined Weapons & Guns guidebook page (merged over client defaults).
+      responses:
+        "200":
+          description: Current overrides (empty object when nothing has been customized)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [overrides]
+                properties:
+                  overrides: { $ref: "#/components/schemas/GunMechanicsOverrides" }
+    put:
+      operationId: updateGunMechanicsOverrides
+      tags: [guidebook]
+      summary: Replace the Weapons & Guns text overrides (admin only).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GunMechanicsOverrides" }
+      responses:
+        "200":
+          description: Saved overrides
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [overrides]
+                properties:
+                  overrides: { $ref: "#/components/schemas/GunMechanicsOverrides" }
+        "400": { description: Invalid payload }
+        "403": { description: Admin only }
   /guidebook/edits:
     get:
       operationId: listGuidebookEdits
@@ -6479,6 +6515,57 @@ components:
         key: { type: string }
         label: { type: string }
         description: { type: string }
+
+    GunMechanicsOverrides:
+      type: object
+      additionalProperties: false
+      description: "Admin overrides for the code-defined Weapons & Guns page. Only customized fields are stored; anything omitted falls back to the code defaults shared with the gun-catalog hover blurbs."
+      properties:
+        categories:
+          type: object
+          additionalProperties: false
+          description: "Blurbs keyed on gun category."
+          properties:
+            Power: { type: string, minLength: 1, maxLength: 600 }
+            Tech: { type: string, minLength: 1, maxLength: 600 }
+            Smart: { type: string, minLength: 1, maxLength: 600 }
+        powers:
+          type: object
+          additionalProperties: false
+          description: "Blurbs keyed on power tier."
+          properties:
+            L: { type: string, minLength: 1, maxLength: 600 }
+            M: { type: string, minLength: 1, maxLength: 600 }
+            H: { type: string, minLength: 1, maxLength: 600 }
+        restrictions:
+          type: object
+          additionalProperties: false
+          description: "Blurbs keyed on restriction tier."
+          properties:
+            Basic: { type: string, minLength: 1, maxLength: 600 }
+            Controlled: { type: string, minLength: 1, maxLength: 600 }
+            Restricted: { type: string, minLength: 1, maxLength: 600 }
+        calibers:
+          type: object
+          additionalProperties: false
+          description: "Caliber example lists keyed on power tier."
+          properties:
+            L:
+              type: array
+              maxItems: 40
+              items: { type: string, minLength: 1, maxLength: 60 }
+            M:
+              type: array
+              maxItems: 40
+              items: { type: string, minLength: 1, maxLength: 60 }
+            H:
+              type: array
+              maxItems: 40
+              items: { type: string, minLength: 1, maxLength: 60 }
+        miscRules:
+          type: array
+          maxItems: 40
+          items: { type: string, minLength: 1, maxLength: 1000 }
 
     GuidebookSource:
       type: object

@@ -934,6 +934,97 @@ export interface GuidebookSectionMeta {
   description: string;
 }
 
+/**
+ * Blurbs keyed on gun category.
+ */
+export type GunMechanicsOverridesCategories = {
+  /**
+     * @minLength 1
+     * @maxLength 600
+     */
+  Power?: string;
+  /**
+     * @minLength 1
+     * @maxLength 600
+     */
+  Tech?: string;
+  /**
+     * @minLength 1
+     * @maxLength 600
+     */
+  Smart?: string;
+};
+
+/**
+ * Blurbs keyed on power tier.
+ */
+export type GunMechanicsOverridesPowers = {
+  /**
+     * @minLength 1
+     * @maxLength 600
+     */
+  L?: string;
+  /**
+     * @minLength 1
+     * @maxLength 600
+     */
+  M?: string;
+  /**
+     * @minLength 1
+     * @maxLength 600
+     */
+  H?: string;
+};
+
+/**
+ * Blurbs keyed on restriction tier.
+ */
+export type GunMechanicsOverridesRestrictions = {
+  /**
+     * @minLength 1
+     * @maxLength 600
+     */
+  Basic?: string;
+  /**
+     * @minLength 1
+     * @maxLength 600
+     */
+  Controlled?: string;
+  /**
+     * @minLength 1
+     * @maxLength 600
+     */
+  Restricted?: string;
+};
+
+/**
+ * Caliber example lists keyed on power tier.
+ */
+export type GunMechanicsOverridesCalibers = {
+  /** @maxItems 40 */
+  L?: string[];
+  /** @maxItems 40 */
+  M?: string[];
+  /** @maxItems 40 */
+  H?: string[];
+};
+
+/**
+ * Admin overrides for the code-defined Weapons & Guns page. Only customized fields are stored; anything omitted falls back to the code defaults shared with the gun-catalog hover blurbs.
+ */
+export interface GunMechanicsOverrides {
+  /** Blurbs keyed on gun category. */
+  categories?: GunMechanicsOverridesCategories;
+  /** Blurbs keyed on power tier. */
+  powers?: GunMechanicsOverridesPowers;
+  /** Blurbs keyed on restriction tier. */
+  restrictions?: GunMechanicsOverridesRestrictions;
+  /** Caliber example lists keyed on power tier. */
+  calibers?: GunMechanicsOverridesCalibers;
+  /** @maxItems 40 */
+  miscRules?: string[];
+}
+
 export interface GuidebookSource {
   label: string;
   url: string;
@@ -7410,6 +7501,14 @@ export const ListLoreImportDraftsStatus = {
 
 export type ListGuidebookParams = {
 q?: string;
+};
+
+export type GetGunMechanicsOverrides200 = {
+  overrides: GunMechanicsOverrides;
+};
+
+export type UpdateGunMechanicsOverrides200 = {
+  overrides: GunMechanicsOverrides;
 };
 
 export type ListGuidebookEditsParams = {
