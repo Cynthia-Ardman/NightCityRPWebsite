@@ -1794,6 +1794,11 @@ export const loreEntries = pgTable("lore_entries", {
   // Shown on the list card + detail page. Submitted via the same presigned-URL
   // upload flow as character portraits / gun images.
   imageUrl: text("image_url"),
+  // Optional Night City district/location tag (e.g. "watson", "pacifica").
+  // Matches a clickable region on the interactive district map; the map links
+  // each district to the lore entry tagged with it. Free of a DB enum on
+  // purpose — the canonical value list lives in the API layer.
+  district: text("district"),
   // Public markdown body — visible to everyone.
   publicBody: text("public_body").notNull().default(""),
   // Fixer-only markdown body — only ADMIN/FIXER may read.
@@ -1866,6 +1871,8 @@ export const loreImportDrafts = pgTable("lore_import_drafts", {
   aliases: text("aliases").array().notNull().default([]),
   summary: text("summary"),
   imageUrl: text("image_url"),
+  // Mirror of lore_entries.district for the import pipeline.
+  district: text("district"),
   publicBody: text("public_body").notNull().default(""),
   fixerBody: text("fixer_body"),
   // Raw source references: [{ type: "discord"|"gdoc", url, title }].

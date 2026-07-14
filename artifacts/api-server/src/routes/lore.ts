@@ -48,12 +48,29 @@ const CATEGORIES = ["corporation", "gang", "faction", "misc"] as const;
 const categoryEnum = z.enum(CATEGORIES);
 const sourceSchema = z.object({ label: z.string().min(1), url: z.string().min(1) });
 
+// Canonical Night City district tags — one per clickable region on the
+// interactive district map (portal NightCityMap page). Keep in sync with the
+// OpenAPI LoreDistrict enum and the portal's DISTRICTS list.
+const DISTRICTS = [
+  "watson",
+  "westbrook",
+  "city_center",
+  "heywood",
+  "santo_domingo",
+  "pacifica",
+  "north_badlands",
+  "eastern_badlands",
+  "southern_badlands",
+] as const;
+const districtEnum = z.enum(DISTRICTS);
+
 const entryInputSchema = z.object({
   category: categoryEnum,
   name: z.string().trim().min(1),
   summary: z.string().nullish(),
   responsibleFixer: z.string().nullish(),
   imageUrl: z.string().nullish(),
+  district: districtEnum.nullish(),
   aliases: z.array(z.string().trim().min(1)).optional(),
   publicBody: z.string().optional(),
   fixerBody: z.string().nullish(),
@@ -109,6 +126,7 @@ function shapeEntry(row: LoreEntry, canViewFixer: boolean): Record<string, unkno
     summary: row.summary ?? null,
     responsibleFixer: row.responsibleFixer ?? null,
     imageUrl: row.imageUrl ?? null,
+    district: row.district ?? null,
     publicBody: row.publicBody ?? "",
     fixerBody: canViewFixer ? (row.fixerBody ?? null) : null,
     sources: canViewFixer ? sources : [],
@@ -131,6 +149,7 @@ function shapeSummary(row: LoreEntry): Record<string, unknown> {
     summary: row.summary ?? null,
     responsibleFixer: row.responsibleFixer ?? null,
     imageUrl: row.imageUrl ?? null,
+    district: row.district ?? null,
     hasFixerContent: !!(row.fixerBody && row.fixerBody.trim()) || sourcesOf(row.sources).length > 0,
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -565,6 +584,7 @@ async function applyProposal(
         summary: diff.summary ?? null,
         responsibleFixer: diff.responsibleFixer ?? null,
         imageUrl: diff.imageUrl ?? null,
+        district: diff.district ?? null,
         publicBody: diff.publicBody ?? "",
         fixerBody: diff.fixerBody ?? null,
         sources: (diff.sources ?? []) as never,
@@ -580,6 +600,7 @@ async function applyProposal(
   if (diff.summary !== undefined) set.summary = diff.summary ?? null;
   if (diff.responsibleFixer !== undefined) set.responsibleFixer = diff.responsibleFixer ?? null;
   if (diff.imageUrl !== undefined) set.imageUrl = diff.imageUrl ?? null;
+  if (diff.district !== undefined) set.district = diff.district ?? null;
   if (diff.aliases !== undefined) set.aliases = diff.aliases;
   if (diff.publicBody !== undefined) set.publicBody = diff.publicBody;
   if (diff.fixerBody !== undefined) set.fixerBody = diff.fixerBody ?? null;
@@ -885,6 +906,7 @@ function shapeDraft(row: typeof loreImportDrafts.$inferSelect, mergeName: string
     aliases: row.aliases ?? [],
     summary: row.summary ?? null,
     imageUrl: row.imageUrl ?? null,
+    district: row.district ?? null,
     publicBody: row.publicBody ?? "",
     fixerBody: row.fixerBody ?? null,
     sources: sourcesOf(row.sources),
@@ -921,6 +943,7 @@ const draftUpdateSchema = z.object({
   aliases: z.array(z.string().trim().min(1)).optional(),
   summary: z.string().nullish(),
   imageUrl: z.string().nullish(),
+  district: districtEnum.nullish(),
   publicBody: z.string().optional(),
   fixerBody: z.string().nullish(),
   sources: z.array(sourceSchema).optional(),
@@ -946,6 +969,7 @@ router.patch("/directory/lore/import/drafts/:id", requireAuth, async (req, res):
   if (d.aliases !== undefined) set.aliases = d.aliases;
   if (d.summary !== undefined) set.summary = d.summary ?? null;
   if (d.imageUrl !== undefined) set.imageUrl = d.imageUrl ?? null;
+  if (d.district !== undefined) set.district = d.district ?? null;
   if (d.publicBody !== undefined) set.publicBody = d.publicBody;
   if (d.fixerBody !== undefined) set.fixerBody = d.fixerBody ?? null;
   if (d.sources !== undefined) set.sources = d.sources;
@@ -1026,6 +1050,7 @@ router.post("/directory/lore/import/drafts/:id/approve", requireAuth, async (req
             responsibleFixer: draft.proposedFixer ?? existing.responsibleFixer,
             summary: draft.summary ?? existing.summary,
             imageUrl: draft.imageUrl ?? existing.imageUrl,
+            district: draft.district ?? existing.district,
             publicBody: draft.publicBody,
             fixerBody: draft.fixerBody ?? existing.fixerBody,
             aliases: mergedAliases,
@@ -1085,6 +1110,7 @@ async function createFromDraft(
       aliases: draft.aliases ?? [],
       summary: draft.summary ?? null,
       imageUrl: draft.imageUrl ?? null,
+      district: draft.district ?? null,
       responsibleFixer: draft.proposedFixer ?? null,
       publicBody: draft.publicBody ?? "",
       fixerBody: draft.fixerBody ?? null,
@@ -1172,6 +1198,7 @@ router.post("/directory/lore", requireAuth, async (req, res): Promise<void> => {
       summary: d.summary ?? null,
       responsibleFixer: d.responsibleFixer ?? null,
       imageUrl: d.imageUrl ?? null,
+      district: d.district ?? null,
       publicBody: d.publicBody ?? "",
       fixerBody: d.fixerBody ?? null,
       sources: (d.sources ?? []) as never,
@@ -1215,6 +1242,7 @@ router.patch("/directory/lore/:id", requireAuth, async (req, res): Promise<void>
   if (d.summary !== undefined) set.summary = d.summary ?? null;
   if (d.responsibleFixer !== undefined) set.responsibleFixer = d.responsibleFixer ?? null;
   if (d.imageUrl !== undefined) set.imageUrl = d.imageUrl ?? null;
+  if (d.district !== undefined) set.district = d.district ?? null;
   if (d.aliases !== undefined) set.aliases = d.aliases;
   if (d.publicBody !== undefined) set.publicBody = d.publicBody;
   if (d.fixerBody !== undefined) set.fixerBody = d.fixerBody ?? null;

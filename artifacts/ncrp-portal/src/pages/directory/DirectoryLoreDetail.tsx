@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Pencil, Lock, ExternalLink, Trash2, ArrowLeft } from "lucide-react";
 import Markdown from "@/components/Markdown";
+import { districtLabel } from "@/lib/districts";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -65,7 +66,16 @@ export default function DirectoryLoreDetail() {
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <Badge variant="outline" className={`rounded-none uppercase ${CATEGORY_BADGE[data.category]}`}>{data.category}</Badge>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant="outline" className={`rounded-none uppercase ${CATEGORY_BADGE[data.category]}`}>{data.category}</Badge>
+            {data.district && (
+              <Link href="/directory/map">
+                <Badge variant="outline" className="rounded-none uppercase border-nc-green text-nc-green cursor-pointer" data-testid="badge-lore-district">
+                  {districtLabel(data.district)}
+                </Badge>
+              </Link>
+            )}
+          </div>
           <h1 className="text-4xl font-display mt-2" data-testid="text-lore-name">{data.name}</h1>
           {data.aliases.length > 0 && (
             <p className="font-mono text-xs text-muted-foreground mt-1">a.k.a. {data.aliases.join(", ")}</p>

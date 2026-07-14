@@ -5,7 +5,7 @@ import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffer
 import { useEffectiveMe, useViewAs } from "@/contexts/ViewAsContext";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { ONBOARDING_BANNER_LINKS, guidebookSectionHref } from "@/lib/guidebookLinks";
-import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, Inbox as InboxIcon, BookOpen, BookMarked, Cpu, CalendarDays, Settings, X, Stethoscope, HeartPulse, Wrench, Building2, Warehouse, Archive, Network, Radio, Scale, Siren } from "lucide-react";
+import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, Inbox as InboxIcon, BookOpen, BookMarked, Cpu, CalendarDays, Settings, X, Stethoscope, HeartPulse, Wrench, Building2, Warehouse, Archive, Network, Radio, Scale, Siren, Map } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -300,7 +300,10 @@ function SidebarContent() {
         <NavItem href="/laws" icon={Scale} label="Book of Laws" tone="green" />
         {/* Temporary lockdown: lore section is fixer/admin-only until cleanup. */}
         {user && (user.isFixer || user.isAdmin) && (
-          <NavItem href="/directory/lore" icon={BookOpen} label="Lore" tone="green" />
+          <>
+            <NavItem href="/directory/lore" icon={BookOpen} label="Lore" tone="green" />
+            <NavItem href="/directory/map" icon={Map} label="City Map" tone="green" />
+          </>
         )}
 
         <div className={`px-4 text-xs font-mono ${NAV_TONES.yellow.heading} mb-2 mt-6 uppercase tracking-widest`}>Marketplace</div>

@@ -554,6 +554,21 @@ export interface LoreSource {
   url: string;
 }
 
+export type LoreDistrict = typeof LoreDistrict[keyof typeof LoreDistrict];
+
+
+export const LoreDistrict = {
+  watson: 'watson',
+  westbrook: 'westbrook',
+  city_center: 'city_center',
+  heywood: 'heywood',
+  santo_domingo: 'santo_domingo',
+  pacifica: 'pacifica',
+  north_badlands: 'north_badlands',
+  eastern_badlands: 'eastern_badlands',
+  southern_badlands: 'southern_badlands',
+} as const;
+
 export type LoreEntrySummaryCategory = typeof LoreEntrySummaryCategory[keyof typeof LoreEntrySummaryCategory];
 
 
@@ -576,6 +591,7 @@ export interface LoreEntrySummary {
   responsibleFixer?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  district?: LoreDistrict | null;
   hasFixerContent: boolean;
   updatedAt: string;
 }
@@ -602,6 +618,7 @@ export interface LoreEntry {
   responsibleFixer?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  district?: LoreDistrict | null;
   publicBody: string;
   /** @nullable */
   fixerBody?: string | null;
@@ -635,6 +652,7 @@ export interface LoreEntryInput {
   responsibleFixer?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  district?: LoreDistrict | null;
   aliases?: string[];
   publicBody?: string;
   /** @nullable */
@@ -661,6 +679,7 @@ export interface LoreEntryUpdate {
   responsibleFixer?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  district?: LoreDistrict | null;
   aliases?: string[];
   publicBody?: string;
   /** @nullable */
@@ -879,6 +898,7 @@ export interface LoreImportDraft {
   summary?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  district?: LoreDistrict | null;
   publicBody: string;
   /** @nullable */
   fixerBody?: string | null;
@@ -913,6 +933,7 @@ export interface LoreImportDraftUpdate {
   summary?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  district?: LoreDistrict | null;
   publicBody?: string;
   /** @nullable */
   fixerBody?: string | null;

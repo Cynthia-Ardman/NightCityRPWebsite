@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { LoreDistrict } from './loreDistrict';
 import type { LoreEntryUpdateCategory } from './loreEntryUpdateCategory';
 import type { LoreSource } from './loreSource';
 
@@ -17,6 +18,7 @@ export interface LoreEntryUpdate {
   responsibleFixer?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  district?: LoreDistrict | null;
   aliases?: string[];
   publicBody?: string;
   /** @nullable */

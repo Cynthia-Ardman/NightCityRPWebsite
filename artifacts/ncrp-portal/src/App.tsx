@@ -38,6 +38,7 @@ import DirectoryLoreDetail from "@/pages/directory/DirectoryLoreDetail";
 import MyLoreSubmissions from "@/pages/directory/MyLoreSubmissions";
 import LoreEditor from "@/pages/directory/LoreEditor";
 import LoreImportReview from "@/pages/directory/LoreImportReview";
+import NightCityMap from "@/pages/directory/NightCityMap";
 import DirectoryGuidebook from "@/pages/guidebook/DirectoryGuidebook";
 import GuidebookPageDetail from "@/pages/guidebook/GuidebookPageDetail";
 import MyGuidebookSubmissions from "@/pages/guidebook/MyGuidebookSubmissions";
@@ -251,6 +252,9 @@ function AppRoutes() {
           </Route>
           {/* Temporary lockdown: the entire lore section is fixer/admin-only
               while it's being cleaned up before going public. */}
+          <Route path="/directory/map">
+            <StaffArchiveGuard><NightCityMap /></StaffArchiveGuard>
+          </Route>
           <Route path="/directory/lore">
             <StaffArchiveGuard><DirectoryLore /></StaffArchiveGuard>
           </Route>

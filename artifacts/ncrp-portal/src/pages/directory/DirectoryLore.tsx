@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BookOpen, Plus, Lock, Download } from "lucide-react";
+import { districtLabel } from "@/lib/districts";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 
 type LoreSort = "recent" | "alpha";
@@ -138,6 +139,11 @@ export default function DirectoryLore() {
                   {e.responsibleFixer && (
                     <CardDescription className="font-mono text-xs text-nc-cyan" data-testid={`text-lore-lead-${e.id}`}>
                       STORY LEAD: {e.responsibleFixer}
+                    </CardDescription>
+                  )}
+                  {e.district && (
+                    <CardDescription className="font-mono text-xs text-nc-green" data-testid={`text-lore-district-${e.id}`}>
+                      DISTRICT: {districtLabel(e.district)}
                     </CardDescription>
                   )}
                 </CardHeader>

@@ -11,8 +11,10 @@ import {
   getListLoreEditsQueryKey,
   type LoreSource,
   type LoreEntryUpdate,
+  type LoreDistrict,
   LoreEntryInputCategory,
 } from "@workspace/api-client-react";
+import { DISTRICTS } from "@/lib/districts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,6 +72,7 @@ export default function LoreEditor() {
   const [responsibleFixer, setResponsibleFixer] = useState("");
   const [summary, setSummary] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [district, setDistrict] = useState<string>("none");
   const [publicBody, setPublicBody] = useState("");
   const [fixerBody, setFixerBody] = useState("");
   const [sourcesText, setSourcesText] = useState("");
@@ -82,6 +85,7 @@ export default function LoreEditor() {
     setResponsibleFixer(existing.responsibleFixer ?? "");
     setSummary(existing.summary ?? "");
     setImageUrl(existing.imageUrl ?? "");
+    setDistrict(existing.district ?? "none");
     setPublicBody(existing.publicBody ?? "");
     setFixerBody(existing.fixerBody ?? "");
     setSourcesText(sourcesToText(existing.sources ?? []));
@@ -134,6 +138,7 @@ export default function LoreEditor() {
     responsibleFixer: responsibleFixer.trim() || null,
     summary: summary.trim() || null,
     imageUrl: imageUrl.trim() || null,
+    district: district === "none" ? null : (district as LoreDistrict),
     publicBody,
     fixerBody: fixerBody.trim() || null,
     sources: textToSources(sourcesText),
@@ -203,6 +208,17 @@ export default function LoreEditor() {
           </Field>
           <Field label="Summary (one line)">
             <Input value={summary} onChange={(e) => setSummary(e.target.value)} className="rounded-none font-mono" data-testid="input-lore-summary" />
+          </Field>
+          <Field label="District (optional — links this entry to the Night City map)">
+            <Select value={district} onValueChange={setDistrict}>
+              <SelectTrigger className="rounded-none font-mono" data-testid="select-lore-district"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {DISTRICTS.map((d) => (
+                  <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
           <Field label="Image (optional)">
             <SingleImageUpload value={imageUrl} onChange={setImageUrl} testIdPrefix="lore-image" alt={name || "lore image"} />

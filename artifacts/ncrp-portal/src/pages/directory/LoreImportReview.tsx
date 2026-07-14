@@ -13,8 +13,10 @@ import {
   type LoreImportDraft,
   type LoreImportDraftUpdate,
   type LoreEntrySummary,
+  type LoreDistrict,
   LoreImportDraftUpdateProposedCategory,
 } from "@workspace/api-client-react";
+import { DISTRICTS } from "@/lib/districts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,6 +114,7 @@ function DraftCard({ draft, entries, onChanged }: { draft: LoreImportDraft; entr
   const [fixer, setFixer] = useState(draft.proposedFixer ?? "");
   const [summary, setSummary] = useState(draft.summary ?? "");
   const [imageUrl, setImageUrl] = useState(draft.imageUrl ?? "");
+  const [district, setDistrict] = useState<string>(draft.district ?? "none");
   const [publicBody, setPublicBody] = useState(draft.publicBody);
   const [fixerBody, setFixerBody] = useState(draft.fixerBody ?? "");
   const [mergeId, setMergeId] = useState<number | null>(draft.suggestedMergeEntryId ?? null);
@@ -141,6 +144,7 @@ function DraftCard({ draft, entries, onChanged }: { draft: LoreImportDraft; entr
     proposedFixer: fixer.trim() || null,
     summary: summary.trim() || null,
     imageUrl: imageUrl.trim() || null,
+    district: district === "none" ? null : (district as LoreDistrict),
     publicBody,
     fixerBody: fixerBody.trim() || null,
     suggestedMergeEntryId: mergeId,
@@ -180,6 +184,17 @@ function DraftCard({ draft, entries, onChanged }: { draft: LoreImportDraft; entr
           <F label="Story Lead"><Input value={fixer} onChange={(e) => setFixer(e.target.value)} className="rounded-none font-mono" data-testid={`input-draft-fixer-${draft.id}`} /></F>
         </div>
         <F label="Summary"><Input value={summary} onChange={(e) => setSummary(e.target.value)} className="rounded-none font-mono" data-testid={`input-draft-summary-${draft.id}`} /></F>
+        <F label="District (optional)">
+          <Select value={district} onValueChange={setDistrict}>
+            <SelectTrigger className="rounded-none font-mono" data-testid={`select-draft-district-${draft.id}`}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">None</SelectItem>
+              {DISTRICTS.map((d) => (
+                <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </F>
         <F label="Image (optional)"><SingleImageUpload value={imageUrl} onChange={setImageUrl} testIdPrefix={`draft-image-${draft.id}`} alt={name || "lore image"} /></F>
         <F label="Public Body"><Textarea value={publicBody} onChange={(e) => setPublicBody(e.target.value)} rows={6} className="rounded-none font-mono text-xs" data-testid={`input-draft-public-${draft.id}`} /></F>
         <F label="Fixer-Only Body"><Textarea value={fixerBody} onChange={(e) => setFixerBody(e.target.value)} rows={4} className="rounded-none font-mono text-xs" data-testid={`input-draft-fixer-body-${draft.id}`} /></F>

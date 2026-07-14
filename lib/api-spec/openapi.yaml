@@ -6455,6 +6455,23 @@ components:
         label: { type: string }
         url: { type: string }
 
+    # Canonical Night City district tags — one per clickable region on the
+    # interactive district map. Keep in sync with DISTRICTS in lore.ts.
+    LoreDistrict:
+      type: string
+      enum:
+        [
+          watson,
+          westbrook,
+          city_center,
+          heywood,
+          santo_domingo,
+          pacifica,
+          north_badlands,
+          eastern_badlands,
+          southern_badlands,
+        ]
+
     LoreEntrySummary:
       type: object
       required: [id, category, name, slug, aliases, hasFixerContent, updatedAt]
@@ -6469,6 +6486,8 @@ components:
         summary: { type: ["string", "null"] }
         responsibleFixer: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
+        district:
+          oneOf: [{ $ref: "#/components/schemas/LoreDistrict" }, { type: "null" }]
         hasFixerContent: { type: boolean }
         updatedAt: { type: string, format: date-time }
 
@@ -6486,6 +6505,8 @@ components:
         summary: { type: ["string", "null"] }
         responsibleFixer: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
+        district:
+          oneOf: [{ $ref: "#/components/schemas/LoreDistrict" }, { type: "null" }]
         publicBody: { type: string }
         # Only present (non-null) when the caller is ADMIN/FIXER.
         fixerBody: { type: ["string", "null"] }
@@ -6510,6 +6531,8 @@ components:
         summary: { type: ["string", "null"] }
         responsibleFixer: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
+        district:
+          oneOf: [{ $ref: "#/components/schemas/LoreDistrict" }, { type: "null" }]
         aliases:
           type: array
           items: { type: string }
@@ -6527,6 +6550,8 @@ components:
         summary: { type: ["string", "null"] }
         responsibleFixer: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
+        district:
+          oneOf: [{ $ref: "#/components/schemas/LoreDistrict" }, { type: "null" }]
         aliases:
           type: array
           items: { type: string }
@@ -6624,6 +6649,8 @@ components:
           items: { type: string }
         summary: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
+        district:
+          oneOf: [{ $ref: "#/components/schemas/LoreDistrict" }, { type: "null" }]
         publicBody: { type: string }
         fixerBody: { type: ["string", "null"] }
         sources:
@@ -6646,6 +6673,8 @@ components:
           items: { type: string }
         summary: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
+        district:
+          oneOf: [{ $ref: "#/components/schemas/LoreDistrict" }, { type: "null" }]
         publicBody: { type: string }
         fixerBody: { type: ["string", "null"] }
         sources:

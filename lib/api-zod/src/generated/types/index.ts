@@ -346,6 +346,7 @@ export * from './listPublicCharactersScope';
 export * from './liveModeState';
 export * from './liveModeSystems';
 export * from './liveModeUpdate';
+export * from './loreDistrict';
 export * from './loreEditProposalInput';
 export * from './loreEditProposalInputKind';
 export * from './loreEntry';
