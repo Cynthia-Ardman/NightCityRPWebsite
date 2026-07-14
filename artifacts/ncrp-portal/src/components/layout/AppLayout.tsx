@@ -5,7 +5,7 @@ import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffer
 import { useEffectiveMe, useViewAs } from "@/contexts/ViewAsContext";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { ONBOARDING_BANNER_LINKS, guidebookSectionHref } from "@/lib/guidebookLinks";
-import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, Inbox as InboxIcon, BookOpen, BookMarked, Cpu, CalendarDays, Settings, X, Stethoscope, HeartPulse, Wrench, Building2, Warehouse, Archive, Network, Radio, Scale, Siren, Ticket } from "lucide-react";
+import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, Inbox as InboxIcon, BookOpen, BookMarked, Cpu, CalendarDays, Settings, X, Stethoscope, HeartPulse, Wrench, Building2, Warehouse, Archive, Network, Radio, Scale, Siren } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -286,10 +286,9 @@ function SidebarContent() {
         <div className={`px-4 text-xs font-mono ${NAV_TONES.cyan.heading} mb-2 mt-4 uppercase tracking-widest`}>Personal</div>
         <NavItem href="/" icon={User} label="Dashboard" tone="cyan" />
         <NavItem href="/characters" icon={Users} label="Characters" tone="cyan" />
-        <NavItem href="/ledger" icon={Receipt} label="Ledger" tone="cyan" />
         <NavItem href="/inbox" icon={InboxIcon} label="Inbox" badge={inboxCount} tone="cyan" />
         <NavItem href="/submissions" icon={ClipboardList} label="My Submissions" badge={mySubmissionsUnseen} tone="cyan" />
-        <NavItem href="/tickets/mine" icon={Ticket} label="My Tickets" tone="cyan" />
+        <NavItem href="/ledger" icon={Receipt} label="Ledger" tone="cyan" />
         <NavItem href="/breach/mine" icon={Cpu} label="My Breaches" alert={hasIncomingBreach} tone="cyan" />
         <NavItem href="/dice" icon={Dice5} label="Dice Roller" tone="cyan" />
 

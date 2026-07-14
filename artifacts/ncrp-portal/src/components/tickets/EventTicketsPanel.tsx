@@ -10,7 +10,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Ticket } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 function errOf(e: unknown): string | null {
@@ -47,7 +46,9 @@ function statusBadge(t: EventTicketView) {
   );
 }
 
-export default function MyTickets() {
+// Event-ticket list + refund actions. Used to be its own "My Tickets" page;
+// now rendered as the EVENT TICKETS tab of the Inbox (/inbox?tab=tickets).
+export default function EventTicketsPanel() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: tickets, isLoading } = useListMyTickets({
@@ -110,11 +111,7 @@ export default function MyTickets() {
   );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-12">
-      <h1 className="text-4xl font-display flex items-center gap-3" data-testid="text-my-tickets-title">
-        <Ticket className="w-7 h-7 text-nc-cyan" /> MY TICKETS
-      </h1>
-
+    <div className="space-y-6">
       {isLoading ? (
         <div className="font-mono text-nc-cyan animate-pulse">Loading tickets...</div>
       ) : rows.length === 0 ? (

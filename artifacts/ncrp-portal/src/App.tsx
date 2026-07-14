@@ -21,7 +21,6 @@ import PendingEditDetail from "@/pages/pending-edits/PendingEditDetail";
 import PendingRequests from "@/pages/requests/PendingRequests";
 import MySubmissions from "@/pages/MySubmissions";
 import Inbox from "@/pages/Inbox";
-import MyTickets from "@/pages/MyTickets";
 import BreachHub from "@/pages/breach/BreachHub";
 import BreachPlay from "@/pages/breach/BreachPlay";
 import BreachPractice from "@/pages/breach/BreachPractice";
@@ -231,7 +230,8 @@ function AppRoutes() {
           {/* Old bookmarks / DM deep links redirect to the renamed pages. */}
           <Route path="/requests/mine"><Redirect to="/submissions" /></Route>
           <Route path="/offers/mine"><Redirect to="/inbox" /></Route>
-          <Route path="/tickets/mine" component={MyTickets} />
+          {/* Retired page: event tickets are now the EVENT TICKETS tab of the Inbox. */}
+          <Route path="/tickets/mine"><Redirect to="/inbox?tab=tickets" /></Route>
           <Route path="/breach/mine" component={MyBreaches} />
           <Route path="/breach/practice" component={BreachPractice} />
           <Route path="/breach/play/:id" component={BreachPlay} />

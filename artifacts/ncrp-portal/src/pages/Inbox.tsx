@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListMyOffers,
@@ -23,6 +24,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Inbox as InboxIcon, Check, X, Banknote, Briefcase } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import EventTicketsPanel from "@/components/tickets/EventTicketsPanel";
 import { OfferTypeBadge, OfferStatusBadge, offerNeedsMyDecision } from "@/components/offers/offerBadges";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
 
@@ -43,6 +46,9 @@ function fineApiError(err: unknown): string | null {
 
 export default function Inbox() {
   const { data: me } = useAuthMe();
+  const [, setLocation] = useLocation();
+  const search = useSearch();
+  const tab = new URLSearchParams(search).get("tab") === "tickets" ? "tickets" : "inbox";
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: offers, isLoading } = useListMyOffers();
@@ -146,9 +152,28 @@ export default function Inbox() {
           <InboxIcon className="w-8 h-8 text-nc-cyan" /> INBOX
         </h1>
         <p className="text-muted-foreground font-mono mt-2">
-          Everything waiting on a decision from you: sale offers to your characters and venues, NCPD fines, employment invitations, and mission assignments. Items you submitted for staff review live on My Submissions.
+          Everything waiting on a decision from you: sale offers to your characters and venues, NCPD fines, employment invitations, and mission assignments — plus your event tickets. Items you submitted for staff review live on My Submissions.
         </p>
       </div>
+
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setLocation(v === "tickets" ? "/inbox?tab=tickets" : "/inbox", { replace: true })}
+      >
+        <TabsList className="rounded-none bg-card border border-border">
+          <TabsTrigger value="inbox" className="rounded-none font-display tracking-widest" data-testid="tab-inbox-main">
+            OFFERS & DECISIONS
+          </TabsTrigger>
+          <TabsTrigger value="tickets" className="rounded-none font-display tracking-widest" data-testid="tab-inbox-tickets">
+            EVENT TICKETS
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="tickets" className="mt-6">
+          <EventTicketsPanel />
+        </TabsContent>
+
+        <TabsContent value="inbox" className="mt-6 space-y-8">
 
       <h2 className="font-display text-sm tracking-widest text-nc-yellow" data-testid="text-inbox-waiting">
         WAITING ON YOU
@@ -488,6 +513,8 @@ export default function Inbox() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
