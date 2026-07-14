@@ -15,6 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Pencil, Lock, ExternalLink, Trash2, ArrowLeft } from "lucide-react";
+import Markdown from "@/components/Markdown";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -95,7 +96,9 @@ export default function DirectoryLoreDetail() {
       </div>
 
       {data.summary && (
-        <p className="font-mono text-sm text-foreground/90 border-l-2 border-nc-cyan pl-4" data-testid="text-lore-summary">{data.summary}</p>
+        <div className="border-l-2 border-nc-cyan pl-4" data-testid="text-lore-summary">
+          <Markdown className="font-mono text-sm text-foreground/90">{data.summary}</Markdown>
+        </div>
       )}
 
       {data.imageUrl && (
@@ -112,8 +115,12 @@ export default function DirectoryLoreDetail() {
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">OVERVIEW</CardTitle></CardHeader>
-        <CardContent className="font-mono text-sm whitespace-pre-wrap leading-relaxed" data-testid="text-lore-public-body">
-          {data.publicBody?.trim() ? data.publicBody : <span className="text-muted-foreground italic">No public information recorded.</span>}
+        <CardContent className="font-mono text-sm leading-relaxed" data-testid="text-lore-public-body">
+          {data.publicBody?.trim() ? (
+            <Markdown className="font-mono text-sm leading-relaxed">{data.publicBody}</Markdown>
+          ) : (
+            <span className="text-muted-foreground italic">No public information recorded.</span>
+          )}
         </CardContent>
       </Card>
 
@@ -125,8 +132,8 @@ export default function DirectoryLoreDetail() {
                 <Lock className="w-4 h-4" /> FIXER-ONLY
               </CardTitle>
             </CardHeader>
-            <CardContent className="font-mono text-sm whitespace-pre-wrap leading-relaxed" data-testid="text-lore-fixer-body">
-              {data.fixerBody}
+            <CardContent className="font-mono text-sm leading-relaxed" data-testid="text-lore-fixer-body">
+              <Markdown className="font-mono text-sm leading-relaxed">{data.fixerBody}</Markdown>
             </CardContent>
           </Card>
         ) : null
