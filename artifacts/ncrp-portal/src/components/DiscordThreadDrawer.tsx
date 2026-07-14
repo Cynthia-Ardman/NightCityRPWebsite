@@ -5,8 +5,7 @@ import {
   type DiscordThreadMessage,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Hash } from "lucide-react";
+import { Hash, ChevronDown, ChevronUp } from "lucide-react";
 import DiscordThreadPanel from "@/components/DiscordThreadPanel";
 import { useMarkReviewSeenInstant } from "@/hooks/useReviewSeen";
 
@@ -50,14 +49,17 @@ function newestHumanMs(messages: DiscordThreadMessage[]): number {
   return max;
 }
 
-// Pop-out wrapper around the read-only DiscordThreadPanel. Renders a button that
-// slides the cs-approver thread mirror in from the right edge, so reviewers can
-// read it without scrolling the ticket — and dismiss it just as easily. STAFF
-// ONLY: gate the mount like the inline panel (the server endpoint is
-// reviewer-gated regardless).
+// Expandable wrapper around the read-only DiscordThreadPanel. Renders a button
+// that toggles the cs-approver thread mirror open INLINE below the button row
+// (matching the "PLAYER COMMUNICATION" expand-below pattern). The panel itself
+// carries the "OPEN IN DISCORD" link for replying. STAFF ONLY: gate the mount
+// like the inline panel (the server endpoint is reviewer-gated regardless).
 //
-// The panel — and its 15s polling query — only mounts while the drawer is open,
-// so a queue full of these buttons never fires one poll per card.
+// The panel — and its 15s polling query — only mounts while expanded, so a
+// queue full of these buttons never fires one poll per card.
+//
+// Layout contract: callers place this inside a `flex flex-wrap` button row; the
+// expanded panel uses `basis-full` to wrap onto its own full-width line.
 //
 // `watchUnread` opts a button in to a lightweight background poll of the thread
 // so it can flash gold when a Discord reply has arrived since the reviewer last
@@ -84,7 +86,7 @@ export default function DiscordThreadDrawer({
   const [open, setOpen] = useState(false);
   const markSeen = useMarkReviewSeenInstant();
 
-  // Opening "See Thread" is a reviewer's "I read this" action, so it must clear
+  // Expanding the thread is a reviewer's "I read this" action, so it must clear
   // the SERVER unread state (per-card line/dot, queue counts, sidebar badge) the
   // same way expanding the inline discussion does — not just the localStorage
   // Discord glow below. Missions have no review unread state, so they no-op.
@@ -152,37 +154,32 @@ export default function DiscordThreadDrawer({
     : "";
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className={`${baseClassName} ${flashClassName}`.trim()}
-          data-testid={`button-discord-thread-${subjectType}-${subjectId}`}
-        >
-          <Hash className={iconOnly ? "w-4 h-4" : "w-3 h-3 mr-1"} />
-          {iconOnly ? <span className="sr-only">{buttonLabel}</span> : buttonLabel}
-          {unread && (
-            <span
-              className="ml-2 inline-flex items-center justify-center min-w-[1.15rem] h-[1.15rem] px-1 rounded-full bg-nc-yellow text-background font-mono text-[10px] font-bold shadow-[0_0_6px_rgba(255,255,0,0.9)]"
-              data-testid={`discord-thread-unread-${subjectType}-${subjectId}`}
-            >
-              {unreadCount}
-            </span>
-          )}
-        </Button>
-      </SheetTrigger>
-      <SheetContent
-        side="right"
-        className="w-full sm:max-w-lg overflow-y-auto p-0 bg-background border-l-nc-magenta/60"
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className={`${baseClassName} ${flashClassName}`.trim()}
+        onClick={() => handleOpenChange(!open)}
+        data-testid={`button-discord-thread-${subjectType}-${subjectId}`}
       >
-        <SheetHeader className="sr-only">
-          <SheetTitle>CS-Approver Discord Thread</SheetTitle>
-        </SheetHeader>
-        <div className="p-4 pt-12">
-          {open && <DiscordThreadPanel subjectType={subjectType} subjectId={subjectId} />}
+        <Hash className={iconOnly ? "w-4 h-4" : "w-3 h-3 mr-1"} />
+        {iconOnly ? <span className="sr-only">{buttonLabel}</span> : buttonLabel}
+        {unread && (
+          <span
+            className="ml-2 inline-flex items-center justify-center min-w-[1.15rem] h-[1.15rem] px-1 rounded-full bg-nc-yellow text-background font-mono text-[10px] font-bold shadow-[0_0_6px_rgba(255,255,0,0.9)]"
+            data-testid={`discord-thread-unread-${subjectType}-${subjectId}`}
+          >
+            {unreadCount}
+          </span>
+        )}
+        {!iconOnly &&
+          (open ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />)}
+      </Button>
+      {open && (
+        <div className="w-full basis-full" data-testid={`discord-thread-inline-${subjectType}-${subjectId}`}>
+          <DiscordThreadPanel subjectType={subjectType} subjectId={subjectId} />
         </div>
-      </SheetContent>
-    </Sheet>
+      )}
+    </>
   );
 }
