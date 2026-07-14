@@ -48,9 +48,9 @@ const CATEGORIES = ["corporation", "gang", "faction", "location", "misc"] as con
 const categoryEnum = z.enum(CATEGORIES);
 const sourceSchema = z.object({ label: z.string().min(1), url: z.string().min(1) });
 
-// Canonical Night City district tags — one per clickable region on the
-// interactive district map (portal NightCityMap page). Keep in sync with the
-// OpenAPI LoreDistrict enum and the portal's DISTRICTS list.
+// Canonical Night City district tags — one per clickable region/marker on the
+// interactive lore map embedded on /directory/lore (portal CityMap component).
+// Keep in sync with the OpenAPI LoreDistrict enum and the portal's DISTRICTS list.
 const DISTRICTS = [
   "watson",
   "westbrook",
@@ -61,6 +61,7 @@ const DISTRICTS = [
   "north_badlands",
   "eastern_badlands",
   "southern_badlands",
+  "beastside",
 ] as const;
 const districtEnum = z.enum(DISTRICTS);
 

@@ -6470,6 +6470,7 @@ components:
           north_badlands,
           eastern_badlands,
           southern_badlands,
+          beastside,
         ]
 
     LoreEntrySummary:

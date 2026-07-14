@@ -70,7 +70,7 @@ export default function DirectoryLoreDetail() {
           <div className="flex items-center gap-2 flex-wrap">
             <Badge variant="outline" className={`rounded-none uppercase ${CATEGORY_BADGE[data.category]}`}>{data.category}</Badge>
             {data.district && (
-              <Link href="/directory/map">
+              <Link href="/directory/lore">
                 <Badge variant="outline" className="rounded-none uppercase border-nc-green text-nc-green cursor-pointer" data-testid="badge-lore-district">
                   {districtLabel(data.district)}
                 </Badge>

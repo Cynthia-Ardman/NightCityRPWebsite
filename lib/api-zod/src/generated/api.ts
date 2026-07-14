@@ -10740,7 +10740,7 @@ export const ListLoreResponseItem = zod.object({
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands']),zod.null()]).optional(),
+  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
   "hasFixerContent": zod.boolean(),
   "updatedAt": zod.coerce.date()
 })
@@ -10756,7 +10756,7 @@ export const CreateLoreBody = zod.object({
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands']),zod.null()]).optional(),
+  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
   "aliases": zod.array(zod.string()).optional(),
   "publicBody": zod.string().optional(),
   "fixerBody": zod.string().nullish(),
@@ -10783,7 +10783,7 @@ export const GetLoreResponse = zod.object({
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands']),zod.null()]).optional(),
+  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -10812,7 +10812,7 @@ export const UpdateLoreBody = zod.object({
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands']),zod.null()]).optional(),
+  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
   "aliases": zod.array(zod.string()).optional(),
   "publicBody": zod.string().optional(),
   "fixerBody": zod.string().nullish(),
@@ -10831,7 +10831,7 @@ export const UpdateLoreResponse = zod.object({
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands']),zod.null()]).optional(),
+  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -10922,7 +10922,7 @@ export const SubmitLoreEditBody = zod.object({
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands']),zod.null()]).optional(),
+  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
   "aliases": zod.array(zod.string()).optional(),
   "publicBody": zod.string().optional(),
   "fixerBody": zod.string().nullish(),
@@ -11206,7 +11206,7 @@ export const ListLoreImportDraftsResponseItem = zod.object({
   "aliases": zod.array(zod.string()),
   "summary": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands']),zod.null()]).optional(),
+  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -11236,7 +11236,7 @@ export const UpdateLoreImportDraftBody = zod.object({
   "aliases": zod.array(zod.string()).optional(),
   "summary": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands']),zod.null()]).optional(),
+  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
   "publicBody": zod.string().optional(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -11255,7 +11255,7 @@ export const UpdateLoreImportDraftResponse = zod.object({
   "aliases": zod.array(zod.string()),
   "summary": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands']),zod.null()]).optional(),
+  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -11286,7 +11286,7 @@ export const ApproveLoreImportDraftResponse = zod.object({
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands']),zod.null()]).optional(),
+  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -11318,7 +11318,7 @@ export const DiscardLoreImportDraftResponse = zod.object({
   "aliases": zod.array(zod.string()),
   "summary": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands']),zod.null()]).optional(),
+  "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({

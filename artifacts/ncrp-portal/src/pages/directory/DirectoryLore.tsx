@@ -2,12 +2,11 @@ import { Link } from "wouter";
 import { useListLore } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BookOpen, Plus, Download, Building2, Users, Skull, MapPin, Boxes, Map as MapIcon } from "lucide-react";
+import { BookOpen, Plus, Download, Building2, Users, Skull, Boxes } from "lucide-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
-import mapImage from "@assets/gk5g5y2f1ln81_1784064405878.jpg";
+import CityMap from "@/components/directory/CityMap";
 
 const SECTIONS = [
-  { category: "location", label: "LOCATIONS", icon: MapPin, text: "text-nc-green", hover: "hover:border-nc-green", desc: "Bars, clinics, landmarks and hangouts across the city." },
   { category: "faction", label: "FACTIONS", icon: Users, text: "text-nc-yellow", hover: "hover:border-nc-yellow", desc: "Organizations and groups vying for influence." },
   { category: "gang", label: "GANGS", icon: Skull, text: "text-destructive", hover: "hover:border-destructive", desc: "The street crews that hold Night City's turf." },
   { category: "corporation", label: "CORPS", icon: Building2, text: "text-nc-cyan", hover: "hover:border-nc-cyan", desc: "The megacorps that really run everything." },
@@ -57,33 +56,9 @@ export default function DirectoryLore() {
         )}
       </div>
 
-      <Link href="/directory/map">
-        <Card className="rounded-none border-border bg-card/50 hover:border-nc-green transition-all cursor-pointer overflow-hidden group" data-testid="card-lore-map">
-          <div className="relative h-64 md:h-80 overflow-hidden">
-            <img
-              src={mapImage}
-              alt="Night City map"
-              className="w-full h-full object-cover object-center opacity-70 group-hover:opacity-90 group-hover:scale-105 transition-all duration-500"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
-            <div className="absolute bottom-4 left-6 right-6 flex items-end justify-between gap-4">
-              <div>
-                <h2 className="font-display text-3xl text-nc-green flex items-center gap-3">
-                  <MapIcon className="w-7 h-7" /> CITY MAP
-                </h2>
-                <p className="font-mono text-xs text-muted-foreground mt-1">
-                  Explore Night City district by district. Click a district to open its lore.
-                </p>
-              </div>
-              <span className="font-display text-xs tracking-widest text-nc-green border border-nc-green px-3 py-2 whitespace-nowrap">
-                OPEN MAP →
-              </span>
-            </div>
-          </div>
-        </Card>
-      </Link>
+      <CityMap />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {SECTIONS.map((s) => {
           const Icon = s.icon;
           const n = counts[s.category] ?? 0;

@@ -12,6 +12,7 @@ export const DISTRICTS = [
   { value: "north_badlands", label: "North Badlands" },
   { value: "eastern_badlands", label: "Eastern Badlands" },
   { value: "southern_badlands", label: "Southern Badlands" },
+  { value: "beastside", label: "Beastside" },
 ] as const;
 
 export type DistrictValue = (typeof DISTRICTS)[number]["value"];

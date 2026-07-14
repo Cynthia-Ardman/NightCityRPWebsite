@@ -1,8 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useListLore, type LoreEntrySummary } from "@workspace/api-client-react";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, MapPin } from "lucide-react";
 import { districtLabel, type DistrictValue } from "@/lib/districts";
 import mapImage from "@assets/gk5g5y2f1ln81_1784064405878.jpg";
 
@@ -27,67 +25,78 @@ const DISTRICT_SHAPES: DistrictShape[] = [
     color: "#ef4444",
     labelPos: [700, 460],
     points:
-      "854,203 669,236 502,315 397,416 363,529 401,653 531,743 584,675 613,590 736,648 821,716 896,711 959,585 981,405 926,248",
+      "723,195 890,222 970,297 979,436 927,556 857,653 779,757 612,775 556,810 464,779 400,700 352,612 380,491 454,371 556,278",
   },
   {
     value: "westbrook",
     color: "#f97316",
-    labelPos: [1050, 870],
+    labelPos: [1060, 890],
     points:
-      "896,714 981,539 1048,595 1171,674 1260,663 1293,741 1249,899 1204,1034 1115,1135 1015,1056 937,966 888,944 870,854 888,775",
+      "979,436 1085,594 1280,826 1271,965 1187,1085 1048,1150 937,1094 890,988 872,946 825,812 857,653 927,556",
   },
   {
     value: "city_center",
     color: "#eab308",
-    labelPos: [690, 940],
+    labelPos: [720, 910],
     points:
-      "569,849 888,854 888,944 865,988 803,1022 736,1033 569,1033 513,988 468,932 479,887",
+      "594,801 825,812 872,946 844,983 733,1011 519,1002 427,909 404,868 442,844 520,846",
   },
   {
     value: "heywood",
     color: "#22c55e",
-    labelPos: [700, 1160],
+    labelPos: [720, 1150],
     points:
-      "569,1033 736,1038 803,1022 865,993 937,970 1015,1056 981,1146 892,1247 803,1303 691,1292 569,1224 502,1134 468,1056",
+      "519,1002 733,1011 844,983 872,946 890,988 937,1094 900,1210 790,1285 640,1305 520,1215 479,1090",
   },
   {
     value: "santo_domingo",
     color: "#3b82f6",
     labelPos: [1080, 1300],
     points:
-      "1015,1056 1115,1135 1204,1039 1249,1056 1282,1124 1282,1258 1249,1371 1193,1472 1115,1528 1015,1510 926,1438 881,1348 892,1247 981,1146",
+      "937,1094 1048,1150 1187,1085 1240,1140 1269,1247 1251,1404 1161,1539 1048,1579 947,1523 897,1404 890,1258 900,1210",
   },
   {
     value: "pacifica",
     color: "#a855f7",
     labelPos: [640, 1470],
     points:
-      "535,1292 691,1297 803,1308 881,1354 870,1461 792,1573 669,1663 558,1659 446,1573 413,1472 435,1371",
+      "563,1330 743,1298 811,1348 822,1460 789,1573 676,1644 541,1622 451,1523 462,1404",
   },
   {
     value: "north_badlands",
     color: "#64748b",
     labelPos: [520, 130],
     points:
-      "0,0 1900,0 1900,420 1300,420 981,405 926,248 854,203 669,236 502,315 200,400 0,300",
+      "0,0 1900,0 1900,420 1300,420 985,470 979,436 970,297 890,222 723,195 556,278 200,400 0,300",
   },
   {
     value: "eastern_badlands",
     color: "#0ea5e9",
     labelPos: [1580, 1180],
-    points:
-      "1300,420 1900,420 1900,1950 1350,1850 1282,1450 1290,741 1300,540",
+    points: "1300,420 1900,420 1900,1950 1350,1850 1282,1450 1290,741 1300,540",
   },
   {
     value: "southern_badlands",
     color: "#78716c",
     labelPos: [450, 1900],
     points:
-      "0,1450 446,1573 558,1659 669,1663 792,1573 881,1461 1100,1650 1350,1850 1900,1950 1900,2300 0,2300",
+      "0,1450 451,1523 541,1622 676,1644 789,1573 881,1461 1100,1650 1350,1850 1900,1950 1900,2300 0,2300",
   },
 ];
 
-export default function NightCityMap() {
+// Point-of-interest markers: specific spots on the map that carry their own
+// lore tag rather than a full district polygon.
+type MarkerShape = {
+  value: DistrictValue;
+  color: string;
+  pos: [number, number];
+};
+
+const MARKERS: MarkerShape[] = [
+  { value: "beastside", color: "#f0f", pos: [778, 885] },
+];
+
+export default function CityMap() {
   const [, navigate] = useLocation();
   const { data: entries, isLoading } = useListLore();
   const [hovered, setHovered] = useState<DistrictValue | null>(null);
@@ -103,28 +112,18 @@ export default function NightCityMap() {
   const hoveredEntry = hovered ? byDistrict.get(hovered) : undefined;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-12">
-      <Link href="/directory/lore">
-        <Button variant="ghost" className="rounded-none font-mono text-xs text-muted-foreground -ml-2" data-testid="link-map-back">
-          <ArrowLeft className="w-4 h-4 mr-1" /> LORE DIRECTORY
-        </Button>
-      </Link>
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-4xl font-display" data-testid="text-map-title">NIGHT CITY MAP</h1>
-          <p className="font-mono text-xs text-muted-foreground mt-2">
-            Hover a district to highlight it. Click to open its lore entry.
-          </p>
-        </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <p className="font-mono text-xs text-muted-foreground">
+          Hover a district to highlight it. Click to open its lore entry.
+        </p>
         <div className="font-mono text-xs border border-border bg-card/50 px-3 py-2 min-w-[220px]" data-testid="text-map-hover-info">
           {hovered ? (
             <>
-              <div className="font-display tracking-widest text-nc-cyan flex items-center gap-1">
-                <MapPin className="w-3 h-3" /> {districtLabel(hovered)}
-              </div>
-              <div className="text-muted-foreground mt-1">
-                {hoveredEntry ? `Lore: ${hoveredEntry.name}` : isLoading ? "Loading lore..." : "No lore entry tagged yet"}
-              </div>
+              <span className="font-display tracking-widest text-nc-cyan">{districtLabel(hovered)}</span>
+              <span className="text-muted-foreground ml-2">
+                {hoveredEntry ? `→ ${hoveredEntry.name}` : isLoading ? "Loading lore..." : "No lore entry tagged yet"}
+              </span>
             </>
           ) : (
             <span className="text-muted-foreground">Hover a district...</span>
@@ -163,39 +162,40 @@ export default function NightCityMap() {
                   data-testid={`polygon-district-${d.value}`}
                 />
                 {isHovered && (
-                  <g pointerEvents="none">
-                    <rect
-                      x={d.labelPos[0] - 190}
-                      y={d.labelPos[1] - 44}
-                      width={380}
-                      height={entry ? 96 : 88}
-                      fill="#0a0a0a"
-                      fillOpacity={0.85}
-                      stroke={d.color}
-                      strokeWidth={2}
-                    />
-                    <text
-                      x={d.labelPos[0]}
-                      y={d.labelPos[1]}
-                      textAnchor="middle"
-                      fill={d.color}
-                      fontSize={40}
-                      fontFamily="monospace"
-                      fontWeight="bold"
-                    >
-                      {districtLabel(d.value)?.toUpperCase()}
-                    </text>
-                    <text
-                      x={d.labelPos[0]}
-                      y={d.labelPos[1] + 38}
-                      textAnchor="middle"
-                      fill="#e5e5e5"
-                      fontSize={26}
-                      fontFamily="monospace"
-                    >
-                      {entry ? `→ ${entry.name}` : "No lore entry yet"}
-                    </text>
-                  </g>
+                  <MapTooltip color={d.color} labelPos={d.labelPos} title={districtLabel(d.value)?.toUpperCase() ?? ""} entry={entry} />
+                )}
+              </g>
+            );
+          })}
+          {MARKERS.map((m) => {
+            const entry = byDistrict.get(m.value);
+            const isHovered = hovered === m.value;
+            return (
+              <g key={m.value}>
+                <circle
+                  cx={m.pos[0]}
+                  cy={m.pos[1]}
+                  r={isHovered ? 34 : 26}
+                  fill={m.color}
+                  fillOpacity={isHovered ? 0.6 : 0.35}
+                  stroke={m.color}
+                  strokeWidth={5}
+                  className={entry ? "cursor-pointer" : "cursor-default"}
+                  style={{ transition: "r 150ms, fill-opacity 150ms" }}
+                  onMouseEnter={() => setHovered(m.value)}
+                  onMouseLeave={() => setHovered((h) => (h === m.value ? null : h))}
+                  onClick={() => {
+                    if (entry) navigate(`/directory/lore/${entry.id}`);
+                  }}
+                  data-testid={`marker-district-${m.value}`}
+                />
+                {isHovered && (
+                  <MapTooltip
+                    color={m.color}
+                    labelPos={[m.pos[0], m.pos[1] - 90]}
+                    title={districtLabel(m.value)?.toUpperCase() ?? ""}
+                    entry={entry}
+                  />
                 )}
               </g>
             );
@@ -204,7 +204,7 @@ export default function NightCityMap() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-        {DISTRICT_SHAPES.map((d) => {
+        {[...DISTRICT_SHAPES, ...MARKERS].map((d) => {
           const entry = byDistrict.get(d.value);
           const inner = (
             <div
@@ -229,5 +229,38 @@ export default function NightCityMap() {
         })}
       </div>
     </div>
+  );
+}
+
+function MapTooltip({
+  color,
+  labelPos,
+  title,
+  entry,
+}: {
+  color: string;
+  labelPos: [number, number];
+  title: string;
+  entry?: LoreEntrySummary;
+}) {
+  return (
+    <g pointerEvents="none">
+      <rect
+        x={labelPos[0] - 190}
+        y={labelPos[1] - 44}
+        width={380}
+        height={entry ? 96 : 88}
+        fill="#0a0a0a"
+        fillOpacity={0.85}
+        stroke={color}
+        strokeWidth={2}
+      />
+      <text x={labelPos[0]} y={labelPos[1]} textAnchor="middle" fill={color} fontSize={40} fontFamily="monospace" fontWeight="bold">
+        {title}
+      </text>
+      <text x={labelPos[0]} y={labelPos[1] + 38} textAnchor="middle" fill="#e5e5e5" fontSize={26} fontFamily="monospace">
+        {entry ? `→ ${entry.name}` : "No lore entry yet"}
+      </text>
+    </g>
   );
 }

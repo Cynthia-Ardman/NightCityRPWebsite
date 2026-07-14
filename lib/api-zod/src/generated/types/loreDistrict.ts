@@ -19,4 +19,5 @@ export const LoreDistrict = {
   north_badlands: 'north_badlands',
   eastern_badlands: 'eastern_badlands',
   southern_badlands: 'southern_badlands',
+  beastside: 'beastside',
 } as const;
