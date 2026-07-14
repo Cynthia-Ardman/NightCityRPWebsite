@@ -6,17 +6,34 @@ import {
   useDenyOffer,
   useListMyNcpdFines,
   usePayNcpdFine,
+  useListMyCustomRequests,
+  useDecideEmployeeInvite,
+  useDecideMissionParticipation,
   getListMyOffersQueryKey,
   getGetMyWalletQueryKey,
   getListMyNcpdFinesQueryKey,
+  getListMyCustomRequestsQueryKey,
+  getGetMyUnseenQueryKey,
   type SaleOffer,
   type NcpdFine,
+  type CustomRequest,
 } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ShoppingBag, Check, X, Banknote } from "lucide-react";
+import { Inbox as InboxIcon, Check, X, Banknote, Briefcase } from "lucide-react";
 import { OfferTypeBadge, OfferStatusBadge, offerNeedsMyDecision } from "@/components/offers/offerBadges";
+import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
+
+// Custom-request types that are decided by the player (not submitted by them):
+// employment invites and mission-participation confirmations. Shared with
+// MySubmissions.tsx (which excludes them) and the AppLayout Inbox badge — the
+// three lists must agree or the badge counts a row no page renders.
+export const INBOX_REQUEST_TYPES = new Set<CustomRequest["type"]>([
+  "employee_invite",
+  "mission_participation",
+]);
 
 function fineApiError(err: unknown): string | null {
   const data = (err as { data?: unknown } | null)?.data;
@@ -24,9 +41,10 @@ function fineApiError(err: unknown): string | null {
   return typeof msg === "string" && msg.trim() ? msg : null;
 }
 
-export default function MyOffers() {
+export default function Inbox() {
   const { data: me } = useAuthMe();
   const qc = useQueryClient();
+  const { toast } = useToast();
   const { data: offers, isLoading } = useListMyOffers();
 
   const invalidate = () => {
@@ -51,6 +69,55 @@ export default function MyOffers() {
   }, [fines]);
   const fineErr = fineApiError(payFine.error);
 
+  // Employment invites + mission-participation confirmations sent TO the
+  // player. They live in custom_requests but are decided here, not on My
+  // Submissions. The query is shared (same key) with the nav badge.
+  const { data: customRequests, isLoading: invitesLoading } = useListMyCustomRequests();
+  const { pendingInvites, decidedInvites } = useMemo(() => {
+    const mine = ((customRequests ?? []) as CustomRequest[]).filter((r) => INBOX_REQUEST_TYPES.has(r.type));
+    const sorted = [...mine].sort(
+      (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime(),
+    );
+    return {
+      pendingInvites: sorted.filter((r) => r.status === "pending"),
+      decidedInvites: sorted.filter((r) => r.status !== "pending"),
+    };
+  }, [customRequests]);
+  const invalidateInvites = () => {
+    qc.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetMyUnseenQueryKey() });
+  };
+  const errText = (err: unknown, fallback: string) =>
+    (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? fallback;
+  const decideInvite = useDecideEmployeeInvite({
+    mutation: {
+      onSuccess: (_res, variables) => {
+        invalidateInvites();
+        toast({
+          title:
+            variables.data.decision === "accept"
+              ? "Invitation accepted — you're hired"
+              : "Invitation declined",
+        });
+      },
+      onError: (err) => toast({ title: "Could not respond", description: errText(err, "Please try again."), variant: "destructive" }),
+    },
+  });
+  const decideParticipation = useDecideMissionParticipation({
+    mutation: {
+      onSuccess: (_res, variables) => {
+        invalidateInvites();
+        toast({
+          title:
+            variables.data.decision === "accept"
+              ? "Participation confirmed"
+              : "Assignment declined",
+        });
+      },
+      onError: (err) => toast({ title: "Could not respond", description: errText(err, "Please try again."), variant: "destructive" }),
+    },
+  });
+
   const { pending, history } = useMemo(() => {
     const all = (offers ?? []) as SaleOffer[];
     const sorted = [...all].sort(
@@ -74,14 +141,18 @@ export default function MyOffers() {
       <div>
         <h1
           className="text-4xl font-display font-bold text-foreground flex items-center gap-3"
-          data-testid="text-my-offers-title"
+          data-testid="text-inbox-title"
         >
-          <ShoppingBag className="w-8 h-8 text-nc-cyan" /> PENDING APPROVALS
+          <InboxIcon className="w-8 h-8 text-nc-cyan" /> INBOX
         </h1>
         <p className="text-muted-foreground font-mono mt-2">
-          This is where offers involving your characters and the venues you own land. Two things need a decision from you: stock being added to one of your venues (approving charges that venue's account), and a ripperdoc offering to fit cyberware you already own (approving installs it and charges any fee they set). Denying does nothing. Direct sales to your characters complete instantly, so they skip straight to your offer history below.
+          Everything waiting on a decision from you: sale offers to your characters and venues, NCPD fines, employment invitations, and mission assignments. Items you submitted for staff review live on My Submissions.
         </p>
       </div>
+
+      <h2 className="font-display text-sm tracking-widest text-nc-yellow" data-testid="text-inbox-waiting">
+        WAITING ON YOU
+      </h2>
 
       {errMsg && (
         <div className="border border-destructive/50 bg-destructive/10 px-4 py-2 font-mono text-sm text-destructive" data-testid="text-offer-error">
@@ -160,6 +231,76 @@ export default function MyOffers() {
                   </div>
                 ))}
               </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {me && (pendingInvites.length > 0 || invitesLoading) && (
+        <Card className="rounded-none border-nc-green/40 bg-card/50">
+          <CardHeader>
+            <CardTitle className="font-display tracking-widest text-nc-green flex items-center gap-2">
+              <Briefcase className="w-5 h-5" /> INVITATIONS & ASSIGNMENTS
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="font-mono text-xs text-muted-foreground">
+              Job offers from venue owners and mission assignments from fixers. Accepting an invitation hires your character; accepting an assignment confirms your spot on the mission roster.
+            </p>
+            {invitesLoading ? (
+              <div className="py-8 text-center text-nc-cyan animate-pulse font-display">LOADING...</div>
+            ) : (
+              pendingInvites.map((r) => {
+                const det = (r.details ?? {}) as { role?: string | null; commissionPct?: number | null; venueName?: string | null };
+                const isInvite = r.type === "employee_invite";
+                const mutation = isInvite ? decideInvite : decideParticipation;
+                return (
+                  <div
+                    key={r.id}
+                    className="border border-nc-green/30 bg-card p-4 flex items-start justify-between gap-3"
+                    data-testid={`row-pending-invite-${r.id}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="font-display text-lg text-foreground">{r.title}</div>
+                      <div className="font-mono text-xs text-muted-foreground mt-1">
+                        {isInvite ? (
+                          <span data-testid={`invite-terms-${r.id}`}>
+                            {det.venueName ?? "Venue"} · {det.role ?? "employee"}
+                            {det.commissionPct != null ? ` · ${det.commissionPct}% commission` : ""}
+                            {` · for ${r.characterName}`}
+                          </span>
+                        ) : (
+                          <span>Mission assignment · for {r.characterName}</span>
+                        )}
+                      </div>
+                      {r.description ? (
+                        <div className="font-mono text-xs italic text-muted-foreground mt-1 break-words">"{r.description}"</div>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={mutation.isPending}
+                        onClick={() => mutation.mutate({ id: r.id, data: { decision: "deny" } })}
+                        className="rounded-none font-display text-destructive border-destructive/50 hover:bg-destructive hover:text-destructive-foreground"
+                        data-testid={`button-${isInvite ? "invite" : "participation"}-deny-${r.id}`}
+                      >
+                        <X className="w-4 h-4 mr-1" /> {isInvite ? "DENY" : "DECLINE"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={mutation.isPending}
+                        onClick={() => mutation.mutate({ id: r.id, data: { decision: "accept" } })}
+                        className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display"
+                        data-testid={`button-${isInvite ? "invite" : "participation"}-accept-${r.id}`}
+                      >
+                        <Check className="w-4 h-4 mr-1" /> ACCEPT
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
             )}
           </CardContent>
         </Card>
@@ -255,6 +396,38 @@ export default function MyOffers() {
           )}
         </CardContent>
       </Card>
+
+      <h2 className="font-display text-sm tracking-widest text-nc-cyan" data-testid="text-inbox-history">
+        HISTORY
+      </h2>
+
+      {me && decidedInvites.length > 0 && (
+        <Card className="rounded-none border-border bg-card/50">
+          <CardHeader>
+            <CardTitle className="font-display tracking-widest text-nc-green">
+              DECIDED INVITATIONS & ASSIGNMENTS
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {decidedInvites.map((r) => (
+              <div
+                key={r.id}
+                className="flex items-center justify-between gap-3 font-mono text-xs text-muted-foreground py-1"
+                data-testid={`row-decided-invite-${r.id}`}
+              >
+                <span className="truncate">
+                  {r.title} · {r.characterName}
+                  {r.type === "employee_invite" ? " · employment" : " · mission"}
+                </span>
+                <span className="flex items-center gap-2 whitespace-nowrap">
+                  {r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString() : ""}
+                  <RequestStatusBadge status={r.status} />
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader>

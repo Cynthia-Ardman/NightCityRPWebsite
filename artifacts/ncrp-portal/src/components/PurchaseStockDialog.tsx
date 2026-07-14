@@ -115,7 +115,7 @@ export default function PurchaseStockDialog({
           <CardContent className="space-y-4 font-mono text-sm">
             <p className="text-muted-foreground" data-testid="text-purchase-pending">
               This stock has a custom cost, so a request was sent to the venue owner. Once they approve it under
-              "My Requests", the cost is debited from the venue balance and the stock is added.
+              "My Submissions", the cost is debited from the venue balance and the stock is added.
             </p>
             <Button
               onClick={onDone}

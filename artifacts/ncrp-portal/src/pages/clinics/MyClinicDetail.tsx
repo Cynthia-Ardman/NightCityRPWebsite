@@ -63,7 +63,7 @@ export default function MyClinicDetail() {
         invalidate();
         toast({
           title: "Invitation sent",
-          description: "The employee will see it in My Requests and must accept before they're hired.",
+          description: "The employee will see it in their Inbox and must accept before they're hired.",
         });
       },
       onError: (err) => {
@@ -143,7 +143,7 @@ export default function MyClinicDetail() {
   const sendBill = useSendRipperdocBill({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Bill sent", description: "The player will see it in My Offers and can approve to pay." });
+        toast({ title: "Bill sent", description: "The player will see it in their Inbox and can approve to pay." });
         setBillChar(null);
         setBillAmount(0);
         setBillNote("");
@@ -529,7 +529,7 @@ export default function MyClinicDetail() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="font-mono text-xs text-muted-foreground">
-            Bill a character for services rendered (patch-ups, repairs, checkups). They approve and pay it from My Offers; the eddies land in the clinic account.
+            Bill a character for services rendered (patch-ups, repairs, checkups). They approve and pay it from their Inbox; the eddies land in the clinic account.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
             <div className="md:col-span-5"><CharacterPicker value={billChar} onChange={setBillChar} testId="input-bill-character" /></div>
@@ -617,7 +617,7 @@ export default function MyClinicDetail() {
           <DialogHeader>
             <DialogTitle className="font-display tracking-widest text-nc-cyan">Request Custom Stock</DialogTitle>
             <DialogDescription className="font-mono text-xs">
-              Ask a fixer to price custom cyberware for this clinic. Once they set a cost, you approve it from My Requests and pay to stock it.
+              Ask a fixer to price custom cyberware for this clinic. Once they set a cost, you approve it from My Submissions and pay to stock it.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">

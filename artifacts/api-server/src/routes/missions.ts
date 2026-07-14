@@ -292,7 +292,7 @@ async function applyAssignments(
 
 // When a fixer assigns one of a player's characters to a mission, raise a
 // pending `mission_participation` request the owning player must approve from
-// "My Requests" (mirrors the employee-invite owner-decision flow). Skips the
+// their Inbox (mirrors the employee-invite decision flow). Skips the
 // fixer's own characters and any character that already has a pending
 // participation request for this mission. Best-effort + DM the player.
 async function createParticipationRequests(
@@ -358,7 +358,7 @@ async function createParticipationRequests(
       if (owner?.discordId) {
         await sendDirectMessage(
           owner.discordId,
-          `${actorName} assigned ${charName} to the mission "${mission.title}". Approve or decline participation in My Requests.`,
+          `${actorName} assigned ${charName} to the mission "${mission.title}". Approve or decline participation from your Inbox on the NCRP portal.`,
         );
       }
     } catch (err) {

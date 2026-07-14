@@ -60,6 +60,14 @@ type RequestType = (typeof REQUEST_TYPES)[number];
 // they link to never renders (a phantom "1 pending request, nothing there").
 export const STAFF_QUEUE_EXCLUDED_REQUEST_TYPES = ["stock_cost", "employee_invite", "mission_participation"] as const;
 
+// Custom-request types decided by the PLAYER (not submitted by them): the
+// portal renders these on the Inbox page ("waiting on you"), not on My
+// Submissions. Exported so /review/my-unseen (review.ts) excludes them from the
+// submitter unseen count — the My Submissions page no longer renders these
+// rows, so counting them would leave a badge with no row to open and clear.
+// stock_cost deliberately stays out of this list: it remains on My Submissions.
+export const PLAYER_DECIDED_REQUEST_TYPES = ["employee_invite", "mission_participation"] as const;
+
 const CS_CHANNEL_ID = process.env.CS_APPROVAL_CHANNEL_ID ?? "";
 
 // Post a custom request's summary to the cs-approver channel and start a thread
@@ -594,7 +602,7 @@ async function materializeRequest(
     // Fixers have voted to approve and set the cost/qty/retail. We don't add
     // the stock or debit the venue here — instead we hand off to the existing
     // stock_cost flow: insert a pending stock_cost request the venue owner must
-    // approve from "My Requests" (which debits + stocks via /stock-decision).
+    // approve from "My Submissions" (which debits + stocks via /stock-decision).
     const det = (reqRow.details ?? {}) as {
       kind?: "store" | "ripperdoc";
       venueId?: number;
@@ -649,7 +657,7 @@ async function materializeRequest(
     return {
       ok: {
         appliedRef: `custom_request:${stockReq.id}`,
-        summary: `Custom stock approved by fixers: ${reqRow.title} x${qty} @ €$${unitCost.toLocaleString()}/unit — awaiting your payment in My Requests.`,
+        summary: `Custom stock approved by fixers: ${reqRow.title} x${qty} @ €$${unitCost.toLocaleString()}/unit — awaiting your payment in My Submissions.`,
       },
     };
   }

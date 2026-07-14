@@ -19,8 +19,8 @@ import SheetDetail from "@/pages/sheets/SheetDetail";
 import PendingEditsList from "@/pages/pending-edits/PendingEditsList";
 import PendingEditDetail from "@/pages/pending-edits/PendingEditDetail";
 import PendingRequests from "@/pages/requests/PendingRequests";
-import MyRequests from "@/pages/MyRequests";
-import MyOffers from "@/pages/MyOffers";
+import MySubmissions from "@/pages/MySubmissions";
+import Inbox from "@/pages/Inbox";
 import MyTickets from "@/pages/MyTickets";
 import BreachHub from "@/pages/breach/BreachHub";
 import BreachPlay from "@/pages/breach/BreachPlay";
@@ -226,8 +226,12 @@ function AppRoutes() {
             <StaffRequestsGuard><PendingEditsList /></StaffRequestsGuard>
           </Route>
           <Route path="/pending-edits/:id" component={PendingEditDetail} />
-          <Route path="/requests/mine" component={MyRequests} />
-          <Route path="/offers/mine" component={MyOffers} />
+          <Route path="/submissions" component={MySubmissions} />
+          <Route path="/inbox" component={Inbox} />
+          {/* Old bookmarks / DM deep links: My Requests became My Submissions,
+              My Offers became Inbox. */}
+          <Route path="/requests/mine"><Redirect to="/submissions" /></Route>
+          <Route path="/offers/mine"><Redirect to="/inbox" /></Route>
           <Route path="/tickets/mine" component={MyTickets} />
           <Route path="/breach/mine" component={MyBreaches} />
           <Route path="/breach/practice" component={BreachPractice} />

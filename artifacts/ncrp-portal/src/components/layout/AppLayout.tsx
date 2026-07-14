@@ -1,16 +1,17 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, useGetMyUnseen, getGetMyUnseenQueryKey, useListLoreEdits, getListLoreEditsQueryKey, useListGuidebookEdits, getListGuidebookEditsQueryKey, useGetMyBreachPendingCount, getGetMyBreachPendingCountQueryKey, useListVrchatInstances, getListVrchatInstancesQueryKey, useDismissOnboarding, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useListMyNcpdFines, getListMyNcpdFinesQueryKey, useListMyCustomRequests, getListMyCustomRequestsQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, useGetMyUnseen, getGetMyUnseenQueryKey, useListLoreEdits, getListLoreEditsQueryKey, useListGuidebookEdits, getListGuidebookEditsQueryKey, useGetMyBreachPendingCount, getGetMyBreachPendingCountQueryKey, useListVrchatInstances, getListVrchatInstancesQueryKey, useDismissOnboarding, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useEffectiveMe, useViewAs } from "@/contexts/ViewAsContext";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { ONBOARDING_BANNER_LINKS, guidebookSectionHref } from "@/lib/guidebookLinks";
-import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, ShoppingBag, BookOpen, BookMarked, Cpu, CalendarDays, Settings, X, Stethoscope, HeartPulse, Wrench, Building2, Warehouse, Archive, Network, Radio, Scale, Siren, Ticket } from "lucide-react";
+import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, Inbox as InboxIcon, BookOpen, BookMarked, Cpu, CalendarDays, Settings, X, Stethoscope, HeartPulse, Wrench, Building2, Warehouse, Archive, Network, Radio, Scale, Siren, Ticket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ViewAsControl, ViewAsBanner } from "@/components/layout/ViewAsControl";
 import { offerNeedsMyDecision } from "@/components/offers/offerBadges";
+import { INBOX_REQUEST_TYPES } from "@/pages/Inbox";
 import ncrpLogo from "@assets/image_1780331782394.png";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -146,12 +147,23 @@ function SidebarContent() {
   const { data: user } = useEffectiveMe();
   const [location] = useLocation();
   const { data: offers } = useListMyOffers({ query: { enabled: !!user, queryKey: getListMyOffersQueryKey() } });
-  // Only count offers the player can actually act on here. The My Offers page
-  // only surfaces a decision UI for some pending offer types; other pending
-  // rows (e.g. a give/sale that failed to auto-complete) have no button, so
-  // counting them produced a phantom badge the user could never clear. The
-  // predicate is shared with the page so the two can't drift.
+  // Inbox badge = everything the Inbox page renders under "Waiting on you":
+  // actionable sale offers + unpaid NCPD fines + pending invites/assignments.
+  // Each predicate is shared with the page so badge and page can't drift.
+  // Only count offers the player can actually act on. The Inbox page only
+  // surfaces a decision UI for some pending offer types; other pending rows
+  // (e.g. a give/sale that failed to auto-complete) have no button, so
+  // counting them produced a phantom badge the user could never clear.
   const pendingOffers = (offers ?? []).filter(offerNeedsMyDecision).length;
+  const { data: myFines } = useListMyNcpdFines({ query: { enabled: !!user, queryKey: getListMyNcpdFinesQueryKey() } });
+  const unpaidFines = (myFines ?? []).filter((f) => f.status === "unpaid").length;
+  // Employment invites + mission-participation confirmations awaiting the
+  // player's decision. Same query key as the Inbox page, so the cache is shared.
+  const { data: myCustomRequests } = useListMyCustomRequests(undefined, { query: { enabled: !!user, queryKey: getListMyCustomRequestsQueryKey() } });
+  const pendingInvites = (myCustomRequests ?? []).filter(
+    (r) => INBOX_REQUEST_TYPES.has(r.type) && r.status === "pending",
+  ).length;
+  const inboxCount = pendingOffers + unpaidFines + pendingInvites;
   // Staff review queue counter (misc requests + new-character sheets awaiting
   // approval). Only fetched for staff so regular players never trigger the
   // staff-scoped endpoints.
@@ -175,11 +187,12 @@ function SidebarContent() {
     (unseen?.sheets ?? 0) +
     (user?.isAdmin ? pendingLore?.length ?? 0 : 0) +
     (user?.isAdmin ? pendingGuidebook?.length ?? 0 : 0);
-  // Player-facing "My Requests" badge: how many of the player's OWN submissions
-  // have unseen activity (a reviewer comment, a decision, or a close). Fetched
-  // for every logged-in user, not just staff.
+  // Player-facing "My Submissions" badge: how many of the player's OWN
+  // submissions have unseen activity (a reviewer comment, a decision, or a
+  // close). The server already excludes Inbox-side rows (invites /
+  // participation) from this count. Fetched for every logged-in user.
   const { data: myUnseen } = useGetMyUnseen({ query: { enabled: !!user, queryKey: getGetMyUnseenQueryKey() } });
-  const myRequestsUnseen = myUnseen?.total ?? 0;
+  const mySubmissionsUnseen = myUnseen?.total ?? 0;
 
   // Poll for un-started incoming breaches so the "My Breaches" nav can flash
   // red the moment a fixer sends one. No number is shown — just the alert.
@@ -274,8 +287,8 @@ function SidebarContent() {
         <NavItem href="/" icon={User} label="Dashboard" tone="cyan" />
         <NavItem href="/characters" icon={Users} label="Characters" tone="cyan" />
         <NavItem href="/ledger" icon={Receipt} label="Ledger" tone="cyan" />
-        <NavItem href="/requests/mine" icon={ClipboardList} label="My Requests" badge={myRequestsUnseen} tone="cyan" />
-        <NavItem href="/offers/mine" icon={ShoppingBag} label="My Offers" badge={pendingOffers} tone="cyan" />
+        <NavItem href="/inbox" icon={InboxIcon} label="Inbox" badge={inboxCount} tone="cyan" />
+        <NavItem href="/submissions" icon={ClipboardList} label="My Submissions" badge={mySubmissionsUnseen} tone="cyan" />
         <NavItem href="/tickets/mine" icon={Ticket} label="My Tickets" tone="cyan" />
         <NavItem href="/breach/mine" icon={Cpu} label="My Breaches" alert={hasIncomingBreach} tone="cyan" />
         <NavItem href="/dice" icon={Dice5} label="Dice Roller" tone="cyan" />

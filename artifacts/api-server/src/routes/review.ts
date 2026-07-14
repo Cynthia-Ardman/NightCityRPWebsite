@@ -17,7 +17,7 @@ import {
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, sendDirectMessage, listThreadMessages, threadWebUrl, type DiscordThreadMessage } from "../lib/discord";
 import { isReviewer, type ReviewActionResult } from "../lib/review";
-import { closeRequest, reopenRequest, STAFF_QUEUE_EXCLUDED_REQUEST_TYPES } from "./requests";
+import { closeRequest, reopenRequest, STAFF_QUEUE_EXCLUDED_REQUEST_TYPES, PLAYER_DECIDED_REQUEST_TYPES } from "./requests";
 import { closeEdit, reopenEdit } from "./pending-edits";
 import { closeSheet, reopenSheet } from "./sheets";
 import { closeLore, reopenLore } from "./lore";
@@ -388,11 +388,19 @@ router.get("/review/my-unseen", requireAuth, async (req, res): Promise<void> => 
     .select({ id: pendingCharacterEdits.id, submittedAt: pendingCharacterEdits.submittedAt, decidedAt: pendingCharacterEdits.decidedAt, closedAt: pendingCharacterEdits.closedAt })
     .from(pendingCharacterEdits)
     .where(eq(pendingCharacterEdits.submittedBy, viewerId));
+  // Exclude player-decided rows (employment invites / mission participation):
+  // the portal renders those on the Inbox page, not My Submissions, so counting
+  // them here would light a Submissions badge with no row to open and clear.
   const requestRows = await db
     .select({ id: customRequests.id, createdAt: customRequests.createdAt, reviewedAt: customRequests.reviewedAt, closedAt: customRequests.closedAt })
     .from(customRequests)
-    .where(eq(customRequests.requestedById, viewerId));
-  // Exclude drafts: My Requests deliberately hides draft sheets (they live only
+    .where(
+      and(
+        eq(customRequests.requestedById, viewerId),
+        notInArray(customRequests.type, PLAYER_DECIDED_REQUEST_TYPES as unknown as string[]),
+      ),
+    );
+  // Exclude drafts: My Submissions deliberately hides draft sheets (they live only
   // in the owner's draft editor), so counting them here would create an unread
   // badge with no row to open and clear — the same phantom class as the
   // staff-windowed edits above.

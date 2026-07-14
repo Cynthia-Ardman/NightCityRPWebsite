@@ -7,8 +7,6 @@ import {
   useListMySheets,
   useListPendingEdits,
   useDecideStockCostRequest,
-  useDecideEmployeeInvite,
-  useDecideMissionParticipation,
   useUpdateCustomRequest,
   useResubmitCustomRequest,
   useSubmitDraftCustomRequest,
@@ -41,6 +39,14 @@ import { ClipboardList, RotateCcw, Pencil, Trash2, MessageSquare, ChevronDown, C
 import ReviewCommentThread from "@/components/ReviewCommentThread";
 import MultiImageUpload from "@/components/MultiImageUpload";
 import PendingEditDiffInline from "@/components/PendingEditDiffInline";
+
+// Custom-request types that are decided by the PLAYER rather than submitted
+// by them (employment invites, mission-participation confirmations). They are
+// rendered on the Inbox page — see Inbox.tsx — so this page filters them out.
+const INBOX_REQUEST_TYPES = new Set<CustomRequest["type"]>([
+  "employee_invite",
+  "mission_participation",
+]);
 
 // One unified shape for everything a player has submitted, so custom
 // requests (property / gun / cyberware) and standard catalog leases can
@@ -85,10 +91,6 @@ type HistoryRow = {
   // reviewer's note and resubmit. Inline resubmit isn't possible for these
   // (they have full forms / diffs), so we link to their detail page.
   respondTo?: string;
-  // Employment-invite terms surfaced so the invitee can verify before accepting.
-  inviteRole?: string | null;
-  inviteCommissionPct?: number | null;
-  inviteVenueName?: string | null;
   // Fixer vote tally for custom requests that run through the staff multi-vote
   // pipeline. Only shown for fixer-voted types — owner/player-decided types
   // tally 0/0, which would be misleading.
@@ -135,8 +137,6 @@ const CATEGORY_FILTERS: Array<HistoryRow["category"] | "All"> = [
   "Ripperdoc",
   "Stock",
   "Venue Stock",
-  "Employment",
-  "Mission",
   "Lease",
 ];
 
@@ -171,7 +171,7 @@ function categoryColor(category: HistoryRow["category"]): string {
   }
 }
 
-export default function MyRequests() {
+export default function MySubmissions() {
   const { data: me } = useAuthMe();
   const { data: custom, isLoading: loadingCustom } = useListMyCustomRequests();
   const { data: housing, isLoading: loadingHousing } = useListMyHousingRequests();
@@ -235,34 +235,6 @@ export default function MyRequests() {
       onSuccess: () => invalidateMine(),
     },
   });
-  const decideInvite = useDecideEmployeeInvite({
-    mutation: {
-      onSuccess: (_res, variables) => {
-        invalidateMine();
-        toast({
-          title:
-            variables.data.decision === "accept"
-              ? "Invitation accepted — you're hired"
-              : "Invitation declined",
-        });
-      },
-      onError: (err) => toast({ title: "Could not respond", description: errMsg(err, "Please try again."), variant: "destructive" }),
-    },
-  });
-  const decideParticipation = useDecideMissionParticipation({
-    mutation: {
-      onSuccess: (_res, variables) => {
-        invalidateMine();
-        toast({
-          title:
-            variables.data.decision === "accept"
-              ? "Participation confirmed"
-              : "Assignment declined",
-        });
-      },
-      onError: (err) => toast({ title: "Could not respond", description: errMsg(err, "Please try again."), variant: "destructive" }),
-    },
-  });
   const update = useUpdateCustomRequest();
   const resubmit = useResubmitCustomRequest({
     mutation: {
@@ -311,10 +283,9 @@ export default function MyRequests() {
   const rows = useMemo<HistoryRow[]>(() => {
     const out: HistoryRow[] = [];
     for (const r of (custom ?? []) as CustomRequest[]) {
+      // Player-decided rows (invites / participation) live on the Inbox page.
+      if (INBOX_REQUEST_TYPES.has(r.type)) continue;
       const det = (r.details ?? {}) as {
-        role?: string | null;
-        commissionPct?: number | null;
-        venueName?: string | null;
         purpose?: string | null;
         location?: string | null;
       };
@@ -336,9 +307,6 @@ export default function MyRequests() {
         location: isVenue ? det.location ?? null : null,
         subjectType: "request",
         subjectId: r.id,
-        inviteRole: r.type === "employee_invite" ? det.role ?? null : null,
-        inviteCommissionPct: r.type === "employee_invite" ? det.commissionPct ?? null : null,
-        inviteVenueName: r.type === "employee_invite" ? det.venueName ?? null : null,
         approveCount: r.approveCount,
         rejectCount: r.rejectCount,
         voteThreshold: r.threshold,
@@ -440,12 +408,6 @@ export default function MyRequests() {
           ) : null}
           {r.customType === "stock_cost" && r.description ? (
             <div className="text-[11px] text-muted-foreground mt-0.5">{r.description}</div>
-          ) : null}
-          {r.customType === "employee_invite" ? (
-            <div className="text-[11px] text-muted-foreground mt-0.5" data-testid={`invite-terms-${r.customId}`}>
-              {r.inviteVenueName ?? "Venue"} · {r.inviteRole ?? "employee"}
-              {r.inviteCommissionPct != null ? ` · ${r.inviteCommissionPct}% commission` : ""}
-            </div>
           ) : null}
           {r.reviewerNote ? (
             <div className="text-[11px] text-muted-foreground italic mt-0.5">
@@ -579,56 +541,6 @@ export default function MyRequests() {
               </Button>
             </div>
           ) : null}
-          {r.customType === "employee_invite" && r.status === "pending" && r.customId != null ? (
-            <div className="flex gap-2 mt-2">
-              <Button
-                type="button"
-                size="sm"
-                disabled={decideInvite.isPending}
-                className="rounded-none bg-nc-green text-background font-display text-[10px] tracking-widest"
-                onClick={() => decideInvite.mutate({ id: r.customId!, data: { decision: "accept" } })}
-                data-testid={`button-invite-accept-${r.customId}`}
-              >
-                ACCEPT
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={decideInvite.isPending}
-                className="rounded-none border-destructive text-destructive font-display text-[10px] tracking-widest"
-                onClick={() => decideInvite.mutate({ id: r.customId!, data: { decision: "deny" } })}
-                data-testid={`button-invite-deny-${r.customId}`}
-              >
-                DENY
-              </Button>
-            </div>
-          ) : null}
-          {r.customType === "mission_participation" && r.status === "pending" && r.customId != null ? (
-            <div className="flex gap-2 mt-2">
-              <Button
-                type="button"
-                size="sm"
-                disabled={decideParticipation.isPending}
-                className="rounded-none bg-nc-green text-background font-display text-[10px] tracking-widest"
-                onClick={() => decideParticipation.mutate({ id: r.customId!, data: { decision: "accept" } })}
-                data-testid={`button-participation-accept-${r.customId}`}
-              >
-                ACCEPT
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={decideParticipation.isPending}
-                className="rounded-none border-destructive text-destructive font-display text-[10px] tracking-widest"
-                onClick={() => decideParticipation.mutate({ id: r.customId!, data: { decision: "deny" } })}
-                data-testid={`button-participation-deny-${r.customId}`}
-              >
-                DECLINE
-              </Button>
-            </div>
-          ) : null}
           <div className="mt-2">
             <Button
               type="button"
@@ -738,12 +650,12 @@ export default function MyRequests() {
       <div>
         <h1
           className="text-4xl font-display font-bold text-foreground flex items-center gap-3"
-          data-testid="text-my-requests-title"
+          data-testid="text-my-submissions-title"
         >
-          <ClipboardList className="w-8 h-8 text-nc-magenta" /> MY REQUESTS
+          <ClipboardList className="w-8 h-8 text-nc-magenta" /> MY SUBMISSIONS
         </h1>
         <p className="text-muted-foreground font-mono mt-2">
-          Every character, character edit, property, gun, cyberware, stock-cost, and lease request you've submitted — with the outcome and staff notes. When a fixer asks for changes, respond right here.
+          Everything you've sent out for review — characters, character edits, property, gun, cyberware, stock-cost, and lease requests — with the outcome and staff notes. When a fixer asks for changes, respond right here. Things waiting on <em>your</em> decision live in your Inbox.
         </p>
       </div>
 

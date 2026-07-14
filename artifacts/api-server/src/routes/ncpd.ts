@@ -428,7 +428,7 @@ router.delete("/ncpd/reports/:id", requireAuth, requireNcpd, async (req, res): P
 // listing "my fines" are owner-scoped and open to any authenticated player.
 
 // Player-facing: every fine levied on a character the requester currently owns
-// (surfaced in the portal's "My Offers" page). Ordered newest first, unpaid
+// (surfaced in the portal's Inbox page). Ordered newest first, unpaid
 // before paid so outstanding balances lead.
 router.get("/ncpd/fines/mine", requireAuth, async (req, res): Promise<void> => {
   const rows = await db
@@ -485,7 +485,7 @@ router.post("/ncpd/fines", requireAuth, requireNcpd, async (req, res): Promise<v
       if (owner?.discordId) {
         await sendDirectMessage(
           owner.discordId,
-          `🚨 **NCPD Fine Issued** — ${c.name} has been fined **€$${amt.toLocaleString()}**.\nReason: ${r}\nPay it from the "My Offers" page in the Night City portal.`,
+          `🚨 **NCPD Fine Issued** — ${c.name} has been fined **€$${amt.toLocaleString()}**.\nReason: ${r}\nPay it from the "Inbox" page in the Night City portal.`,
         );
       }
     })();

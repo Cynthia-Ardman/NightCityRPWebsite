@@ -142,7 +142,7 @@ function computeCommissionAmount(offer: {
 // Build the absolute portal URL for an offer's approval page. Mirrors sheets.ts.
 function offerLink(): string {
   const portalBase = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(/^https?:\/\//, "");
-  return portalBase ? `https://${portalBase}/offers/mine` : `/offers/mine`;
+  return portalBase ? `https://${portalBase}/inbox` : `/inbox`;
 }
 
 // Per-unit CWP a stock item costs to install. The catalog is authoritative when
@@ -468,7 +468,7 @@ export async function createInstallOwnedOffer(opts: {
     afterJson: { offerType: "install_owned", fee, cwp, installItemId, buyerCharacterId: buyer.id } as never,
   });
 
-  // Best-effort player DM (the in-portal surface is /offers/mine). NO
+  // Best-effort player DM (the in-portal surface is /inbox). NO
   // auto-completion: the player must approve before anything is installed.
   try {
     const [u] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, offer.buyerUserId));
@@ -560,7 +560,7 @@ export async function createServiceBillOffer(opts: {
     afterJson: { offerType: "service", amount, buyerCharacterId: buyer.id, venueId } as never,
   });
 
-  // Best-effort player DM (the in-portal surface is /offers/mine). NO
+  // Best-effort player DM (the in-portal surface is /inbox). NO
   // auto-completion: the player must approve before any money moves.
   try {
     const [u] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, offer.buyerUserId));
@@ -656,7 +656,7 @@ export async function createStockAddOffer(opts: {
     afterJson: { offerType: "stock_add", totalPrice, quantity, cwp, venueId, venueKind: kind } as never,
   });
 
-  // Best-effort owner DM (the in-portal surface is /offers/mine).
+  // Best-effort owner DM (the in-portal surface is /inbox).
   try {
     const [u] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, offer.buyerUserId));
     if (u?.discordId) {

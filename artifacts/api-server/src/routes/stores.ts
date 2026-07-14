@@ -242,7 +242,7 @@ async function resolveLeaseAssociation(
 
 // Adding an employee no longer immediately employs them — it creates a pending
 // `employee_invite` request the invited character's player must accept (from
-// their "My Requests"). Validates the character (claimed, not archived, not
+// their Inbox). Validates the character (claimed, not archived, not
 // already employed, no pending invite), inserts the request, DMs the invited
 // player, and responds {pendingApproval, requestId}. Shared by store + ripperdoc.
 async function createEmployeeInvite(args: {
@@ -350,7 +350,7 @@ async function createEmployeeInvite(args: {
     if (u?.discordId) {
       await sendDirectMessage(
         u.discordId,
-        `${req.user!.username} invited ${c.name} to work at ${venueName} as ${role} (${commissionPct}% commission). Accept or decline it under "My Requests" on the NCRP portal.`,
+        `${req.user!.username} invited ${c.name} to work at ${venueName} as ${role} (${commissionPct}% commission). Accept or decline it under "Inbox" on the NCRP portal.`,
       );
     }
   } catch (err) {
@@ -1014,7 +1014,7 @@ router.post("/ripperdocs/:id/bill", requireAuth, async (req, res): Promise<void>
 
 // Fixer/admin stocked a venue at a CUSTOM cost (> 0). Rather than debiting the
 // owner's venue balance without consent, route a cost-approval to the owner: a
-// `stock_cost` custom_request that shows up in the owner's "My Requests". On
+// `stock_cost` custom_request that shows up in the owner's "My Submissions". On
 // approval the stock is added and the balance is debited atomically; on reject
 // nothing moves. The full stock payload is snapshotted in `details` so the
 // terms can't drift before the owner decides.
@@ -1087,7 +1087,7 @@ async function createStockCostRequest(opts: {
     if (owner?.discordId) {
       await sendDirectMessage(
         owner.discordId,
-        `${actor.username} proposed stocking your ${venueLabel} "${venue.name}" with ${name} ×${qty} at €$${unitCost.toLocaleString()} each (total €$${totalCost.toLocaleString()}). Review it under "My Requests" to approve or reject.`,
+        `${actor.username} proposed stocking your ${venueLabel} "${venue.name}" with ${name} ×${qty} at €$${unitCost.toLocaleString()} each (total €$${totalCost.toLocaleString()}). Review it under "My Submissions" to approve or reject.`,
       );
     }
   } catch (err) {
@@ -1179,7 +1179,7 @@ async function purchaseFromCatalog(opts: {
 
   // Fixer/admin set a CUSTOM cost (> 0): don't debit now. Route a cost-approval
   // to the venue owner; the stock is added atomically when they approve it
-  // from "My Requests" (see requests.ts POST /requests/:id/stock-decision).
+  // from "My Submissions" (see requests.ts POST /requests/:id/stock-decision).
   if (hasOverride && unitCost > 0) {
     const approval = await createStockCostRequest({
       kind,

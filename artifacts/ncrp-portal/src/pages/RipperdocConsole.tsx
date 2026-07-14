@@ -158,7 +158,7 @@ export default function RipperdocConsole() {
     mutation: {
       onSuccess: () => {
         setFeedback(
-          `Install offer sent to ${selected?.name ?? "patient"} — they confirm it (and any fee) in My Offers.`,
+          `Install offer sent to ${selected?.name ?? "patient"} — they confirm it (and any fee) in their Inbox.`,
         );
         setError(null);
         refreshPatient();
@@ -201,7 +201,7 @@ export default function RipperdocConsole() {
     mutation: {
       onSuccess: () => {
         setFeedback(
-          `Bill sent to ${selected?.name ?? "patient"} — they approve and pay it from My Offers.`,
+          `Bill sent to ${selected?.name ?? "patient"} — they approve and pay it from their Inbox.`,
         );
         setError(null);
         setBillAmount(0);
@@ -523,7 +523,7 @@ export default function RipperdocConsole() {
                       </div>
                     )}
                     <p className="text-[10px] font-mono text-muted-foreground/70 mt-1">
-                      Sends a pending install offer the patient confirms in My Offers. Any fee is charged on their approval.
+                      Sends a pending install offer the patient confirms in their Inbox. Any fee is charged on their approval.
                     </p>
                   </div>
                 )}
@@ -606,7 +606,7 @@ export default function RipperdocConsole() {
                 ) : (
                   <>
                     <p className="text-[11px] font-mono text-muted-foreground">
-                      Bill {selected!.name} for services rendered (patch-ups, repairs, checkups). They approve and pay it from My Offers; the eddies land in the clinic account.
+                      Bill {selected!.name} for services rendered (patch-ups, repairs, checkups). They approve and pay it from their Inbox; the eddies land in the clinic account.
                     </p>
                     <Input
                       type="number"

@@ -8,7 +8,7 @@ let sheets: unknown[] = [];
 let edits: unknown[] = [];
 
 vi.mock("wouter", () => ({
-  useLocation: () => ["/requests/mine", navigate] as const,
+  useLocation: () => ["/submissions", navigate] as const,
 }));
 
 vi.mock("@/hooks/useAuthMe", () => ({
@@ -25,8 +25,6 @@ vi.mock("@workspace/api-client-react", () => ({
   useListMySheets: () => ({ data: sheets, isLoading: false }),
   useListPendingEdits: () => ({ data: edits, isLoading: false }),
   useDecideStockCostRequest: () => ({ mutate: vi.fn(), isPending: false }),
-  useDecideEmployeeInvite: () => ({ mutate: vi.fn(), isPending: false }),
-  useDecideMissionParticipation: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateCustomRequest: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useResubmitCustomRequest: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   useSubmitDraftCustomRequest: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
@@ -37,7 +35,7 @@ vi.mock("@workspace/api-client-react", () => ({
   getGetMyUnseenQueryKey: () => ["my-unseen"],
 }));
 
-import MyRequests from "./MyRequests";
+import MySubmissions from "./MySubmissions";
 
 beforeEach(() => {
   navigate.mockReset();
@@ -49,12 +47,12 @@ function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MyRequests />
+      <MySubmissions />
     </QueryClientProvider>,
   );
 }
 
-describe("MyRequests character submissions", () => {
+describe("MySubmissions character submissions", () => {
   it("shows a new-character sheet that needs changes and links to it", () => {
     sheets = [
       {

@@ -113,7 +113,7 @@ export default function MyStoreDetail() {
         invalidate();
         toast({
           title: "Invitation sent",
-          description: "The employee will see it in My Requests and must accept before they're hired.",
+          description: "The employee will see it in their Inbox and must accept before they're hired.",
         });
       },
       onError: (err) => {
@@ -728,7 +728,7 @@ export default function MyStoreDetail() {
           <DialogHeader>
             <DialogTitle className="font-display tracking-widest text-nc-cyan">Request Custom Stock</DialogTitle>
             <DialogDescription className="font-mono text-xs">
-              Ask a fixer to price a custom item for this store. Once they set a cost, you approve it from My Requests and pay to stock it.
+              Ask a fixer to price a custom item for this store. Once they set a cost, you approve it from My Submissions and pay to stock it.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
