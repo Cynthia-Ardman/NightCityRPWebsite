@@ -120,9 +120,10 @@ export default function LawsPage() {
           <CardContent className="py-8 font-mono text-muted-foreground text-center">No laws on the books yet.</CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="flex gap-6 items-start">
+        <div className="space-y-4 flex-1 min-w-0">
           {laws.map((law, i) => (
-            <Card key={law.id} className="rounded-none border-border bg-card/50" data-testid={`card-law-${law.id}`}>
+            <Card key={law.id} id={`law-${law.id}`} className="rounded-none border-border bg-card/50 scroll-mt-20" data-testid={`card-law-${law.id}`}>
               <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
                 <CardTitle className="font-display tracking-wider text-lg flex items-center gap-3 flex-wrap">
                   <span className="text-muted-foreground font-mono text-sm">§{i + 1}</span> {law.title}
@@ -157,6 +158,30 @@ export default function LawsPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+        {/* Table of contents — sticky on the right, hidden on small screens. */}
+        <nav
+          className="hidden lg:block w-64 shrink-0 sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto border border-border bg-card/30 p-4"
+          aria-label="Table of contents"
+          data-testid="nav-laws-toc"
+        >
+          <p className="font-display text-[10px] uppercase tracking-widest text-nc-cyan mb-3">Contents</p>
+          <ul className="space-y-1">
+            {laws.map((law, i) => (
+              <li key={law.id}>
+                <button
+                  type="button"
+                  onClick={() => document.getElementById(`law-${law.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                  className="w-full text-left font-mono text-xs text-muted-foreground hover:text-nc-cyan py-0.5 flex gap-2"
+                  data-testid={`link-toc-law-${law.id}`}
+                >
+                  <span className="text-nc-cyan/60 shrink-0">§{i + 1}</span>
+                  <span className="truncate">{law.title}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
         </div>
       )}
     </div>

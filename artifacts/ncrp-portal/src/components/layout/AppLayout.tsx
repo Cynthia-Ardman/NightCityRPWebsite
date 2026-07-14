@@ -46,7 +46,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <TopBar />
         <ViewAsBanner />
         <OnboardingBanner />
-        <main className="flex-1 p-4 md:p-8 overflow-x-hidden">
+        <main className="flex-1 p-4 md:p-8 overflow-x-clip">
           {children}
         </main>
         <BrandFooter />

@@ -62,6 +62,7 @@
 - Lore: [new fields thread 3 write paths](lore-write-paths.md) create/applyProposal/import-drafts; [shared vote pipeline, guidebook stays admin-only](lore-review-pipeline.md); [import clobbers manual fixes](lore-import-channel-gap.md).
 - Review authz: [close/reopen mirrors per-type VOTE authz](review-close-reopen-authz.md) not queue visibility; [all 3 queues gate reads on isReviewer](review-queue-gate-parity.md) or eligible voters locked out.
 - [Staged review effects deferred to close](staged-review-effects.md) — approve/override only STAGE (persist decisionParams); effects (lease/inventory/materialize/diff) commit at close — see topic.
+- [Sticky vs overflow-x on main](sticky-overflow-clip.md) — AppLayout main must stay overflow-x-clip; overflow-x-hidden creates a scroll container and kills sticky descendants.
 - [Portal page width tiers](portal-page-width-tiers.md) — page-root containers use max-w-7xl (standard) or max-w-[1600px] (wide tables); no global cap, sidebar is fixed w-64.
 - [Mission apply UI + payout totals](mission-apply-and-payout-totals.md) — apply form is NOT manager-gated (staff also play; myApplication always for viewer); payout batch total is a display-parity sum incl. simulated/failed, not "disbursed".
 - [custom_requests is character-bound](custom-request-character-bound.md) — characterId is NOT NULL; non-character proposals (new mission/cyberware catalog) need a migration — see topic.
