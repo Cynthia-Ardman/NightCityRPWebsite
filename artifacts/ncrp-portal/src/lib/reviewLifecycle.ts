@@ -1,4 +1,4 @@
-// Shared review-ticket lifecycle bucketing for the player (My Requests) and
+// Shared review-ticket lifecycle bucketing for the player (My Submissions) and
 // staff (Pending Requests) pages. The server uses plain-text status columns;
 // the three UI sections map onto those statuses as follows:
 //   Active   — pending / changes_requested (still needs someone to act)

@@ -161,7 +161,7 @@ export default function VenueRequestSection({
       </div>
 
       {myRequests.length > 0 && (
-        <div className="border border-border bg-card/30 p-4 space-y-2" data-testid={`my-requests-${type}`}>
+        <div className="border border-border bg-card/30 p-4 space-y-2" data-testid={`my-submissions-${type}`}>
           <div className="font-display text-sm tracking-widest text-nc-cyan uppercase">Your Requests</div>
           {myRequests.map((r) => (
             <div

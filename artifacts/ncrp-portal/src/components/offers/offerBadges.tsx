@@ -1,11 +1,11 @@
 import { type SaleOffer } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 
-// Shared offer badges so the player My Offers view and the venue-owner offers
+// Shared offer badges so the player Inbox view and the venue-owner offers
 // panel render every offer type/status identically (previously the venue panel
 // was missing install_owned / stock_add labels that players saw correctly).
 
-// Single source of truth for "can the viewer act on this offer from My Offers?"
+// Single source of truth for "can the viewer act on this offer from the Inbox?"
 // The nav badge count and the page's pending list MUST share this predicate,
 // or the badge counts rows the user can never clear (phantom badge).
 export function offerNeedsMyDecision(o: SaleOffer): boolean {

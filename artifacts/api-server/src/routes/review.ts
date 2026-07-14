@@ -417,7 +417,7 @@ router.get("/review/my-unseen", requireAuth, async (req, res): Promise<void> => 
   // (decidedAt/reviewedAt) or a comment from someone other than themselves.
   // The bare submission timestamp (submittedAt/createdAt) is deliberately NOT a
   // trigger here — including it made every freshly submitted pending row light
-  // up its own author's "My Requests" badge with nothing new to read, the
+  // up its own author's "My Submissions" badge with nothing new to read, the
   // recurring phantom-pending-edit bug.
   // closedAt is ALSO deliberately excluded: a reviewer's administrative close
   // (archiving an already-resolved ticket) was re-pinging the submitter on a

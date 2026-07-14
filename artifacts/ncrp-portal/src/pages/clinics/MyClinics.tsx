@@ -11,8 +11,8 @@ export default function MyClinics() {
       <h1 className="text-4xl font-display" data-testid="text-my-clinics-title">MY CLINICS</h1>
       <VenueRequestSection
         type="ripperdoc"
-        buttonLabel="REQUEST NEW RIPPERDOC"
-        dialogTitle="REQUEST NEW RIPPERDOC"
+        buttonLabel="REQUEST NEW CLINIC"
+        dialogTitle="REQUEST NEW CLINIC"
         dialogDescription="Tell staff about the clinic you want to open. They'll review and create it on approval."
         nameLabel="Clinic Name"
         namePlaceholder="e.g. Vik's Clinic"
@@ -22,7 +22,7 @@ export default function MyClinics() {
           <div className="py-20 text-center border border-dashed border-border bg-card/30">
             <Syringe className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
             <h3 className="font-display text-xl">NO CLINICS YET</h3>
-            <p className="font-mono text-sm text-muted-foreground mt-2">Use "Request New Ripperdoc" above to apply for one. Staff will review and create it on approval.</p>
+            <p className="font-mono text-sm text-muted-foreground mt-2">Use "Request New Clinic" above to apply for one. Staff will review and create it on approval.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -2213,7 +2213,7 @@ export default function PendingRequests() {
   const guidebookCount = (guidebookData ?? []).length;
 
   // Land on the first tab that actually has unseen items, so a reviewer arriving
-  // from the sidebar "Pending Requests" badge isn't dropped on an empty MISC tab
+  // from the sidebar "Review Queue" badge isn't dropped on an empty MISC tab
   // while the pending item sits on, say, CHARACTER EDITS (the badge aggregates
   // every queue). Falls back to the first tab the staffer can act on when every
   // queue is clear. Controlled (not defaultValue) because the counts load
@@ -2285,7 +2285,7 @@ export default function PendingRequests() {
           className="text-4xl font-display font-bold text-foreground flex items-center gap-3"
           data-testid="text-pending-requests-title"
         >
-          <Clock className="w-8 h-8 text-nc-yellow" /> PENDING REQUESTS
+          <Clock className="w-8 h-8 text-nc-yellow" /> REVIEW QUEUE
         </h1>
         <p className="text-muted-foreground font-mono mt-2">Review player submissions across the server.</p>
       </div>

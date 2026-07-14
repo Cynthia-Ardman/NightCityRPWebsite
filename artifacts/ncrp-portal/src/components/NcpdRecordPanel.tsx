@@ -237,7 +237,7 @@ function fineStatusClass(status: string): string {
 }
 
 // Officers levy fines here; the character's owner pays them from the portal's
-// "My Offers" page. A PAID badge (with the paid date) is the officer's
+// Inbox page. A PAID badge (with the paid date) is the officer's
 // notification that a fine was settled.
 function FinesSection({
   characterId,

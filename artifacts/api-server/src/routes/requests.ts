@@ -54,7 +54,7 @@ type RequestType = (typeof REQUEST_TYPES)[number];
 // Custom-request types that NEVER appear in the staff triage queue: `stock_cost`
 // is owner-approved, `employee_invite` is decided by the invited player, and
 // `mission_participation` is decided by the assigned character's player. They
-// live only in "My Requests". Exported so the reviewer unseen-count / unseen-id
+// live only in "My Submissions" / the Inbox. Exported so the reviewer unseen-count / unseen-id
 // endpoints (review.ts) can exclude the exact same set — otherwise the dashboard
 // "Pending Requests" card and the misc-tab badge count a ticket that the queue
 // they link to never renders (a phantom "1 pending request, nothing there").

@@ -34,13 +34,13 @@ import { logger } from "./logger";
 //   install_owned — ripperdoc only: install a cyberware piece the buyer ALREADY
 //               owns (an uninstalled inventory item) onto their character. No
 //               stock leg (the player owns the piece); leaves a PENDING offer
-//               the player approves from My Offers; optional install fee via
+//               the player approves from their Inbox; optional install fee via
 //               unitPrice. References installItemId.
 //   service   — ripperdoc only: a freeform bill for work performed (repair,
 //               patch-up, etc). No stock or inventory leg at all — approving
 //               just debits the buyer and credits the clinic (commission via
 //               the normal path, costBasis null => full amount is profit).
-//               Leaves a PENDING offer the player approves from My Offers.
+//               Leaves a PENDING offer the player approves from their Inbox.
 export type OfferType = "sale" | "install" | "remove" | "give" | "stock_add" | "install_owned" | "service";
 
 // ---------------------------------------------------------------------------
@@ -377,7 +377,7 @@ export async function createRemoveOffer(opts: {
 // Install a cyberware piece the buyer ALREADY owns (an uninstalled inventory
 // item) onto their character. Unlike `install` (stock-backed, instant), there
 // is no stock leg and NO auto-completion: the offer is left PENDING for the
-// player to approve from My Offers. An optional install fee flows through the
+// player to approve from their Inbox. An optional install fee flows through the
 // same buyer-approval + commission path as a sale (totalPrice 0 => free).
 export async function createInstallOwnedOffer(opts: {
   venueId: number;
@@ -491,7 +491,7 @@ export async function createInstallOwnedOffer(opts: {
 // just debits the buyer's wallet and credits the clinic account (commission via
 // the normal path; costBasis stays null so the full amount counts as profit).
 // NO auto-completion: the offer is left PENDING for the player to approve from
-// My Offers, exactly like install_owned.
+// their Inbox, exactly like install_owned.
 export async function createServiceBillOffer(opts: {
   venueId: number;
   buyerCharacterId: number;

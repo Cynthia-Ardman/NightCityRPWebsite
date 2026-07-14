@@ -153,7 +153,7 @@ export default function RipperdocConsole() {
   const uninstalled = cyberStatus?.uninstalled ?? [];
 
   // Offer to fit a piece the patient already owns. Leaves a PENDING offer the
-  // player confirms in My Offers; the optional fee is charged on their approval.
+  // player confirms in their Inbox; the optional fee is charged on their approval.
   const installOwned = useCreateInstallOwnedOffer({
     mutation: {
       onSuccess: () => {
@@ -195,7 +195,7 @@ export default function RipperdocConsole() {
   });
 
   // Freeform service bill (repair, patch-up, checkup fee…). Leaves a PENDING
-  // offer the patient approves from My Offers; approving debits their wallet
+  // offer the patient approves from their Inbox; approving debits their wallet
   // and credits the clinic account.
   const sendBill = useSendRipperdocBill({
     mutation: {

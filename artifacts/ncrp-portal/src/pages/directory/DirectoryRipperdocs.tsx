@@ -9,13 +9,13 @@ export default function DirectoryRipperdocs() {
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <div>
-        <h1 className="text-4xl font-display" data-testid="text-ripperdocs-title">RIPPERDOC DIRECTORY</h1>
+        <h1 className="text-4xl font-display" data-testid="text-ripperdocs-title">CLINIC DIRECTORY</h1>
         <p className="font-mono text-muted-foreground mt-2">Find a ripperdoc for your next upgrade.</p>
       </div>
       <VenueRequestSection
         type="ripperdoc"
-        buttonLabel="REQUEST NEW RIPPERDOC"
-        dialogTitle="REQUEST NEW RIPPERDOC"
+        buttonLabel="REQUEST NEW CLINIC"
+        dialogTitle="REQUEST NEW CLINIC"
         dialogDescription="Tell staff about the clinic you want to open. They'll review and create it on approval."
         nameLabel="Clinic Name"
         namePlaceholder="e.g. Vik's Clinic"
@@ -24,7 +24,7 @@ export default function DirectoryRipperdocs() {
         !data?.length ? (
           <div className="py-20 text-center border border-dashed border-border bg-card/30">
             <Syringe className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-            <h3 className="font-display text-xl">NO RIPPERDOCS REGISTERED</h3>
+            <h3 className="font-display text-xl">NO CLINICS REGISTERED</h3>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

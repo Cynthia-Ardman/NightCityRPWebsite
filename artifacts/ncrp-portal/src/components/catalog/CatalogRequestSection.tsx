@@ -192,7 +192,7 @@ export default function CatalogRequestSection({
   // Only surface still-actionable requests in the per-catalog banner: drafts
   // (unsubmitted), pending review, and changes-requested. Terminal outcomes
   // (approved/rejected/closed/cancelled) drop off so the banner stays a live
-  // to-do list, not a permanent history. The full history lives on My Requests.
+  // to-do list, not a permanent history. The full history lives on My Submissions.
   const myRequests = ((mine ?? []) as CustomRequest[]).filter(
     (r) => !TERMINAL_REQUEST_STATUSES.has((r.status ?? "").toLowerCase()),
   );
@@ -210,7 +210,7 @@ export default function CatalogRequestSection({
       </div>
 
       {!presetCharacterId && myRequests.length > 0 && (
-        <div className="border border-border bg-card/30 p-4 space-y-2" data-testid={`my-requests-${type}`}>
+        <div className="border border-border bg-card/30 p-4 space-y-2" data-testid={`my-submissions-${type}`}>
           <div className="font-display text-sm tracking-widest text-nc-cyan uppercase">Your Requests</div>
           {myRequests.map((r) => (
             <div

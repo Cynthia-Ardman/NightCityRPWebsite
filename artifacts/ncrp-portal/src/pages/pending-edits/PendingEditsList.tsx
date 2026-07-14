@@ -312,7 +312,7 @@ export default function PendingEditsList({
 // Reviewer view: bucketed Active / Resolved / Archive with unseen dots and
 // close/reopen on resolved tickets. When `activeOnly` is set, only the active
 // bucket is shown — terminal (resolved/archived) edits live in the cross-cutting
-// Completed / Denied tabs of the Pending Requests page.
+// Completed / Denied tabs of the staff Review Queue page.
 function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean; activeOnly?: boolean }) {
   const qc = useQueryClient();
   const { data: active, isLoading: la } = useListPendingEdits({ bucket: "active" });

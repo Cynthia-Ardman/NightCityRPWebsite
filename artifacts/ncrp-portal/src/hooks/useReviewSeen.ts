@@ -26,7 +26,7 @@ const COUNT_KEY: Record<SubjectType, keyof Pick<ReviewUnseenCounts, "edits" | "r
 // Marking a review subject "seen" must clear EVERY unread surface the instant
 // the user opens it — the per-card magenta line + NEW dot (unseen-ids), the
 // staff queue tab counts and sidebar badge (unseen-counts), and the player's
-// "My Requests" dots + nav badge (my-unseen). The generated markSeen mutation
+// "My Submissions" dots + nav badge (my-unseen). The generated markSeen mutation
 // only updates the server, and the previous wiring forgot to refresh unseen-ids
 // at all (so the line/dot lingered until a natural refetch) and waited on a
 // network round-trip for the rest (so nothing cleared "instantly").
@@ -70,7 +70,7 @@ export function useMarkReviewSeenInstant() {
       });
     }
 
-    // (3) Player "My Requests" dots + nav badge (submitter view).
+    // (3) Player "My Submissions" dots + nav badge (submitter view).
     qc.setQueryData<MyUnseen>(myKey, (old) => {
       if (!old) return old;
       const arr = old[subjectType] ?? [];

@@ -1189,14 +1189,14 @@ function WorkflowActions({
       </div>
     );
   }
-  // Proposals are now approved from the Misc Requests / Pending Requests queue,
+  // Proposals are now approved from the Misc Requests / Review Queue,
   // not here. A proposal awaiting approval simply shows its workflow badge with
   // no action on this board.
   if (m.workflowState === "proposal") {
     return (
       <div className="pt-1">
         <span className="font-mono text-xs text-muted-foreground" data-testid={`text-awaiting-approval-${m.id}`}>
-          Awaiting approval in Pending Requests
+          Awaiting approval in the Review Queue
         </span>
       </div>
     );

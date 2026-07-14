@@ -388,7 +388,7 @@ async function createEmployeeInvite(args: {
 // Off-catalog ("custom") stock request raised by a venue owner. Goes onto the
 // unified request pipeline as a `venue_stock` row for fixers to vote on; on
 // approval that materializes into a `stock_cost` the owner pays. The request is
-// attributed to the venue's owner character (so it shows in their My Requests).
+// attributed to the venue's owner character (so it shows in their My Submissions).
 async function createVenueStockRequest(args: {
   req: Request;
   res: Response;
@@ -962,7 +962,7 @@ router.get("/ripperdocs/:id/characters/:characterId/cyberware", requireAuth, asy
 
 // Install a cyberware piece the patient ALREADY owns (an uninstalled inventory
 // item) onto their character. Leaves a PENDING offer the player confirms from
-// My Offers; an optional install fee is charged on approval. See
+// their Inbox; an optional install fee is charged on approval. See
 // lib/saleOffers.ts createInstallOwnedOffer for the validation + completion.
 router.post("/ripperdocs/:id/install-owned", requireAuth, async (req, res): Promise<void> => {
   const venueId = parseInt(String(req.params.id), 10);
@@ -984,7 +984,7 @@ router.post("/ripperdocs/:id/install-owned", requireAuth, async (req, res): Prom
 });
 
 // Send a freeform service bill to a character (repair, patch-up, etc). Leaves
-// a PENDING offer the player approves from My Offers; approving debits their
+// a PENDING offer the player approves from their Inbox; approving debits their
 // wallet and credits the clinic account. See lib/saleOffers.ts
 // createServiceBillOffer.
 router.post("/ripperdocs/:id/bill", requireAuth, async (req, res): Promise<void> => {

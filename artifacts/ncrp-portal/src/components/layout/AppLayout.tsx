@@ -297,7 +297,7 @@ function SidebarContent() {
         <NavItem href="/missions" icon={Briefcase} label="Missions" tone="green" />
         <NavItem href="/directory/calendar" icon={CalendarDays} label="Calendar" tone="green" />
         <NavItem href="/directory/stores" icon={Store} label="Stores" tone="green" />
-        <NavItem href="/directory/ripperdocs" icon={Stethoscope} label="Ripperdocs" tone="green" />
+        <NavItem href="/directory/ripperdocs" icon={Stethoscope} label="Clinics" tone="green" />
         <NavItem href="/laws" icon={Scale} label="Book of Laws" tone="green" />
         {/* Temporary lockdown: lore section is fixer/admin-only until cleanup. */}
         {user && (user.isFixer || user.isAdmin) && (
@@ -335,7 +335,7 @@ function SidebarContent() {
             but only fixers / cs-approvers / admins have anything to do here,
             so the nav link is staff-gated. */}
         {user && (user.isFixer || user.isCsApprover || user.isAdmin) && (
-          <NavItem href="/requests" icon={FileText} label="Pending Requests" badge={staffPending} tone="magenta" />
+          <NavItem href="/requests" icon={FileText} label="Review Queue" badge={staffPending} tone="magenta" />
         )}
         {user?.isAdmin && <NavItem href="/admin" icon={Shield} label="System Admin" tone="magenta" />}
 

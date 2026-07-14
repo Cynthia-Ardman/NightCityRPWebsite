@@ -105,7 +105,7 @@ export default function PendingEditDetail() {
     qc.invalidateQueries({ queryKey: getGetPendingEditQueryKey(editId) });
     qc.invalidateQueries({ queryKey: getListPendingEditsQueryKey() });
     // Refresh the sidebar/nav unseen badges (ids + counts) after a vote/decision
-    // so the "Pending Requests" badge doesn't go stale until a full reload.
+    // so the "Review Queue" badge doesn't go stale until a full reload.
     qc.invalidateQueries({ queryKey: getGetReviewUnseenIdsQueryKey() });
     qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
     qc.invalidateQueries({ queryKey: getGetReviewUnreadDetailQueryKey() });

@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Clock, XCircle, MessageSquareWarning, FileEdit } from "lucide-react";
 
 // Shared status badge for player request rows (custom requests + leases),
-// used by the per-catalog request section and the consolidated My Requests
+// used by the per-catalog request section and the consolidated My Submissions
 // history page so the visual language stays identical everywhere.
 export function RequestStatusBadge({
   status,

@@ -140,7 +140,7 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// The unified Pending Requests page is staff-only. Each tab self-gates by
+// The unified staff Review Queue page is staff-only. Each tab self-gates by
 // role inside the page, but a plain player typing the URL should never see
 // the queue — bounce them home.
 function StaffRequestsGuard({ children }: { children: React.ReactNode }) {
@@ -228,8 +228,7 @@ function AppRoutes() {
           <Route path="/pending-edits/:id" component={PendingEditDetail} />
           <Route path="/submissions" component={MySubmissions} />
           <Route path="/inbox" component={Inbox} />
-          {/* Old bookmarks / DM deep links: My Requests became My Submissions,
-              My Offers became Inbox. */}
+          {/* Old bookmarks / DM deep links redirect to the renamed pages. */}
           <Route path="/requests/mine"><Redirect to="/submissions" /></Route>
           <Route path="/offers/mine"><Redirect to="/inbox" /></Route>
           <Route path="/tickets/mine" component={MyTickets} />
