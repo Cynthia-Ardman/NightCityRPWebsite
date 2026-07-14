@@ -172,11 +172,11 @@ export default function LawsPage() {
                 <button
                   type="button"
                   onClick={() => document.getElementById(`law-${law.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                  className="w-full text-left font-mono text-xs text-muted-foreground hover:text-nc-cyan py-0.5 flex gap-2"
+                  className="w-full text-left font-mono text-xs text-muted-foreground hover:text-nc-cyan py-1 flex gap-2 items-start"
                   data-testid={`link-toc-law-${law.id}`}
                 >
                   <span className="text-nc-cyan/60 shrink-0">§{i + 1}</span>
-                  <span className="truncate">{law.title}</span>
+                  <span className="leading-snug">{law.title}</span>
                 </button>
               </li>
             ))}
