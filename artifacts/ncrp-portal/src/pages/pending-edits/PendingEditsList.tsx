@@ -264,7 +264,7 @@ function EditReviewCard({
               <DiscordThreadDrawer
                 subjectType="edit"
                 subjectId={e.id}
-                buttonLabel="SEE THREAD"
+                buttonLabel="FIXER COMMUNICATION"
                 watchUnread
                 buttonClassName="rounded-none border-nc-magenta/60 text-nc-magenta hover:bg-nc-magenta/10 font-display text-xs tracking-widest h-9 shrink-0"
               />

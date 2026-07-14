@@ -431,7 +431,7 @@ function MissionDetailView({ data: rawData, when }: { data: MissionDetailModel; 
           )}
           {isFullManager && data.status !== "cancelled" && <ConvertToEventDialog mission={data} />}
           {isFullManager && (
-            <DiscordThreadDrawer subjectType="mission" subjectId={data.id} buttonLabel="SEE THREAD" />
+            <DiscordThreadDrawer subjectType="mission" subjectId={data.id} buttonLabel="FIXER COMMUNICATION" />
           )}
           {data.completedAt && (
             <span

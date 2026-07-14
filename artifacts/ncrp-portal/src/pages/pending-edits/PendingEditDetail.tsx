@@ -406,7 +406,7 @@ export default function PendingEditDetail() {
             <DiscordThreadDrawer
               subjectType="edit"
               subjectId={editId}
-              buttonLabel="SEE THREAD"
+              buttonLabel="FIXER COMMUNICATION"
               watchUnread
               buttonClassName="rounded-none border-nc-magenta/60 text-nc-magenta hover:bg-nc-magenta/10 font-display tracking-widest h-10 shrink-0"
             />

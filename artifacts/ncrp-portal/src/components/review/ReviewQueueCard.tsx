@@ -134,7 +134,7 @@ export function ReviewQueueCard({
                   data-testid={`button-view-respond-${subjectType}-${id}`}
                 >
                   <MessageSquare className="w-3 h-3 mr-1" />
-                  VIEW &amp; RESPOND
+                  PLAYER COMMUNICATION
                   {discussionUnread > 0 && (
                     <span
                       className="ml-2 inline-flex items-center justify-center min-w-[1.15rem] h-[1.15rem] px-1 rounded-full bg-nc-magenta text-background font-mono text-[10px] font-bold"
