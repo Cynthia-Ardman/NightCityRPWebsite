@@ -298,10 +298,7 @@ function SidebarContent() {
         <NavItem href="/directory/stores" icon={Store} label="Stores" tone="green" />
         <NavItem href="/directory/ripperdocs" icon={Stethoscope} label="Clinics" tone="green" />
         <NavItem href="/laws" icon={Scale} label="Book of Laws" tone="green" />
-        {/* Temporary lockdown: lore section is fixer/admin-only until cleanup. */}
-        {user && (user.isFixer || user.isAdmin) && (
-          <NavItem href="/directory/lore" icon={BookOpen} label="Lore" tone="green" />
-        )}
+        <NavItem href="/directory/lore" icon={BookOpen} label="Lore" tone="green" />
 
         <div className={`px-4 text-xs font-mono ${NAV_TONES.yellow.heading} mb-2 mt-6 uppercase tracking-widest`}>Marketplace</div>
         <NavItem href="/catalog/guns" icon={Skull} label="Guns" tone="yellow" />

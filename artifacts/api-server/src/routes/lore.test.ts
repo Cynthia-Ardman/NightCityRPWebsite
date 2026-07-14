@@ -50,7 +50,7 @@ async function submitCreate(fixerId: string, diff: Record<string, unknown>) {
 }
 
 describe("GET /directory/lore/:id (fixer-only content gating)", () => {
-  it("blocks a non-staff player while the lore section is locked down", async () => {
+  it("serves a non-staff player the entry with fixer-only content redacted", async () => {
     const player = await createUser();
     const entry = await seedEntry();
 
@@ -58,7 +58,11 @@ describe("GET /directory/lore/:id (fixer-only content gating)", () => {
       .get(`/api/directory/lore/${entry.id}`)
       .set("x-test-user", player.id);
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(res.body.fixerBody).toBeNull();
+    expect(res.body.sources).toEqual([]);
+    expect(res.body.canViewFixer).toBe(false);
+    expect(res.body.hasFixerContent).toBe(true);
   });
 
   it("returns full fixerBody and sources to a fixer", async () => {

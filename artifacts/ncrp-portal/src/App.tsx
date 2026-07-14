@@ -250,17 +250,11 @@ function AppRoutes() {
           <Route path="/directory/characters">
             <StaffArchiveGuard><DirectoryCharacters /></StaffArchiveGuard>
           </Route>
-          {/* Temporary lockdown: the entire lore section is fixer/admin-only
-              while it's being cleaned up before going public. */}
           <Route path="/directory/map">
             <Redirect to="/directory/lore" />
           </Route>
-          <Route path="/directory/lore">
-            <StaffArchiveGuard><DirectoryLore /></StaffArchiveGuard>
-          </Route>
-          <Route path="/directory/lore/section/:category">
-            <StaffArchiveGuard><DirectoryLoreSection /></StaffArchiveGuard>
-          </Route>
+          <Route path="/directory/lore" component={DirectoryLore} />
+          <Route path="/directory/lore/section/:category" component={DirectoryLoreSection} />
           <Route path="/directory/lore/mine">
             <StaffArchiveGuard><MyLoreSubmissions /></StaffArchiveGuard>
           </Route>
@@ -273,9 +267,7 @@ function AppRoutes() {
           <Route path="/directory/lore/:id/edit">
             <StaffArchiveGuard><LoreEditor /></StaffArchiveGuard>
           </Route>
-          <Route path="/directory/lore/:id">
-            <StaffArchiveGuard><DirectoryLoreDetail /></StaffArchiveGuard>
-          </Route>
+          <Route path="/directory/lore/:id" component={DirectoryLoreDetail} />
           <Route path="/guidebook" component={DirectoryGuidebook} />
           <Route path="/guidebook/mine">
             <StaffArchiveGuard><MyGuidebookSubmissions /></StaffArchiveGuard>
