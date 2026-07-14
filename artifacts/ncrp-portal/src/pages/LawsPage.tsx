@@ -159,9 +159,9 @@ export default function LawsPage() {
             </Card>
           ))}
         </div>
-        {/* Table of contents — sticky on the right, hidden on small screens. */}
+        {/* Table of contents — sticky on the left, hidden on small screens. */}
         <nav
-          className="hidden lg:block w-64 shrink-0 sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto border border-border bg-card/30 p-4"
+          className="hidden lg:block order-first w-64 shrink-0 sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto border border-border bg-card/30 p-4"
           aria-label="Table of contents"
           data-testid="nav-laws-toc"
         >
