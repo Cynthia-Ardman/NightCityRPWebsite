@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { EventCreateInputEventType } from './eventCreateInputEventType';
+import type { EventCreateInputTicketPayoutMode } from './eventCreateInputTicketPayoutMode';
+import type { EventTicketTypeInput } from './eventTicketTypeInput';
 
 export interface EventCreateInput {
   /** @minLength 1 */
@@ -22,4 +24,11 @@ export interface EventCreateInput {
   needsNpcs?: boolean;
   /** @nullable */
   npcBlurb?: string | null;
+  ticketPayoutMode?: EventCreateInputTicketPayoutMode;
+  /**
+     * Credited user in runner mode; null = event creator.
+     * @nullable
+     */
+  ticketRunnerUserId?: string | null;
+  ticketTypes?: EventTicketTypeInput[];
 }

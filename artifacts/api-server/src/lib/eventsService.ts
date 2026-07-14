@@ -34,6 +34,17 @@ import { checkDiscordEventConflict, payStandaloneActors } from "./missionsServic
 import { recordAudit } from "./audit";
 import { logger } from "./logger";
 import { ObjectStorageService } from "./objectStorage";
+import {
+  listTicketTypeViews,
+  listMyTickets,
+  listCheckinStaff,
+  isCheckinStaff,
+  notifyTicketHoldersOfChange,
+  type TicketTypeView,
+  type TicketView,
+  type CheckinStaffView,
+  type TicketPayoutMode,
+} from "./eventTicketsService";
 
 const storage = new ObjectStorageService();
 
@@ -166,6 +177,20 @@ export interface EventView {
   // userIds already paid as an actor for THIS event (managers, detail only).
   // Used to lock already-paid NPCs in the roster so they can't be paid twice.
   paidActorUserIds?: string[];
+  // ---- Tickets (detail view only) ----
+  // Purchasable ticket tiers (everyone; archived types are filtered out for
+  // non-managers since they are no longer on sale).
+  ticketTypes?: TicketTypeView[];
+  // The viewer's own tickets on this event.
+  myTickets?: TicketView[];
+  // Whether the viewer may open the check-in roster (manager OR designated
+  // check-in staff for this event).
+  canCheckIn?: boolean;
+  // Managers only: payout configuration + door-staff list.
+  ticketPayoutMode?: string;
+  ticketRunnerUserId?: string | null;
+  ticketRunnerName?: string | null;
+  checkinStaff?: CheckinStaffView[];
 }
 
 // Mission images are stored as app-relative paths (e.g. "/api/storage/...").
@@ -840,6 +865,31 @@ export async function getEventDetail(id: number, viewer: EventViewer): Promise<E
       .where(and(eq(missionActorPayments.eventId, id), eq(missionActorPayments.paymentStatus, "paid")));
     view.paidActorUserIds = [...new Set(paidRows.map((r) => r.userId))];
   }
+  // ---- Tickets ----
+  const [allTypes, myTickets, viewerIsStaff] = await Promise.all([
+    listTicketTypeViews(id),
+    listMyTickets(viewer.id).then((ts) => ts.filter((t) => t.eventId === id)),
+    viewer.isManager ? Promise.resolve(false) : isCheckinStaff(id, viewer.id),
+  ]);
+  // Non-managers only see live (non-archived) tiers — archived ones are off
+  // sale, but managers still need them in the edit form / roster context.
+  view.ticketTypes = viewer.isManager ? allTypes : allTypes.filter((t) => !t.archived);
+  view.myTickets = myTickets;
+  view.canCheckIn = viewer.isManager || viewerIsStaff;
+  if (viewer.isManager) {
+    view.ticketPayoutMode = row.e.ticketPayoutMode;
+    view.ticketRunnerUserId = row.e.ticketRunnerUserId;
+    if (row.e.ticketRunnerUserId) {
+      const [runner] = await db
+        .select({ globalName: users.globalName, username: users.username })
+        .from(users)
+        .where(eq(users.id, row.e.ticketRunnerUserId));
+      view.ticketRunnerName = runner ? userDisplayName(runner) : null;
+    } else {
+      view.ticketRunnerName = null;
+    }
+    view.checkinStaff = await listCheckinStaff(id);
+  }
   return view;
 }
 
@@ -856,6 +906,10 @@ export interface EventInput {
   endAt: Date;
   needsNpcs: boolean;
   npcBlurb: string | null;
+  // Ticket revenue destination (see eventTicketsService): 'runner' | 'sink'.
+  ticketPayoutMode?: TicketPayoutMode;
+  // Credited user in 'runner' mode; null falls back to the creator.
+  ticketRunnerUserId?: string | null;
 }
 
 export async function createEvent(input: EventInput, createdById: string): Promise<Event> {
@@ -871,6 +925,8 @@ export async function createEvent(input: EventInput, createdById: string): Promi
       endAt: input.endAt,
       needsNpcs: input.needsNpcs,
       npcBlurb: input.needsNpcs ? input.npcBlurb : null,
+      ticketPayoutMode: input.ticketPayoutMode ?? "runner",
+      ticketRunnerUserId: input.ticketRunnerUserId ?? null,
       createdById,
     })
     .returning();
@@ -893,6 +949,8 @@ export async function updateEvent(id: number, patch: Partial<EventInput>): Promi
   if (patch.endAt !== undefined) set.endAt = patch.endAt;
   if (patch.needsNpcs !== undefined) set.needsNpcs = patch.needsNpcs;
   if (patch.npcBlurb !== undefined) set.npcBlurb = patch.npcBlurb;
+  if (patch.ticketPayoutMode !== undefined) set.ticketPayoutMode = patch.ticketPayoutMode;
+  if (patch.ticketRunnerUserId !== undefined) set.ticketRunnerUserId = patch.ticketRunnerUserId;
   // If NPCs were turned off, clear the now-meaningless blurb.
   if (patch.needsNpcs === false) set.npcBlurb = null;
   const [updated] = Object.keys(set).length
@@ -910,6 +968,11 @@ export async function updateEvent(id: number, patch: Partial<EventInput>): Promi
   const ctx = await getMissionContext();
   const sync = await syncEventDiscordEvent(updated, ctx.live);
   const afterDiscord = await applyEventSync(id, updated, sync);
+  // Ticket holders are DM'd when the time or location changes. Fire-and-forget
+  // (deployment-gated inside the DM helper) — never blocks the edit.
+  void notifyTicketHoldersOfChange(before, updated).catch((err) => {
+    logger.warn({ err, eventId: id }, "ticket-holder change notification failed");
+  });
   return syncAndApplyVrchat(afterDiscord);
 }
 

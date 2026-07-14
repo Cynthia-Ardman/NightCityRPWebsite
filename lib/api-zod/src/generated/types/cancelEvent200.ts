@@ -5,7 +5,9 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { EventTicketRefundSummary } from './eventTicketRefundSummary';
 
 export type CancelEvent200 = {
   ok: boolean;
+  ticketRefunds: EventTicketRefundSummary;
 };

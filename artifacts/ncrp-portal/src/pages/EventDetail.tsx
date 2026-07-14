@@ -8,11 +8,24 @@ import {
   useConfirmEventNpcSignup,
   useListMyCharacters,
   useConvertEventToMission,
+  usePurchaseEventTicket,
+  useRefundEventTicket,
+  useListEventTickets,
+  useSetEventTicketAttendance,
+  useRetryEventTicketPayout,
+  useListEventCheckinStaff,
+  useSetEventCheckinStaff,
+  useSearchFixerPlayers,
   getGetEventQueryKey,
   getListEventsQueryKey,
   getListMissionsQueryKey,
+  getListEventTicketsQueryKey,
+  getListMyTicketsQueryKey,
+  getListEventCheckinStaffQueryKey,
+  getSearchFixerPlayersQueryKey,
   type EventView,
   type EventSignupView,
+  type EventTicketView,
   type EventToMissionConvertInput,
   type EventToMissionConvertInputTier,
   type EventToMissionConvertInputJobType,
@@ -41,6 +54,10 @@ import {
   AlertTriangle,
   Clock,
   Briefcase,
+  Ticket,
+  CheckCircle2,
+  RotateCcw,
+  X,
 } from "lucide-react";
 import Markdown from "@/components/Markdown";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
@@ -459,6 +476,15 @@ function EventDetailView({ data }: { data: EventView }) {
         </Card>
       )}
 
+      {/* Tickets — buy + your own tickets (everyone), when the event sells any. */}
+      <TicketSection data={data} />
+
+      {/* Check-in roster — managers and designated check-in staff. */}
+      {data.canCheckIn && <CheckInRoster event={data} />}
+
+      {/* Check-in staff picker — managers only. */}
+      {data.canManage && (data.ticketTypes ?? []).length > 0 && <CheckinStaffEditor event={data} />}
+
       {/* NPC sign-up — only when the event needs NPCs and isn't cancelled, OR the
           viewer already signed up (so they can see/withdraw their status). */}
       <NpcSignupSection data={data} />
@@ -498,6 +524,413 @@ function EventDetailView({ data }: { data: EventView }) {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function ticketStatusBadge(t: EventTicketView) {
+  if (t.status === "refunded") {
+    return (
+      <Badge variant="outline" className="rounded-none text-[10px] border-destructive text-destructive bg-destructive/10">
+        Refunded
+      </Badge>
+    );
+  }
+  if (t.attendedAt) {
+    return (
+      <Badge variant="outline" className="rounded-none text-[10px] border-green-500 text-green-400 bg-green-500/10">
+        Checked in
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="rounded-none text-[10px] border-nc-cyan text-nc-cyan bg-nc-cyan/10">
+      Valid
+    </Badge>
+  );
+}
+
+// Buy tickets + the viewer's own tickets on this event. Hidden entirely when
+// the event has never sold tickets (no types and no owned tickets).
+function TicketSection({ data }: { data: EventView }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: getGetEventQueryKey(data.id) });
+    qc.invalidateQueries({ queryKey: getListMyTicketsQueryKey() });
+    qc.invalidateQueries({ queryKey: getListEventTicketsQueryKey(data.id) });
+  };
+  const purchase = usePurchaseEventTicket({
+    mutation: {
+      onSuccess: (res) => {
+        invalidate();
+        toast({
+          title: res.walletStatus === "dry_run" ? "Ticket reserved (test mode)" : "Ticket purchased",
+          description:
+            res.ticket.pricePaid > 0
+              ? `€$${res.ticket.pricePaid.toLocaleString()} — ${res.ticket.ticketTypeName}`
+              : res.ticket.ticketTypeName,
+        });
+      },
+      onError: (e) => {
+        toast({ title: "Purchase failed", description: errOf(e) ?? "Please try again.", variant: "destructive" });
+      },
+    },
+  });
+  const refund = useRefundEventTicket({
+    mutation: {
+      onSuccess: () => {
+        invalidate();
+        toast({ title: "Ticket refunded", description: "The money is back in your wallet." });
+      },
+      onError: (e) => {
+        toast({ title: "Refund failed", description: errOf(e) ?? "Please try again.", variant: "destructive" });
+      },
+    },
+  });
+
+  const types = data.ticketTypes ?? [];
+  const mine = data.myTickets ?? [];
+  if (types.length === 0 && mine.length === 0) return null;
+
+  const onSale = data.status === "scheduled";
+
+  return (
+    <Card className="rounded-none border-border bg-card/50" data-testid="block-tickets">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-xs uppercase text-nc-cyan inline-flex items-center gap-2">
+          <Ticket className="w-4 h-4" /> Tickets
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 font-mono text-sm">
+        {types.filter((t) => !t.archived).length > 0 && (
+          <ul className="divide-y divide-border/40">
+            {types
+              .filter((t) => !t.archived)
+              .map((t) => (
+                <li key={t.id} className="py-3 flex items-center gap-3" data-testid={`row-ticket-type-${t.id}`}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-foreground">{t.name}</span>
+                      <span className="text-nc-cyan">{t.price > 0 ? `€$${t.price.toLocaleString()}` : "FREE"}</span>
+                      {t.quantity > 0 && (
+                        <span className="text-muted-foreground text-xs">
+                          {t.soldOut ? "SOLD OUT" : `${t.remaining} left`}
+                        </span>
+                      )}
+                    </div>
+                    {t.description && <p className="text-muted-foreground text-xs">{t.description}</p>}
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!onSale || t.soldOut || purchase.isPending}
+                    onClick={() => purchase.mutate({ id: data.id, data: { ticketTypeId: t.id } })}
+                    className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest shrink-0"
+                    data-testid={`button-buy-ticket-${t.id}`}
+                  >
+                    {purchase.isPending ? "BUYING..." : "BUY"}
+                  </Button>
+                </li>
+              ))}
+          </ul>
+        )}
+        {!onSale && types.length > 0 && (
+          <p className="text-muted-foreground text-xs">
+            Ticket sales are closed — this event is {data.status}.
+          </p>
+        )}
+
+        {mine.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">Your tickets</div>
+            <ul className="divide-y divide-border/40">
+              {mine.map((t) => (
+                <li key={t.id} className="py-2 flex items-center gap-3" data-testid={`row-my-ticket-${t.id}`}>
+                  <div className="flex-1 min-w-0 flex flex-wrap items-center gap-2">
+                    <span className="text-foreground">{t.ticketTypeName}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {t.pricePaid > 0 ? `€$${t.pricePaid.toLocaleString()}` : "free"}
+                    </span>
+                    {ticketStatusBadge(t)}
+                  </div>
+                  {t.status === "purchased" && !t.attendedAt && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={refund.isPending}
+                      onClick={() => {
+                        if (window.confirm("Refund this ticket? The money returns to your wallet.")) {
+                          refund.mutate({ id: data.id, ticketId: t.id });
+                        }
+                      }}
+                      className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display tracking-widest shrink-0"
+                      data-testid={`button-refund-ticket-${t.id}`}
+                    >
+                      REFUND
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Attendance roster for managers + designated check-in staff. Check-in is
+// idempotent and undoable; refunds are blocked once a ticket is attended.
+function CheckInRoster({ event }: { event: EventView }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: tickets, isLoading } = useListEventTickets(event.id, {
+    query: { queryKey: getListEventTicketsQueryKey(event.id) },
+  });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: getListEventTicketsQueryKey(event.id) });
+    qc.invalidateQueries({ queryKey: getGetEventQueryKey(event.id) });
+  };
+  const attendance = useSetEventTicketAttendance({
+    mutation: {
+      onSuccess: invalidate,
+      onError: (e) => {
+        toast({ title: "Check-in failed", description: errOf(e) ?? "Please try again.", variant: "destructive" });
+      },
+    },
+  });
+  const retry = useRetryEventTicketPayout({
+    mutation: {
+      onSuccess: () => {
+        invalidate();
+        toast({ title: "Payout retried", description: "The runner credit went through." });
+      },
+      onError: (e) => {
+        toast({ title: "Payout retry failed", description: errOf(e) ?? "Please try again.", variant: "destructive" });
+      },
+    },
+  });
+  const refund = useRefundEventTicket({
+    mutation: {
+      onSuccess: () => {
+        invalidate();
+        toast({ title: "Ticket refunded", description: "The buyer got their money back." });
+      },
+      onError: (e) => {
+        toast({ title: "Refund failed", description: errOf(e) ?? "Please try again.", variant: "destructive" });
+      },
+    },
+  });
+
+  const rows = (tickets ?? []).filter((t) => t.status !== "refunded");
+  const attended = rows.filter((t) => !!t.attendedAt).length;
+
+  return (
+    <Card className="rounded-none border-border bg-card/50" data-testid="block-checkin-roster">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
+          Ticket Check-in ({attended}/{rows.length} checked in)
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 font-mono text-sm">
+        {isLoading ? (
+          <p className="text-nc-cyan animate-pulse">Loading tickets…</p>
+        ) : rows.length === 0 ? (
+          <p className="text-muted-foreground italic" data-testid="text-no-tickets-sold">
+            No tickets sold yet.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border/40">
+            {rows.map((t) => (
+              <li key={t.id} className="py-3 flex items-start gap-3" data-testid={`row-checkin-${t.id}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-foreground">{t.buyerName ?? t.buyerUserId}</span>
+                    <span className="text-nc-cyan text-xs">{t.ticketTypeName}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {t.pricePaid > 0 ? `€$${t.pricePaid.toLocaleString()}` : "free"}
+                    </span>
+                    {t.payoutStatus === "failed" && event.canManage && (
+                      <Badge
+                        variant="outline"
+                        className="rounded-none text-[10px] border-nc-yellow text-nc-yellow bg-nc-yellow/10"
+                        title={t.payoutError ?? undefined}
+                      >
+                        Payout failed
+                      </Badge>
+                    )}
+                  </div>
+                  {t.attendedAt && (
+                    <p className="text-muted-foreground text-xs">
+                      Checked in {new Date(t.attendedAt).toLocaleString()}
+                      {t.attendedByName ? ` by ${t.attendedByName}` : ""}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {t.payoutStatus === "failed" && event.canManage && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={retry.isPending}
+                      onClick={() => retry.mutate({ id: event.id, ticketId: t.id })}
+                      className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display tracking-widest"
+                      data-testid={`button-retry-payout-${t.id}`}
+                    >
+                      <RotateCcw className="w-4 h-4 mr-1" /> RETRY PAYOUT
+                    </Button>
+                  )}
+                  {t.attendedAt ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={attendance.isPending}
+                      onClick={() =>
+                        attendance.mutate({ id: event.id, ticketId: t.id, data: { attended: false } })
+                      }
+                      className="rounded-none border-border text-muted-foreground hover:bg-muted/20 font-display tracking-widest"
+                      data-testid={`button-undo-checkin-${t.id}`}
+                    >
+                      <X className="w-4 h-4 mr-1" /> UNDO
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={attendance.isPending}
+                        onClick={() =>
+                          attendance.mutate({ id: event.id, ticketId: t.id, data: { attended: true } })
+                        }
+                        className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+                        data-testid={`button-checkin-${t.id}`}
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-1" /> CHECK IN
+                      </Button>
+                      {event.canManage && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={refund.isPending}
+                          onClick={() => {
+                            if (window.confirm("Refund this ticket back to the buyer?")) {
+                              refund.mutate({ id: event.id, ticketId: t.id });
+                            }
+                          }}
+                          className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display tracking-widest"
+                          data-testid={`button-staff-refund-${t.id}`}
+                        >
+                          REFUND
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Managers pick which portal users may run check-in (in addition to fixers/admins).
+function CheckinStaffEditor({ event }: { event: EventView }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: staff } = useListEventCheckinStaff(event.id, {
+    query: { queryKey: getListEventCheckinStaffQueryKey(event.id) },
+  });
+  const save = useSetEventCheckinStaff({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getListEventCheckinStaffQueryKey(event.id) });
+        qc.invalidateQueries({ queryKey: getGetEventQueryKey(event.id) });
+      },
+      onError: (e) => {
+        toast({ title: "Couldn't update check-in staff", description: errOf(e) ?? "Please try again.", variant: "destructive" });
+      },
+    },
+  });
+  const [q, setQ] = useState("");
+  const enabled = q.trim().length >= 2;
+  const params = { q: q.trim() };
+  const search = useSearchFixerPlayers(params, {
+    query: { enabled, queryKey: getSearchFixerPlayersQueryKey(params) },
+  });
+
+  const current = staff ?? [];
+  const setIds = (ids: string[]) => save.mutate({ id: event.id, data: { userIds: ids } });
+
+  return (
+    <Card className="rounded-none border-border bg-card/50" data-testid="block-checkin-staff">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
+          Check-in Staff
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 font-mono text-sm">
+        <p className="text-muted-foreground text-xs">
+          These players can open the check-in roster and mark ticket holders as attended (fixers/admins always can).
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {current.length === 0 && <span className="text-muted-foreground italic text-xs">No extra staff.</span>}
+          {current.map((s) => (
+            <Badge
+              key={s.userId}
+              variant="outline"
+              className="rounded-none border-nc-cyan text-nc-cyan inline-flex items-center gap-1"
+              data-testid={`badge-checkin-staff-${s.userId}`}
+            >
+              {s.userName ?? s.userId}
+              <button
+                type="button"
+                onClick={() => setIds(current.filter((c) => c.userId !== s.userId).map((c) => c.userId))}
+                className="hover:text-destructive"
+                title="Remove"
+                data-testid={`button-remove-checkin-staff-${s.userId}`}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+        <div className="relative max-w-sm">
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Add a player by name…"
+            className="rounded-none"
+            data-testid="input-checkin-staff-search"
+          />
+          {enabled && (search.data ?? []).length > 0 && (
+            <div className="absolute z-10 left-0 right-0 mt-1 border border-border bg-card max-h-48 overflow-y-auto">
+              {(search.data ?? [])
+                .filter((p) => !current.some((c) => c.userId === p.id))
+                .map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setIds([...current.map((c) => c.userId), p.id]);
+                      setQ("");
+                    }}
+                    className="block w-full text-left px-3 py-2 text-xs hover:bg-nc-cyan/10"
+                    data-testid={`option-checkin-staff-${p.id}`}
+                  >
+                    {p.globalName || p.username}
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -5699,7 +5699,48 @@ export const ListEventsResponseItem = zod.object({
   "createdAt": zod.coerce.date().nullable(),
   "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
-  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
+  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.'),
+  "ticketTypes": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "price": zod.number().describe('Price in eddies (0 = free).'),
+  "quantity": zod.number().describe('Total sellable (0 = unlimited).'),
+  "sold": zod.number().describe('Tickets sold (pending + purchased).'),
+  "remaining": zod.number().nullish().describe('Remaining sellable; null = unlimited.'),
+  "soldOut": zod.boolean(),
+  "archived": zod.boolean().describe('No longer on sale (kept to label sold tickets).'),
+  "sortOrder": zod.number()
+})).optional().describe('Purchasable ticket tiers (detail view only). Archived tiers are hidden for non-managers.'),
+  "myTickets": zod.array(zod.object({
+  "id": zod.number(),
+  "eventId": zod.number(),
+  "ticketTypeId": zod.number(),
+  "ticketTypeName": zod.string(),
+  "buyerUserId": zod.string(),
+  "buyerName": zod.string().nullish(),
+  "pricePaid": zod.number(),
+  "status": zod.enum(['pending', 'purchased', 'refunded']),
+  "payoutStatus": zod.enum(['none', 'paid', 'failed']).describe('Runner-credit leg outcome. \'failed\' = buyer charged but runner credit bounced (manager can retry).'),
+  "payoutError": zod.string().nullish(),
+  "attendedAt": zod.coerce.date().nullish(),
+  "attendedByName": zod.string().nullish(),
+  "refundedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().nullish(),
+  "eventTitle": zod.string().describe('LIVE event details (edits propagate automatically).'),
+  "eventStartAt": zod.coerce.date(),
+  "eventEndAt": zod.coerce.date(),
+  "eventLocation": zod.string().nullish(),
+  "eventStatus": zod.enum(['scheduled', 'cancelled', 'completed'])
+})).optional().describe('The caller\'s own tickets on this event (detail view only).'),
+  "canCheckIn": zod.boolean().optional().describe('True if the caller may open the check-in roster (manager or designated check-in staff).'),
+  "ticketPayoutMode": zod.enum(['runner', 'sink']).optional().describe('Ticket revenue destination (managers only, detail view).'),
+  "ticketRunnerUserId": zod.string().nullish().describe('Credited user in runner mode; null = event creator (managers only).'),
+  "ticketRunnerName": zod.string().nullish().describe('Display name for ticketRunnerUserId (managers only).'),
+  "checkinStaff": zod.array(zod.object({
+  "userId": zod.string(),
+  "userName": zod.string().nullish()
+})).optional().describe('Designated check-in staff (managers only, detail view).')
 })
 export const ListEventsResponse = zod.array(ListEventsResponseItem)
 
@@ -5710,6 +5751,13 @@ export const ListEventsResponse = zod.array(ListEventsResponseItem)
 
 export const createEventBodyEventTypeDefault = `social`;
 export const createEventBodyNeedsNpcsDefault = false;
+export const createEventBodyTicketPayoutModeDefault = `runner`;
+export const createEventBodyTicketTypesItemPriceMin = 0;
+
+export const createEventBodyTicketTypesItemQuantityDefault = 0;
+export const createEventBodyTicketTypesItemQuantityMin = 0;
+
+
 
 export const CreateEventBody = zod.object({
   "title": zod.string().min(1),
@@ -5720,7 +5768,16 @@ export const CreateEventBody = zod.object({
   "startAt": zod.coerce.date(),
   "endAt": zod.coerce.date(),
   "needsNpcs": zod.boolean().default(createEventBodyNeedsNpcsDefault),
-  "npcBlurb": zod.string().nullish()
+  "npcBlurb": zod.string().nullish(),
+  "ticketPayoutMode": zod.enum(['runner', 'sink']).default(createEventBodyTicketPayoutModeDefault),
+  "ticketRunnerUserId": zod.string().nullish().describe('Credited user in runner mode; null = event creator.'),
+  "ticketTypes": zod.array(zod.object({
+  "id": zod.number().nullish().describe('Existing ticket type id to update; omit to create.'),
+  "name": zod.string().min(1),
+  "description": zod.string().nullish(),
+  "price": zod.number().min(createEventBodyTicketTypesItemPriceMin),
+  "quantity": zod.number().min(createEventBodyTicketTypesItemQuantityMin).default(createEventBodyTicketTypesItemQuantityDefault).describe('0 = unlimited.')
+})).optional()
 })
 
 
@@ -5810,7 +5867,48 @@ export const GetEventResponse = zod.object({
   "createdAt": zod.coerce.date().nullable(),
   "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
-  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
+  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.'),
+  "ticketTypes": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "price": zod.number().describe('Price in eddies (0 = free).'),
+  "quantity": zod.number().describe('Total sellable (0 = unlimited).'),
+  "sold": zod.number().describe('Tickets sold (pending + purchased).'),
+  "remaining": zod.number().nullish().describe('Remaining sellable; null = unlimited.'),
+  "soldOut": zod.boolean(),
+  "archived": zod.boolean().describe('No longer on sale (kept to label sold tickets).'),
+  "sortOrder": zod.number()
+})).optional().describe('Purchasable ticket tiers (detail view only). Archived tiers are hidden for non-managers.'),
+  "myTickets": zod.array(zod.object({
+  "id": zod.number(),
+  "eventId": zod.number(),
+  "ticketTypeId": zod.number(),
+  "ticketTypeName": zod.string(),
+  "buyerUserId": zod.string(),
+  "buyerName": zod.string().nullish(),
+  "pricePaid": zod.number(),
+  "status": zod.enum(['pending', 'purchased', 'refunded']),
+  "payoutStatus": zod.enum(['none', 'paid', 'failed']).describe('Runner-credit leg outcome. \'failed\' = buyer charged but runner credit bounced (manager can retry).'),
+  "payoutError": zod.string().nullish(),
+  "attendedAt": zod.coerce.date().nullish(),
+  "attendedByName": zod.string().nullish(),
+  "refundedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().nullish(),
+  "eventTitle": zod.string().describe('LIVE event details (edits propagate automatically).'),
+  "eventStartAt": zod.coerce.date(),
+  "eventEndAt": zod.coerce.date(),
+  "eventLocation": zod.string().nullish(),
+  "eventStatus": zod.enum(['scheduled', 'cancelled', 'completed'])
+})).optional().describe('The caller\'s own tickets on this event (detail view only).'),
+  "canCheckIn": zod.boolean().optional().describe('True if the caller may open the check-in roster (manager or designated check-in staff).'),
+  "ticketPayoutMode": zod.enum(['runner', 'sink']).optional().describe('Ticket revenue destination (managers only, detail view).'),
+  "ticketRunnerUserId": zod.string().nullish().describe('Credited user in runner mode; null = event creator (managers only).'),
+  "ticketRunnerName": zod.string().nullish().describe('Display name for ticketRunnerUserId (managers only).'),
+  "checkinStaff": zod.array(zod.object({
+  "userId": zod.string(),
+  "userName": zod.string().nullish()
+})).optional().describe('Designated check-in staff (managers only, detail view).')
 })
 
 
@@ -5823,6 +5921,12 @@ export const UpdateEventParams = zod.object({
 
 
 
+export const updateEventBodyTicketTypesItemPriceMin = 0;
+
+export const updateEventBodyTicketTypesItemQuantityDefault = 0;
+export const updateEventBodyTicketTypesItemQuantityMin = 0;
+
+
 
 export const UpdateEventBody = zod.object({
   "title": zod.string().min(1).optional(),
@@ -5833,7 +5937,16 @@ export const UpdateEventBody = zod.object({
   "startAt": zod.coerce.date().optional(),
   "endAt": zod.coerce.date().optional(),
   "needsNpcs": zod.boolean().optional(),
-  "npcBlurb": zod.string().nullish()
+  "npcBlurb": zod.string().nullish(),
+  "ticketPayoutMode": zod.enum(['runner', 'sink']).optional(),
+  "ticketRunnerUserId": zod.string().nullish(),
+  "ticketTypes": zod.array(zod.object({
+  "id": zod.number().nullish().describe('Existing ticket type id to update; omit to create.'),
+  "name": zod.string().min(1),
+  "description": zod.string().nullish(),
+  "price": zod.number().min(updateEventBodyTicketTypesItemPriceMin),
+  "quantity": zod.number().min(updateEventBodyTicketTypesItemQuantityMin).default(updateEventBodyTicketTypesItemQuantityDefault).describe('0 = unlimited.')
+})).optional().describe('Replace-set: omitted existing types are removed (archived if tickets were sold).')
 })
 
 export const UpdateEventResponse = zod.object({
@@ -5894,20 +6007,275 @@ export const UpdateEventResponse = zod.object({
   "createdAt": zod.coerce.date().nullable(),
   "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
-  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
+  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.'),
+  "ticketTypes": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "price": zod.number().describe('Price in eddies (0 = free).'),
+  "quantity": zod.number().describe('Total sellable (0 = unlimited).'),
+  "sold": zod.number().describe('Tickets sold (pending + purchased).'),
+  "remaining": zod.number().nullish().describe('Remaining sellable; null = unlimited.'),
+  "soldOut": zod.boolean(),
+  "archived": zod.boolean().describe('No longer on sale (kept to label sold tickets).'),
+  "sortOrder": zod.number()
+})).optional().describe('Purchasable ticket tiers (detail view only). Archived tiers are hidden for non-managers.'),
+  "myTickets": zod.array(zod.object({
+  "id": zod.number(),
+  "eventId": zod.number(),
+  "ticketTypeId": zod.number(),
+  "ticketTypeName": zod.string(),
+  "buyerUserId": zod.string(),
+  "buyerName": zod.string().nullish(),
+  "pricePaid": zod.number(),
+  "status": zod.enum(['pending', 'purchased', 'refunded']),
+  "payoutStatus": zod.enum(['none', 'paid', 'failed']).describe('Runner-credit leg outcome. \'failed\' = buyer charged but runner credit bounced (manager can retry).'),
+  "payoutError": zod.string().nullish(),
+  "attendedAt": zod.coerce.date().nullish(),
+  "attendedByName": zod.string().nullish(),
+  "refundedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().nullish(),
+  "eventTitle": zod.string().describe('LIVE event details (edits propagate automatically).'),
+  "eventStartAt": zod.coerce.date(),
+  "eventEndAt": zod.coerce.date(),
+  "eventLocation": zod.string().nullish(),
+  "eventStatus": zod.enum(['scheduled', 'cancelled', 'completed'])
+})).optional().describe('The caller\'s own tickets on this event (detail view only).'),
+  "canCheckIn": zod.boolean().optional().describe('True if the caller may open the check-in roster (manager or designated check-in staff).'),
+  "ticketPayoutMode": zod.enum(['runner', 'sink']).optional().describe('Ticket revenue destination (managers only, detail view).'),
+  "ticketRunnerUserId": zod.string().nullish().describe('Credited user in runner mode; null = event creator (managers only).'),
+  "ticketRunnerName": zod.string().nullish().describe('Display name for ticketRunnerUserId (managers only).'),
+  "checkinStaff": zod.array(zod.object({
+  "userId": zod.string(),
+  "userName": zod.string().nullish()
+})).optional().describe('Designated check-in staff (managers only, detail view).')
 })
 
 
 /**
- * @summary Cancel an event (fixer/admin). Tears down the linked Discord scheduled event in Live mode.
+ * @summary Cancel an event (fixer/admin). Tears down the linked Discord scheduled event in Live mode and auto-refunds all purchased, un-attended tickets.
  */
 export const CancelEventParams = zod.object({
   "id": zod.coerce.number()
 })
 
 export const CancelEventResponse = zod.object({
-  "ok": zod.boolean()
+  "ok": zod.boolean(),
+  "ticketRefunds": zod.object({
+  "refunded": zod.number(),
+  "skipped": zod.number().describe('Attended tickets deliberately not refunded.'),
+  "failures": zod.array(zod.object({
+  "ticketId": zod.number(),
+  "buyerName": zod.string().nullish(),
+  "error": zod.string()
+}))
 })
+})
+
+
+/**
+ * @summary Every ticket the caller ever bought (past and future), joined to the LIVE event row.
+ */
+export const ListMyTicketsResponseItem = zod.object({
+  "id": zod.number(),
+  "eventId": zod.number(),
+  "ticketTypeId": zod.number(),
+  "ticketTypeName": zod.string(),
+  "buyerUserId": zod.string(),
+  "buyerName": zod.string().nullish(),
+  "pricePaid": zod.number(),
+  "status": zod.enum(['pending', 'purchased', 'refunded']),
+  "payoutStatus": zod.enum(['none', 'paid', 'failed']).describe('Runner-credit leg outcome. \'failed\' = buyer charged but runner credit bounced (manager can retry).'),
+  "payoutError": zod.string().nullish(),
+  "attendedAt": zod.coerce.date().nullish(),
+  "attendedByName": zod.string().nullish(),
+  "refundedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().nullish(),
+  "eventTitle": zod.string().describe('LIVE event details (edits propagate automatically).'),
+  "eventStartAt": zod.coerce.date(),
+  "eventEndAt": zod.coerce.date(),
+  "eventLocation": zod.string().nullish(),
+  "eventStatus": zod.enum(['scheduled', 'cancelled', 'completed'])
+})
+export const ListMyTicketsResponse = zod.array(ListMyTicketsResponseItem)
+
+
+/**
+ * @summary Purchaser roster for an event. Managers or designated check-in staff only.
+ */
+export const ListEventTicketsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListEventTicketsResponseItem = zod.object({
+  "id": zod.number(),
+  "eventId": zod.number(),
+  "ticketTypeId": zod.number(),
+  "ticketTypeName": zod.string(),
+  "buyerUserId": zod.string(),
+  "buyerName": zod.string().nullish(),
+  "pricePaid": zod.number(),
+  "status": zod.enum(['pending', 'purchased', 'refunded']),
+  "payoutStatus": zod.enum(['none', 'paid', 'failed']).describe('Runner-credit leg outcome. \'failed\' = buyer charged but runner credit bounced (manager can retry).'),
+  "payoutError": zod.string().nullish(),
+  "attendedAt": zod.coerce.date().nullish(),
+  "attendedByName": zod.string().nullish(),
+  "refundedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().nullish(),
+  "eventTitle": zod.string().describe('LIVE event details (edits propagate automatically).'),
+  "eventStartAt": zod.coerce.date(),
+  "eventEndAt": zod.coerce.date(),
+  "eventLocation": zod.string().nullish(),
+  "eventStatus": zod.enum(['scheduled', 'cancelled', 'completed'])
+})
+export const ListEventTicketsResponse = zod.array(ListEventTicketsResponseItem)
+
+
+/**
+ * @summary Buy one ticket with UnbelievaBoat money. Atomic capacity reservation + idempotent wallet legs (no double-charge on retries).
+ */
+export const PurchaseEventTicketParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PurchaseEventTicketBody = zod.object({
+  "ticketTypeId": zod.number()
+})
+
+
+/**
+ * @summary Mark/unmark a ticket holder as attended (idempotent, undoable). Managers or designated check-in staff.
+ */
+export const SetEventTicketAttendanceParams = zod.object({
+  "id": zod.coerce.number(),
+  "ticketId": zod.coerce.number()
+})
+
+export const SetEventTicketAttendanceBody = zod.object({
+  "attended": zod.boolean()
+})
+
+export const SetEventTicketAttendanceResponse = zod.object({
+  "ticket": zod.object({
+  "id": zod.number(),
+  "eventId": zod.number(),
+  "ticketTypeId": zod.number(),
+  "ticketTypeName": zod.string(),
+  "buyerUserId": zod.string(),
+  "buyerName": zod.string().nullish(),
+  "pricePaid": zod.number(),
+  "status": zod.enum(['pending', 'purchased', 'refunded']),
+  "payoutStatus": zod.enum(['none', 'paid', 'failed']).describe('Runner-credit leg outcome. \'failed\' = buyer charged but runner credit bounced (manager can retry).'),
+  "payoutError": zod.string().nullish(),
+  "attendedAt": zod.coerce.date().nullish(),
+  "attendedByName": zod.string().nullish(),
+  "refundedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().nullish(),
+  "eventTitle": zod.string().describe('LIVE event details (edits propagate automatically).'),
+  "eventStartAt": zod.coerce.date(),
+  "eventEndAt": zod.coerce.date(),
+  "eventLocation": zod.string().nullish(),
+  "eventStatus": zod.enum(['scheduled', 'cancelled', 'completed'])
+})
+})
+
+
+/**
+ * @summary Refund one ticket (buyer or manager) any time BEFORE it is marked attended. Money returns to the buyer; runner revenue is clawed back (sink burns are re-minted).
+ */
+export const RefundEventTicketParams = zod.object({
+  "id": zod.coerce.number(),
+  "ticketId": zod.coerce.number()
+})
+
+export const RefundEventTicketResponse = zod.object({
+  "ticket": zod.object({
+  "id": zod.number(),
+  "eventId": zod.number(),
+  "ticketTypeId": zod.number(),
+  "ticketTypeName": zod.string(),
+  "buyerUserId": zod.string(),
+  "buyerName": zod.string().nullish(),
+  "pricePaid": zod.number(),
+  "status": zod.enum(['pending', 'purchased', 'refunded']),
+  "payoutStatus": zod.enum(['none', 'paid', 'failed']).describe('Runner-credit leg outcome. \'failed\' = buyer charged but runner credit bounced (manager can retry).'),
+  "payoutError": zod.string().nullish(),
+  "attendedAt": zod.coerce.date().nullish(),
+  "attendedByName": zod.string().nullish(),
+  "refundedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().nullish(),
+  "eventTitle": zod.string().describe('LIVE event details (edits propagate automatically).'),
+  "eventStartAt": zod.coerce.date(),
+  "eventEndAt": zod.coerce.date(),
+  "eventLocation": zod.string().nullish(),
+  "eventStatus": zod.enum(['scheduled', 'cancelled', 'completed'])
+})
+})
+
+
+/**
+ * @summary Retry a bounced runner credit for a purchased ticket (manager only). Idempotent — never re-charges the buyer.
+ */
+export const RetryEventTicketPayoutParams = zod.object({
+  "id": zod.coerce.number(),
+  "ticketId": zod.coerce.number()
+})
+
+export const RetryEventTicketPayoutResponse = zod.object({
+  "ticket": zod.object({
+  "id": zod.number(),
+  "eventId": zod.number(),
+  "ticketTypeId": zod.number(),
+  "ticketTypeName": zod.string(),
+  "buyerUserId": zod.string(),
+  "buyerName": zod.string().nullish(),
+  "pricePaid": zod.number(),
+  "status": zod.enum(['pending', 'purchased', 'refunded']),
+  "payoutStatus": zod.enum(['none', 'paid', 'failed']).describe('Runner-credit leg outcome. \'failed\' = buyer charged but runner credit bounced (manager can retry).'),
+  "payoutError": zod.string().nullish(),
+  "attendedAt": zod.coerce.date().nullish(),
+  "attendedByName": zod.string().nullish(),
+  "refundedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().nullish(),
+  "eventTitle": zod.string().describe('LIVE event details (edits propagate automatically).'),
+  "eventStartAt": zod.coerce.date(),
+  "eventEndAt": zod.coerce.date(),
+  "eventLocation": zod.string().nullish(),
+  "eventStatus": zod.enum(['scheduled', 'cancelled', 'completed'])
+})
+})
+
+
+/**
+ * @summary List designated check-in staff for an event (fixer/admin).
+ */
+export const ListEventCheckinStaffParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListEventCheckinStaffResponseItem = zod.object({
+  "userId": zod.string(),
+  "userName": zod.string().nullish()
+})
+export const ListEventCheckinStaffResponse = zod.array(ListEventCheckinStaffResponseItem)
+
+
+/**
+ * @summary Replace-set the check-in staff list for an event (fixer/admin). Staff may be any portal users.
+ */
+export const SetEventCheckinStaffParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SetEventCheckinStaffBody = zod.object({
+  "userIds": zod.array(zod.string())
+})
+
+export const SetEventCheckinStaffResponseItem = zod.object({
+  "userId": zod.string(),
+  "userName": zod.string().nullish()
+})
+export const SetEventCheckinStaffResponse = zod.array(SetEventCheckinStaffResponseItem)
 
 
 /**
@@ -5981,7 +6349,48 @@ export const SignUpAsEventNpcResponse = zod.object({
   "createdAt": zod.coerce.date().nullable(),
   "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
-  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
+  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.'),
+  "ticketTypes": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "price": zod.number().describe('Price in eddies (0 = free).'),
+  "quantity": zod.number().describe('Total sellable (0 = unlimited).'),
+  "sold": zod.number().describe('Tickets sold (pending + purchased).'),
+  "remaining": zod.number().nullish().describe('Remaining sellable; null = unlimited.'),
+  "soldOut": zod.boolean(),
+  "archived": zod.boolean().describe('No longer on sale (kept to label sold tickets).'),
+  "sortOrder": zod.number()
+})).optional().describe('Purchasable ticket tiers (detail view only). Archived tiers are hidden for non-managers.'),
+  "myTickets": zod.array(zod.object({
+  "id": zod.number(),
+  "eventId": zod.number(),
+  "ticketTypeId": zod.number(),
+  "ticketTypeName": zod.string(),
+  "buyerUserId": zod.string(),
+  "buyerName": zod.string().nullish(),
+  "pricePaid": zod.number(),
+  "status": zod.enum(['pending', 'purchased', 'refunded']),
+  "payoutStatus": zod.enum(['none', 'paid', 'failed']).describe('Runner-credit leg outcome. \'failed\' = buyer charged but runner credit bounced (manager can retry).'),
+  "payoutError": zod.string().nullish(),
+  "attendedAt": zod.coerce.date().nullish(),
+  "attendedByName": zod.string().nullish(),
+  "refundedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().nullish(),
+  "eventTitle": zod.string().describe('LIVE event details (edits propagate automatically).'),
+  "eventStartAt": zod.coerce.date(),
+  "eventEndAt": zod.coerce.date(),
+  "eventLocation": zod.string().nullish(),
+  "eventStatus": zod.enum(['scheduled', 'cancelled', 'completed'])
+})).optional().describe('The caller\'s own tickets on this event (detail view only).'),
+  "canCheckIn": zod.boolean().optional().describe('True if the caller may open the check-in roster (manager or designated check-in staff).'),
+  "ticketPayoutMode": zod.enum(['runner', 'sink']).optional().describe('Ticket revenue destination (managers only, detail view).'),
+  "ticketRunnerUserId": zod.string().nullish().describe('Credited user in runner mode; null = event creator (managers only).'),
+  "ticketRunnerName": zod.string().nullish().describe('Display name for ticketRunnerUserId (managers only).'),
+  "checkinStaff": zod.array(zod.object({
+  "userId": zod.string(),
+  "userName": zod.string().nullish()
+})).optional().describe('Designated check-in staff (managers only, detail view).')
 })
 
 
@@ -6054,7 +6463,48 @@ export const WithdrawEventNpcSignupResponse = zod.object({
   "createdAt": zod.coerce.date().nullable(),
   "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
-  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
+  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.'),
+  "ticketTypes": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "price": zod.number().describe('Price in eddies (0 = free).'),
+  "quantity": zod.number().describe('Total sellable (0 = unlimited).'),
+  "sold": zod.number().describe('Tickets sold (pending + purchased).'),
+  "remaining": zod.number().nullish().describe('Remaining sellable; null = unlimited.'),
+  "soldOut": zod.boolean(),
+  "archived": zod.boolean().describe('No longer on sale (kept to label sold tickets).'),
+  "sortOrder": zod.number()
+})).optional().describe('Purchasable ticket tiers (detail view only). Archived tiers are hidden for non-managers.'),
+  "myTickets": zod.array(zod.object({
+  "id": zod.number(),
+  "eventId": zod.number(),
+  "ticketTypeId": zod.number(),
+  "ticketTypeName": zod.string(),
+  "buyerUserId": zod.string(),
+  "buyerName": zod.string().nullish(),
+  "pricePaid": zod.number(),
+  "status": zod.enum(['pending', 'purchased', 'refunded']),
+  "payoutStatus": zod.enum(['none', 'paid', 'failed']).describe('Runner-credit leg outcome. \'failed\' = buyer charged but runner credit bounced (manager can retry).'),
+  "payoutError": zod.string().nullish(),
+  "attendedAt": zod.coerce.date().nullish(),
+  "attendedByName": zod.string().nullish(),
+  "refundedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().nullish(),
+  "eventTitle": zod.string().describe('LIVE event details (edits propagate automatically).'),
+  "eventStartAt": zod.coerce.date(),
+  "eventEndAt": zod.coerce.date(),
+  "eventLocation": zod.string().nullish(),
+  "eventStatus": zod.enum(['scheduled', 'cancelled', 'completed'])
+})).optional().describe('The caller\'s own tickets on this event (detail view only).'),
+  "canCheckIn": zod.boolean().optional().describe('True if the caller may open the check-in roster (manager or designated check-in staff).'),
+  "ticketPayoutMode": zod.enum(['runner', 'sink']).optional().describe('Ticket revenue destination (managers only, detail view).'),
+  "ticketRunnerUserId": zod.string().nullish().describe('Credited user in runner mode; null = event creator (managers only).'),
+  "ticketRunnerName": zod.string().nullish().describe('Display name for ticketRunnerUserId (managers only).'),
+  "checkinStaff": zod.array(zod.object({
+  "userId": zod.string(),
+  "userName": zod.string().nullish()
+})).optional().describe('Designated check-in staff (managers only, detail view).')
 })
 
 
@@ -6133,7 +6583,48 @@ export const ConfirmEventNpcSignupResponse = zod.object({
   "createdAt": zod.coerce.date().nullable(),
   "occurrenceStartAt": zod.coerce.date().nullish().describe('For recurring events, the concrete occurrence this signup targets. Null = the event\'s single\/base occurrence (or a legacy row, treated as the event\'s current startAt).')
 })).optional().describe('Full NPC sign-up roster (managers only, detail view only).'),
-  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.')
+  "paidActorUserIds": zod.array(zod.string()).optional().describe('userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster.'),
+  "ticketTypes": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "price": zod.number().describe('Price in eddies (0 = free).'),
+  "quantity": zod.number().describe('Total sellable (0 = unlimited).'),
+  "sold": zod.number().describe('Tickets sold (pending + purchased).'),
+  "remaining": zod.number().nullish().describe('Remaining sellable; null = unlimited.'),
+  "soldOut": zod.boolean(),
+  "archived": zod.boolean().describe('No longer on sale (kept to label sold tickets).'),
+  "sortOrder": zod.number()
+})).optional().describe('Purchasable ticket tiers (detail view only). Archived tiers are hidden for non-managers.'),
+  "myTickets": zod.array(zod.object({
+  "id": zod.number(),
+  "eventId": zod.number(),
+  "ticketTypeId": zod.number(),
+  "ticketTypeName": zod.string(),
+  "buyerUserId": zod.string(),
+  "buyerName": zod.string().nullish(),
+  "pricePaid": zod.number(),
+  "status": zod.enum(['pending', 'purchased', 'refunded']),
+  "payoutStatus": zod.enum(['none', 'paid', 'failed']).describe('Runner-credit leg outcome. \'failed\' = buyer charged but runner credit bounced (manager can retry).'),
+  "payoutError": zod.string().nullish(),
+  "attendedAt": zod.coerce.date().nullish(),
+  "attendedByName": zod.string().nullish(),
+  "refundedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().nullish(),
+  "eventTitle": zod.string().describe('LIVE event details (edits propagate automatically).'),
+  "eventStartAt": zod.coerce.date(),
+  "eventEndAt": zod.coerce.date(),
+  "eventLocation": zod.string().nullish(),
+  "eventStatus": zod.enum(['scheduled', 'cancelled', 'completed'])
+})).optional().describe('The caller\'s own tickets on this event (detail view only).'),
+  "canCheckIn": zod.boolean().optional().describe('True if the caller may open the check-in roster (manager or designated check-in staff).'),
+  "ticketPayoutMode": zod.enum(['runner', 'sink']).optional().describe('Ticket revenue destination (managers only, detail view).'),
+  "ticketRunnerUserId": zod.string().nullish().describe('Credited user in runner mode; null = event creator (managers only).'),
+  "ticketRunnerName": zod.string().nullish().describe('Display name for ticketRunnerUserId (managers only).'),
+  "checkinStaff": zod.array(zod.object({
+  "userId": zod.string(),
+  "userName": zod.string().nullish()
+})).optional().describe('Designated check-in staff (managers only, detail view).')
 })
 
 

@@ -6009,6 +6009,106 @@ export const EventViewStatus = {
   completed: 'completed',
 } as const;
 
+/**
+ * Ticket revenue destination (managers only, detail view).
+ */
+export type EventViewTicketPayoutMode = typeof EventViewTicketPayoutMode[keyof typeof EventViewTicketPayoutMode];
+
+
+export const EventViewTicketPayoutMode = {
+  runner: 'runner',
+  sink: 'sink',
+} as const;
+
+export interface EventTicketTypeView {
+  id: number;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  /** Price in eddies (0 = free). */
+  price: number;
+  /** Total sellable (0 = unlimited). */
+  quantity: number;
+  /** Tickets sold (pending + purchased). */
+  sold: number;
+  /**
+     * Remaining sellable; null = unlimited.
+     * @nullable
+     */
+  remaining?: number | null;
+  soldOut: boolean;
+  /** No longer on sale (kept to label sold tickets). */
+  archived: boolean;
+  sortOrder: number;
+}
+
+export type EventTicketViewStatus = typeof EventTicketViewStatus[keyof typeof EventTicketViewStatus];
+
+
+export const EventTicketViewStatus = {
+  pending: 'pending',
+  purchased: 'purchased',
+  refunded: 'refunded',
+} as const;
+
+/**
+ * Runner-credit leg outcome. 'failed' = buyer charged but runner credit bounced (manager can retry).
+ */
+export type EventTicketViewPayoutStatus = typeof EventTicketViewPayoutStatus[keyof typeof EventTicketViewPayoutStatus];
+
+
+export const EventTicketViewPayoutStatus = {
+  none: 'none',
+  paid: 'paid',
+  failed: 'failed',
+} as const;
+
+export type EventTicketViewEventStatus = typeof EventTicketViewEventStatus[keyof typeof EventTicketViewEventStatus];
+
+
+export const EventTicketViewEventStatus = {
+  scheduled: 'scheduled',
+  cancelled: 'cancelled',
+  completed: 'completed',
+} as const;
+
+export interface EventTicketView {
+  id: number;
+  eventId: number;
+  ticketTypeId: number;
+  ticketTypeName: string;
+  buyerUserId: string;
+  /** @nullable */
+  buyerName?: string | null;
+  pricePaid: number;
+  status: EventTicketViewStatus;
+  /** Runner-credit leg outcome. 'failed' = buyer charged but runner credit bounced (manager can retry). */
+  payoutStatus: EventTicketViewPayoutStatus;
+  /** @nullable */
+  payoutError?: string | null;
+  /** @nullable */
+  attendedAt?: string | null;
+  /** @nullable */
+  attendedByName?: string | null;
+  /** @nullable */
+  refundedAt?: string | null;
+  /** @nullable */
+  createdAt?: string | null;
+  /** LIVE event details (edits propagate automatically). */
+  eventTitle: string;
+  eventStartAt: string;
+  eventEndAt: string;
+  /** @nullable */
+  eventLocation?: string | null;
+  eventStatus: EventTicketViewEventStatus;
+}
+
+export interface EventCheckinStaffView {
+  userId: string;
+  /** @nullable */
+  userName?: string | null;
+}
+
 export interface EventView {
   id: number;
   title: string;
@@ -6057,6 +6157,81 @@ export interface EventView {
   signups?: EventSignupView[];
   /** userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster. */
   paidActorUserIds?: string[];
+  /** Purchasable ticket tiers (detail view only). Archived tiers are hidden for non-managers. */
+  ticketTypes?: EventTicketTypeView[];
+  /** The caller's own tickets on this event (detail view only). */
+  myTickets?: EventTicketView[];
+  /** True if the caller may open the check-in roster (manager or designated check-in staff). */
+  canCheckIn?: boolean;
+  /** Ticket revenue destination (managers only, detail view). */
+  ticketPayoutMode?: EventViewTicketPayoutMode;
+  /**
+     * Credited user in runner mode; null = event creator (managers only).
+     * @nullable
+     */
+  ticketRunnerUserId?: string | null;
+  /**
+     * Display name for ticketRunnerUserId (managers only).
+     * @nullable
+     */
+  ticketRunnerName?: string | null;
+  /** Designated check-in staff (managers only, detail view). */
+  checkinStaff?: EventCheckinStaffView[];
+}
+
+export interface EventTicketTypeInput {
+  /**
+     * Existing ticket type id to update; omit to create.
+     * @nullable
+     */
+  id?: number | null;
+  /** @minLength 1 */
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  /** @minimum 0 */
+  price: number;
+  /**
+     * 0 = unlimited.
+     * @minimum 0
+     */
+  quantity?: number;
+}
+
+/**
+ * How the buyer debit resolved (dry_run = economy test mode, free = zero-price ticket).
+ */
+export type EventTicketPurchaseResultWalletStatus = typeof EventTicketPurchaseResultWalletStatus[keyof typeof EventTicketPurchaseResultWalletStatus];
+
+
+export const EventTicketPurchaseResultWalletStatus = {
+  synced: 'synced',
+  dry_run: 'dry_run',
+  free: 'free',
+} as const;
+
+export interface EventTicketPurchaseResult {
+  ticket: EventTicketView;
+  /** How the buyer debit resolved (dry_run = economy test mode, free = zero-price ticket). */
+  walletStatus: EventTicketPurchaseResultWalletStatus;
+}
+
+export interface EventTicketActionResult {
+  ticket: EventTicketView;
+}
+
+export type EventTicketRefundSummaryFailuresItem = {
+  ticketId: number;
+  /** @nullable */
+  buyerName?: string | null;
+  error: string;
+};
+
+export interface EventTicketRefundSummary {
+  refunded: number;
+  /** Attended tickets deliberately not refunded. */
+  skipped: number;
+  failures: EventTicketRefundSummaryFailuresItem[];
 }
 
 export type EventCreateInputEventType = typeof EventCreateInputEventType[keyof typeof EventCreateInputEventType];
@@ -6067,6 +6242,14 @@ export const EventCreateInputEventType = {
   social: 'social',
   mission: 'mission',
   other: 'other',
+} as const;
+
+export type EventCreateInputTicketPayoutMode = typeof EventCreateInputTicketPayoutMode[keyof typeof EventCreateInputTicketPayoutMode];
+
+
+export const EventCreateInputTicketPayoutMode = {
+  runner: 'runner',
+  sink: 'sink',
 } as const;
 
 export interface EventCreateInput {
@@ -6084,6 +6267,13 @@ export interface EventCreateInput {
   needsNpcs?: boolean;
   /** @nullable */
   npcBlurb?: string | null;
+  ticketPayoutMode?: EventCreateInputTicketPayoutMode;
+  /**
+     * Credited user in runner mode; null = event creator.
+     * @nullable
+     */
+  ticketRunnerUserId?: string | null;
+  ticketTypes?: EventTicketTypeInput[];
 }
 
 export type EventUpdateInputEventType = typeof EventUpdateInputEventType[keyof typeof EventUpdateInputEventType];
@@ -6094,6 +6284,14 @@ export const EventUpdateInputEventType = {
   social: 'social',
   mission: 'mission',
   other: 'other',
+} as const;
+
+export type EventUpdateInputTicketPayoutMode = typeof EventUpdateInputTicketPayoutMode[keyof typeof EventUpdateInputTicketPayoutMode];
+
+
+export const EventUpdateInputTicketPayoutMode = {
+  runner: 'runner',
+  sink: 'sink',
 } as const;
 
 export interface EventUpdateInput {
@@ -6111,6 +6309,11 @@ export interface EventUpdateInput {
   needsNpcs?: boolean;
   /** @nullable */
   npcBlurb?: string | null;
+  ticketPayoutMode?: EventUpdateInputTicketPayoutMode;
+  /** @nullable */
+  ticketRunnerUserId?: string | null;
+  /** Replace-set: omitted existing types are removed (archived if tickets were sold). */
+  ticketTypes?: EventTicketTypeInput[];
 }
 
 export interface EventNpcSignupInput {
@@ -7091,6 +7294,19 @@ excludeEventId?: string;
 
 export type CancelEvent200 = {
   ok: boolean;
+  ticketRefunds: EventTicketRefundSummary;
+};
+
+export type PurchaseEventTicketBody = {
+  ticketTypeId: number;
+};
+
+export type SetEventTicketAttendanceBody = {
+  attended: boolean;
+};
+
+export type SetEventCheckinStaffBody = {
+  userIds: string[];
 };
 
 export type WithdrawEventNpcSignupParams = {

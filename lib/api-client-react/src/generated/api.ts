@@ -127,8 +127,12 @@ import type {
   EmployeeInput,
   EmployeeInviteResult,
   EmployeePatch,
+  EventCheckinStaffView,
   EventCreateInput,
   EventNpcSignupInput,
+  EventTicketActionResult,
+  EventTicketPurchaseResult,
+  EventTicketView,
   EventToMissionConvertInput,
   EventUpdateInput,
   EventView,
@@ -253,6 +257,7 @@ import type {
   PlayerSearchResult,
   PublicCharacter,
   PublicCharacterSummary,
+  PurchaseEventTicketBody,
   ReactivateCharacter200,
   RefreshVrchatInstances200,
   ReopenReviewTicket200,
@@ -276,6 +281,8 @@ import type {
   SearchInventoryByOwnerParams,
   SearchMissionActorsParams,
   ServiceBillInput,
+  SetEventCheckinStaffBody,
+  SetEventTicketAttendanceBody,
   SheetVoteInput,
   SheetVoteResult,
   SinkInput,
@@ -10446,7 +10453,7 @@ export const getCancelEventUrl = (id: number,) => {
 }
 
 /**
- * @summary Cancel an event (fixer/admin). Tears down the linked Discord scheduled event in Live mode.
+ * @summary Cancel an event (fixer/admin). Tears down the linked Discord scheduled event in Live mode and auto-refunds all purchased, un-attended tickets.
  */
 export const cancelEvent = async (id: number, options?: RequestInit): Promise<CancelEvent200> => {
 
@@ -10494,7 +10501,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CancelEventMutationError = ErrorType<void>
 
     /**
- * @summary Cancel an event (fixer/admin). Tears down the linked Discord scheduled event in Live mode.
+ * @summary Cancel an event (fixer/admin). Tears down the linked Discord scheduled event in Live mode and auto-refunds all purchased, un-attended tickets.
  */
 export const useCancelEvent = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelEvent>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -10505,6 +10512,599 @@ export const useCancelEvent = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getCancelEventMutationOptions(options));
+    }
+
+export const getListMyTicketsUrl = () => {
+
+
+
+
+  return `/api/me/tickets`
+}
+
+/**
+ * @summary Every ticket the caller ever bought (past and future), joined to the LIVE event row.
+ */
+export const listMyTickets = async ( options?: RequestInit): Promise<EventTicketView[]> => {
+
+  return customFetch<EventTicketView[]>(getListMyTicketsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyTicketsQueryKey = () => {
+    return [
+    `/api/me/tickets`
+    ] as const;
+    }
+
+
+export const getListMyTicketsQueryOptions = <TData = Awaited<ReturnType<typeof listMyTickets>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyTickets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyTicketsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyTickets>>> = ({ signal }) => listMyTickets({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyTickets>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyTicketsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyTickets>>>
+export type ListMyTicketsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Every ticket the caller ever bought (past and future), joined to the LIVE event row.
+ */
+
+export function useListMyTickets<TData = Awaited<ReturnType<typeof listMyTickets>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyTickets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyTicketsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListEventTicketsUrl = (id: number,) => {
+
+
+
+
+  return `/api/events/${id}/tickets`
+}
+
+/**
+ * @summary Purchaser roster for an event. Managers or designated check-in staff only.
+ */
+export const listEventTickets = async (id: number, options?: RequestInit): Promise<EventTicketView[]> => {
+
+  return customFetch<EventTicketView[]>(getListEventTicketsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEventTicketsQueryKey = (id: number,) => {
+    return [
+    `/api/events/${id}/tickets`
+    ] as const;
+    }
+
+
+export const getListEventTicketsQueryOptions = <TData = Awaited<ReturnType<typeof listEventTickets>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEventTickets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEventTicketsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEventTickets>>> = ({ signal }) => listEventTickets(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEventTickets>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEventTicketsQueryResult = NonNullable<Awaited<ReturnType<typeof listEventTickets>>>
+export type ListEventTicketsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Purchaser roster for an event. Managers or designated check-in staff only.
+ */
+
+export function useListEventTickets<TData = Awaited<ReturnType<typeof listEventTickets>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEventTickets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEventTicketsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getPurchaseEventTicketUrl = (id: number,) => {
+
+
+
+
+  return `/api/events/${id}/tickets`
+}
+
+/**
+ * @summary Buy one ticket with UnbelievaBoat money. Atomic capacity reservation + idempotent wallet legs (no double-charge on retries).
+ */
+export const purchaseEventTicket = async (id: number,
+    purchaseEventTicketBody: PurchaseEventTicketBody, options?: RequestInit): Promise<EventTicketPurchaseResult> => {
+
+  return customFetch<EventTicketPurchaseResult>(getPurchaseEventTicketUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      purchaseEventTicketBody,)
+  }
+);}
+
+
+
+
+export const getPurchaseEventTicketMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof purchaseEventTicket>>, TError,{id: number;data: BodyType<PurchaseEventTicketBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof purchaseEventTicket>>, TError,{id: number;data: BodyType<PurchaseEventTicketBody>}, TContext> => {
+
+const mutationKey = ['purchaseEventTicket'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof purchaseEventTicket>>, {id: number;data: BodyType<PurchaseEventTicketBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  purchaseEventTicket(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PurchaseEventTicketMutationResult = NonNullable<Awaited<ReturnType<typeof purchaseEventTicket>>>
+    export type PurchaseEventTicketMutationBody = BodyType<PurchaseEventTicketBody>
+    export type PurchaseEventTicketMutationError = ErrorType<void>
+
+    /**
+ * @summary Buy one ticket with UnbelievaBoat money. Atomic capacity reservation + idempotent wallet legs (no double-charge on retries).
+ */
+export const usePurchaseEventTicket = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof purchaseEventTicket>>, TError,{id: number;data: BodyType<PurchaseEventTicketBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof purchaseEventTicket>>,
+        TError,
+        {id: number;data: BodyType<PurchaseEventTicketBody>},
+        TContext
+      > => {
+      return useMutation(getPurchaseEventTicketMutationOptions(options));
+    }
+
+export const getSetEventTicketAttendanceUrl = (id: number,
+    ticketId: number,) => {
+
+
+
+
+  return `/api/events/${id}/tickets/${ticketId}/attendance`
+}
+
+/**
+ * @summary Mark/unmark a ticket holder as attended (idempotent, undoable). Managers or designated check-in staff.
+ */
+export const setEventTicketAttendance = async (id: number,
+    ticketId: number,
+    setEventTicketAttendanceBody: SetEventTicketAttendanceBody, options?: RequestInit): Promise<EventTicketActionResult> => {
+
+  return customFetch<EventTicketActionResult>(getSetEventTicketAttendanceUrl(id,ticketId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      setEventTicketAttendanceBody,)
+  }
+);}
+
+
+
+
+export const getSetEventTicketAttendanceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setEventTicketAttendance>>, TError,{id: number;ticketId: number;data: BodyType<SetEventTicketAttendanceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setEventTicketAttendance>>, TError,{id: number;ticketId: number;data: BodyType<SetEventTicketAttendanceBody>}, TContext> => {
+
+const mutationKey = ['setEventTicketAttendance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setEventTicketAttendance>>, {id: number;ticketId: number;data: BodyType<SetEventTicketAttendanceBody>}> = (props) => {
+          const {id,ticketId,data} = props ?? {};
+
+          return  setEventTicketAttendance(id,ticketId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetEventTicketAttendanceMutationResult = NonNullable<Awaited<ReturnType<typeof setEventTicketAttendance>>>
+    export type SetEventTicketAttendanceMutationBody = BodyType<SetEventTicketAttendanceBody>
+    export type SetEventTicketAttendanceMutationError = ErrorType<void>
+
+    /**
+ * @summary Mark/unmark a ticket holder as attended (idempotent, undoable). Managers or designated check-in staff.
+ */
+export const useSetEventTicketAttendance = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setEventTicketAttendance>>, TError,{id: number;ticketId: number;data: BodyType<SetEventTicketAttendanceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setEventTicketAttendance>>,
+        TError,
+        {id: number;ticketId: number;data: BodyType<SetEventTicketAttendanceBody>},
+        TContext
+      > => {
+      return useMutation(getSetEventTicketAttendanceMutationOptions(options));
+    }
+
+export const getRefundEventTicketUrl = (id: number,
+    ticketId: number,) => {
+
+
+
+
+  return `/api/events/${id}/tickets/${ticketId}/refund`
+}
+
+/**
+ * @summary Refund one ticket (buyer or manager) any time BEFORE it is marked attended. Money returns to the buyer; runner revenue is clawed back (sink burns are re-minted).
+ */
+export const refundEventTicket = async (id: number,
+    ticketId: number, options?: RequestInit): Promise<EventTicketActionResult> => {
+
+  return customFetch<EventTicketActionResult>(getRefundEventTicketUrl(id,ticketId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRefundEventTicketMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refundEventTicket>>, TError,{id: number;ticketId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof refundEventTicket>>, TError,{id: number;ticketId: number}, TContext> => {
+
+const mutationKey = ['refundEventTicket'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof refundEventTicket>>, {id: number;ticketId: number}> = (props) => {
+          const {id,ticketId} = props ?? {};
+
+          return  refundEventTicket(id,ticketId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RefundEventTicketMutationResult = NonNullable<Awaited<ReturnType<typeof refundEventTicket>>>
+
+    export type RefundEventTicketMutationError = ErrorType<void>
+
+    /**
+ * @summary Refund one ticket (buyer or manager) any time BEFORE it is marked attended. Money returns to the buyer; runner revenue is clawed back (sink burns are re-minted).
+ */
+export const useRefundEventTicket = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refundEventTicket>>, TError,{id: number;ticketId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof refundEventTicket>>,
+        TError,
+        {id: number;ticketId: number},
+        TContext
+      > => {
+      return useMutation(getRefundEventTicketMutationOptions(options));
+    }
+
+export const getRetryEventTicketPayoutUrl = (id: number,
+    ticketId: number,) => {
+
+
+
+
+  return `/api/events/${id}/tickets/${ticketId}/retry-payout`
+}
+
+/**
+ * @summary Retry a bounced runner credit for a purchased ticket (manager only). Idempotent — never re-charges the buyer.
+ */
+export const retryEventTicketPayout = async (id: number,
+    ticketId: number, options?: RequestInit): Promise<EventTicketActionResult> => {
+
+  return customFetch<EventTicketActionResult>(getRetryEventTicketPayoutUrl(id,ticketId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRetryEventTicketPayoutMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryEventTicketPayout>>, TError,{id: number;ticketId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retryEventTicketPayout>>, TError,{id: number;ticketId: number}, TContext> => {
+
+const mutationKey = ['retryEventTicketPayout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retryEventTicketPayout>>, {id: number;ticketId: number}> = (props) => {
+          const {id,ticketId} = props ?? {};
+
+          return  retryEventTicketPayout(id,ticketId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetryEventTicketPayoutMutationResult = NonNullable<Awaited<ReturnType<typeof retryEventTicketPayout>>>
+
+    export type RetryEventTicketPayoutMutationError = ErrorType<void>
+
+    /**
+ * @summary Retry a bounced runner credit for a purchased ticket (manager only). Idempotent — never re-charges the buyer.
+ */
+export const useRetryEventTicketPayout = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryEventTicketPayout>>, TError,{id: number;ticketId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof retryEventTicketPayout>>,
+        TError,
+        {id: number;ticketId: number},
+        TContext
+      > => {
+      return useMutation(getRetryEventTicketPayoutMutationOptions(options));
+    }
+
+export const getListEventCheckinStaffUrl = (id: number,) => {
+
+
+
+
+  return `/api/events/${id}/checkin-staff`
+}
+
+/**
+ * @summary List designated check-in staff for an event (fixer/admin).
+ */
+export const listEventCheckinStaff = async (id: number, options?: RequestInit): Promise<EventCheckinStaffView[]> => {
+
+  return customFetch<EventCheckinStaffView[]>(getListEventCheckinStaffUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEventCheckinStaffQueryKey = (id: number,) => {
+    return [
+    `/api/events/${id}/checkin-staff`
+    ] as const;
+    }
+
+
+export const getListEventCheckinStaffQueryOptions = <TData = Awaited<ReturnType<typeof listEventCheckinStaff>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEventCheckinStaff>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEventCheckinStaffQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEventCheckinStaff>>> = ({ signal }) => listEventCheckinStaff(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEventCheckinStaff>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEventCheckinStaffQueryResult = NonNullable<Awaited<ReturnType<typeof listEventCheckinStaff>>>
+export type ListEventCheckinStaffQueryError = ErrorType<void>
+
+
+/**
+ * @summary List designated check-in staff for an event (fixer/admin).
+ */
+
+export function useListEventCheckinStaff<TData = Awaited<ReturnType<typeof listEventCheckinStaff>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEventCheckinStaff>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEventCheckinStaffQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSetEventCheckinStaffUrl = (id: number,) => {
+
+
+
+
+  return `/api/events/${id}/checkin-staff`
+}
+
+/**
+ * @summary Replace-set the check-in staff list for an event (fixer/admin). Staff may be any portal users.
+ */
+export const setEventCheckinStaff = async (id: number,
+    setEventCheckinStaffBody: SetEventCheckinStaffBody, options?: RequestInit): Promise<EventCheckinStaffView[]> => {
+
+  return customFetch<EventCheckinStaffView[]>(getSetEventCheckinStaffUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      setEventCheckinStaffBody,)
+  }
+);}
+
+
+
+
+export const getSetEventCheckinStaffMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setEventCheckinStaff>>, TError,{id: number;data: BodyType<SetEventCheckinStaffBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setEventCheckinStaff>>, TError,{id: number;data: BodyType<SetEventCheckinStaffBody>}, TContext> => {
+
+const mutationKey = ['setEventCheckinStaff'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setEventCheckinStaff>>, {id: number;data: BodyType<SetEventCheckinStaffBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setEventCheckinStaff(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetEventCheckinStaffMutationResult = NonNullable<Awaited<ReturnType<typeof setEventCheckinStaff>>>
+    export type SetEventCheckinStaffMutationBody = BodyType<SetEventCheckinStaffBody>
+    export type SetEventCheckinStaffMutationError = ErrorType<void>
+
+    /**
+ * @summary Replace-set the check-in staff list for an event (fixer/admin). Staff may be any portal users.
+ */
+export const useSetEventCheckinStaff = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setEventCheckinStaff>>, TError,{id: number;data: BodyType<SetEventCheckinStaffBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setEventCheckinStaff>>,
+        TError,
+        {id: number;data: BodyType<SetEventCheckinStaffBody>},
+        TContext
+      > => {
+      return useMutation(getSetEventCheckinStaffMutationOptions(options));
     }
 
 export const getSignUpAsEventNpcUrl = (id: number,) => {

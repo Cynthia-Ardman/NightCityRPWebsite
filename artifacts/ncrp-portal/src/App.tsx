@@ -21,6 +21,7 @@ import PendingEditDetail from "@/pages/pending-edits/PendingEditDetail";
 import PendingRequests from "@/pages/requests/PendingRequests";
 import MyRequests from "@/pages/MyRequests";
 import MyOffers from "@/pages/MyOffers";
+import MyTickets from "@/pages/MyTickets";
 import BreachHub from "@/pages/breach/BreachHub";
 import BreachPlay from "@/pages/breach/BreachPlay";
 import BreachPractice from "@/pages/breach/BreachPractice";
@@ -227,6 +228,7 @@ function AppRoutes() {
           <Route path="/pending-edits/:id" component={PendingEditDetail} />
           <Route path="/requests/mine" component={MyRequests} />
           <Route path="/offers/mine" component={MyOffers} />
+          <Route path="/tickets/mine" component={MyTickets} />
           <Route path="/breach/mine" component={MyBreaches} />
           <Route path="/breach/practice" component={BreachPractice} />
           <Route path="/breach/play/:id" component={BreachPlay} />

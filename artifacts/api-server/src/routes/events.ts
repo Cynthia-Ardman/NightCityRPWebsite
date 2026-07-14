@@ -1,4 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import { eq } from "drizzle-orm";
+import { db, events } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
@@ -16,6 +18,21 @@ import {
   convertMissionToEvent,
   type EventViewer,
 } from "../lib/eventsService";
+import {
+  isTicketPayoutMode,
+  parseTicketTypeInputs,
+  upsertTicketTypes,
+  purchaseTicket,
+  refundTicket,
+  refundAllForCancelledEvent,
+  retryTicketPayout,
+  setTicketAttendance,
+  listEventTickets,
+  listMyTickets,
+  listCheckinStaff,
+  setCheckinStaff,
+  isCheckinStaff,
+} from "../lib/eventTicketsService";
 
 const router: IRouter = Router();
 
@@ -112,10 +129,32 @@ router.post("/events", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: "End time must be after start time" });
     return;
   }
+  // Ticket configuration (optional).
+  const ticketPayoutMode = isTicketPayoutMode(b.ticketPayoutMode) ? b.ticketPayoutMode : undefined;
+  const ticketRunnerUserId =
+    typeof b.ticketRunnerUserId === "string" && b.ticketRunnerUserId.trim() ? b.ticketRunnerUserId.trim() : null;
+  let ticketTypes: ReturnType<typeof parseTicketTypeInputs> | undefined;
+  if (b.ticketTypes !== undefined) {
+    ticketTypes = parseTicketTypeInputs(b.ticketTypes);
+    if (!Array.isArray(ticketTypes)) {
+      res.status(400).json({ error: ticketTypes.error });
+      return;
+    }
+  }
   const created = await createEvent(
-    { ...parsed, startAt, endAt },
+    { ...parsed, startAt, endAt, ticketPayoutMode, ticketRunnerUserId },
     req.user!.id,
   );
+  if (Array.isArray(ticketTypes) && ticketTypes.length) {
+    const tt = await upsertTicketTypes(created.id, ticketTypes);
+    if (!tt.ok) {
+      // Compensate: the event was just created and has no children yet, so a
+      // failed ticket-type setup must not leave a half-configured event behind.
+      await db.delete(events).where(eq(events.id, created.id));
+      res.status(tt.httpStatus).json({ error: tt.error });
+      return;
+    }
+  }
   await recordAudit({
     req,
     category: "mission",
@@ -220,6 +259,31 @@ router.patch("/events/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: "End time must be after start time" });
     return;
   }
+  if (b.ticketPayoutMode !== undefined) {
+    if (!isTicketPayoutMode(b.ticketPayoutMode)) {
+      res.status(400).json({ error: "ticketPayoutMode must be 'runner' or 'sink'" });
+      return;
+    }
+    patch.ticketPayoutMode = b.ticketPayoutMode;
+  }
+  if (b.ticketRunnerUserId !== undefined) {
+    patch.ticketRunnerUserId =
+      typeof b.ticketRunnerUserId === "string" && b.ticketRunnerUserId.trim() ? b.ticketRunnerUserId.trim() : null;
+  }
+  // Replace-set the ticket types BEFORE the event update so a validation error
+  // aborts the whole edit.
+  if (b.ticketTypes !== undefined) {
+    const inputs = parseTicketTypeInputs(b.ticketTypes);
+    if (!Array.isArray(inputs)) {
+      res.status(400).json({ error: inputs.error });
+      return;
+    }
+    const tt = await upsertTicketTypes(id, inputs);
+    if (!tt.ok) {
+      res.status(tt.httpStatus).json({ error: tt.error });
+      return;
+    }
+  }
   const updated = await updateEvent(id, patch);
   if (!updated) {
     res.status(404).json({ error: "Event not found" });
@@ -248,15 +312,214 @@ router.delete("/events/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Event not found" });
     return;
   }
+  // Auto-refund every purchased, un-attended ticket; the summary rides back on
+  // the response so the fixer sees refunded/failed counts immediately.
+  const ticketRefunds = await refundAllForCancelledEvent(id, req.user!.id);
   await recordAudit({
     req,
     category: "mission",
     action: "event.cancel",
     targetType: "event",
     targetId: id,
-    message: `Cancelled event "${cancelled.title}"`,
+    message: `Cancelled event "${cancelled.title}" (tickets refunded: ${ticketRefunds.refunded}, failed: ${ticketRefunds.failures.length})`,
+    after: { ticketRefunds: { refunded: ticketRefunds.refunded, skipped: ticketRefunds.skipped, failures: ticketRefunds.failures } },
   });
-  res.json({ ok: true });
+  res.json({ ok: true, ticketRefunds });
+});
+
+// ---------------------------------------------------------------------------
+// Tickets
+// ---------------------------------------------------------------------------
+
+// "My Tickets" — every ticket the viewer ever bought, past and future, joined
+// to the LIVE event row so edits propagate automatically.
+router.get("/me/tickets", requireAuth, async (req, res): Promise<void> => {
+  res.json(await listMyTickets(req.user!.id));
+});
+
+// Buy one ticket. Atomic capacity reservation + idempotent wallet legs.
+router.post("/events/:id/tickets", requireAuth, async (req, res): Promise<void> => {
+  const id = eventIdParam(req, res);
+  if (id == null) return;
+  const ticketTypeId = Number(req.body?.ticketTypeId);
+  if (!Number.isInteger(ticketTypeId)) {
+    res.status(400).json({ error: "ticketTypeId is required" });
+    return;
+  }
+  const result = await purchaseTicket({
+    eventId: id,
+    ticketTypeId,
+    buyer: { id: req.user!.id, discordId: req.user!.discordId },
+  });
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  await recordAudit({
+    req,
+    category: "mission",
+    action: "event.ticket.purchase",
+    targetType: "event",
+    targetId: id,
+    message: `Bought ticket "${result.ticket.ticketTypeName}" for "${result.ticket.eventTitle}" (${result.ticket.pricePaid} eddies, wallet ${result.walletStatus})`,
+    after: { ticketId: result.ticket.id, ticketTypeId, pricePaid: result.ticket.pricePaid, walletStatus: result.walletStatus },
+  });
+  res.status(201).json({ ticket: result.ticket, walletStatus: result.walletStatus });
+});
+
+// Purchaser roster — managers or designated check-in staff for this event.
+router.get("/events/:id/tickets", requireAuth, async (req, res): Promise<void> => {
+  const id = eventIdParam(req, res);
+  if (id == null) return;
+  if (!isManager(req) && !(await isCheckinStaff(id, req.user!.id))) {
+    res.status(403).json({ error: "Manager or check-in staff access required" });
+    return;
+  }
+  res.json(await listEventTickets(id));
+});
+
+// Toggle attendance (idempotent, undoable). Managers or check-in staff.
+router.post("/events/:id/tickets/:ticketId/attendance", requireAuth, async (req, res): Promise<void> => {
+  const id = eventIdParam(req, res);
+  if (id == null) return;
+  const ticketId = parseInt(String(req.params.ticketId), 10);
+  if (!Number.isInteger(ticketId)) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (typeof req.body?.attended !== "boolean") {
+    res.status(400).json({ error: "attended must be a boolean" });
+    return;
+  }
+  if (!isManager(req) && !(await isCheckinStaff(id, req.user!.id))) {
+    res.status(403).json({ error: "Manager or check-in staff access required" });
+    return;
+  }
+  const result = await setTicketAttendance({
+    eventId: id,
+    ticketId,
+    attended: req.body.attended,
+    byUserId: req.user!.id,
+  });
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  await recordAudit({
+    req,
+    category: "mission",
+    action: req.body.attended ? "event.ticket.attend" : "event.ticket.unattend",
+    targetType: "event",
+    targetId: id,
+    message: `${req.body.attended ? "Marked" : "Unmarked"} ${result.ticket.buyerName ?? result.ticket.buyerUserId} as attended (${result.ticket.ticketTypeName})`,
+    after: { ticketId, attended: req.body.attended },
+  });
+  res.json({ ticket: result.ticket });
+});
+
+// Refund one ticket — the BUYER or a manager, any time before attendance.
+router.post("/events/:id/tickets/:ticketId/refund", requireAuth, async (req, res): Promise<void> => {
+  const id = eventIdParam(req, res);
+  if (id == null) return;
+  const ticketId = parseInt(String(req.params.ticketId), 10);
+  if (!Number.isInteger(ticketId)) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (!isManager(req)) {
+    // Non-managers may only refund their own ticket. Ownership is re-checked
+    // here (cheap read) — refundTicket itself is authz-agnostic.
+    const mine = (await listMyTickets(req.user!.id)).some((t) => t.id === ticketId && t.eventId === id);
+    if (!mine) {
+      res.status(403).json({ error: "You can only refund your own tickets" });
+      return;
+    }
+  }
+  const result = await refundTicket({ eventId: id, ticketId, byUserId: req.user!.id });
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  await recordAudit({
+    req,
+    category: "mission",
+    action: "event.ticket.refund",
+    targetType: "event",
+    targetId: id,
+    message: `Refunded ticket "${result.ticket.ticketTypeName}" for ${result.ticket.buyerName ?? result.ticket.buyerUserId} (${result.ticket.pricePaid} eddies)`,
+    after: { ticketId, pricePaid: result.ticket.pricePaid },
+  });
+  res.json({ ticket: result.ticket });
+});
+
+// Retry a bounced runner credit (manager only; never re-charges the buyer).
+router.post("/events/:id/tickets/:ticketId/retry-payout", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const id = eventIdParam(req, res);
+  if (id == null) return;
+  const ticketId = parseInt(String(req.params.ticketId), 10);
+  if (!Number.isInteger(ticketId)) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const result = await retryTicketPayout(id, ticketId);
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  await recordAudit({
+    req,
+    category: "mission",
+    action: "event.ticket.retry_payout",
+    targetType: "event",
+    targetId: id,
+    message: `Retried runner payout for ticket #${ticketId} (${result.ticket.pricePaid} eddies)`,
+    after: { ticketId },
+  });
+  res.json({ ticket: result.ticket });
+});
+
+// Check-in staff management (manager only).
+router.get("/events/:id/checkin-staff", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const id = eventIdParam(req, res);
+  if (id == null) return;
+  res.json(await listCheckinStaff(id));
+});
+
+router.put("/events/:id/checkin-staff", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const id = eventIdParam(req, res);
+  if (id == null) return;
+  const raw = req.body?.userIds;
+  if (!Array.isArray(raw) || raw.some((u) => typeof u !== "string")) {
+    res.status(400).json({ error: "userIds must be an array of user ids" });
+    return;
+  }
+  const result = await setCheckinStaff(id, raw as string[], req.user!.id);
+  if (!result.ok) {
+    res.status(result.httpStatus).json({ error: result.error });
+    return;
+  }
+  await recordAudit({
+    req,
+    category: "mission",
+    action: "event.checkin_staff.set",
+    targetType: "event",
+    targetId: id,
+    message: `Set check-in staff (${raw.length} user${raw.length === 1 ? "" : "s"})`,
+    after: { userIds: raw },
+  });
+  res.json(await listCheckinStaff(id));
 });
 
 // Player signs up to act as an NPC on an event that has needsNpcs set.

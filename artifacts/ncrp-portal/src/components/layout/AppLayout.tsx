@@ -5,7 +5,7 @@ import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffer
 import { useEffectiveMe, useViewAs } from "@/contexts/ViewAsContext";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { ONBOARDING_BANNER_LINKS, guidebookSectionHref } from "@/lib/guidebookLinks";
-import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, ShoppingBag, BookOpen, BookMarked, Cpu, CalendarDays, Settings, X, Stethoscope, HeartPulse, Wrench, Building2, Warehouse, Archive, Network, Radio, Scale, Siren } from "lucide-react";
+import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, ShoppingBag, BookOpen, BookMarked, Cpu, CalendarDays, Settings, X, Stethoscope, HeartPulse, Wrench, Building2, Warehouse, Archive, Network, Radio, Scale, Siren, Ticket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -276,6 +276,7 @@ function SidebarContent() {
         <NavItem href="/ledger" icon={Receipt} label="Ledger" tone="cyan" />
         <NavItem href="/requests/mine" icon={ClipboardList} label="My Requests" badge={myRequestsUnseen} tone="cyan" />
         <NavItem href="/offers/mine" icon={ShoppingBag} label="My Offers" badge={pendingOffers} tone="cyan" />
+        <NavItem href="/tickets/mine" icon={Ticket} label="My Tickets" tone="cyan" />
         <NavItem href="/breach/mine" icon={Cpu} label="My Breaches" alert={hasIncomingBreach} tone="cyan" />
         <NavItem href="/dice" icon={Dice5} label="Dice Roller" tone="cyan" />
 

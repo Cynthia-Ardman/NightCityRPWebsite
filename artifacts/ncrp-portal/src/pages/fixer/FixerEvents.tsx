@@ -8,9 +8,13 @@ import {
   useUpdateEvent,
   useCancelEvent,
   useCheckEventConflicts,
+  useSearchFixerPlayers,
   getCheckEventConflictsQueryKey,
   getListEventsQueryKey,
+  getSearchFixerPlayersQueryKey,
   type EventCreateInputEventType,
+  type EventCreateInputTicketPayoutMode,
+  type EventTicketTypeInput,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { PartyPopper, Trash2 } from "lucide-react";
+import { PartyPopper, Trash2, Ticket, Plus, X } from "lucide-react";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import SingleImageUpload from "@/components/SingleImageUpload";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
@@ -151,6 +155,14 @@ export default function FixerEvents() {
   );
 }
 
+type TicketTypeRow = {
+  id: number | null;
+  name: string;
+  description: string;
+  price: string;
+  quantity: string;
+};
+
 type FormValues = {
   title: string;
   eventType: EventCreateInputEventType;
@@ -161,6 +173,10 @@ type FormValues = {
   endAt: string;
   needsNpcs: boolean;
   npcBlurb: string;
+  ticketPayoutMode: EventCreateInputTicketPayoutMode;
+  ticketRunnerUserId: string | null;
+  ticketRunnerName: string;
+  ticketTypes: TicketTypeRow[];
 };
 
 const EMPTY: FormValues = {
@@ -173,9 +189,85 @@ const EMPTY: FormValues = {
   endAt: "",
   needsNpcs: false,
   npcBlurb: "",
+  ticketPayoutMode: "runner",
+  ticketRunnerUserId: null,
+  ticketRunnerName: "",
+  ticketTypes: [],
 };
 
 const EVENT_DRAFT_KEY = "ncrp:event-create-draft";
+
+// Type-ahead picker for the ticket-revenue runner. Default (null) = the event
+// creator; picking a player routes every ticket credit to them instead.
+function RunnerPicker({
+  userId,
+  userName,
+  onPick,
+}: {
+  userId: string | null;
+  userName: string;
+  onPick: (id: string | null, name: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const enabled = q.trim().length >= 2;
+  const params = { q: q.trim() };
+  const search = useSearchFixerPlayers(params, {
+    query: { enabled, queryKey: getSearchFixerPlayersQueryKey(params) },
+  });
+  return (
+    <div>
+      <Label className="text-xs">EVENT RUNNER (leave empty = event creator)</Label>
+      {userId ? (
+        <div className="flex items-center gap-2 h-10">
+          <Badge variant="outline" className="rounded-none border-nc-cyan text-nc-cyan" data-testid="badge-ticket-runner">
+            {userName || userId}
+          </Badge>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => onPick(null, "")}
+            className="rounded-none text-destructive hover:bg-destructive/10"
+            data-testid="button-clear-ticket-runner"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      ) : (
+        <div className="relative">
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search players by name…"
+            className="rounded-none"
+            data-testid="input-ticket-runner-search"
+          />
+          {enabled && (search.data ?? []).length > 0 && (
+            <div className="absolute z-10 left-0 right-0 mt-1 border border-border bg-card max-h-48 overflow-y-auto">
+              {(search.data ?? []).map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    onPick(p.id, p.globalName || p.username);
+                    setQ("");
+                  }}
+                  className="block w-full text-left px-3 py-2 text-xs hover:bg-nc-cyan/10"
+                  data-testid={`option-ticket-runner-${p.id}`}
+                >
+                  {p.globalName || p.username}
+                  {p.characterNames.length > 0 && (
+                    <span className="text-muted-foreground"> — {p.characterNames.join(", ")}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function EditEventForm({ eventId, onSaved }: { eventId: number; onSaved: () => void }) {
   const { data, isLoading } = useGetEvent(eventId);
@@ -191,6 +283,20 @@ function EditEventForm({ eventId, onSaved }: { eventId: number; onSaved: () => v
     endAt: toLocalInputValue(data.endAt),
     needsNpcs: data.needsNpcs,
     npcBlurb: data.npcBlurb ?? "",
+    ticketPayoutMode: (data.ticketPayoutMode ?? "runner") as EventCreateInputTicketPayoutMode,
+    ticketRunnerUserId: data.ticketRunnerUserId ?? null,
+    ticketRunnerName: data.ticketRunnerName ?? "",
+    // Archived tiers are excluded: the PATCH is a replace-set, so re-sending
+    // only live tiers keeps archived ones archived (server preserves sold rows).
+    ticketTypes: (data.ticketTypes ?? [])
+      .filter((t) => !t.archived)
+      .map((t) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description ?? "",
+        price: String(t.price),
+        quantity: String(t.quantity),
+      })),
   };
   return <EventForm key={`edit-${eventId}`} eventId={eventId} initial={initial} onSaved={onSaved} />;
 }
@@ -272,10 +378,24 @@ function EventForm({
   });
   const conflict = conflictReady ? conflictQuery.data : undefined;
 
+  const ticketRowsValid = v.ticketTypes.every(
+    (t) => t.name.trim().length > 0 && Number.isFinite(Number(t.price)) && Number(t.price) >= 0,
+  );
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!v.title.trim() || !v.startAt || !v.endAt || endBeforeStart) return;
+    if (!v.title.trim() || !v.startAt || !v.endAt || endBeforeStart || !ticketRowsValid) return;
+    const ticketTypes: EventTicketTypeInput[] = v.ticketTypes.map((t) => ({
+      ...(t.id != null ? { id: t.id } : {}),
+      name: t.name.trim(),
+      description: t.description.trim() || null,
+      price: Math.max(0, Math.floor(Number(t.price) || 0)),
+      quantity: Math.max(0, Math.floor(Number(t.quantity) || 0)),
+    }));
     const payload = {
+      ticketPayoutMode: v.ticketPayoutMode,
+      ticketRunnerUserId: v.ticketPayoutMode === "runner" ? v.ticketRunnerUserId : null,
+      ticketTypes,
       title: v.title.trim(),
       eventType: v.eventType,
       location: v.location || null,
@@ -448,10 +568,151 @@ function EventForm({
             )}
           </div>
 
+          <div className="md:col-span-12 border border-border bg-background/40 p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs uppercase tracking-widest text-nc-cyan inline-flex items-center gap-2">
+                <Ticket className="w-4 h-4" /> Tickets (optional)
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  set("ticketTypes", [
+                    ...v.ticketTypes,
+                    { id: null, name: "", description: "", price: "0", quantity: "0" },
+                  ])
+                }
+                className="rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display tracking-widest"
+                data-testid="button-add-ticket-type"
+              >
+                <Plus className="w-4 h-4 mr-1" /> ADD TICKET TYPE
+              </Button>
+            </div>
+            {v.ticketTypes.length === 0 ? (
+              <p className="text-muted-foreground text-xs">
+                No tickets — this event is free-entry. Add a ticket type to sell entry with UnbelievaBoat money.
+              </p>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  {v.ticketTypes.map((t, i) => (
+                    <div
+                      key={t.id ?? `new-${i}`}
+                      className="grid grid-cols-1 md:grid-cols-12 gap-2 border border-border/50 p-2"
+                      data-testid={`row-ticket-type-${i}`}
+                    >
+                      <div className="md:col-span-4">
+                        <Label className="text-xs">NAME</Label>
+                        <Input
+                          value={t.name}
+                          onChange={(e) => {
+                            const next = [...v.ticketTypes];
+                            next[i] = { ...t, name: e.target.value };
+                            set("ticketTypes", next);
+                          }}
+                          className="rounded-none"
+                          placeholder="General admission"
+                          data-testid={`input-ticket-name-${i}`}
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label className="text-xs">PRICE €$</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={t.price}
+                          onChange={(e) => {
+                            const next = [...v.ticketTypes];
+                            next[i] = { ...t, price: e.target.value };
+                            set("ticketTypes", next);
+                          }}
+                          className="rounded-none"
+                          data-testid={`input-ticket-price-${i}`}
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label className="text-xs">QTY (0 = ∞)</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={t.quantity}
+                          onChange={(e) => {
+                            const next = [...v.ticketTypes];
+                            next[i] = { ...t, quantity: e.target.value };
+                            set("ticketTypes", next);
+                          }}
+                          className="rounded-none"
+                          data-testid={`input-ticket-quantity-${i}`}
+                        />
+                      </div>
+                      <div className="md:col-span-3">
+                        <Label className="text-xs">DESCRIPTION (optional)</Label>
+                        <Input
+                          value={t.description}
+                          onChange={(e) => {
+                            const next = [...v.ticketTypes];
+                            next[i] = { ...t, description: e.target.value };
+                            set("ticketTypes", next);
+                          }}
+                          className="rounded-none"
+                          data-testid={`input-ticket-description-${i}`}
+                        />
+                      </div>
+                      <div className="md:col-span-1 flex items-end justify-end">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => set("ticketTypes", v.ticketTypes.filter((_, j) => j !== i))}
+                          className="rounded-none text-destructive hover:bg-destructive/10"
+                          title={t.id != null ? "Remove (archived if any were sold; holders keep their tickets)" : "Remove"}
+                          data-testid={`button-remove-ticket-type-${i}`}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                  <div className="md:col-span-4">
+                    <Label className="text-xs">TICKET MONEY GOES TO</Label>
+                    <select
+                      value={v.ticketPayoutMode}
+                      onChange={(e) => set("ticketPayoutMode", e.target.value as EventCreateInputTicketPayoutMode)}
+                      className="w-full h-10 bg-background border border-border px-2 font-mono text-sm"
+                      data-testid="select-ticket-payout-mode"
+                    >
+                      <option value="runner">EVENT RUNNER</option>
+                      <option value="sink">NIGHT CITY BOT (money sink)</option>
+                    </select>
+                  </div>
+                  {v.ticketPayoutMode === "runner" && (
+                    <div className="md:col-span-8">
+                      <RunnerPicker
+                        userId={v.ticketRunnerUserId}
+                        userName={v.ticketRunnerName}
+                        onPick={(id, name) =>
+                          setV((p) => ({ ...p, ticketRunnerUserId: id, ticketRunnerName: name }))
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
+                {!ticketRowsValid && (
+                  <p className="text-destructive text-[10px]" data-testid="text-ticket-rows-invalid">
+                    Every ticket type needs a name and a non-negative price.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+
           <div className="md:col-span-12 flex flex-wrap items-center gap-3">
             <Button
               type="submit"
-              disabled={busy || !v.title.trim() || !v.startAt || !v.endAt || endBeforeStart}
+              disabled={busy || !v.title.trim() || !v.startAt || !v.endAt || endBeforeStart || !ticketRowsValid}
               className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
               data-testid="button-save-event"
             >

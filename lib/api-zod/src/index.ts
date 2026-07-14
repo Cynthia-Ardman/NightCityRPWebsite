@@ -6,3 +6,11 @@ export * from "./generated/types";
 // const as the value, the query-params shape as the type.
 export { WithdrawEventNpcSignupParams } from "./generated/api";
 export type { WithdrawEventNpcSignupParams as WithdrawEventNpcSignupQueryParamsType } from "./generated/types";
+// Same ambiguity for request bodies that orval emits both as a zod const
+// (generated/api) and a TS type (generated/types).
+export { SetEventTicketAttendanceBody } from "./generated/api";
+export type { SetEventTicketAttendanceBody as SetEventTicketAttendanceBodyType } from "./generated/types";
+export { PurchaseEventTicketBody } from "./generated/api";
+export type { PurchaseEventTicketBody as PurchaseEventTicketBodyType } from "./generated/types";
+export { SetEventCheckinStaffBody } from "./generated/api";
+export type { SetEventCheckinStaffBody as SetEventCheckinStaffBodyType } from "./generated/types";

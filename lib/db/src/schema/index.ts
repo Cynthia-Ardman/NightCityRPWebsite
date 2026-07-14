@@ -1155,6 +1155,12 @@ export const events = pgTable("events", {
   vrchatSyncedHash: text("vrchat_synced_hash"),
   // When this row was last reconciled with its VRChat calendar event.
   vrchatSyncedAt: timestamp("vrchat_synced_at", { withTimezone: true }),
+  // Ticket revenue destination: 'runner' credits ticketRunnerUserId (defaulting
+  // to the creator at purchase time when unset) | 'sink' burns to Night City Bot.
+  ticketPayoutMode: text("ticket_payout_mode").notNull().default("runner"),
+  // The user credited with ticket revenue when ticketPayoutMode = 'runner'.
+  // Null falls back to createdById at purchase time.
+  ticketRunnerUserId: text("ticket_runner_user_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => ({
@@ -1214,6 +1220,81 @@ export const eventNpcSignups = pgTable("event_npc_signups", {
   userIdx: index("event_npc_signups_user_idx").on(t.userId),
 }));
 export type EventNpcSignup = typeof eventNpcSignups.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Event tickets: fixers define ticket types on an event; players buy them with
+// UB money; designated check-in staff mark holders attended at the door.
+// ---------------------------------------------------------------------------
+
+// A purchasable ticket tier on an event (e.g. VIP / General). Price is
+// snapshotted onto each sold ticket, so editing a type never rewrites history.
+export const eventTicketTypes = pgTable("event_ticket_types", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  // Price in eddies. 0 = free ticket (still recorded, no wallet movement).
+  price: integer("price").notNull().default(0),
+  // Total sellable. 0 = unlimited.
+  quantity: integer("quantity").notNull().default(0),
+  sortOrder: integer("sort_order").notNull().default(0),
+  // Soft-delete: archived types stop selling but keep sold tickets labelled.
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => ({
+  eventIdx: index("event_ticket_types_event_idx").on(t.eventId),
+}));
+export type EventTicketType = typeof eventTicketTypes.$inferSelect;
+
+// A sold ticket. ACCOUNT-level (buyerUserId, no characterId — per product
+// decision). Ticket views always JOIN the live event row for time/place; only
+// the price is snapshotted (refunds return exactly what was paid).
+// status lifecycle: pending (reserved, buyer debit in flight) -> purchased ->
+// refunded. Capacity counts pending + purchased so a mid-purchase reservation
+// can't be oversold; a failed debit deletes the pending row.
+export const eventTickets = pgTable("event_tickets", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  ticketTypeId: integer("ticket_type_id").notNull().references(() => eventTicketTypes.id, { onDelete: "cascade" }),
+  buyerUserId: text("buyer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // Eddies actually paid (price snapshot at purchase time).
+  pricePaid: integer("price_paid").notNull(),
+  // pending | purchased | refunded
+  status: text("status").notNull().default("pending"),
+  // Runner-credit leg outcome: none (sink/free/test) | paid | failed.
+  // 'failed' means the buyer was charged but the runner credit bounced —
+  // retryable by a manager without re-charging the buyer.
+  payoutStatus: text("payout_status").notNull().default("none"),
+  payoutError: text("payout_error"),
+  // Check-in (idempotent + undoable; attended tickets can't be refunded).
+  attendedAt: timestamp("attended_at", { withTimezone: true }),
+  attendedById: text("attended_by_id").references(() => users.id, { onDelete: "set null" }),
+  // Refund audit trail (buyer- or manager-initiated, or bulk on cancel).
+  refundedAt: timestamp("refunded_at", { withTimezone: true }),
+  refundedById: text("refunded_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => ({
+  eventIdx: index("event_tickets_event_idx").on(t.eventId),
+  typeIdx: index("event_tickets_type_idx").on(t.ticketTypeId),
+  buyerIdx: index("event_tickets_buyer_idx").on(t.buyerUserId),
+}));
+export type EventTicket = typeof eventTickets.$inferSelect;
+
+// Per-event door staff: fixer-picked portal users (need not be fixers) allowed
+// to view the attendee list and toggle ATTENDED for this one event.
+export const eventCheckinStaff = pgTable("event_checkin_staff", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  addedById: text("added_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  oneStaffPerEvent: uniqueIndex("event_checkin_staff_unq").on(t.eventId, t.userId),
+  userIdx: index("event_checkin_staff_user_idx").on(t.userId),
+}));
+export type EventCheckinStaff = typeof eventCheckinStaff.$inferSelect;
 
 export const wholesalerItems = pgTable("wholesaler_items", {
   id: serial("id").primaryKey(),

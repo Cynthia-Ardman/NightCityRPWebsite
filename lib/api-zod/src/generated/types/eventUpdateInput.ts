@@ -5,7 +5,9 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { EventTicketTypeInput } from './eventTicketTypeInput';
 import type { EventUpdateInputEventType } from './eventUpdateInputEventType';
+import type { EventUpdateInputTicketPayoutMode } from './eventUpdateInputTicketPayoutMode';
 
 export interface EventUpdateInput {
   /** @minLength 1 */
@@ -22,4 +24,9 @@ export interface EventUpdateInput {
   needsNpcs?: boolean;
   /** @nullable */
   npcBlurb?: string | null;
+  ticketPayoutMode?: EventUpdateInputTicketPayoutMode;
+  /** @nullable */
+  ticketRunnerUserId?: string | null;
+  /** Replace-set: omitted existing types are removed (archived if tickets were sold). */
+  ticketTypes?: EventTicketTypeInput[];
 }

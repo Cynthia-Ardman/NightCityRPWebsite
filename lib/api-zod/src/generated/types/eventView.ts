@@ -5,10 +5,14 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { EventCheckinStaffView } from './eventCheckinStaffView';
 import type { EventRecurrence } from './eventRecurrence';
 import type { EventSignupView } from './eventSignupView';
+import type { EventTicketTypeView } from './eventTicketTypeView';
+import type { EventTicketView } from './eventTicketView';
 import type { EventViewEventType } from './eventViewEventType';
 import type { EventViewStatus } from './eventViewStatus';
+import type { EventViewTicketPayoutMode } from './eventViewTicketPayoutMode';
 
 export interface EventView {
   id: number;
@@ -58,4 +62,24 @@ export interface EventView {
   signups?: EventSignupView[];
   /** userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster. */
   paidActorUserIds?: string[];
+  /** Purchasable ticket tiers (detail view only). Archived tiers are hidden for non-managers. */
+  ticketTypes?: EventTicketTypeView[];
+  /** The caller's own tickets on this event (detail view only). */
+  myTickets?: EventTicketView[];
+  /** True if the caller may open the check-in roster (manager or designated check-in staff). */
+  canCheckIn?: boolean;
+  /** Ticket revenue destination (managers only, detail view). */
+  ticketPayoutMode?: EventViewTicketPayoutMode;
+  /**
+     * Credited user in runner mode; null = event creator (managers only).
+     * @nullable
+     */
+  ticketRunnerUserId?: string | null;
+  /**
+     * Display name for ticketRunnerUserId (managers only).
+     * @nullable
+     */
+  ticketRunnerName?: string | null;
+  /** Designated check-in staff (managers only, detail view). */
+  checkinStaff?: EventCheckinStaffView[];
 }

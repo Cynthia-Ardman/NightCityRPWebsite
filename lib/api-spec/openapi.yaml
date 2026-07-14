@@ -2275,7 +2275,7 @@ paths:
     delete:
       operationId: cancelEvent
       tags: [events]
-      summary: "Cancel an event (fixer/admin). Tears down the linked Discord scheduled event in Live mode."
+      summary: "Cancel an event (fixer/admin). Tears down the linked Discord scheduled event in Live mode and auto-refunds all purchased, un-attended tickets."
       responses:
         "200":
           description: OK
@@ -2283,11 +2283,167 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [ok]
+                required: [ok, ticketRefunds]
                 properties:
                   ok: { type: boolean }
+                  ticketRefunds: { $ref: "#/components/schemas/EventTicketRefundSummary" }
         "403": { description: Insufficient role. }
         "404": { description: Not found. }
+  /me/tickets:
+    get:
+      operationId: listMyTickets
+      tags: [events]
+      summary: "Every ticket the caller ever bought (past and future), joined to the LIVE event row."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/EventTicketView" }
+  /events/{id}/tickets:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: listEventTickets
+      tags: [events]
+      summary: "Purchaser roster for an event. Managers or designated check-in staff only."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/EventTicketView" }
+        "403": { description: Not a manager or check-in staff for this event. }
+    post:
+      operationId: purchaseEventTicket
+      tags: [events]
+      summary: "Buy one ticket with UnbelievaBoat money. Atomic capacity reservation + idempotent wallet legs (no double-charge on retries)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticketTypeId]
+              properties:
+                ticketTypeId: { type: integer }
+      responses:
+        "201":
+          description: Purchased
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventTicketPurchaseResult" }
+        "400": { description: "Insufficient funds or bad input." }
+        "404": { description: Event or ticket type not found. }
+        "409": { description: "Sold out, off sale, event not scheduled, or economy unavailable." }
+        "502": { description: "UnbelievaBoat rejected the charge." }
+  /events/{id}/tickets/{ticketId}/attendance:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: ticketId, required: true, schema: { type: integer } }
+    post:
+      operationId: setEventTicketAttendance
+      tags: [events]
+      summary: "Mark/unmark a ticket holder as attended (idempotent, undoable). Managers or designated check-in staff."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [attended]
+              properties:
+                attended: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventTicketActionResult" }
+        "403": { description: Not a manager or check-in staff for this event. }
+        "404": { description: Ticket not found. }
+        "409": { description: Only purchased tickets can be checked in. }
+  /events/{id}/tickets/{ticketId}/refund:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: ticketId, required: true, schema: { type: integer } }
+    post:
+      operationId: refundEventTicket
+      tags: [events]
+      summary: "Refund one ticket (buyer or manager) any time BEFORE it is marked attended. Money returns to the buyer; runner revenue is clawed back (sink burns are re-minted)."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventTicketActionResult" }
+        "403": { description: Not the buyer or a manager. }
+        "404": { description: Ticket not found. }
+        "409": { description: "Already refunded, attended, or economy unavailable." }
+        "502": { description: "UnbelievaBoat rejected the credit." }
+  /events/{id}/tickets/{ticketId}/retry-payout:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: ticketId, required: true, schema: { type: integer } }
+    post:
+      operationId: retryEventTicketPayout
+      tags: [events]
+      summary: "Retry a bounced runner credit for a purchased ticket (manager only). Idempotent — never re-charges the buyer."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventTicketActionResult" }
+        "403": { description: Insufficient role. }
+        "404": { description: Ticket not found. }
+        "409": { description: Payout not in a failed state (or sink event). }
+        "502": { description: "Runner credit failed again." }
+  /events/{id}/checkin-staff:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: listEventCheckinStaff
+      tags: [events]
+      summary: "List designated check-in staff for an event (fixer/admin)."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/EventCheckinStaffView" }
+        "403": { description: Insufficient role. }
+    put:
+      operationId: setEventCheckinStaff
+      tags: [events]
+      summary: "Replace-set the check-in staff list for an event (fixer/admin). Staff may be any portal users."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userIds]
+              properties:
+                userIds:
+                  type: array
+                  items: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/EventCheckinStaffView" }
+        "400": { description: Bad request }
+        "403": { description: Insufficient role. }
   /events/{id}/npc-signups:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -9754,6 +9910,107 @@ components:
           type: array
           description: "userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster."
           items: { type: string }
+        ticketTypes:
+          type: array
+          description: "Purchasable ticket tiers (detail view only). Archived tiers are hidden for non-managers."
+          items: { $ref: "#/components/schemas/EventTicketTypeView" }
+        myTickets:
+          type: array
+          description: "The caller's own tickets on this event (detail view only)."
+          items: { $ref: "#/components/schemas/EventTicketView" }
+        canCheckIn: { type: boolean, description: "True if the caller may open the check-in roster (manager or designated check-in staff)." }
+        ticketPayoutMode: { type: string, enum: [runner, sink], description: "Ticket revenue destination (managers only, detail view)." }
+        ticketRunnerUserId: { type: ["string", "null"], description: "Credited user in runner mode; null = event creator (managers only)." }
+        ticketRunnerName: { type: ["string", "null"], description: "Display name for ticketRunnerUserId (managers only)." }
+        checkinStaff:
+          type: array
+          description: "Designated check-in staff (managers only, detail view)."
+          items: { $ref: "#/components/schemas/EventCheckinStaffView" }
+
+    EventTicketTypeView:
+      type: object
+      required: [id, name, price, quantity, sold, soldOut, archived, sortOrder]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: ["string", "null"] }
+        price: { type: integer, description: "Price in eddies (0 = free)." }
+        quantity: { type: integer, description: "Total sellable (0 = unlimited)." }
+        sold: { type: integer, description: "Tickets sold (pending + purchased)." }
+        remaining: { type: ["integer", "null"], description: "Remaining sellable; null = unlimited." }
+        soldOut: { type: boolean }
+        archived: { type: boolean, description: "No longer on sale (kept to label sold tickets)." }
+        sortOrder: { type: integer }
+
+    EventTicketTypeInput:
+      type: object
+      required: [name, price]
+      properties:
+        id: { type: ["integer", "null"], description: "Existing ticket type id to update; omit to create." }
+        name: { type: string, minLength: 1 }
+        description: { type: ["string", "null"] }
+        price: { type: integer, minimum: 0 }
+        quantity: { type: integer, minimum: 0, default: 0, description: "0 = unlimited." }
+
+    EventTicketView:
+      type: object
+      required: [id, eventId, ticketTypeId, ticketTypeName, buyerUserId, pricePaid, status, payoutStatus, eventTitle, eventStartAt, eventEndAt, eventStatus]
+      properties:
+        id: { type: integer }
+        eventId: { type: integer }
+        ticketTypeId: { type: integer }
+        ticketTypeName: { type: string }
+        buyerUserId: { type: string }
+        buyerName: { type: ["string", "null"] }
+        pricePaid: { type: integer }
+        status: { type: string, enum: [pending, purchased, refunded] }
+        payoutStatus: { type: string, enum: [none, paid, failed], description: "Runner-credit leg outcome. 'failed' = buyer charged but runner credit bounced (manager can retry)." }
+        payoutError: { type: ["string", "null"] }
+        attendedAt: { type: ["string", "null"], format: date-time }
+        attendedByName: { type: ["string", "null"] }
+        refundedAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: ["string", "null"], format: date-time }
+        eventTitle: { type: string, description: "LIVE event details (edits propagate automatically)." }
+        eventStartAt: { type: string, format: date-time }
+        eventEndAt: { type: string, format: date-time }
+        eventLocation: { type: ["string", "null"] }
+        eventStatus: { type: string, enum: [scheduled, cancelled, completed] }
+
+    EventCheckinStaffView:
+      type: object
+      required: [userId]
+      properties:
+        userId: { type: string }
+        userName: { type: ["string", "null"] }
+
+    EventTicketPurchaseResult:
+      type: object
+      required: [ticket, walletStatus]
+      properties:
+        ticket: { $ref: "#/components/schemas/EventTicketView" }
+        walletStatus: { type: string, enum: [synced, dry_run, free], description: "How the buyer debit resolved (dry_run = economy test mode, free = zero-price ticket)." }
+
+    EventTicketActionResult:
+      type: object
+      required: [ticket]
+      properties:
+        ticket: { $ref: "#/components/schemas/EventTicketView" }
+
+    EventTicketRefundSummary:
+      type: object
+      required: [refunded, skipped, failures]
+      properties:
+        refunded: { type: integer }
+        skipped: { type: integer, description: "Attended tickets deliberately not refunded." }
+        failures:
+          type: array
+          items:
+            type: object
+            required: [ticketId, error]
+            properties:
+              ticketId: { type: integer }
+              buyerName: { type: ["string", "null"] }
+              error: { type: string }
 
     EventCreateInput:
       type: object
@@ -9768,6 +10025,11 @@ components:
         endAt: { type: string, format: date-time }
         needsNpcs: { type: boolean, default: false }
         npcBlurb: { type: ["string", "null"] }
+        ticketPayoutMode: { type: string, enum: [runner, sink], default: runner }
+        ticketRunnerUserId: { type: ["string", "null"], description: "Credited user in runner mode; null = event creator." }
+        ticketTypes:
+          type: array
+          items: { $ref: "#/components/schemas/EventTicketTypeInput" }
 
     EventUpdateInput:
       type: object
@@ -9781,6 +10043,12 @@ components:
         endAt: { type: string, format: date-time }
         needsNpcs: { type: boolean }
         npcBlurb: { type: ["string", "null"] }
+        ticketPayoutMode: { type: string, enum: [runner, sink] }
+        ticketRunnerUserId: { type: ["string", "null"] }
+        ticketTypes:
+          type: array
+          description: "Replace-set: omitted existing types are removed (archived if tickets were sold)."
+          items: { $ref: "#/components/schemas/EventTicketTypeInput" }
 
     EventNpcSignupInput:
       type: object
