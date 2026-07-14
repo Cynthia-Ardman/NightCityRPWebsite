@@ -1,45 +1,27 @@
-import { useState } from "react";
 import { Link } from "wouter";
 import { useListLore } from "@workspace/api-client-react";
-import type { LoreEntrySummaryCategory } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BookOpen, Plus, Lock, Download } from "lucide-react";
-import { districtLabel } from "@/lib/districts";
+import { BookOpen, Plus, Download, Building2, Users, Skull, MapPin, Boxes, Map as MapIcon } from "lucide-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
+import mapImage from "@assets/gk5g5y2f1ln81_1784064405878.jpg";
 
-type LoreSort = "recent" | "alpha";
-
-const CATEGORY_LABEL: Record<string, string> = {
-  corporation: "CORPORATIONS",
-  gang: "GANGS",
-  faction: "FACTIONS",
-  misc: "MISC",
-};
-const CATEGORY_BADGE: Record<string, string> = {
-  corporation: "border-nc-cyan text-nc-cyan",
-  gang: "border-destructive text-destructive",
-  faction: "border-nc-yellow text-nc-yellow",
-  misc: "border-muted-foreground text-muted-foreground",
-};
+const SECTIONS = [
+  { category: "location", label: "LOCATIONS", icon: MapPin, text: "text-nc-green", hover: "hover:border-nc-green", desc: "Bars, clinics, landmarks and hangouts across the city." },
+  { category: "faction", label: "FACTIONS", icon: Users, text: "text-nc-yellow", hover: "hover:border-nc-yellow", desc: "Organizations and groups vying for influence." },
+  { category: "gang", label: "GANGS", icon: Skull, text: "text-destructive", hover: "hover:border-destructive", desc: "The street crews that hold Night City's turf." },
+  { category: "corporation", label: "CORPS", icon: Building2, text: "text-nc-cyan", hover: "hover:border-nc-cyan", desc: "The megacorps that really run everything." },
+  { category: "misc", label: "MISC", icon: Boxes, text: "text-muted-foreground", hover: "hover:border-muted-foreground", desc: "Everything else worth knowing." },
+] as const;
 
 export default function DirectoryLore() {
   const { data: me } = useEffectiveMe();
   const isStaff = !!me && (me.isAdmin || me.isFixer);
   const isAdmin = !!me?.isAdmin;
-  const [tab, setTab] = useState<"all" | LoreEntrySummaryCategory>("all");
-  const [q, setQ] = useState("");
-  const [sort, setSort] = useState<LoreSort>("recent");
+  const { data: entries } = useListLore({});
 
-  const { data, isLoading } = useListLore({
-    ...(tab === "all" ? {} : { category: tab }),
-    ...(q.trim() ? { q: q.trim() } : {}),
-    sort,
-  });
+  const counts: Record<string, number> = {};
+  for (const e of entries ?? []) counts[e.category] = (counts[e.category] ?? 0) + 1;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -49,7 +31,7 @@ export default function DirectoryLore() {
             <BookOpen className="w-8 h-8 text-nc-cyan" /> LORE DIRECTORY
           </h1>
           <p className="font-mono text-muted-foreground mt-2">
-            The corporations, gangs and factions that run Night City.
+            The places, corporations, gangs and factions that run Night City.
           </p>
         </div>
         {isStaff && (
@@ -75,95 +57,57 @@ export default function DirectoryLore() {
         )}
       </div>
 
-      <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-          <TabsList className="rounded-none bg-card/60 border border-border p-1 flex flex-wrap h-auto justify-start gap-1">
-            <TabsTrigger value="all" className="rounded-none font-display tracking-widest" data-testid="tab-lore-all">ALL</TabsTrigger>
-            {Object.entries(CATEGORY_LABEL).map(([value, label]) => (
-              <TabsTrigger key={value} value={value} className="rounded-none font-display tracking-widest" data-testid={`tab-lore-${value}`}>
-                {label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        <div className="flex items-center gap-3">
-          <Select value={sort} onValueChange={(v) => setSort(v as LoreSort)}>
-            <SelectTrigger className="rounded-none font-mono text-xs md:w-48" data-testid="select-lore-sort">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="recent">Recently Updated</SelectItem>
-              <SelectItem value="alpha">Alphabetical</SelectItem>
-            </SelectContent>
-          </Select>
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search lore..."
-            className="rounded-none font-mono md:max-w-xs"
-            data-testid="input-lore-search"
-          />
-        </div>
-      </div>
+      <Link href="/directory/map">
+        <Card className="rounded-none border-border bg-card/50 hover:border-nc-green transition-all cursor-pointer overflow-hidden group" data-testid="card-lore-map">
+          <div className="relative h-64 md:h-80 overflow-hidden">
+            <img
+              src={mapImage}
+              alt="Night City map"
+              className="w-full h-full object-cover object-center opacity-70 group-hover:opacity-90 group-hover:scale-105 transition-all duration-500"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
+            <div className="absolute bottom-4 left-6 right-6 flex items-end justify-between gap-4">
+              <div>
+                <h2 className="font-display text-3xl text-nc-green flex items-center gap-3">
+                  <MapIcon className="w-7 h-7" /> CITY MAP
+                </h2>
+                <p className="font-mono text-xs text-muted-foreground mt-1">
+                  Explore Night City district by district. Click a district to open its lore.
+                </p>
+              </div>
+              <span className="font-display text-xs tracking-widest text-nc-green border border-nc-green px-3 py-2 whitespace-nowrap">
+                OPEN MAP →
+              </span>
+            </div>
+          </div>
+        </Card>
+      </Link>
 
-      {isLoading ? (
-        <div className="text-nc-cyan font-display animate-pulse">SCANNING ARCHIVES...</div>
-      ) : !data?.length ? (
-        <Empty />
-      ) : (
-        <div className="grid grid-cols-1 gap-4">
-          {data.map((e) => (
-            <Link key={e.id} href={`/directory/lore/${e.id}`}>
-              <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan transition-all cursor-pointer h-full flex flex-col" data-testid={`card-lore-${e.id}`}>
-                <CardHeader>
-                  <div className="flex items-center justify-between gap-2">
-                    <Badge variant="outline" className={`rounded-none uppercase ${CATEGORY_BADGE[e.category]}`}>{e.category}</Badge>
-                    {e.hasFixerContent && (
-                      <Badge variant="outline" className="rounded-none border-nc-yellow text-nc-yellow text-[10px]" data-testid={`badge-lore-fixer-${e.id}`}>
-                        <Lock className="w-3 h-3 mr-1" /> FIXER
-                      </Badge>
-                    )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {SECTIONS.map((s) => {
+          const Icon = s.icon;
+          const n = counts[s.category] ?? 0;
+          return (
+            <Link key={s.category} href={`/directory/lore/section/${s.category}`}>
+              <Card
+                className={`rounded-none border-border bg-card/50 ${s.hover} transition-all cursor-pointer h-full`}
+                data-testid={`card-lore-section-${s.category}`}
+              >
+                <CardContent className="p-6 flex flex-col gap-3 h-full">
+                  <div className="flex items-center justify-between">
+                    <Icon className={`w-8 h-8 ${s.text}`} />
+                    <span className="font-mono text-xs text-muted-foreground" data-testid={`text-lore-count-${s.category}`}>
+                      {n} {n === 1 ? "ENTRY" : "ENTRIES"}
+                    </span>
                   </div>
-                  {e.imageUrl && (
-                    <div className="mt-2 -mx-6 border-y border-border/50 bg-background/40">
-                      <img
-                        src={e.imageUrl}
-                        alt={e.name}
-                        className="w-full h-32 object-contain"
-                        loading="lazy"
-                        data-testid={`img-lore-${e.id}`}
-                      />
-                    </div>
-                  )}
-                  <CardTitle className="font-display text-xl mt-2">{e.name}</CardTitle>
-                  {e.responsibleFixer && (
-                    <CardDescription className="font-mono text-xs text-nc-cyan" data-testid={`text-lore-lead-${e.id}`}>
-                      STORY LEAD: {e.responsibleFixer}
-                    </CardDescription>
-                  )}
-                  {e.district && (
-                    <CardDescription className="font-mono text-xs text-nc-green" data-testid={`text-lore-district-${e.id}`}>
-                      DISTRICT: {districtLabel(e.district)}
-                    </CardDescription>
-                  )}
-                </CardHeader>
-                <CardContent className="mt-auto">
-                  <p className="text-xs font-mono text-muted-foreground line-clamp-3">{e.summary ?? "No summary."}</p>
+                  <h3 className={`font-display text-2xl tracking-widest ${s.text}`}>{s.label}</h3>
+                  <p className="font-mono text-xs text-muted-foreground">{s.desc}</p>
                 </CardContent>
               </Card>
             </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Empty() {
-  return (
-    <div className="py-20 text-center border border-dashed border-border bg-card/30">
-      <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-      <h3 className="font-display text-xl">NO LORE ON RECORD</h3>
+          );
+        })}
+      </div>
     </div>
   );
 }

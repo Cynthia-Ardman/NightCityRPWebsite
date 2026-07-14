@@ -13,5 +13,6 @@ export const LoreEntryCategory = {
   corporation: 'corporation',
   gang: 'gang',
   faction: 'faction',
+  location: 'location',
   misc: 'misc',
 } as const;

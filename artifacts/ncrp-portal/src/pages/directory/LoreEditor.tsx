@@ -195,6 +195,7 @@ export default function LoreEditor() {
                   <SelectItem value="corporation">Corporation</SelectItem>
                   <SelectItem value="gang">Gang</SelectItem>
                   <SelectItem value="faction">Faction</SelectItem>
+                  <SelectItem value="location">Location</SelectItem>
                   <SelectItem value="misc">Miscellaneous</SelectItem>
                 </SelectContent>
               </Select>

@@ -24,6 +24,7 @@ const CATEGORY_BADGE: Record<string, string> = {
   corporation: "border-nc-cyan text-nc-cyan",
   gang: "border-destructive text-destructive",
   faction: "border-nc-yellow text-nc-yellow",
+  location: "border-nc-green text-nc-green",
   misc: "border-muted-foreground text-muted-foreground",
 };
 

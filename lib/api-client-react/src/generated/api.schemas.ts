@@ -576,6 +576,7 @@ export const LoreEntrySummaryCategory = {
   corporation: 'corporation',
   gang: 'gang',
   faction: 'faction',
+  location: 'location',
   misc: 'misc',
 } as const;
 
@@ -603,6 +604,7 @@ export const LoreEntryCategory = {
   corporation: 'corporation',
   gang: 'gang',
   faction: 'faction',
+  location: 'location',
   misc: 'misc',
 } as const;
 
@@ -640,6 +642,7 @@ export const LoreEntryInputCategory = {
   corporation: 'corporation',
   gang: 'gang',
   faction: 'faction',
+  location: 'location',
   misc: 'misc',
 } as const;
 
@@ -667,6 +670,7 @@ export const LoreEntryUpdateCategory = {
   corporation: 'corporation',
   gang: 'gang',
   faction: 'faction',
+  location: 'location',
   misc: 'misc',
 } as const;
 
@@ -874,6 +878,7 @@ export const LoreImportDraftProposedCategory = {
   corporation: 'corporation',
   gang: 'gang',
   faction: 'faction',
+  location: 'location',
   misc: 'misc',
 } as const;
 
@@ -920,6 +925,7 @@ export const LoreImportDraftUpdateProposedCategory = {
   corporation: 'corporation',
   gang: 'gang',
   faction: 'faction',
+  location: 'location',
   misc: 'misc',
 } as const;
 
@@ -7697,6 +7703,7 @@ export const ListLoreCategory = {
   corporation: 'corporation',
   gang: 'gang',
   faction: 'faction',
+  location: 'location',
   misc: 'misc',
 } as const;
 

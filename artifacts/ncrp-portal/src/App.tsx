@@ -34,6 +34,7 @@ import DirectoryRipperdocDetail from "@/pages/directory/DirectoryRipperdocDetail
 import DirectoryCharacters from "@/pages/directory/DirectoryCharacters";
 import DirectoryCharacterDetail from "@/pages/directory/DirectoryCharacterDetail";
 import DirectoryLore from "@/pages/directory/DirectoryLore";
+import DirectoryLoreSection from "@/pages/directory/DirectoryLoreSection";
 import DirectoryLoreDetail from "@/pages/directory/DirectoryLoreDetail";
 import MyLoreSubmissions from "@/pages/directory/MyLoreSubmissions";
 import LoreEditor from "@/pages/directory/LoreEditor";
@@ -257,6 +258,9 @@ function AppRoutes() {
           </Route>
           <Route path="/directory/lore">
             <StaffArchiveGuard><DirectoryLore /></StaffArchiveGuard>
+          </Route>
+          <Route path="/directory/lore/section/:category">
+            <StaffArchiveGuard><DirectoryLoreSection /></StaffArchiveGuard>
           </Route>
           <Route path="/directory/lore/mine">
             <StaffArchiveGuard><MyLoreSubmissions /></StaffArchiveGuard>

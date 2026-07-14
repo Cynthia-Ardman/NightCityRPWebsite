@@ -10726,14 +10726,14 @@ export const DecideMissionParticipationResponse = zod.object({
 export const listLoreQuerySortDefault = `recent`;
 
 export const ListLoreQueryParams = zod.object({
-  "category": zod.enum(['corporation', 'gang', 'faction', 'misc']).optional(),
+  "category": zod.enum(['corporation', 'gang', 'faction', 'location', 'misc']).optional(),
   "q": zod.coerce.string().optional(),
   "sort": zod.enum(['recent', 'alpha']).default(listLoreQuerySortDefault).describe('Sort order. \'recent\' (default) = newest-updated first; \'alpha\' = A→Z by name.')
 })
 
 export const ListLoreResponseItem = zod.object({
   "id": zod.number(),
-  "category": zod.enum(['corporation', 'gang', 'faction', 'misc']),
+  "category": zod.enum(['corporation', 'gang', 'faction', 'location', 'misc']),
   "name": zod.string(),
   "slug": zod.string(),
   "aliases": zod.array(zod.string()),
@@ -10751,7 +10751,7 @@ export const ListLoreResponse = zod.array(ListLoreResponseItem)
  * @summary Create a lore entry (admin only — publishes directly).
  */
 export const CreateLoreBody = zod.object({
-  "category": zod.enum(['corporation', 'gang', 'faction', 'misc']),
+  "category": zod.enum(['corporation', 'gang', 'faction', 'location', 'misc']),
   "name": zod.string(),
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
@@ -10776,7 +10776,7 @@ export const GetLoreParams = zod.object({
 
 export const GetLoreResponse = zod.object({
   "id": zod.number(),
-  "category": zod.enum(['corporation', 'gang', 'faction', 'misc']),
+  "category": zod.enum(['corporation', 'gang', 'faction', 'location', 'misc']),
   "name": zod.string(),
   "slug": zod.string(),
   "aliases": zod.array(zod.string()),
@@ -10807,7 +10807,7 @@ export const UpdateLoreParams = zod.object({
 })
 
 export const UpdateLoreBody = zod.object({
-  "category": zod.enum(['corporation', 'gang', 'faction', 'misc']).optional(),
+  "category": zod.enum(['corporation', 'gang', 'faction', 'location', 'misc']).optional(),
   "name": zod.string().optional(),
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
@@ -10824,7 +10824,7 @@ export const UpdateLoreBody = zod.object({
 
 export const UpdateLoreResponse = zod.object({
   "id": zod.number(),
-  "category": zod.enum(['corporation', 'gang', 'faction', 'misc']),
+  "category": zod.enum(['corporation', 'gang', 'faction', 'location', 'misc']),
   "name": zod.string(),
   "slug": zod.string(),
   "aliases": zod.array(zod.string()),
@@ -10917,7 +10917,7 @@ export const SubmitLoreEditBody = zod.object({
   "loreEntryId": zod.number().nullish(),
   "kind": zod.enum(['create', 'edit']),
   "diff": zod.object({
-  "category": zod.enum(['corporation', 'gang', 'faction', 'misc']).optional(),
+  "category": zod.enum(['corporation', 'gang', 'faction', 'location', 'misc']).optional(),
   "name": zod.string().optional(),
   "summary": zod.string().nullish(),
   "responsibleFixer": zod.string().nullish(),
@@ -11201,7 +11201,7 @@ export const ListLoreImportDraftsResponseItem = zod.object({
   "id": zod.number(),
   "groupKey": zod.string(),
   "proposedName": zod.string(),
-  "proposedCategory": zod.enum(['corporation', 'gang', 'faction', 'misc']),
+  "proposedCategory": zod.enum(['corporation', 'gang', 'faction', 'location', 'misc']),
   "proposedFixer": zod.string().nullish(),
   "aliases": zod.array(zod.string()),
   "summary": zod.string().nullish(),
@@ -11231,7 +11231,7 @@ export const UpdateLoreImportDraftParams = zod.object({
 
 export const UpdateLoreImportDraftBody = zod.object({
   "proposedName": zod.string().optional(),
-  "proposedCategory": zod.enum(['corporation', 'gang', 'faction', 'misc']).optional(),
+  "proposedCategory": zod.enum(['corporation', 'gang', 'faction', 'location', 'misc']).optional(),
   "proposedFixer": zod.string().nullish(),
   "aliases": zod.array(zod.string()).optional(),
   "summary": zod.string().nullish(),
@@ -11250,7 +11250,7 @@ export const UpdateLoreImportDraftResponse = zod.object({
   "id": zod.number(),
   "groupKey": zod.string(),
   "proposedName": zod.string(),
-  "proposedCategory": zod.enum(['corporation', 'gang', 'faction', 'misc']),
+  "proposedCategory": zod.enum(['corporation', 'gang', 'faction', 'location', 'misc']),
   "proposedFixer": zod.string().nullish(),
   "aliases": zod.array(zod.string()),
   "summary": zod.string().nullish(),
@@ -11279,7 +11279,7 @@ export const ApproveLoreImportDraftParams = zod.object({
 
 export const ApproveLoreImportDraftResponse = zod.object({
   "id": zod.number(),
-  "category": zod.enum(['corporation', 'gang', 'faction', 'misc']),
+  "category": zod.enum(['corporation', 'gang', 'faction', 'location', 'misc']),
   "name": zod.string(),
   "slug": zod.string(),
   "aliases": zod.array(zod.string()),
@@ -11313,7 +11313,7 @@ export const DiscardLoreImportDraftResponse = zod.object({
   "id": zod.number(),
   "groupKey": zod.string(),
   "proposedName": zod.string(),
-  "proposedCategory": zod.enum(['corporation', 'gang', 'faction', 'misc']),
+  "proposedCategory": zod.enum(['corporation', 'gang', 'faction', 'location', 'misc']),
   "proposedFixer": zod.string().nullish(),
   "aliases": zod.array(zod.string()),
   "summary": zod.string().nullish(),

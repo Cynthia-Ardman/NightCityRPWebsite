@@ -44,7 +44,7 @@ const router: IRouter = Router();
 // A db handle or an in-flight transaction — helpers run on either.
 type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-const CATEGORIES = ["corporation", "gang", "faction", "misc"] as const;
+const CATEGORIES = ["corporation", "gang", "faction", "location", "misc"] as const;
 const categoryEnum = z.enum(CATEGORIES);
 const sourceSchema = z.object({ label: z.string().min(1), url: z.string().min(1) });
 

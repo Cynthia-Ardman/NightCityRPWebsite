@@ -4658,7 +4658,7 @@ paths:
         - in: query
           name: category
           required: false
-          schema: { type: string, enum: [corporation, gang, faction, misc] }
+          schema: { type: string, enum: [corporation, gang, faction, location, misc] }
         - in: query
           name: q
           required: false
@@ -6477,7 +6477,7 @@ components:
       required: [id, category, name, slug, aliases, hasFixerContent, updatedAt]
       properties:
         id: { type: integer }
-        category: { type: string, enum: [corporation, gang, faction, misc] }
+        category: { type: string, enum: [corporation, gang, faction, location, misc] }
         name: { type: string }
         slug: { type: string }
         aliases:
@@ -6496,7 +6496,7 @@ components:
       required: [id, category, name, slug, aliases, publicBody, canViewFixer, createdAt, updatedAt]
       properties:
         id: { type: integer }
-        category: { type: string, enum: [corporation, gang, faction, misc] }
+        category: { type: string, enum: [corporation, gang, faction, location, misc] }
         name: { type: string }
         slug: { type: string }
         aliases:
@@ -6526,7 +6526,7 @@ components:
       type: object
       required: [category, name]
       properties:
-        category: { type: string, enum: [corporation, gang, faction, misc] }
+        category: { type: string, enum: [corporation, gang, faction, location, misc] }
         name: { type: string }
         summary: { type: ["string", "null"] }
         responsibleFixer: { type: ["string", "null"] }
@@ -6545,7 +6545,7 @@ components:
     LoreEntryUpdate:
       type: object
       properties:
-        category: { type: string, enum: [corporation, gang, faction, misc] }
+        category: { type: string, enum: [corporation, gang, faction, location, misc] }
         name: { type: string }
         summary: { type: ["string", "null"] }
         responsibleFixer: { type: ["string", "null"] }
@@ -6642,7 +6642,7 @@ components:
         id: { type: integer }
         groupKey: { type: string }
         proposedName: { type: string }
-        proposedCategory: { type: string, enum: [corporation, gang, faction, misc] }
+        proposedCategory: { type: string, enum: [corporation, gang, faction, location, misc] }
         proposedFixer: { type: ["string", "null"] }
         aliases:
           type: array
@@ -6666,7 +6666,7 @@ components:
       type: object
       properties:
         proposedName: { type: string }
-        proposedCategory: { type: string, enum: [corporation, gang, faction, misc] }
+        proposedCategory: { type: string, enum: [corporation, gang, faction, location, misc] }
         proposedFixer: { type: ["string", "null"] }
         aliases:
           type: array

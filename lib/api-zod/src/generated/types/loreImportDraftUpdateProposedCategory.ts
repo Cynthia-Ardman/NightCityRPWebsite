@@ -13,5 +13,6 @@ export const LoreImportDraftUpdateProposedCategory = {
   corporation: 'corporation',
   gang: 'gang',
   faction: 'faction',
+  location: 'location',
   misc: 'misc',
 } as const;
