@@ -61,7 +61,7 @@ type HistoryRow = {
     | "Cyberware"
     | "Item"
     | "Store"
-    | "Ripperdoc"
+    | "Clinic"
     | "Stock"
     | "Venue Stock"
     | "Employment"
@@ -118,7 +118,7 @@ const CUSTOM_LABEL: Record<CustomRequest["type"], HistoryRow["category"]> = {
   cyberware: "Cyberware",
   item: "Item",
   store: "Store",
-  ripperdoc: "Ripperdoc",
+  ripperdoc: "Clinic",
   stock_cost: "Stock",
   venue_stock: "Venue Stock",
   employee_invite: "Employment",
@@ -134,7 +134,7 @@ const CATEGORY_FILTERS: Array<HistoryRow["category"] | "All"> = [
   "Cyberware",
   "Item",
   "Store",
-  "Ripperdoc",
+  "Clinic",
   "Stock",
   "Venue Stock",
   "Lease",
@@ -156,7 +156,7 @@ function categoryColor(category: HistoryRow["category"]): string {
       return "text-nc-magenta";
     case "Store":
       return "text-nc-cyan";
-    case "Ripperdoc":
+    case "Clinic":
       return "text-nc-magenta";
     case "Stock":
       return "text-nc-yellow";

@@ -366,7 +366,7 @@ export default function Inbox() {
                     </div>
                     <div className="font-mono text-xs text-muted-foreground">
                       {o.itemCategory ? `${o.itemCategory} · ` : ""}
-                      {o.venueName ?? (o.kind === "store" ? "Store" : "Ripperdoc")}
+                      {o.venueName ?? (o.kind === "store" ? "Store" : "Clinic")}
                       {o.buyerName ? ` · for ${o.buyerName}` : ""}
                     </div>
                     {o.memo && (
@@ -492,7 +492,7 @@ export default function Inbox() {
                         </div>
                       </td>
                       <td className="p-3 text-muted-foreground whitespace-nowrap">
-                        {o.venueName ?? (o.kind === "store" ? "Store" : "Ripperdoc")}
+                        {o.venueName ?? (o.kind === "store" ? "Store" : "Clinic")}
                       </td>
                       <td className="p-3 text-right text-nc-yellow whitespace-nowrap">
                         €${o.totalPrice.toLocaleString()}
