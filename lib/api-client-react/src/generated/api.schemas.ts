@@ -571,6 +571,30 @@ export const LoreDistrict = {
   beastside: 'beastside',
 } as const;
 
+export type LoreSubDistrict = typeof LoreSubDistrict[keyof typeof LoreSubDistrict];
+
+
+export const LoreSubDistrict = {
+  northside: 'northside',
+  arasaka_waterfront: 'arasaka_waterfront',
+  kabuki: 'kabuki',
+  little_china: 'little_china',
+  japantown: 'japantown',
+  north_oaks: 'north_oaks',
+  charter_hill: 'charter_hill',
+  casino: 'casino',
+  downtown: 'downtown',
+  corpo_plaza: 'corpo_plaza',
+  wellsprings: 'wellsprings',
+  the_glen: 'the_glen',
+  vista_del_rey: 'vista_del_rey',
+  arroyo: 'arroyo',
+  rancho_coronado: 'rancho_coronado',
+  coast_view: 'coast_view',
+  west_wind_estate: 'west_wind_estate',
+  dogtown: 'dogtown',
+} as const;
+
 export type LoreEntrySummaryCategory = typeof LoreEntrySummaryCategory[keyof typeof LoreEntrySummaryCategory];
 
 
@@ -595,6 +619,7 @@ export interface LoreEntrySummary {
   /** @nullable */
   imageUrl?: string | null;
   district?: LoreDistrict | null;
+  subDistrict?: LoreSubDistrict | null;
   hasFixerContent: boolean;
   updatedAt: string;
 }
@@ -623,6 +648,7 @@ export interface LoreEntry {
   /** @nullable */
   imageUrl?: string | null;
   district?: LoreDistrict | null;
+  subDistrict?: LoreSubDistrict | null;
   publicBody: string;
   /** @nullable */
   fixerBody?: string | null;
@@ -658,6 +684,7 @@ export interface LoreEntryInput {
   /** @nullable */
   imageUrl?: string | null;
   district?: LoreDistrict | null;
+  subDistrict?: LoreSubDistrict | null;
   aliases?: string[];
   publicBody?: string;
   /** @nullable */
@@ -686,6 +713,7 @@ export interface LoreEntryUpdate {
   /** @nullable */
   imageUrl?: string | null;
   district?: LoreDistrict | null;
+  subDistrict?: LoreSubDistrict | null;
   aliases?: string[];
   publicBody?: string;
   /** @nullable */
@@ -906,6 +934,7 @@ export interface LoreImportDraft {
   /** @nullable */
   imageUrl?: string | null;
   district?: LoreDistrict | null;
+  subDistrict?: LoreSubDistrict | null;
   publicBody: string;
   /** @nullable */
   fixerBody?: string | null;
@@ -942,6 +971,7 @@ export interface LoreImportDraftUpdate {
   /** @nullable */
   imageUrl?: string | null;
   district?: LoreDistrict | null;
+  subDistrict?: LoreSubDistrict | null;
   publicBody?: string;
   /** @nullable */
   fixerBody?: string | null;

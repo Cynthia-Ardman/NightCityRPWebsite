@@ -503,3 +503,130 @@ describe("import-draft approval stays on the admin flow", () => {
     expect(live.imageUrl).toBe(img);
   });
 });
+
+describe("sub-district ↔ district invariant", () => {
+  it("admin create with a subDistrict alone auto-fills the parent district", async () => {
+    const admin = await createAdmin();
+    const res = await request(app)
+      .post("/api/directory/lore")
+      .set("x-test-user", admin.id)
+      .send({ category: "misc", name: `Kabuki Market ${Date.now()}`, subDistrict: "kabuki" });
+    expect(res.status).toBe(201);
+    expect(res.body.subDistrict).toBe("kabuki");
+    expect(res.body.district).toBe("watson");
+  });
+
+  it("400s an admin create whose explicit district conflicts with the subDistrict's parent", async () => {
+    const admin = await createAdmin();
+    const res = await request(app)
+      .post("/api/directory/lore")
+      .set("x-test-user", admin.id)
+      .send({ category: "misc", name: "Bad Pair", district: "pacifica", subDistrict: "kabuki" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/belongs to watson/);
+  });
+
+  it("PATCHing only the district away from a kept subDistrict's parent clears the subDistrict", async () => {
+    const admin = await createAdmin();
+    const entry = await seedEntry({ district: "watson", subDistrict: "kabuki" });
+    const res = await request(app)
+      .patch(`/api/directory/lore/${entry.id}`)
+      .set("x-test-user", admin.id)
+      .send({ district: "pacifica" });
+    expect(res.status).toBe(200);
+    expect(res.body.district).toBe("pacifica");
+    expect(res.body.subDistrict).toBeNull();
+  });
+
+  it("400s a fixer proposal whose diff pairs a subDistrict with a conflicting explicit district", async () => {
+    const fixer = await createFixer();
+    const res = await request(app)
+      .post("/api/directory/lore/edits")
+      .set("x-test-user", fixer.id)
+      .send({ kind: "create", diff: { category: "misc", name: "Bad Pair 2", district: "heywood", subDistrict: "dogtown" } });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/belongs to pacifica/);
+  });
+
+  it("a fixer proposal with subDistrict alone lands with the parent district at close", async () => {
+    const fixer = await createFixer();
+    const r1 = await createReviewer();
+    const r2 = await createReviewer();
+    const reqId = await submitCreate(fixer.id, {
+      category: "location",
+      name: `Japantown Nights ${Date.now()}`,
+      subDistrict: "japantown",
+    });
+    await request(app).post(`/api/directory/lore/edits/${reqId}/vote`).set("x-test-user", r1.id).send({ vote: "approve" });
+    await request(app).post(`/api/directory/lore/edits/${reqId}/vote`).set("x-test-user", r2.id).send({ vote: "approve" });
+    const close = await request(app).post(`/api/review/lore/${reqId}/close`).set("x-test-user", r1.id).send({});
+    expect(close.status).toBe(200);
+    const [edit] = await db.select().from(lorePendingEdits).where(eq(lorePendingEdits.id, reqId));
+    expect(edit.appliedEntryId).not.toBeNull();
+    const [created] = await db.select().from(loreEntries).where(eq(loreEntries.id, edit.appliedEntryId!));
+    expect(created.subDistrict).toBe("japantown");
+    expect(created.district).toBe("westbrook");
+  });
+});
+
+describe("import-draft materialization enforces the sub-district invariant", () => {
+  async function seedDraft(overrides: Partial<typeof loreImportDrafts.$inferInsert> = {}) {
+    const [draft] = await db
+      .insert(loreImportDrafts)
+      .values({
+        groupKey: `sd-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        proposedName: `Imported ${Math.random().toString(36).slice(2, 7)}`,
+        proposedCategory: "location",
+        publicBody: "Imported body.",
+        ...overrides,
+      })
+      .returning();
+    return draft;
+  }
+
+  it("createFromDraft with subDistrict alone auto-parents the district", async () => {
+    const admin = await createAdmin();
+    const draft = await seedDraft({ subDistrict: "dogtown" });
+    const res = await request(app)
+      .post(`/api/directory/lore/import/drafts/${draft.id}/approve`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(res.status).toBe(200);
+    expect(res.body.subDistrict).toBe("dogtown");
+    expect(res.body.district).toBe("pacifica");
+  });
+
+  it("merge approval clears the existing subDistrict when the draft moves the district away", async () => {
+    const admin = await createAdmin();
+    const existing = await seedEntry({ district: "watson", subDistrict: "kabuki" });
+    const draft = await seedDraft({
+      proposedName: existing.name,
+      suggestedMergeEntryId: existing.id,
+      district: "heywood",
+    });
+    const res = await request(app)
+      .post(`/api/directory/lore/import/drafts/${draft.id}/approve`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(res.status).toBe(200);
+    expect(res.body.district).toBe("heywood");
+    expect(res.body.subDistrict).toBeNull();
+  });
+
+  it("merge approval with an explicit draft subDistrict forces its parent district", async () => {
+    const admin = await createAdmin();
+    const existing = await seedEntry({ district: "watson", subDistrict: "kabuki" });
+    const draft = await seedDraft({
+      proposedName: existing.name,
+      suggestedMergeEntryId: existing.id,
+      subDistrict: "japantown",
+    });
+    const res = await request(app)
+      .post(`/api/directory/lore/import/drafts/${draft.id}/approve`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(res.status).toBe(200);
+    expect(res.body.subDistrict).toBe("japantown");
+    expect(res.body.district).toBe("westbrook");
+  });
+});

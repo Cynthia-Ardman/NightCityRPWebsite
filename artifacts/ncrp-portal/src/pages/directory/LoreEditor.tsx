@@ -12,9 +12,10 @@ import {
   type LoreSource,
   type LoreEntryUpdate,
   type LoreDistrict,
+  type LoreSubDistrict,
   LoreEntryInputCategory,
 } from "@workspace/api-client-react";
-import { DISTRICTS } from "@/lib/districts";
+import { DISTRICTS, SUB_DISTRICTS, subDistrictParent } from "@/lib/districts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,6 +74,7 @@ export default function LoreEditor() {
   const [summary, setSummary] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [district, setDistrict] = useState<string>("none");
+  const [subDistrict, setSubDistrict] = useState<string>("none");
   const [publicBody, setPublicBody] = useState("");
   const [fixerBody, setFixerBody] = useState("");
   const [sourcesText, setSourcesText] = useState("");
@@ -86,6 +88,7 @@ export default function LoreEditor() {
     setSummary(existing.summary ?? "");
     setImageUrl(existing.imageUrl ?? "");
     setDistrict(existing.district ?? "none");
+    setSubDistrict(existing.subDistrict ?? "none");
     setPublicBody(existing.publicBody ?? "");
     setFixerBody(existing.fixerBody ?? "");
     setSourcesText(sourcesToText(existing.sources ?? []));
@@ -139,6 +142,7 @@ export default function LoreEditor() {
     summary: summary.trim() || null,
     imageUrl: imageUrl.trim() || null,
     district: district === "none" ? null : (district as LoreDistrict),
+    subDistrict: subDistrict === "none" ? null : (subDistrict as LoreSubDistrict),
     publicBody,
     fixerBody: fixerBody.trim() || null,
     sources: textToSources(sourcesText),
@@ -210,17 +214,48 @@ export default function LoreEditor() {
           <Field label="Summary (one line)">
             <Input value={summary} onChange={(e) => setSummary(e.target.value)} className="rounded-none font-mono" data-testid="input-lore-summary" />
           </Field>
-          <Field label="District (optional — links this entry to the Night City map)">
-            <Select value={district} onValueChange={setDistrict}>
-              <SelectTrigger className="rounded-none font-mono" data-testid="select-lore-district"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {DISTRICTS.map((d) => (
-                  <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field label="District (optional — links this entry to the Night City map)">
+              <Select
+                value={district}
+                onValueChange={(v) => {
+                  setDistrict(v);
+                  // Keep the pair consistent: drop a sub-district that doesn't
+                  // belong to the newly chosen district.
+                  if (subDistrict !== "none" && subDistrictParent(subDistrict) !== v) {
+                    setSubDistrict("none");
+                  }
+                }}
+              >
+                <SelectTrigger className="rounded-none font-mono" data-testid="select-lore-district"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {DISTRICTS.map((d) => (
+                    <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Sub-district (optional — neighborhood on the map)">
+              <Select
+                value={subDistrict}
+                onValueChange={(v) => {
+                  setSubDistrict(v);
+                  // A sub-district implies its parent district.
+                  const parent = subDistrictParent(v);
+                  if (parent) setDistrict(parent);
+                }}
+              >
+                <SelectTrigger className="rounded-none font-mono" data-testid="select-lore-subdistrict"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {SUB_DISTRICTS.filter((s) => district === "none" || s.parent === district).map((s) => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
           <Field label="Image (optional)">
             <SingleImageUpload value={imageUrl} onChange={setImageUrl} testIdPrefix="lore-image" alt={name || "lore image"} />
           </Field>

@@ -7,6 +7,7 @@
  */
 import type { LoreDistrict } from './loreDistrict';
 import type { LoreEntrySummaryCategory } from './loreEntrySummaryCategory';
+import type { LoreSubDistrict } from './loreSubDistrict';
 
 export interface LoreEntrySummary {
   id: number;
@@ -21,6 +22,7 @@ export interface LoreEntrySummary {
   /** @nullable */
   imageUrl?: string | null;
   district?: LoreDistrict | null;
+  subDistrict?: LoreSubDistrict | null;
   hasFixerContent: boolean;
   updatedAt: Date;
 }

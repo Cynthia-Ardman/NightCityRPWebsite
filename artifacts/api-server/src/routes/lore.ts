@@ -65,6 +65,65 @@ const DISTRICTS = [
 ] as const;
 const districtEnum = z.enum(DISTRICTS);
 
+// Canonical sub-district (neighborhood) tags with their parent district — one
+// per labeled neighborhood polygon on the portal map. Keep in sync with the
+// OpenAPI LoreSubDistrict enum and SUB_DISTRICTS in the portal's districts.ts.
+// Invariant: whenever an entry has a subDistrict, its district is the parent.
+const SUB_DISTRICTS: Record<string, (typeof DISTRICTS)[number]> = {
+  northside: "watson",
+  arasaka_waterfront: "watson",
+  kabuki: "watson",
+  little_china: "watson",
+  japantown: "westbrook",
+  north_oaks: "westbrook",
+  charter_hill: "westbrook",
+  casino: "westbrook",
+  downtown: "city_center",
+  corpo_plaza: "city_center",
+  wellsprings: "heywood",
+  the_glen: "heywood",
+  vista_del_rey: "heywood",
+  arroyo: "santo_domingo",
+  rancho_coronado: "santo_domingo",
+  coast_view: "pacifica",
+  west_wind_estate: "pacifica",
+  dogtown: "pacifica",
+};
+const subDistrictEnum = z.enum(Object.keys(SUB_DISTRICTS) as [string, ...string[]]);
+
+// Validate a (district, subDistrict) pair as it would land on the entry.
+// Returns an error message when the caller explicitly supplied a district that
+// conflicts with the sub-district's parent; otherwise returns the corrected
+// pair (auto-filling district from the sub-district's parent).
+function resolveDistrictPair(
+  district: string | null | undefined,
+  subDistrict: string | null | undefined,
+  districtExplicit: boolean,
+): { error: string } | { district: string | null; subDistrict: string | null } {
+  if (!subDistrict) return { district: district ?? null, subDistrict: null };
+  const parent = SUB_DISTRICTS[subDistrict];
+  if (!parent) return { error: `Unknown sub-district: ${subDistrict}` };
+  if (district && district !== parent) {
+    if (districtExplicit) {
+      return { error: `Sub-district "${subDistrict}" belongs to ${parent}, not ${district}` };
+    }
+  }
+  return { district: parent, subDistrict };
+}
+
+// Non-400 coercion for materialization paths (draft approve/merge, proposal
+// apply): a sub-district always forces its parent district; an unknown
+// sub-district is dropped. Never throws — stored rows may predate validation.
+function normalizeDistrictPair(
+  district: string | null,
+  subDistrict: string | null,
+): { district: string | null; subDistrict: string | null } {
+  if (!subDistrict) return { district, subDistrict: null };
+  const parent = SUB_DISTRICTS[subDistrict];
+  if (!parent) return { district, subDistrict: null };
+  return { district: parent, subDistrict };
+}
+
 const entryInputSchema = z.object({
   category: categoryEnum,
   name: z.string().trim().min(1),
@@ -72,6 +131,7 @@ const entryInputSchema = z.object({
   responsibleFixer: z.string().nullish(),
   imageUrl: z.string().nullish(),
   district: districtEnum.nullish(),
+  subDistrict: subDistrictEnum.nullish(),
   aliases: z.array(z.string().trim().min(1)).optional(),
   publicBody: z.string().optional(),
   fixerBody: z.string().nullish(),
@@ -128,6 +188,7 @@ function shapeEntry(row: LoreEntry, canViewFixer: boolean): Record<string, unkno
     responsibleFixer: row.responsibleFixer ?? null,
     imageUrl: row.imageUrl ?? null,
     district: row.district ?? null,
+    subDistrict: row.subDistrict ?? null,
     publicBody: row.publicBody ?? "",
     fixerBody: canViewFixer ? (row.fixerBody ?? null) : null,
     sources: canViewFixer ? sources : [],
@@ -151,6 +212,7 @@ function shapeSummary(row: LoreEntry): Record<string, unknown> {
     responsibleFixer: row.responsibleFixer ?? null,
     imageUrl: row.imageUrl ?? null,
     district: row.district ?? null,
+    subDistrict: row.subDistrict ?? null,
     hasFixerContent: !!(row.fixerBody && row.fixerBody.trim()) || sourcesOf(row.sources).length > 0,
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -502,6 +564,16 @@ router.post("/directory/lore/edits", requireAuth, async (req, res): Promise<void
     return;
   }
   const { kind, diff, updateNote } = parsed.data;
+  // Enforce sub-district → parent-district consistency on the proposed diff at
+  // submit time (applyProposal re-normalizes defensively at materialize).
+  if (diff.subDistrict) {
+    const pair = resolveDistrictPair(diff.district ?? null, diff.subDistrict, diff.district !== undefined && diff.district !== null);
+    if ("error" in pair) {
+      res.status(400).json({ error: pair.error });
+      return;
+    }
+    diff.district = pair.district as typeof diff.district;
+  }
   let loreEntryId = parsed.data.loreEntryId ?? null;
   let beforeSnapshot: Record<string, unknown> = {};
 
@@ -566,6 +638,13 @@ async function applyProposal(
   actorId: string,
 ): Promise<LoreEntry> {
   const diff = (edit.proposedDiff ?? {}) as z.infer<typeof entryUpdateSchema>;
+  // Defensive re-normalization at materialize time: a sub-district always
+  // forces its parent district (old proposals may predate the invariant).
+  if (diff.subDistrict) {
+    const parent = SUB_DISTRICTS[diff.subDistrict];
+    if (parent) diff.district = parent;
+    else diff.subDistrict = null;
+  }
   if (edit.kind === "create") {
     const name = diff.name!;
     const slug = await uniqueSlug(tx, name);
@@ -580,6 +659,7 @@ async function applyProposal(
         responsibleFixer: diff.responsibleFixer ?? null,
         imageUrl: diff.imageUrl ?? null,
         district: diff.district ?? null,
+        subDistrict: diff.subDistrict ?? null,
         publicBody: diff.publicBody ?? "",
         fixerBody: diff.fixerBody ?? null,
         sources: (diff.sources ?? []) as never,
@@ -596,6 +676,17 @@ async function applyProposal(
   if (diff.responsibleFixer !== undefined) set.responsibleFixer = diff.responsibleFixer ?? null;
   if (diff.imageUrl !== undefined) set.imageUrl = diff.imageUrl ?? null;
   if (diff.district !== undefined) set.district = diff.district ?? null;
+  if (diff.subDistrict !== undefined) set.subDistrict = diff.subDistrict ?? null;
+  // Changing the district away from a kept sub-district's parent clears the
+  // sub-district (keeps the parent invariant when only district is edited).
+  if (diff.district !== undefined && diff.subDistrict === undefined) {
+    const [current] = await tx
+      .select({ subDistrict: loreEntries.subDistrict })
+      .from(loreEntries)
+      .where(eq(loreEntries.id, edit.loreEntryId!));
+    const cur = current?.subDistrict;
+    if (cur && SUB_DISTRICTS[cur] !== (diff.district ?? null)) set.subDistrict = null;
+  }
   if (diff.aliases !== undefined) set.aliases = diff.aliases;
   if (diff.publicBody !== undefined) set.publicBody = diff.publicBody;
   if (diff.fixerBody !== undefined) set.fixerBody = diff.fixerBody ?? null;
@@ -902,6 +993,7 @@ function shapeDraft(row: typeof loreImportDrafts.$inferSelect, mergeName: string
     summary: row.summary ?? null,
     imageUrl: row.imageUrl ?? null,
     district: row.district ?? null,
+    subDistrict: row.subDistrict ?? null,
     publicBody: row.publicBody ?? "",
     fixerBody: row.fixerBody ?? null,
     sources: sourcesOf(row.sources),
@@ -939,6 +1031,7 @@ const draftUpdateSchema = z.object({
   summary: z.string().nullish(),
   imageUrl: z.string().nullish(),
   district: districtEnum.nullish(),
+  subDistrict: subDistrictEnum.nullish(),
   publicBody: z.string().optional(),
   fixerBody: z.string().nullish(),
   sources: z.array(sourceSchema).optional(),
@@ -957,6 +1050,14 @@ router.patch("/directory/lore/import/drafts/:id", requireAuth, async (req, res):
     return;
   }
   const d = parsed.data;
+  if (d.subDistrict) {
+    const pair = resolveDistrictPair(d.district ?? null, d.subDistrict, d.district !== undefined && d.district !== null);
+    if ("error" in pair) {
+      res.status(400).json({ error: pair.error });
+      return;
+    }
+    d.district = pair.district as typeof d.district;
+  }
   const set: Record<string, unknown> = {};
   if (d.proposedName !== undefined) set.proposedName = d.proposedName;
   if (d.proposedCategory !== undefined) set.proposedCategory = d.proposedCategory;
@@ -965,6 +1066,7 @@ router.patch("/directory/lore/import/drafts/:id", requireAuth, async (req, res):
   if (d.summary !== undefined) set.summary = d.summary ?? null;
   if (d.imageUrl !== undefined) set.imageUrl = d.imageUrl ?? null;
   if (d.district !== undefined) set.district = d.district ?? null;
+  if (d.subDistrict !== undefined) set.subDistrict = d.subDistrict ?? null;
   if (d.publicBody !== undefined) set.publicBody = d.publicBody;
   if (d.fixerBody !== undefined) set.fixerBody = d.fixerBody ?? null;
   if (d.sources !== undefined) set.sources = d.sources;
@@ -1037,6 +1139,13 @@ router.post("/directory/lore/import/drafts/:id/approve", requireAuth, async (req
           new Set([...(existing.aliases ?? []), ...(draft.aliases ?? []), existing.name].filter((a) => a !== draft.proposedName)),
         );
         const mergedSources = mergeSources(sourcesOf(existing.sources), sourcesOf(draft.sources));
+        // Invariant at materialize: a kept/incoming sub-district forces its
+        // parent district; if the draft moves the district away from the
+        // existing sub-district's parent (without its own sub), clear the sub.
+        const mergedPair = normalizeDistrictPair(
+          draft.district ?? existing.district,
+          draft.subDistrict ?? (draft.district && existing.subDistrict && SUB_DISTRICTS[existing.subDistrict] !== draft.district ? null : existing.subDistrict),
+        );
         const [updated] = await tx
           .update(loreEntries)
           .set({
@@ -1045,7 +1154,8 @@ router.post("/directory/lore/import/drafts/:id/approve", requireAuth, async (req
             responsibleFixer: draft.proposedFixer ?? existing.responsibleFixer,
             summary: draft.summary ?? existing.summary,
             imageUrl: draft.imageUrl ?? existing.imageUrl,
-            district: draft.district ?? existing.district,
+            district: mergedPair.district,
+            subDistrict: mergedPair.subDistrict,
             publicBody: draft.publicBody,
             fixerBody: draft.fixerBody ?? existing.fixerBody,
             aliases: mergedAliases,
@@ -1096,6 +1206,7 @@ async function createFromDraft(
   actorId: string,
 ): Promise<LoreEntry> {
   const slug = await uniqueSlug(tx, draft.proposedName);
+  const pair = normalizeDistrictPair(draft.district ?? null, draft.subDistrict ?? null);
   const [created] = await tx
     .insert(loreEntries)
     .values({
@@ -1105,7 +1216,8 @@ async function createFromDraft(
       aliases: draft.aliases ?? [],
       summary: draft.summary ?? null,
       imageUrl: draft.imageUrl ?? null,
-      district: draft.district ?? null,
+      district: pair.district,
+      subDistrict: pair.subDistrict,
       responsibleFixer: draft.proposedFixer ?? null,
       publicBody: draft.publicBody ?? "",
       fixerBody: draft.fixerBody ?? null,
@@ -1177,6 +1289,14 @@ router.post("/directory/lore", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const d = parsed.data;
+  if (d.subDistrict) {
+    const pair = resolveDistrictPair(d.district ?? null, d.subDistrict, d.district !== undefined && d.district !== null);
+    if ("error" in pair) {
+      res.status(400).json({ error: pair.error });
+      return;
+    }
+    d.district = pair.district as typeof d.district;
+  }
   const slug = await uniqueSlug(db, d.name);
   const [created] = await db
     .insert(loreEntries)
@@ -1189,6 +1309,7 @@ router.post("/directory/lore", requireAuth, async (req, res): Promise<void> => {
       responsibleFixer: d.responsibleFixer ?? null,
       imageUrl: d.imageUrl ?? null,
       district: d.district ?? null,
+      subDistrict: d.subDistrict ?? null,
       publicBody: d.publicBody ?? "",
       fixerBody: d.fixerBody ?? null,
       sources: (d.sources ?? []) as never,
@@ -1226,6 +1347,29 @@ router.patch("/directory/lore/:id", requireAuth, async (req, res): Promise<void>
     res.status(404).json({ error: "Not found" });
     return;
   }
+  // Keep the parent invariant across partial updates:
+  // - explicit subDistrict + explicit conflicting district → 400
+  // - explicit subDistrict alone → district auto-set to its parent
+  // - explicit district change away from a KEPT sub-district's parent → clear it
+  if (d.subDistrict) {
+    const pair = resolveDistrictPair(
+      d.district !== undefined ? d.district : before.district,
+      d.subDistrict,
+      d.district !== undefined && d.district !== null,
+    );
+    if ("error" in pair) {
+      res.status(400).json({ error: pair.error });
+      return;
+    }
+    d.district = pair.district as typeof d.district;
+  } else if (
+    d.district !== undefined &&
+    d.subDistrict === undefined &&
+    before.subDistrict &&
+    SUB_DISTRICTS[before.subDistrict] !== d.district
+  ) {
+    d.subDistrict = null;
+  }
   const set: Record<string, unknown> = { updatedById: req.user!.id, updatedAt: new Date() };
   if (d.category !== undefined) set.category = d.category;
   if (d.name !== undefined) set.name = d.name;
@@ -1233,6 +1377,7 @@ router.patch("/directory/lore/:id", requireAuth, async (req, res): Promise<void>
   if (d.responsibleFixer !== undefined) set.responsibleFixer = d.responsibleFixer ?? null;
   if (d.imageUrl !== undefined) set.imageUrl = d.imageUrl ?? null;
   if (d.district !== undefined) set.district = d.district ?? null;
+  if (d.subDistrict !== undefined) set.subDistrict = d.subDistrict ?? null;
   if (d.aliases !== undefined) set.aliases = d.aliases;
   if (d.publicBody !== undefined) set.publicBody = d.publicBody;
   if (d.fixerBody !== undefined) set.fixerBody = d.fixerBody ?? null;

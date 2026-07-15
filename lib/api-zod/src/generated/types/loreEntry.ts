@@ -8,6 +8,7 @@
 import type { LoreDistrict } from './loreDistrict';
 import type { LoreEntryCategory } from './loreEntryCategory';
 import type { LoreSource } from './loreSource';
+import type { LoreSubDistrict } from './loreSubDistrict';
 
 export interface LoreEntry {
   id: number;
@@ -22,6 +23,7 @@ export interface LoreEntry {
   /** @nullable */
   imageUrl?: string | null;
   district?: LoreDistrict | null;
+  subDistrict?: LoreSubDistrict | null;
   publicBody: string;
   /** @nullable */
   fixerBody?: string | null;

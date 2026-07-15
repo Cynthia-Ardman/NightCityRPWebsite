@@ -373,6 +373,7 @@ export * from './lorePendingEditStatus';
 export * from './lorePendingEditVotersItem';
 export * from './lorePendingEditVotersItemVote';
 export * from './loreSource';
+export * from './loreSubDistrict';
 export * from './loreVoteInput';
 export * from './loreVoteInputVote';
 export * from './markReviewSeen200';

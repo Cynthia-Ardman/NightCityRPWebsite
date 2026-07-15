@@ -295,8 +295,18 @@ export default function CityMap() {
     return map;
   }, [entries]);
 
+  const bySubDistrict = useMemo(() => {
+    const map = new Map<string, LoreEntrySummary>();
+    for (const e of entries ?? []) {
+      if (e.subDistrict && !map.has(e.subDistrict)) map.set(e.subDistrict, e);
+    }
+    return map;
+  }, [entries]);
+
+  // Prefer an entry explicitly tagged with the sub-district, then a name
+  // match (legacy behavior), then the parent district's entry.
   const subEntry = (sub: SubDistrictShape): LoreEntrySummary | undefined =>
-    byName.get(sub.label.toLowerCase()) ?? byDistrict.get(sub.parent);
+    bySubDistrict.get(sub.value) ?? byName.get(sub.label.toLowerCase()) ?? byDistrict.get(sub.parent);
 
   const hoveredSubShape = hoveredSub ? SUBDISTRICT_SHAPES.find((s) => s.value === hoveredSub) : undefined;
   const hoveredEntry = hoveredSubShape

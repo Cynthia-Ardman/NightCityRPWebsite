@@ -6473,6 +6473,34 @@ components:
           beastside,
         ]
 
+    # Canonical Night City sub-district (neighborhood) tags — one per labeled
+    # neighborhood on the interactive district map. Each belongs to exactly one
+    # parent district; when set on an entry, `district` always holds the parent.
+    # Keep in sync with SUB_DISTRICTS in lore.ts and the portal's districts.ts.
+    LoreSubDistrict:
+      type: string
+      enum:
+        [
+          northside,
+          arasaka_waterfront,
+          kabuki,
+          little_china,
+          japantown,
+          north_oaks,
+          charter_hill,
+          casino,
+          downtown,
+          corpo_plaza,
+          wellsprings,
+          the_glen,
+          vista_del_rey,
+          arroyo,
+          rancho_coronado,
+          coast_view,
+          west_wind_estate,
+          dogtown,
+        ]
+
     LoreEntrySummary:
       type: object
       required: [id, category, name, slug, aliases, hasFixerContent, updatedAt]
@@ -6489,6 +6517,8 @@ components:
         imageUrl: { type: ["string", "null"] }
         district:
           oneOf: [{ $ref: "#/components/schemas/LoreDistrict" }, { type: "null" }]
+        subDistrict:
+          oneOf: [{ $ref: "#/components/schemas/LoreSubDistrict" }, { type: "null" }]
         hasFixerContent: { type: boolean }
         updatedAt: { type: string, format: date-time }
 
@@ -6508,6 +6538,8 @@ components:
         imageUrl: { type: ["string", "null"] }
         district:
           oneOf: [{ $ref: "#/components/schemas/LoreDistrict" }, { type: "null" }]
+        subDistrict:
+          oneOf: [{ $ref: "#/components/schemas/LoreSubDistrict" }, { type: "null" }]
         publicBody: { type: string }
         # Only present (non-null) when the caller is ADMIN/FIXER.
         fixerBody: { type: ["string", "null"] }
@@ -6534,6 +6566,8 @@ components:
         imageUrl: { type: ["string", "null"] }
         district:
           oneOf: [{ $ref: "#/components/schemas/LoreDistrict" }, { type: "null" }]
+        subDistrict:
+          oneOf: [{ $ref: "#/components/schemas/LoreSubDistrict" }, { type: "null" }]
         aliases:
           type: array
           items: { type: string }
@@ -6553,6 +6587,8 @@ components:
         imageUrl: { type: ["string", "null"] }
         district:
           oneOf: [{ $ref: "#/components/schemas/LoreDistrict" }, { type: "null" }]
+        subDistrict:
+          oneOf: [{ $ref: "#/components/schemas/LoreSubDistrict" }, { type: "null" }]
         aliases:
           type: array
           items: { type: string }
@@ -6652,6 +6688,8 @@ components:
         imageUrl: { type: ["string", "null"] }
         district:
           oneOf: [{ $ref: "#/components/schemas/LoreDistrict" }, { type: "null" }]
+        subDistrict:
+          oneOf: [{ $ref: "#/components/schemas/LoreSubDistrict" }, { type: "null" }]
         publicBody: { type: string }
         fixerBody: { type: ["string", "null"] }
         sources:
@@ -6676,6 +6714,8 @@ components:
         imageUrl: { type: ["string", "null"] }
         district:
           oneOf: [{ $ref: "#/components/schemas/LoreDistrict" }, { type: "null" }]
+        subDistrict:
+          oneOf: [{ $ref: "#/components/schemas/LoreSubDistrict" }, { type: "null" }]
         publicBody: { type: string }
         fixerBody: { type: ["string", "null"] }
         sources:

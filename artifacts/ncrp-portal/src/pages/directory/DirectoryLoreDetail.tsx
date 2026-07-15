@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Pencil, Lock, ExternalLink, Trash2, ArrowLeft } from "lucide-react";
 import Markdown from "@/components/Markdown";
-import { districtLabel } from "@/lib/districts";
+import { districtLabel, subDistrictLabel } from "@/lib/districts";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -75,6 +75,11 @@ export default function DirectoryLoreDetail() {
                   {districtLabel(data.district)}
                 </Badge>
               </Link>
+            )}
+            {data.subDistrict && (
+              <Badge variant="outline" className="rounded-none uppercase border-nc-green/60 text-nc-green" data-testid="badge-lore-subdistrict">
+                {subDistrictLabel(data.subDistrict)}
+              </Badge>
             )}
           </div>
           <h1 className="text-4xl font-display mt-2" data-testid="text-lore-name">{data.name}</h1>

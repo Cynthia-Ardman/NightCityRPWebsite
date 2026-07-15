@@ -9,6 +9,7 @@ import type { LoreDistrict } from './loreDistrict';
 import type { LoreImportDraftProposedCategory } from './loreImportDraftProposedCategory';
 import type { LoreImportDraftStatus } from './loreImportDraftStatus';
 import type { LoreSource } from './loreSource';
+import type { LoreSubDistrict } from './loreSubDistrict';
 
 export interface LoreImportDraft {
   id: number;
@@ -23,6 +24,7 @@ export interface LoreImportDraft {
   /** @nullable */
   imageUrl?: string | null;
   district?: LoreDistrict | null;
+  subDistrict?: LoreSubDistrict | null;
   publicBody: string;
   /** @nullable */
   fixerBody?: string | null;

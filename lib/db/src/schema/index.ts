@@ -1804,6 +1804,11 @@ export const loreEntries = pgTable("lore_entries", {
   // each district to the lore entry tagged with it. Free of a DB enum on
   // purpose — the canonical value list lives in the API layer.
   district: text("district"),
+  // Optional sub-district (neighborhood) tag within `district` (e.g. "kabuki",
+  // "japantown"). Matches a labeled neighborhood on the interactive map; the
+  // canonical value list (and each value's parent district) lives in the API
+  // layer. When set, `district` always holds its parent district.
+  subDistrict: text("sub_district"),
   // Public markdown body — visible to everyone.
   publicBody: text("public_body").notNull().default(""),
   // Fixer-only markdown body — only ADMIN/FIXER may read.
@@ -1876,8 +1881,9 @@ export const loreImportDrafts = pgTable("lore_import_drafts", {
   aliases: text("aliases").array().notNull().default([]),
   summary: text("summary"),
   imageUrl: text("image_url"),
-  // Mirror of lore_entries.district for the import pipeline.
+  // Mirror of lore_entries.district / sub_district for the import pipeline.
   district: text("district"),
+  subDistrict: text("sub_district"),
   publicBody: text("public_body").notNull().default(""),
   fixerBody: text("fixer_body"),
   // Raw source references: [{ type: "discord"|"gdoc", url, title }].

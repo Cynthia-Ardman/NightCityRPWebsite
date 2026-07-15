@@ -10746,6 +10746,7 @@ export const ListLoreResponseItem = zod.object({
   "responsibleFixer": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
+  "subDistrict": zod.union([zod.enum(['northside', 'arasaka_waterfront', 'kabuki', 'little_china', 'japantown', 'north_oaks', 'charter_hill', 'casino', 'downtown', 'corpo_plaza', 'wellsprings', 'the_glen', 'vista_del_rey', 'arroyo', 'rancho_coronado', 'coast_view', 'west_wind_estate', 'dogtown']),zod.null()]).optional(),
   "hasFixerContent": zod.boolean(),
   "updatedAt": zod.coerce.date()
 })
@@ -10762,6 +10763,7 @@ export const CreateLoreBody = zod.object({
   "responsibleFixer": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
+  "subDistrict": zod.union([zod.enum(['northside', 'arasaka_waterfront', 'kabuki', 'little_china', 'japantown', 'north_oaks', 'charter_hill', 'casino', 'downtown', 'corpo_plaza', 'wellsprings', 'the_glen', 'vista_del_rey', 'arroyo', 'rancho_coronado', 'coast_view', 'west_wind_estate', 'dogtown']),zod.null()]).optional(),
   "aliases": zod.array(zod.string()).optional(),
   "publicBody": zod.string().optional(),
   "fixerBody": zod.string().nullish(),
@@ -10789,6 +10791,7 @@ export const GetLoreResponse = zod.object({
   "responsibleFixer": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
+  "subDistrict": zod.union([zod.enum(['northside', 'arasaka_waterfront', 'kabuki', 'little_china', 'japantown', 'north_oaks', 'charter_hill', 'casino', 'downtown', 'corpo_plaza', 'wellsprings', 'the_glen', 'vista_del_rey', 'arroyo', 'rancho_coronado', 'coast_view', 'west_wind_estate', 'dogtown']),zod.null()]).optional(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -10818,6 +10821,7 @@ export const UpdateLoreBody = zod.object({
   "responsibleFixer": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
+  "subDistrict": zod.union([zod.enum(['northside', 'arasaka_waterfront', 'kabuki', 'little_china', 'japantown', 'north_oaks', 'charter_hill', 'casino', 'downtown', 'corpo_plaza', 'wellsprings', 'the_glen', 'vista_del_rey', 'arroyo', 'rancho_coronado', 'coast_view', 'west_wind_estate', 'dogtown']),zod.null()]).optional(),
   "aliases": zod.array(zod.string()).optional(),
   "publicBody": zod.string().optional(),
   "fixerBody": zod.string().nullish(),
@@ -10837,6 +10841,7 @@ export const UpdateLoreResponse = zod.object({
   "responsibleFixer": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
+  "subDistrict": zod.union([zod.enum(['northside', 'arasaka_waterfront', 'kabuki', 'little_china', 'japantown', 'north_oaks', 'charter_hill', 'casino', 'downtown', 'corpo_plaza', 'wellsprings', 'the_glen', 'vista_del_rey', 'arroyo', 'rancho_coronado', 'coast_view', 'west_wind_estate', 'dogtown']),zod.null()]).optional(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -10928,6 +10933,7 @@ export const SubmitLoreEditBody = zod.object({
   "responsibleFixer": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
+  "subDistrict": zod.union([zod.enum(['northside', 'arasaka_waterfront', 'kabuki', 'little_china', 'japantown', 'north_oaks', 'charter_hill', 'casino', 'downtown', 'corpo_plaza', 'wellsprings', 'the_glen', 'vista_del_rey', 'arroyo', 'rancho_coronado', 'coast_view', 'west_wind_estate', 'dogtown']),zod.null()]).optional(),
   "aliases": zod.array(zod.string()).optional(),
   "publicBody": zod.string().optional(),
   "fixerBody": zod.string().nullish(),
@@ -11212,6 +11218,7 @@ export const ListLoreImportDraftsResponseItem = zod.object({
   "summary": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
+  "subDistrict": zod.union([zod.enum(['northside', 'arasaka_waterfront', 'kabuki', 'little_china', 'japantown', 'north_oaks', 'charter_hill', 'casino', 'downtown', 'corpo_plaza', 'wellsprings', 'the_glen', 'vista_del_rey', 'arroyo', 'rancho_coronado', 'coast_view', 'west_wind_estate', 'dogtown']),zod.null()]).optional(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -11242,6 +11249,7 @@ export const UpdateLoreImportDraftBody = zod.object({
   "summary": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
+  "subDistrict": zod.union([zod.enum(['northside', 'arasaka_waterfront', 'kabuki', 'little_china', 'japantown', 'north_oaks', 'charter_hill', 'casino', 'downtown', 'corpo_plaza', 'wellsprings', 'the_glen', 'vista_del_rey', 'arroyo', 'rancho_coronado', 'coast_view', 'west_wind_estate', 'dogtown']),zod.null()]).optional(),
   "publicBody": zod.string().optional(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -11261,6 +11269,7 @@ export const UpdateLoreImportDraftResponse = zod.object({
   "summary": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
+  "subDistrict": zod.union([zod.enum(['northside', 'arasaka_waterfront', 'kabuki', 'little_china', 'japantown', 'north_oaks', 'charter_hill', 'casino', 'downtown', 'corpo_plaza', 'wellsprings', 'the_glen', 'vista_del_rey', 'arroyo', 'rancho_coronado', 'coast_view', 'west_wind_estate', 'dogtown']),zod.null()]).optional(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -11292,6 +11301,7 @@ export const ApproveLoreImportDraftResponse = zod.object({
   "responsibleFixer": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
+  "subDistrict": zod.union([zod.enum(['northside', 'arasaka_waterfront', 'kabuki', 'little_china', 'japantown', 'north_oaks', 'charter_hill', 'casino', 'downtown', 'corpo_plaza', 'wellsprings', 'the_glen', 'vista_del_rey', 'arroyo', 'rancho_coronado', 'coast_view', 'west_wind_estate', 'dogtown']),zod.null()]).optional(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({
@@ -11324,6 +11334,7 @@ export const DiscardLoreImportDraftResponse = zod.object({
   "summary": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "district": zod.union([zod.enum(['watson', 'westbrook', 'city_center', 'heywood', 'santo_domingo', 'pacifica', 'north_badlands', 'eastern_badlands', 'southern_badlands', 'beastside']),zod.null()]).optional(),
+  "subDistrict": zod.union([zod.enum(['northside', 'arasaka_waterfront', 'kabuki', 'little_china', 'japantown', 'north_oaks', 'charter_hill', 'casino', 'downtown', 'corpo_plaza', 'wellsprings', 'the_glen', 'vista_del_rey', 'arroyo', 'rancho_coronado', 'coast_view', 'west_wind_estate', 'dogtown']),zod.null()]).optional(),
   "publicBody": zod.string(),
   "fixerBody": zod.string().nullish(),
   "sources": zod.array(zod.object({

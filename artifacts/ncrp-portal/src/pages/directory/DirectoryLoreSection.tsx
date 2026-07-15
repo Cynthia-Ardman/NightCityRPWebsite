@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BookOpen, Lock, ArrowLeft } from "lucide-react";
-import { districtLabel } from "@/lib/districts";
+import { districtLabel, subDistrictLabel } from "@/lib/districts";
 
 type LoreSort = "recent" | "alpha";
 
@@ -119,7 +119,7 @@ export default function DirectoryLoreSection() {
                   )}
                   {e.district && (
                     <CardDescription className="font-mono text-xs text-nc-green" data-testid={`text-lore-district-${e.id}`}>
-                      DISTRICT: {districtLabel(e.district)}
+                      DISTRICT: {districtLabel(e.district)}{e.subDistrict ? ` · ${subDistrictLabel(e.subDistrict)}` : ""}
                     </CardDescription>
                   )}
                 </CardHeader>
