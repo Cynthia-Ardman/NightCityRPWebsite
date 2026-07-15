@@ -12,6 +12,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   Skull,
@@ -25,6 +36,7 @@ import {
   Loader2,
   Wifi,
   WifiOff,
+  RotateCcw,
 } from "lucide-react";
 
 // The CyberPsycho control panel. The portal is the shared control surface; the
@@ -285,10 +297,44 @@ export default function CyberPsycho() {
             >
               <ShieldCheck className="h-4 w-4 mr-2" /> Restore
             </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  disabled={!online || busy}
+                  className="text-nc-cyan border-nc-cyan/40 hover:bg-nc-cyan/10"
+                  data-testid="button-restart-vrchat"
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" /> Restart VRChat
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Restart VRChat?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Your agent will force-close VRChat on your PC and relaunch it straight back
+                    into the instance you were in, so blocks take effect. VRChat takes a minute or
+                    two to boot back up. Requires an agent downloaded after this feature shipped —
+                    re-download if the command errors with "Unknown command".
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel data-testid="button-restart-cancel">Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() =>
+                      send("restart_vrchat", undefined, "Restarting VRChat and rejoining your last instance.")
+                    }
+                    data-testid="button-restart-confirm"
+                  >
+                    Restart
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
           <p className="text-xs text-muted-foreground">
             Blocks are server-side — people already loaded in won't visually disappear until you
-            rejoin the world.
+            rejoin the world. Use Restart VRChat to do that automatically after Isolate.
           </p>
         </CardContent>
       </Card>

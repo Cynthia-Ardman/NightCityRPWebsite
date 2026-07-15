@@ -75,6 +75,7 @@ export const VrchatCommandRequestKind = {
   refresh: 'refresh',
   snapshot: 'snapshot',
   save_allowlist: 'save_allowlist',
+  restart_vrchat: 'restart_vrchat',
 } as const;
 
 /**

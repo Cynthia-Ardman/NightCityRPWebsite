@@ -9965,7 +9965,7 @@ export const GetVrchatStatusResponse = zod.object({
  * @summary Queue a command for the staffer's own VRChat agent
  */
 export const QueueVrchatCommandBody = zod.object({
-  "kind": zod.enum(['isolate', 'restore', 'refresh', 'snapshot', 'save_allowlist']),
+  "kind": zod.enum(['isolate', 'restore', 'refresh', 'snapshot', 'save_allowlist', 'restart_vrchat']),
   "params": zod.record(zod.string(), zod.unknown()).nullish().describe('Command-specific payload, e.g. { allowlist: [{ id, name }] } for save_allowlist.')
 })
 
