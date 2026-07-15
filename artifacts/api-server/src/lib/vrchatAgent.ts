@@ -10,6 +10,7 @@ export const VRCHAT_COMMAND_KINDS = [
   "refresh",
   "snapshot",
   "save_allowlist",
+  "restart_vrchat",
 ] as const;
 export type VrchatCommandKind = (typeof VRCHAT_COMMAND_KINDS)[number];
 

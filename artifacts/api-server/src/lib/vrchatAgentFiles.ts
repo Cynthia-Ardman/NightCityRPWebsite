@@ -72,7 +72,7 @@ POLL_INTERVAL = 4.0  # seconds between control-panel polls
 # ---------------------------------------------------------------------------
 
 APP_NAME = "PsychosisBridge"
-APP_VERSION = "3.0.0"
+APP_VERSION = "3.1.0"
 CONTACT = "cynderardman@gmail.com"  # VRChat requires real contact info
 
 OSC_LISTEN_IP = "127.0.0.1"
@@ -771,6 +771,115 @@ def do_save_allowlist(params):
 
 
 # ---------------------------------------------------------------------------
+# Restart VRChat — kill the client and relaunch into the last instance so API
+# blocks (which only apply on a fresh session) take effect without a manual
+# restart.
+# ---------------------------------------------------------------------------
+
+def _vrcx_last_location():
+    """Most recent instance join from VRCX's gamelog. Works even if the VRChat
+    client is hung/crashed (unlike asking the API where we are). Opened
+    read-only so a running VRCX's lock doesn't matter."""
+    db_path = _find_vrcx_database()
+    if db_path is None:
+        return None
+    try:
+        uri = f"file:{db_path}?mode=ro"
+        conn = sqlite3.connect(uri, uri=True, timeout=5)
+        try:
+            cursor = conn.execute(
+                "SELECT location FROM gamelog_location ORDER BY id DESC LIMIT 1"
+            )
+            row = cursor.fetchone()
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:
+        log.warning("Could not read VRCX gamelog: %s", exc)
+        return None
+    if not row or not row[0]:
+        return None
+    return _parse_location_string(str(row[0]).strip())
+
+
+def _vrchat_is_running():
+    if platform.system() != "Windows":
+        return subprocess.call(["pgrep", "-x", "VRChat"],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+    out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq VRChat.exe", "/NH"],
+                         capture_output=True, text=True)
+    return "VRChat.exe" in (out.stdout or "")
+
+
+def _kill_vrchat():
+    if platform.system() == "Windows":
+        subprocess.run(["taskkill", "/F", "/IM", "VRChat.exe"],
+                       capture_output=True, text=True)
+    else:
+        subprocess.run(["pkill", "-x", "VRChat"], capture_output=True, text=True)
+
+
+def _launch_vrchat(uri):
+    if platform.system() == "Windows":
+        os.startfile(uri)  # noqa: S606 — protocol handler registered by VRChat
+        return True
+    try:
+        subprocess.Popen(["xdg-open", uri])
+        return True
+    except OSError as exc:
+        log.error("Could not launch VRChat URI: %s", exc)
+        return False
+
+
+def do_restart_vrchat():
+    global _operation_status
+    try:
+        # 1. Figure out where to rejoin BEFORE killing anything. Prefer the
+        # freshest source (our own log parse), fall back to VRCX's gamelog.
+        _operation_status = "Finding your current instance..."
+        _refresh_log_cache()
+        target = _log_cache[0] if _log_cache else None
+        _clear_log_cache()
+        if target is None and _last_known_location:
+            target = _last_known_location
+        if target is None:
+            target = _vrcx_last_location()
+        if target is None:
+            return {"status": "error",
+                    "message": "Could not determine your last instance (no VRChat log entry or VRCX gamelog row). Join a world once, then retry."}
+
+        world_id, instance_id = target
+        location = f"{world_id}:{instance_id}"
+
+        # 2. Kill the client (if running) and wait for it to actually exit.
+        was_running = _vrchat_is_running()
+        if was_running:
+            _operation_status = "Closing VRChat..."
+            log.info("Restart: killing VRChat.exe ...")
+            _kill_vrchat()
+            deadline = time.monotonic() + 30
+            while _vrchat_is_running() and time.monotonic() < deadline:
+                time.sleep(1)
+            if _vrchat_is_running():
+                return {"status": "error",
+                        "message": "VRChat did not exit within 30s — try again or close it manually."}
+            time.sleep(3)  # let file locks / EAC settle before relaunch
+
+        # 3. Relaunch straight into the recorded instance via the protocol URI.
+        _operation_status = "Relaunching VRChat..."
+        uri = f"vrchat://launch?ref=ncrp_portal&id={location}"
+        if not _launch_vrchat(uri):
+            return {"status": "error",
+                    "message": f"Killed VRChat but could not fire the relaunch URI. Launch manually and rejoin {location}."}
+
+        msg = (f"VRChat {'restarted' if was_running else 'launched'} — rejoining {location}. "
+               "Startup takes a minute or two; blocks apply on the fresh session.")
+        log.info(msg)
+        return {"status": "ok", "location": location, "message": msg}
+    finally:
+        _operation_status = ""
+
+
+# ---------------------------------------------------------------------------
 # Patrol thread — auto-blocks newcomers while psycho mode is active
 # ---------------------------------------------------------------------------
 
@@ -919,6 +1028,9 @@ def _run_command(cmd):
             with _lock:
                 users = refresh_instance()
             return {"status": "ok", "count": len(users), "message": f"Refreshed: {len(users)} occupant(s)."}
+        if kind == "restart_vrchat":
+            with _lock:
+                return do_restart_vrchat()
         return {"status": "error", "message": f"Unknown command: {kind}"}
     except Exception as exc:  # noqa: BLE001
         log.exception("Command %s failed", kind)
@@ -1063,7 +1175,9 @@ HOW TO RUN
 
 NOTES
   - API blocks are server-side: people already loaded in your instance won't
-    visually disappear until you REJOIN the world.
+    visually disappear until you REJOIN the world. The portal's "Restart VRChat"
+    button does this for you: it closes VRChat and relaunches it straight back
+    into the instance you were in.
   - If you ever think your token leaked, hit "Revoke & re-download" on the portal
     page — the old file stops working immediately.
 `;

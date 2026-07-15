@@ -2152,7 +2152,7 @@ export const vrchatAgentCommands = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    // isolate | restore | refresh | snapshot | save_allowlist
+    // isolate | restore | refresh | snapshot | save_allowlist | restart_vrchat
     kind: text("kind").notNull(),
     // Command-specific payload, e.g. { allowlist: [{ id, name }] } for save_allowlist.
     params: jsonb("params").$type<Record<string, unknown>>(),

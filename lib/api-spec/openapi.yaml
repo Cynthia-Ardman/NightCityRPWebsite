@@ -6105,7 +6105,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [isolate, restore, refresh, snapshot, save_allowlist]
+          enum: [isolate, restore, refresh, snapshot, save_allowlist, restart_vrchat]
         params:
           type: object
           nullable: true
