@@ -96,7 +96,8 @@ const DISTRICT_SHAPES: DistrictShape[] = [
 // Sub-districts are traced the same way from the interior colored lines that
 // partition each district. Their word labels on the map act as hover/click
 // targets: hovering a label highlights just that sub-district, clicking it
-// opens the sub-district's own lore entry (matched by name) when one exists.
+// opens the sub-district's own lore entry — matched by its subDistrict tag
+// first, falling back to a name match for untagged entries.
 type SubDistrictShape = {
   value: string;
   label: string;
@@ -304,9 +305,10 @@ export default function CityMap() {
   }, [entries]);
 
   // Prefer an entry explicitly tagged with the sub-district, then a name
-  // match (legacy behavior), then the parent district's entry.
+  // match (legacy fallback for untagged entries). No district-level fallback:
+  // a sub-district without its own entry should not open the district's page.
   const subEntry = (sub: SubDistrictShape): LoreEntrySummary | undefined =>
-    bySubDistrict.get(sub.value) ?? byName.get(sub.label.toLowerCase()) ?? byDistrict.get(sub.parent);
+    bySubDistrict.get(sub.value) ?? byName.get(sub.label.toLowerCase());
 
   const hoveredSubShape = hoveredSub ? SUBDISTRICT_SHAPES.find((s) => s.value === hoveredSub) : undefined;
   const hoveredEntry = hoveredSubShape
