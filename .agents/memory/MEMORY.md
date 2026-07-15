@@ -132,6 +132,7 @@
 - [Draft mission hard-delete](draft-mission-delete.md) — only workflowState='draft' is hard-deletable (owner-or-manager); anything further must be CANCELLED (preserve history/Discord); lock+re-check FOR UPDATE; FK children cascade.
 - [UB native commands uncontrollable](ub-native-commands.md) — Discord `!work`/`!slut` are UnbelievaBoat-native with no cooldown/config API; website cooldown can't dedupe against them; only fix is disabling them in the UB dashboard.
 - [Cyberware tab hook-order crash](cyberware-tab-hook-order.md) — React #310 on a char's Cyberware tab = a hook below CyberwareTab's loading/!char early returns; hoist all hooks above the guards. "Works after Retry" = cached, not data.
+- [Listing leasable gate](listing-leasable-gate.md) — catalog_rent.leasable=false must be enforced on ALL 4 lease/request paths + available-business filter, or one path is a bypass.
 - [On-map building reservation](listing-reservation.md) — venue requests reserve a catalog_rent building via reserved_listing_id + partial-unique index over live statuses; no explicit clear — see topic.
 - [Venue lease association](venue-lease-association.md) — staff PATCH housingId on store/ripperdoc links a kind=business lease; non-staff housingId silently stripped (not 403); pins location; GET+PATCH return computed `lease`.
 - [Commission from profit](commission-profit-basis.md) — employee commission = % of (sale total − snapshotted costBasis), one helper, cost frozen at offer creation; service-fee offers null→full-fee.

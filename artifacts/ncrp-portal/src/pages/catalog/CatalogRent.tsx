@@ -45,6 +45,7 @@ type Listing = {
   description?: string | null;
   imageUrl?: string | null;
   kind?: "residential" | "business" | null;
+  leasable?: boolean;
   occupied?: boolean;
   occupantCharacterId?: number;
   occupantCharacterName?: string;
@@ -317,6 +318,18 @@ export default function CatalogRent() {
           data-testid={`badge-unavailable-${r.id}`}
         >
           NOT AVAILABLE
+        </span>
+      );
+    }
+    // Catalog-visible but never leaseable (e.g. Claw-owned): show a badge
+    // instead of the LEASE/APPLY button. The API rejects attempts anyway.
+    if (r.leasable === false) {
+      return (
+        <span
+          className="inline-block px-2 py-1 border border-nc-yellow/60 text-nc-yellow font-display text-[10px] tracking-widest whitespace-nowrap"
+          data-testid={`badge-not-leasable-${r.id}`}
+        >
+          CLAW-OWNED / NOT FOR LEASE
         </span>
       );
     }

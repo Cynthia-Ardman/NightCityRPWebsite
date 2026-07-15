@@ -498,6 +498,9 @@ async function materializeRequest(
       if (!listing || listing.kind !== "business") {
         return { error: { status: 400, body: { error: "Reserved building no longer exists" } } };
       }
+      if (!listing.leasable) {
+        return { error: { status: 400, body: { error: "Reserved building is not available for lease" } } };
+      }
       const [existingLease] = await tx
         .select({ id: housing.id })
         .from(housing)
@@ -1088,7 +1091,7 @@ router.post("/requests", requireAuth, async (req, res): Promise<void> => {
       const lid = Number(listingId);
       if (Number.isInteger(lid) && lid > 0) {
         const [listing] = await db.select().from(catalogRent).where(eq(catalogRent.id, lid));
-        if (!listing || listing.kind !== "business") {
+        if (!listing || listing.kind !== "business" || !listing.leasable) {
           res.status(400).json({ error: "Selected building is not an available business building" });
           return;
         }
@@ -1825,7 +1828,12 @@ router.post("/requests/:id/submit", requireAuth, async (req, res): Promise<void>
     // that was leased/reserved while it sat in drafts.
     const lid = reqRow.reservedListingId;
     const ok = await db.transaction(async (tx) => {
-      await tx.select({ id: catalogRent.id }).from(catalogRent).where(eq(catalogRent.id, lid)).for("update");
+      const [lk] = await tx
+        .select({ id: catalogRent.id, leasable: catalogRent.leasable })
+        .from(catalogRent)
+        .where(eq(catalogRent.id, lid))
+        .for("update");
+      if (!lk || !lk.leasable) return false;
       const [existingLease] = await tx
         .select({ id: housing.id })
         .from(housing)

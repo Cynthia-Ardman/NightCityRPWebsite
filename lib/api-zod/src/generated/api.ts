@@ -1044,6 +1044,7 @@ export const ListRentListingsResponseItem = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "kind": zod.enum(['residential', 'business']).optional().describe('residential (player self-lease) or business (request-only). Defaults to residential.'),
+  "leasable": zod.boolean().optional().describe('False for catalog-visible listings that can never be leased or requested (e.g. Claw-owned properties).'),
   "occupied": zod.boolean().describe('True when an active lease already references this listing.'),
   "occupantCharacterId": zod.number().optional().describe('Staff-only — the character currently occupying this listing.'),
   "occupantCharacterName": zod.string().optional().describe('Staff-only — name of the occupying character.'),
@@ -1061,6 +1062,7 @@ The creation is audit-logged.
  */
 export const createRentListingBodyMonthlyRentDefault = 0;
 export const createRentListingBodyKindDefault = `residential`;
+export const createRentListingBodyLeasableDefault = true;
 
 export const CreateRentListingBody = zod.object({
   "name": zod.string(),
@@ -1069,7 +1071,8 @@ export const CreateRentListingBody = zod.object({
   "monthlyRent": zod.number().default(createRentListingBodyMonthlyRentDefault),
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "kind": zod.enum(['residential', 'business']).default(createRentListingBodyKindDefault).describe('residential (player self-lease) or business (request-only).')
+  "kind": zod.enum(['residential', 'business']).default(createRentListingBodyKindDefault).describe('residential (player self-lease) or business (request-only).'),
+  "leasable": zod.boolean().default(createRentListingBodyLeasableDefault).describe('False marks the listing as catalog-visible but never leaseable.')
 })
 
 
@@ -1130,7 +1133,8 @@ export const UpdateRentListingBody = zod.object({
   "tier": zod.string().nullish(),
   "monthlyRent": zod.number().optional(),
   "description": zod.string().nullish(),
-  "imageUrl": zod.string().nullish()
+  "imageUrl": zod.string().nullish(),
+  "leasable": zod.boolean().optional()
 }).describe('Fixer\/admin patch for a housing listing. Any subset may be supplied;\nomitted fields are left unchanged. Mainly used to attach\/clear a single\nlisting image.\n')
 
 export const UpdateRentListingResponse = zod.object({
@@ -1142,6 +1146,7 @@ export const UpdateRentListingResponse = zod.object({
   "description": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
   "kind": zod.enum(['residential', 'business']).optional().describe('residential (player self-lease) or business (request-only). Defaults to residential.'),
+  "leasable": zod.boolean().optional().describe('False for catalog-visible listings that can never be leased or requested (e.g. Claw-owned properties).'),
   "occupied": zod.boolean().describe('True when an active lease already references this listing.'),
   "occupantCharacterId": zod.number().optional().describe('Staff-only — the character currently occupying this listing.'),
   "occupantCharacterName": zod.string().optional().describe('Staff-only — name of the occupying character.'),

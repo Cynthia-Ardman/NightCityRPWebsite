@@ -20,4 +20,6 @@ export interface CatalogRentInput {
   imageUrl?: string | null;
   /** residential (player self-lease) or business (request-only). */
   kind?: CatalogRentInputKind;
+  /** False marks the listing as catalog-visible but never leaseable. */
+  leasable?: boolean;
 }

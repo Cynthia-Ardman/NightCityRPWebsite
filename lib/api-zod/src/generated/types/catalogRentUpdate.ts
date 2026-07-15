@@ -23,4 +23,5 @@ export interface CatalogRentUpdate {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  leasable?: boolean;
 }

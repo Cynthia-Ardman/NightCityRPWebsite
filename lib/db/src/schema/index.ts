@@ -554,6 +554,11 @@ export const catalogRent = pgTable("catalog_rent", {
   // "residential" (default) or "business". Residential listings can be leased
   // directly by players; business spaces require a fixer/admin-reviewed request.
   kind: text("kind").notNull().default("residential"),
+  // False for listings that exist in the catalog for visibility only and can
+  // never be leased or requested (e.g. the Claw-owned Japantown Pharmacy).
+  // Enforced in the direct-lease path, the on-map venue request path, and the
+  // approval materializer; the portal hides the LEASE/APPLY button.
+  leasable: boolean("leasable").notNull().default(true),
 });
 
 // Fixer-managed list of districts shown as a dropdown in the property creator.

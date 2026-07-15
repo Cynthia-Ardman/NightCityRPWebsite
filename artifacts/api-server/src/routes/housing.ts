@@ -353,6 +353,11 @@ router.post("/housing/lease", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Listing not found" });
     return;
   }
+  // Catalog-visible but never leaseable (e.g. Claw-owned properties).
+  if (!listing.leasable) {
+    res.status(400).json({ error: "This property is not available for lease." });
+    return;
+  }
   // The lease kind is derived from the listing itself — staff cannot override
   // it via the request body, so housing stays consistent with the catalog.
   const leaseKind = listing.kind === "business" ? "business" : "residential";

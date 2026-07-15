@@ -1542,7 +1542,7 @@ router.get("/catalog/rent/available-business", requireAuth, async (_req, res): P
   for (const o of occupants) if (o.listingId != null) leased.add(o.listingId);
   res.json(
     listings
-      .filter((l) => !leased.has(l.id) && !reservedIds.has(l.id))
+      .filter((l) => l.leasable && !leased.has(l.id) && !reservedIds.has(l.id))
       .map((l) => ({
         id: l.id,
         name: l.name,
@@ -1565,6 +1565,7 @@ const RentEditSchema = z
     description: nullableText,
     imageUrl: nullableText,
     kind: z.enum(["residential", "business"]).optional(),
+    leasable: z.boolean().optional(),
   })
   .strict();
 
@@ -1607,6 +1608,7 @@ router.patch(
     if (edit.description !== undefined) mark("description", cur.description, edit.description);
     if (edit.imageUrl !== undefined) mark("imageUrl", cur.imageUrl, edit.imageUrl);
     if (edit.kind !== undefined) mark("kind", cur.kind, edit.kind);
+    if (edit.leasable !== undefined) mark("leasable", cur.leasable, edit.leasable);
 
     if (Object.keys(after).length === 0) {
       res.status(400).json({ error: "No changes" });
@@ -1730,6 +1732,7 @@ const RentCreateSchema = z
     description: nullableText,
     imageUrl: nullableText,
     kind: z.enum(["residential", "business"]).optional(),
+    leasable: z.boolean().optional(),
   })
   .strict();
 
@@ -1751,6 +1754,7 @@ router.post(
       description: d.description ?? null,
       imageUrl: d.imageUrl ?? null,
       kind: d.kind ?? "residential",
+      leasable: d.leasable ?? true,
     };
     const { ip, ua } = auditMeta(req);
     const created = await db.transaction(async (tx) => {

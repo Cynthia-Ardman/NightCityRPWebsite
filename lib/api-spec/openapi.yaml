@@ -8456,6 +8456,9 @@ components:
           type: string
           enum: [residential, business]
           description: "residential (player self-lease) or business (request-only). Defaults to residential."
+        leasable:
+          type: boolean
+          description: False for catalog-visible listings that can never be leased or requested (e.g. Claw-owned properties).
         occupied:
           type: boolean
           description: True when an active lease already references this listing.
@@ -8482,6 +8485,7 @@ components:
         monthlyRent: { type: integer }
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
+        leasable: { type: boolean }
 
     CatalogRentInput:
       type: object
@@ -8498,6 +8502,10 @@ components:
           enum: [residential, business]
           default: residential
           description: "residential (player self-lease) or business (request-only)."
+        leasable:
+          type: boolean
+          default: true
+          description: False marks the listing as catalog-visible but never leaseable.
 
     AvailableBusinessBuilding:
       type: object

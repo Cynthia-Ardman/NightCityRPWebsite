@@ -3574,6 +3574,8 @@ export interface CatalogRent {
   imageUrl?: string | null;
   /** residential (player self-lease) or business (request-only). Defaults to residential. */
   kind?: CatalogRentKind;
+  /** False for catalog-visible listings that can never be leased or requested (e.g. Claw-owned properties). */
+  leasable?: boolean;
   /** True when an active lease already references this listing. */
   occupied: boolean;
   /** Staff-only — the character currently occupying this listing. */
@@ -3601,6 +3603,7 @@ export interface CatalogRentUpdate {
   description?: string | null;
   /** @nullable */
   imageUrl?: string | null;
+  leasable?: boolean;
 }
 
 /**
@@ -3627,6 +3630,8 @@ export interface CatalogRentInput {
   imageUrl?: string | null;
   /** residential (player self-lease) or business (request-only). */
   kind?: CatalogRentInputKind;
+  /** False marks the listing as catalog-visible but never leaseable. */
+  leasable?: boolean;
 }
 
 /**
