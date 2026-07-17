@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useSearch, useLocation } from "wouter";
 import {
@@ -19,6 +19,8 @@ import {
   useCloseReviewTicket,
   useReopenReviewTicket,
   useListDistricts,
+  useListCyberware,
+  getListCyberwareQueryKey,
   useGetReviewUnseenCounts,
   useGetReviewUnseenIds,
   useGetReviewUnreadDetail,
@@ -678,6 +680,9 @@ function RequestCloseDialog({
   const [unitCost, setUnitCost] = useState("");
   const [retail, setRetail] = useState("");
   const [qty, setQty] = useState("1");
+  // Tracks which opened request has already had its catalog prefill applied so
+  // we never clobber the closer's typing after the initial fill.
+  const [prefilledFor, setPrefilledFor] = useState("");
 
   // Districts mirror the properties page; offered as presets with a custom escape.
   const { data: districts } = useListDistricts();
@@ -702,6 +707,7 @@ function RequestCloseDialog({
     setUnitCost("");
     setRetail("");
     setQty("1");
+    setPrefilledFor("");
     setSeededFor(seedKey);
   }
 
@@ -720,6 +726,38 @@ function RequestCloseDialog({
       },
     },
   });
+
+  // Prefill CWP + slot from the cyberware catalog when the requested item's
+  // name matches a catalog entry (e.g. "GhostTag"), so the closer doesn't have
+  // to retype known values. Highest-CWP wins on duplicate names, mirroring the
+  // server's loadCyberwareCatalogMap. Values stay editable.
+  const catalogEnabled =
+    !!target && target.mode === "apply" && target.request.type === "cyberware";
+  const { data: cyberCatalog } = useListCyberware({
+    query: { enabled: catalogEnabled, queryKey: getListCyberwareQueryKey() },
+  });
+  const cyberMatch = useMemo(() => {
+    if (!catalogEnabled) return null;
+    const name = String(target!.request.title ?? "").trim().toLowerCase();
+    if (!name) return null;
+    let best: { cwp: number; slot: string } | null = null;
+    for (const c of cyberCatalog ?? []) {
+      if (String(c.name ?? "").trim().toLowerCase() !== name) continue;
+      const cwpVal = Number((c as { cwp?: number }).cwp ?? 0) || 0;
+      const slotVal = String((c as { slot?: string | null }).slot ?? "").trim();
+      if (!best || cwpVal > best.cwp) best = { cwp: cwpVal, slot: slotVal };
+    }
+    return best;
+  }, [catalogEnabled, cyberCatalog, target]);
+  useEffect(() => {
+    if (!cyberMatch || !seedKey || prefilledFor === seedKey) return;
+    // Only prefill untouched fields so we never clobber the closer's typing.
+    if (cwp === "" && slot === "") {
+      setCwp(String(cyberMatch.cwp));
+      if (cyberMatch.slot) setSlot(cyberMatch.slot);
+    }
+    setPrefilledFor(seedKey);
+  }, [cyberMatch, seedKey, prefilledFor, cwp, slot]);
 
   if (!target) return null;
   const { request, mode } = target;
@@ -870,6 +908,14 @@ function RequestCloseDialog({
           )}
           {isApply && isCyberware && (
             <>
+              {cyberMatch ? (
+                <p
+                  className="font-mono text-[11px] text-nc-green border border-nc-green/40 bg-nc-green/5 px-3 py-2"
+                  data-testid="close-cyber-catalog-hint"
+                >
+                  "{request.title}" matched the cyberware catalog — CWP and slot were auto-filled. Adjust if needed.
+                </p>
+              ) : null}
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">CWP (chrome point cost)</Label>
                 <Input

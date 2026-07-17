@@ -1063,13 +1063,17 @@ router.get("/admin/audit-log", adminOnly, async (req, res): Promise<void> => {
         .map((a) => a.trim())
         .filter(Boolean)
     : [];
-  const actorId = req.query.actorId ? String(req.query.actorId) : null;
+  const actorId = req.query.actorId ? String(req.query.actorId).trim() : null;
   const since = req.query.since ? new Date(String(req.query.since)) : null;
   const limit = Math.min(500, parseInt(String(req.query.limit ?? "200"), 10) || 200);
+  // Actor filter matches EITHER the exact actor id OR a case-insensitive
+  // substring of the stored actor display name, so staff can search "vinnybot"
+  // without knowing the Discord id. Escape LIKE wildcards in the typed term.
+  const actorLike = actorId ? `%${actorId.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%` : null;
   const conds: SQL[] = [
     category && category !== "all" ? eq(auditLog.category, category) : null,
     actions.length === 1 ? eq(auditLog.action, actions[0]) : actions.length > 1 ? inArray(auditLog.action, actions) : null,
-    actorId ? eq(auditLog.actorId, actorId) : null,
+    actorId && actorLike ? (or(eq(auditLog.actorId, actorId), ilike(auditLog.actorName, actorLike)) as SQL) : null,
     since && !isNaN(since.getTime()) ? gte(auditLog.createdAt, since) : null,
   ].filter((c): c is SQL => c !== null);
   const rows = conds.length
@@ -1080,12 +1084,14 @@ router.get("/admin/audit-log", adminOnly, async (req, res): Promise<void> => {
 
 router.get("/admin/audit", adminOnly, async (req, res): Promise<void> => {
   const kind = req.query.kind ? String(req.query.kind) : null;
-  const actorId = req.query.actorId ? String(req.query.actorId) : null;
+  const actorId = req.query.actorId ? String(req.query.actorId).trim() : null;
   const since = req.query.since ? new Date(String(req.query.since)) : null;
   const limit = Math.min(500, parseInt(String(req.query.limit ?? "100"), 10) || 100);
+  // Same id-or-name matching as /admin/audit-log.
+  const actorLike = actorId ? `%${actorId.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%` : null;
   const conds = [
     kind ? eq(activityEvents.kind, kind) : null,
-    actorId ? eq(activityEvents.actorId, actorId) : null,
+    actorId && actorLike ? or(eq(activityEvents.actorId, actorId), ilike(activityEvents.actorName, actorLike)) : null,
     since && !isNaN(since.getTime()) ? gte(activityEvents.createdAt, since) : null,
   ].filter(Boolean) as ReturnType<typeof eq>[];
   const rows = conds.length

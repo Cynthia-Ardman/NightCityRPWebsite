@@ -131,7 +131,7 @@ function AuditTab() {
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-2 font-mono text-xs">
           <Input className="md:col-span-3" placeholder="kind (e.g. transfer)" value={kind} onChange={(e) => setKind(e.target.value)} data-testid="input-audit-kind" />
-          <Input className="md:col-span-4" placeholder="actor user id" value={actorId} onChange={(e) => setActorId(e.target.value)} data-testid="input-audit-actor" />
+          <Input className="md:col-span-4" placeholder="actor name or user id" value={actorId} onChange={(e) => setActorId(e.target.value)} data-testid="input-audit-actor" />
           <Input className="md:col-span-3" type="datetime-local" value={since} onChange={(e) => setSince(e.target.value)} data-testid="input-audit-since" />
           <Button
             className="md:col-span-2 rounded-none bg-nc-cyan text-background font-display"
@@ -254,7 +254,7 @@ export function AuditLogTab() {
           </TabsList>
         </Tabs>
         <div className="grid grid-cols-1 md:grid-cols-12 gap-2 font-mono text-xs">
-          <Input className="md:col-span-5" placeholder="actor user id" value={actorId} onChange={(e) => setActorId(e.target.value)} data-testid="input-auditlog-actor" />
+          <Input className="md:col-span-5" placeholder="actor name or user id" value={actorId} onChange={(e) => setActorId(e.target.value)} data-testid="input-auditlog-actor" />
           <Input className="md:col-span-5" type="datetime-local" value={since} onChange={(e) => setSince(e.target.value)} data-testid="input-auditlog-since" />
           <Button
             className="md:col-span-2 rounded-none bg-nc-cyan text-background font-display"
