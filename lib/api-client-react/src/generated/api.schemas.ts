@@ -1384,6 +1384,8 @@ export interface SheetData {
   psychProfile?: string;
   hooks?: string;
   skills?: string;
+  /** Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with. */
+  knownAffiliation?: string;
   /** When true, grants the RipperDoc Discord role to the character's owner on save. */
   ripperDoc?: boolean;
   /** Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware). */
@@ -4426,6 +4428,11 @@ export interface CharacterSheetData {
      * @nullable
      */
   hooks?: string | null;
+  /**
+     * Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.
+     * @nullable
+     */
+  knownAffiliation?: string | null;
   /** @deprecated */
   attributes?: CharacterSheetDataAttributes;
   /** Free-text narrative description of what the character is good at. */

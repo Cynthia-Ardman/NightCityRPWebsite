@@ -115,6 +115,7 @@ export const ListMyCharactersResponseItem = zod.object({
   "psychProfile": zod.string().optional(),
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
+  "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
   "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
@@ -183,6 +184,7 @@ export const GetCharacterResponse = zod.object({
   "psychProfile": zod.string().optional(),
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
+  "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
   "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
@@ -247,6 +249,7 @@ export const UpdateCharacterBody = zod.object({
   "psychProfile": zod.string().optional(),
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
+  "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
   "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
@@ -281,6 +284,7 @@ export const UpdateCharacterResponse = zod.object({
   "psychProfile": zod.string().optional(),
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
+  "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
   "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
@@ -686,6 +690,7 @@ export const SetCharacterLifestyleResponse = zod.object({
   "psychProfile": zod.string().optional(),
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
+  "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
   "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
@@ -7918,6 +7923,7 @@ export const ListMySheetsResponseItem = zod.object({
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
   "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
+  "knownAffiliation": zod.string().nullish().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -8000,6 +8006,7 @@ export const SubmitSheetBody = zod.object({
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
   "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
+  "knownAffiliation": zod.string().nullish().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -8108,6 +8115,7 @@ export const GetSheetResponse = zod.object({
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
   "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
+  "knownAffiliation": zod.string().nullish().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -8195,6 +8203,7 @@ export const UpdateSheetBody = zod.object({
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
   "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
+  "knownAffiliation": zod.string().nullish().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -8257,6 +8266,7 @@ export const UpdateSheetResponse = zod.object({
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
   "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
+  "knownAffiliation": zod.string().nullish().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -8363,6 +8373,7 @@ export const SubmitDraftSheetResponse = zod.object({
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
   "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
+  "knownAffiliation": zod.string().nullish().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -8491,6 +8502,7 @@ export const OverrideSheetResponse = zod.object({
   "psychProfile": zod.string().nullable(),
   "background": zod.string(),
   "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
+  "knownAffiliation": zod.string().nullish().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -8845,6 +8857,7 @@ export const AdminListUsersResponseItem = zod.object({
   "psychProfile": zod.string().optional(),
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
+  "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
   "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
@@ -8917,6 +8930,7 @@ export const AdminGetUserResponse = zod.object({
   "psychProfile": zod.string().optional(),
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
+  "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
   "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
@@ -9005,6 +9019,7 @@ export const AdminSyncUserRolesResponse = zod.object({
   "psychProfile": zod.string().optional(),
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
+  "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
   "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
@@ -9168,6 +9183,7 @@ export const AdminAssignCharacterOwnerResponse = zod.object({
   "psychProfile": zod.string().optional(),
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
+  "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
   "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
@@ -9225,6 +9241,7 @@ export const AdminClearCharacterOwnerResponse = zod.object({
   "psychProfile": zod.string().optional(),
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
+  "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
   "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
@@ -9434,6 +9451,7 @@ export const GetPublicCharacterResponse = zod.object({
   "psychProfile": zod.string().optional(),
   "hooks": zod.string().optional(),
   "skills": zod.string().optional(),
+  "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
   "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')

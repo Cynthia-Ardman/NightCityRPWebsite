@@ -222,6 +222,7 @@ const CharacterUpdateSchema = z
         psychProfile: z.string().optional(),
         hooks: z.string().optional(),
         skills: z.string().optional(),
+        knownAffiliation: z.string().optional(),
       })
       .passthrough(),
     lifeStatus: z.enum(LIFE_STATUSES),

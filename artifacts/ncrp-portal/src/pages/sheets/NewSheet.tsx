@@ -191,6 +191,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   const [psychProfile, setPsychProfile] = useState<string>(init.psychProfile ?? "");
   const [background, setBackground] = useState<string>(init.background ?? "");
   const [hooks, setHooks] = useState<string>(init.hooks ?? "");
+  const [knownAffiliation, setKnownAffiliation] = useState<string>(init.knownAffiliation ?? "");
   const [notes, setNotes] = useState<string>(init.notes ?? "");
   const [skills, setSkills] = useState<string>(skillsToText(init.skills));
   const [chrome, setChrome] = useState<CW[]>(() => loadCyberware(init));
@@ -274,7 +275,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     sheetType,
     fullName, nickname, pronouns, occupation, archetype,
     age: Number(age) || 0, gender,
-    physicalDescription, appearance, psychProfile, background, hooks, notes,
+    physicalDescription, appearance, psychProfile, background, hooks, knownAffiliation, notes,
     skills,
     cyberware: filledChrome.map((c) => ({
       slot: c.slot.trim() || "Custom",
@@ -395,7 +396,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     () => JSON.stringify({ fullName: fullName.trim() || "(untitled draft)", payload: buildPayload() }),
     // We want this to recompute whenever any field changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, hooks, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls, ripperDoc, fbc, ncpd],
+    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, hooks, knownAffiliation, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls, ripperDoc, fbc, ncpd],
   );
 
   useEffect(() => {
@@ -711,6 +712,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
               <TabsTrigger value="psychology" className={subTabTriggerClass} data-testid="subtab-new-psychology">PSYCHOLOGY</TabsTrigger>
               <TabsTrigger value="background" className={subTabTriggerClass} data-testid="subtab-new-background">BACKGROUND</TabsTrigger>
               <TabsTrigger value="hooks" className={subTabTriggerClass} data-testid="subtab-new-hooks">HOOKS</TabsTrigger>
+              <TabsTrigger value="affiliation" className={subTabTriggerClass} data-testid="subtab-new-affiliation">AFFILIATION</TabsTrigger>
               <TabsTrigger value="skills" className={subTabTriggerClass} data-testid="subtab-new-skills">SKILLS</TabsTrigger>
             </TabsList>
 
@@ -764,6 +766,17 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         <CardHeader><CardTitle className="font-display tracking-widest">HOOKS</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <Field label="Story Hooks"><MarkdownEditor testId="input-hooks" rows={4} value={hooks} onChange={setHooks} placeholder="Plot threads, rumors, connections, and unfinished business other characters can pull on..." /></Field>
+        </CardContent>
+      </Card>
+
+            </TabsContent>
+
+            <TabsContent value="affiliation" forceMount className="mt-0 data-[state=inactive]:hidden">
+
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader><CardTitle className="font-display tracking-widest">KNOWN AFFILIATION</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <Field label="Known Affiliation"><MarkdownEditor testId="input-affiliation" rows={4} value={knownAffiliation} onChange={setKnownAffiliation} placeholder="Gangs, corps, factions, crews, or groups this character is publicly known to run with..." /></Field>
         </CardContent>
       </Card>
 

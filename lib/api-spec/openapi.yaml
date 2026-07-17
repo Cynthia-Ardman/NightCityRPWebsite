@@ -7096,6 +7096,7 @@ components:
         psychProfile: { type: string }
         hooks: { type: string }
         skills: { type: string }
+        knownAffiliation: { type: string, description: "Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with." }
         ripperDoc: { type: boolean, description: "When true, grants the RipperDoc Discord role to the character's owner on save." }
         fbc: { type: boolean, description: "Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware)." }
         ncpd: { type: boolean, description: "Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role)." }
@@ -9080,6 +9081,9 @@ components:
         hooks:
           type: ["string", "null"]
           description: Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.
+        knownAffiliation:
+          type: ["string", "null"]
+          description: Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.
         attributes:
           type: object
           deprecated: true

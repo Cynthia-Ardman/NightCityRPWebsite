@@ -140,6 +140,7 @@ export default function SheetDetail() {
   const occupation = String(data.occupation ?? "");
   const background = String(data.background ?? "");
   const hooks = String(data.hooks ?? "");
+  const knownAffiliation = String(data.knownAffiliation ?? "");
   const physicalDescription = String(data.physicalDescription ?? "");
   const appearance = String(data.appearance ?? "");
   const psychProfile = String(data.psychProfile ?? "");
@@ -319,6 +320,15 @@ export default function SheetDetail() {
         <CardContent>
           {hooks.trim()
             ? <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{hooks}</Markdown>
+            : <span className="font-mono text-sm text-muted-foreground">—</span>}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader><CardTitle className="font-display tracking-widest">KNOWN AFFILIATION</CardTitle></CardHeader>
+        <CardContent>
+          {knownAffiliation.trim()
+            ? <Markdown className="font-mono text-sm text-foreground/90 leading-relaxed">{knownAffiliation}</Markdown>
             : <span className="font-mono text-sm text-muted-foreground">—</span>}
         </CardContent>
       </Card>

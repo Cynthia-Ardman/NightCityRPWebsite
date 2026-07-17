@@ -340,6 +340,7 @@ describe("EditCharacterDialog", () => {
       appearance: "",
       psychProfile: "",
       hooks: "",
+      knownAffiliation: "",
       skills: "",
       ripperDoc: false,
       fbc: false,

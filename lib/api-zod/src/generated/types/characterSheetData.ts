@@ -42,6 +42,11 @@ export interface CharacterSheetData {
      * @nullable
      */
   hooks?: string | null;
+  /**
+     * Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.
+     * @nullable
+     */
+  knownAffiliation?: string | null;
   /** @deprecated */
   attributes?: CharacterSheetDataAttributes;
   /** Free-text narrative description of what the character is good at. */

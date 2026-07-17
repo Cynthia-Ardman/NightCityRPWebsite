@@ -1710,6 +1710,7 @@ function ProfileDossier({ sheetData, background }: { sheetData: unknown; backgro
   const appearance = str("appearance");
   const psychProfile = str("psychProfile");
   const hooks = str("hooks");
+  const knownAffiliation = str("knownAffiliation");
   const notes = str("notes");
   const skills =
     typeof data.skills === "string"
@@ -1742,6 +1743,7 @@ function ProfileDossier({ sheetData, background }: { sheetData: unknown; backgro
     !!appearance.trim() ||
     !!psychProfile.trim() ||
     !!hooks.trim() ||
+    !!knownAffiliation.trim() ||
     !!notes.trim() ||
     !!skills.trim() ||
     gear.length > 0 ||
@@ -1808,6 +1810,7 @@ function ProfileDossier({ sheetData, background }: { sheetData: unknown; backgro
         <DossierTextCard title="BACKGROUND" body={cleanBg} testId="dossier-background" />
       )}
       <DossierTextCard title="HOOKS" body={hooks} testId="dossier-hooks" />
+      <DossierTextCard title="KNOWN AFFILIATION" body={knownAffiliation} testId="dossier-affiliation" />
       <DossierTextCard title="SKILLS" body={skills} testId="dossier-skills" />
       {gear.length > 0 && (
         <Card className="rounded-none border-border bg-card/50" data-testid="dossier-gear">

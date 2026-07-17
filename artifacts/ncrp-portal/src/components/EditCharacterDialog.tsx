@@ -162,6 +162,7 @@ export default function EditCharacterDialog({
   const [appearance, setAppearance] = useState(sheetStr(character.sheetData, "appearance"));
   const [psychProfile, setPsychProfile] = useState(sheetStr(character.sheetData, "psychProfile"));
   const [hooks, setHooks] = useState(sheetStr(character.sheetData, "hooks"));
+  const [knownAffiliation, setKnownAffiliation] = useState(sheetStr(character.sheetData, "knownAffiliation"));
   const [skills, setSkills] = useState(skillsToText(character.sheetData?.skills));
   // Identity fields the new-character form also captures — stored at the top
   // level of sheetData (legacy characters leave them empty). Surfaced here so
@@ -259,6 +260,7 @@ export default function EditCharacterDialog({
     setAppearance(sheetStr(character.sheetData, "appearance"));
     setPsychProfile(sheetStr(character.sheetData, "psychProfile"));
     setHooks(sheetStr(character.sheetData, "hooks"));
+    setKnownAffiliation(sheetStr(character.sheetData, "knownAffiliation"));
     setSkills(skillsToText(character.sheetData?.skills));
     setNickname(sheetStr(character.sheetData, "nickname"));
     setPronouns(sheetStr(character.sheetData, "pronouns"));
@@ -391,6 +393,7 @@ export default function EditCharacterDialog({
           appearance,
           psychProfile,
           hooks,
+          knownAffiliation,
           skills,
           ripperDoc,
           fbc,
@@ -756,6 +759,7 @@ export default function EditCharacterDialog({
                     <TabsTrigger value="psychology" className={subTabTriggerClass}>PSYCHOLOGY</TabsTrigger>
                     <TabsTrigger value="background" className={subTabTriggerClass}>BACKGROUND</TabsTrigger>
                     <TabsTrigger value="hooks" className={subTabTriggerClass}>HOOKS</TabsTrigger>
+                    <TabsTrigger value="affiliation" className={subTabTriggerClass}>AFFILIATION</TabsTrigger>
                     <TabsTrigger value="skills" className={subTabTriggerClass}>SKILLS</TabsTrigger>
                     <TabsTrigger value="notes" className={subTabTriggerClass}>NOTES</TabsTrigger>
                     <TabsTrigger value="sections" className={subTabTriggerClass}>SECTIONS</TabsTrigger>
@@ -809,6 +813,16 @@ export default function EditCharacterDialog({
                       onChange={setHooks}
                       rows={6}
                       testId="input-edit-hooks"
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="affiliation" className="mt-0">
+                    <Label className="text-xs">KNOWN AFFILIATION</Label>
+                    <MarkdownEditor
+                      value={knownAffiliation}
+                      onChange={setKnownAffiliation}
+                      rows={6}
+                      testId="input-edit-affiliation"
                     />
                   </TabsContent>
 

@@ -50,6 +50,7 @@ const EditableSchema = z
         psychProfile: z.string().optional(),
         hooks: z.string().optional(),
         skills: z.string().optional(),
+        knownAffiliation: z.string().optional(),
       })
       .passthrough(),
     lifeStatus: z.enum(["active", "dead", "missing", "loa", "retired"]),
@@ -149,6 +150,7 @@ const PROSE_SHEET_KEYS = new Set([
   "psychProfile",
   "hooks",
   "skills",
+  "knownAffiliation",
 ]);
 
 // Collect every piece of prose from a character: the top-level `background`
@@ -170,6 +172,7 @@ function collectProse(char: Record<string, unknown>): string[] {
   push(sd.psychProfile);
   push(sd.hooks);
   push(sd.skills);
+  push(sd.knownAffiliation);
   return out;
 }
 
