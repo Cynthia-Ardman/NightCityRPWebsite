@@ -5,6 +5,7 @@ import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Link } from "wouter";
 import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe, FileText, ShieldCheck, LogIn, Cpu, UserCog, Briefcase, MapPin, ClipboardList, History, CalendarDays, PartyPopper, UserPlus } from "lucide-react";
 import { expandOccurrences, myOccurrenceSet } from "@/lib/eventRecurrence";
+import { selectTodaysMissions, hasAcceptedCharacter } from "@/lib/missionToday";
 import { useQuickNpcSignup } from "@/lib/useQuickNpcSignup";
 import { missionStatusClass, missionStatusLabel, missionTierClass, missionTierLabel } from "@/lib/missionStatus";
 import { Button } from "@/components/ui/button";
@@ -148,6 +149,8 @@ function Dashboard() {
       <NextMissionBanner />
 
       <NpcSessionBanner />
+
+      <MissionTodayBanner />
       </div>
 
       {/* Live VRChat instances share the same max-w-7xl column as the rest of
@@ -846,6 +849,90 @@ function NpcSessionBanner() {
             </>
           )}
         </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// "Mission today" reminder banner, right under the Main Session banner. Shows
+// whenever an active, posted mission runs TODAY (viewer-local calendar day).
+// Two variants: viewers with an accepted PC get a play reminder linking to the
+// mission; viewers without one get a nudge to sign up as an NPC instead (with
+// the same one-tap sign-up as the session banner when signups are open).
+function MissionTodayBanner() {
+  const { data: missions } = useListMissions(undefined, { query: { queryKey: getListMissionsQueryKey() } });
+  const { data: characters } = useListMyCharacters();
+  const quickNpc = useQuickNpcSignup();
+
+  const today = selectTodaysMissions(missions as MissionSummary[] | undefined);
+  if (today.length === 0) return null;
+  const first = today[0];
+  const extra = today.length - 1;
+
+  const hasChar = hasAcceptedCharacter(characters);
+  // NPC variant: hide once the viewer has signed up as an NPC for every
+  // mission running today — they're committed, the nudge is done.
+  if (!hasChar && today.every((m) => m.signedUpAsNpc)) return null;
+  const npcTarget = hasChar ? null : today.find((m) => !m.signedUpAsNpc) ?? first;
+  const canQuickSignup = !hasChar && npcTarget != null && npcTarget.npcSignupOpen && !npcTarget.signedUpAsNpc;
+  const shown = hasChar ? first : npcTarget ?? first;
+  const signingUp = quickNpc.pendingKey === `mission-${shown.id}`;
+
+  const timeStr = shown.start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+
+  return (
+    <Card
+      className="rounded-none border-nc-magenta/50 bg-gradient-to-r from-nc-magenta/15 via-nc-magenta/5 to-transparent shadow-[0_0_20px_rgba(255,0,255,0.12)]"
+      data-testid="card-mission-today-banner"
+    >
+      <CardContent className="p-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <Briefcase className="w-6 h-6 text-nc-magenta shrink-0" />
+          <div className="min-w-0">
+            <div className="text-[11px] font-mono tracking-wider text-nc-magenta uppercase">
+              Mission today · <span className="font-semibold tabular-nums text-foreground">{timeStr}</span>
+              {extra > 0 && <span className="text-muted-foreground"> · +{extra} more</span>}
+            </div>
+            <Link href={`/missions/${shown.id}`}>
+              <div
+                className="font-display text-lg md:text-xl text-foreground truncate hover:text-nc-magenta transition-colors"
+                data-testid="text-mission-today-title"
+              >
+                {shown.title}
+              </div>
+            </Link>
+            <div className="text-sm font-mono text-foreground/80 mt-0.5" data-testid="text-mission-today-msg">
+              {hasChar
+                ? "A mission is running today — check the briefing and be ready."
+                : "No accepted character yet? You can still join today's mission as an NPC."}
+            </div>
+          </div>
+        </div>
+        {canQuickSignup ? (
+          <Button
+            disabled={signingUp}
+            onClick={() => quickNpc.signUp("mission", shown.id)}
+            className="rounded-none bg-nc-magenta text-foreground hover:bg-nc-magenta/80 font-display tracking-widest shrink-0"
+            data-testid="button-mission-today-npc-signup"
+          >
+            {signingUp ? (
+              "SIGNING UP..."
+            ) : (
+              <>
+                <UserPlus className="w-4 h-4 mr-1" /> SIGN UP AS NPC
+              </>
+            )}
+          </Button>
+        ) : (
+          <Button
+            asChild
+            variant="outline"
+            className="rounded-none border-nc-magenta text-nc-magenta hover:bg-nc-magenta/10 font-display tracking-widest shrink-0"
+            data-testid="button-mission-today-view"
+          >
+            <Link href={`/missions/${shown.id}`}>VIEW MISSION</Link>
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
