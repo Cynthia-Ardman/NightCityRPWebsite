@@ -67,6 +67,24 @@ describe("selectTodaysMissions", () => {
     expect(out[0].signedUpAsNpc).toBe(true);
     expect(out[1].signedUpAsNpc).toBe(false);
   });
+
+  it("derives playerOnMission from accepted application or rostered character", () => {
+    const out = selectTodaysMissions(
+      [
+        mission({ id: 1, myApplication: { status: "accepted" } }),
+        mission({ id: 2, myCharacterId: 42 }),
+        mission({ id: 3, myApplication: { status: "pending" } }),
+        mission({ id: 4 }),
+      ],
+      now,
+    );
+    expect(out.map((m) => [m.id, m.playerOnMission])).toEqual([
+      [1, true],
+      [2, true],
+      [3, false],
+      [4, false],
+    ]);
+  });
 });
 
 describe("hasAcceptedCharacter", () => {

@@ -3,9 +3,10 @@ import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/rea
 import { useState, useEffect } from "react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Link } from "wouter";
-import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe, FileText, ShieldCheck, LogIn, Cpu, UserCog, Briefcase, MapPin, ClipboardList, History, CalendarDays, PartyPopper, UserPlus } from "lucide-react";
+import { Activity, Users, Store, Wallet, Clock, ArrowRight, Skull, Receipt, Home as HomeIcon, Syringe, FileText, ShieldCheck, LogIn, Cpu, UserCog, Briefcase, MapPin, ClipboardList, History, CalendarDays, PartyPopper, UserPlus, Headphones } from "lucide-react";
 import { expandOccurrences, myOccurrenceSet } from "@/lib/eventRecurrence";
 import { selectTodaysMissions, hasAcceptedCharacter } from "@/lib/missionToday";
+import { handleDiscordLinkClick } from "@/lib/discordDeepLink";
 import { useQuickNpcSignup } from "@/lib/useQuickNpcSignup";
 import { missionStatusClass, missionStatusLabel, missionTierClass, missionTierLabel } from "@/lib/missionStatus";
 import { Button } from "@/components/ui/button";
@@ -859,24 +860,47 @@ function NpcSessionBanner() {
 // Two variants: viewers with an accepted PC get a play reminder linking to the
 // mission; viewers without one get a nudge to sign up as an NPC instead (with
 // the same one-tap sign-up as the session banner when signups are open).
+// Mission-night voice channels (guild NCRP): fixers/staff run comms from the
+// fixer channel; players join the player channel.
+const MISSION_VOICE_FIXER_URL = "https://discord.com/channels/1348601552083882108/1348649858281640037";
+const MISSION_VOICE_PLAYER_URL = "https://discord.com/channels/1348601552083882108/1350644909056462889";
+
 function MissionTodayBanner() {
   const { data: missions } = useListMissions(undefined, { query: { queryKey: getListMissionsQueryKey() } });
   const { data: characters } = useListMyCharacters();
+  const { data: user } = useEffectiveMe();
   const quickNpc = useQuickNpcSignup();
 
-  const today = selectTodaysMissions(missions as MissionSummary[] | undefined);
+  // Tick every 30s so the voice-comms button appears at start time without a
+  // manual reload.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const today = selectTodaysMissions(missions as MissionSummary[] | undefined, now);
   if (today.length === 0) return null;
   const first = today[0];
   const extra = today.length - 1;
 
   const hasChar = hasAcceptedCharacter(characters);
-  // NPC variant: hide once the viewer has signed up as an NPC for every
-  // mission running today — they're committed, the nudge is done.
+  // NPC-only viewers: hide once they've signed up as an NPC for every mission
+  // running today — they're committed, the nudge is done.
   if (!hasChar && today.every((m) => m.signedUpAsNpc)) return null;
   const npcTarget = hasChar ? null : today.find((m) => !m.signedUpAsNpc) ?? first;
-  const canQuickSignup = !hasChar && npcTarget != null && npcTarget.npcSignupOpen && !npcTarget.signedUpAsNpc;
   const shown = hasChar ? first : npcTarget ?? first;
+  // NPC sign-up is about THIS mission, not character ownership: anyone who
+  // isn't rostered as a player and hasn't already volunteered can jump in
+  // while signups are open (staff and PC owners included).
+  const canQuickSignup = shown.npcSignupOpen && !shown.signedUpAsNpc && !shown.playerOnMission;
   const signingUp = quickNpc.pendingKey === `mission-${shown.id}`;
+
+  // Once the mission's start time arrives, point people at voice comms:
+  // fixers/admins get the fixer comms channel, everyone else the player one.
+  const isFixer = Boolean(user?.isAdmin || user?.isFixer);
+  const missionLive = shown.start.getTime() <= now.getTime();
+  const voiceUrl = isFixer ? MISSION_VOICE_FIXER_URL : MISSION_VOICE_PLAYER_URL;
 
   const timeStr = shown.start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 
@@ -908,31 +932,48 @@ function MissionTodayBanner() {
             </div>
           </div>
         </div>
-        {canQuickSignup ? (
-          <Button
-            disabled={signingUp}
-            onClick={() => quickNpc.signUp("mission", shown.id)}
-            className="rounded-none bg-nc-magenta text-foreground hover:bg-nc-magenta/80 font-display tracking-widest shrink-0"
-            data-testid="button-mission-today-npc-signup"
-          >
-            {signingUp ? (
-              "SIGNING UP..."
-            ) : (
-              <>
-                <UserPlus className="w-4 h-4 mr-1" /> SIGN UP AS NPC
-              </>
-            )}
-          </Button>
-        ) : (
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {missionLive && (
+            <Button
+              asChild
+              className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display tracking-widest"
+              data-testid="button-mission-today-voice"
+            >
+              <a
+                href={voiceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => handleDiscordLinkClick(e, voiceUrl)}
+              >
+                <Headphones className="w-4 h-4 mr-1" /> JOIN {isFixer ? "FIXER" : "MISSION"} COMMS
+              </a>
+            </Button>
+          )}
+          {canQuickSignup && (
+            <Button
+              disabled={signingUp}
+              onClick={() => quickNpc.signUp("mission", shown.id)}
+              className="rounded-none bg-nc-magenta text-foreground hover:bg-nc-magenta/80 font-display tracking-widest"
+              data-testid="button-mission-today-npc-signup"
+            >
+              {signingUp ? (
+                "SIGNING UP..."
+              ) : (
+                <>
+                  <UserPlus className="w-4 h-4 mr-1" /> SIGN UP AS NPC
+                </>
+              )}
+            </Button>
+          )}
           <Button
             asChild
             variant="outline"
-            className="rounded-none border-nc-magenta text-nc-magenta hover:bg-nc-magenta/10 font-display tracking-widest shrink-0"
+            className="rounded-none border-nc-magenta text-nc-magenta hover:bg-nc-magenta/10 font-display tracking-widest"
             data-testid="button-mission-today-view"
           >
             <Link href={`/missions/${shown.id}`}>VIEW MISSION</Link>
           </Button>
-        )}
+        </div>
       </CardContent>
     </Card>
   );

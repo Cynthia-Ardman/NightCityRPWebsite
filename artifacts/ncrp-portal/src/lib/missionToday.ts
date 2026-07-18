@@ -11,6 +11,8 @@ export interface MissionTodayInput {
   workflowState?: string | null;
   mySignup?: { state?: string | null } | null;
   npcSignupOpen?: boolean | null;
+  myApplication?: { status?: string | null } | null;
+  myCharacterId?: number | null;
 }
 
 export interface MissionTodayItem {
@@ -19,6 +21,8 @@ export interface MissionTodayItem {
   start: Date;
   npcSignupOpen: boolean;
   signedUpAsNpc: boolean;
+  /** Viewer is on this mission as a PLAYER (accepted application or rostered character). */
+  playerOnMission: boolean;
 }
 
 /** True when the two instants fall on the same calendar day in the viewer's local timezone. */
@@ -58,6 +62,7 @@ export function selectTodaysMissions(
       start,
       npcSignupOpen: m.npcSignupOpen === true,
       signedUpAsNpc: m.mySignup?.state === "signed_up",
+      playerOnMission: m.myApplication?.status === "accepted" || m.myCharacterId != null,
     });
   }
   out.sort((a, b) => a.start.getTime() - b.start.getTime());
