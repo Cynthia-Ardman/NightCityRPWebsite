@@ -16,7 +16,7 @@ import { approveOffer, denyOffer, type OfferKind } from "../lib/saleOffers";
 const router: IRouter = Router();
 
 type Offer = typeof saleOffers.$inferSelect;
-type ShapedOffer = Offer & { venueName: string | null; buyerName: string | null };
+type ShapedOffer = Offer & { venueName: string | null; buyerName: string | null; sellerName: string | null };
 
 // Attach venue + buyer names to a batch of offers for display. Resolves all
 // names in a fixed number of queries (one per stores/ripperdocs/characters)
@@ -34,6 +34,7 @@ async function shapeOffers(offers: Offer[]): Promise<ShapedOffer[]> {
       ripperdocIds.add(o.ripperdocId);
     }
     if (o.buyerCharacterId != null) buyerIds.add(o.buyerCharacterId);
+    if (o.sellerCharacterId != null) buyerIds.add(o.sellerCharacterId);
   }
 
   const [storeRows, ripperdocRows, buyerRows] = await Promise.all([
@@ -61,6 +62,7 @@ async function shapeOffers(offers: Offer[]): Promise<ShapedOffer[]> {
       ...o,
       venueName,
       buyerName: o.buyerCharacterId == null ? null : buyerName.get(o.buyerCharacterId) ?? null,
+      sellerName: o.sellerCharacterId == null ? null : buyerName.get(o.sellerCharacterId) ?? null,
     };
   });
 }

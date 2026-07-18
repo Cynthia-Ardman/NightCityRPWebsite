@@ -63,6 +63,7 @@ export default function VenueOffersPanel({ offers }: { offers: SaleOffer[] }) {
                 <tr className="text-nc-cyan uppercase text-[10px] tracking-widest">
                   <th className="text-left p-3">Item</th>
                   <th className="text-left p-3">Buyer</th>
+                  <th className="text-left p-3">Handled By</th>
                   <th className="text-right p-3">Total</th>
                   <th className="text-right p-3">Profit / Loss</th>
                   <th className="text-right p-3">Commission</th>
@@ -87,6 +88,9 @@ export default function VenueOffersPanel({ offers }: { offers: SaleOffer[] }) {
                       </div>
                     </td>
                     <td className="p-3 text-muted-foreground whitespace-nowrap">{o.buyerName ?? "—"}</td>
+                    <td className="p-3 text-muted-foreground whitespace-nowrap" data-testid={`text-offer-seller-${o.id}`}>
+                      {o.sellerName ?? "Owner"}
+                    </td>
                     <td className="p-3 text-right text-nc-yellow whitespace-nowrap">
                       €${o.totalPrice.toLocaleString()}
                     </td>

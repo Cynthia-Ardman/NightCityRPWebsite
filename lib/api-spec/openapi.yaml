@@ -8088,6 +8088,7 @@ components:
         createdAt: { type: string, format: date-time }
         venueName: { type: ["string", "null"] }
         buyerName: { type: ["string", "null"] }
+        sellerName: { type: ["string", "null"], description: "Name of the employee character who handled the offer; null when the venue owner handled it themselves." }
 
     ApproveOfferResult:
       type: object

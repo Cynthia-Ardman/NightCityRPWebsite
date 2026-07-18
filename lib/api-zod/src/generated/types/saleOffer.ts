@@ -70,4 +70,9 @@ export interface SaleOffer {
   venueName?: string | null;
   /** @nullable */
   buyerName?: string | null;
+  /**
+     * Name of the employee character who handled the offer; null when the venue owner handled it themselves.
+     * @nullable
+     */
+  sellerName?: string | null;
 }

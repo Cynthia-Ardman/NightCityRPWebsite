@@ -1788,7 +1788,8 @@ export const SellStoreItemResponse = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().optional(),
   "venueName": zod.string().nullish(),
-  "buyerName": zod.string().nullish()
+  "buyerName": zod.string().nullish(),
+  "sellerName": zod.string().nullish().describe('Name of the employee character who handled the offer; null when the venue owner handled it themselves.')
 }).optional(),
   "inventoryItem": zod.object({
   "id": zod.number(),
@@ -1870,7 +1871,8 @@ export const ListStoreOffersResponseItem = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().optional(),
   "venueName": zod.string().nullish(),
-  "buyerName": zod.string().nullish()
+  "buyerName": zod.string().nullish(),
+  "sellerName": zod.string().nullish().describe('Name of the employee character who handled the offer; null when the venue owner handled it themselves.')
 })
 export const ListStoreOffersResponse = zod.array(ListStoreOffersResponseItem)
 
@@ -2387,7 +2389,8 @@ export const ListMyOffersResponseItem = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().optional(),
   "venueName": zod.string().nullish(),
-  "buyerName": zod.string().nullish()
+  "buyerName": zod.string().nullish(),
+  "sellerName": zod.string().nullish().describe('Name of the employee character who handled the offer; null when the venue owner handled it themselves.')
 })
 export const ListMyOffersResponse = zod.array(ListMyOffersResponseItem)
 
@@ -2429,7 +2432,8 @@ export const GetOfferResponse = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().optional(),
   "venueName": zod.string().nullish(),
-  "buyerName": zod.string().nullish()
+  "buyerName": zod.string().nullish(),
+  "sellerName": zod.string().nullish().describe('Name of the employee character who handled the offer; null when the venue owner handled it themselves.')
 })
 
 
@@ -2471,7 +2475,8 @@ export const ApproveOfferResponse = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().optional(),
   "venueName": zod.string().nullish(),
-  "buyerName": zod.string().nullish()
+  "buyerName": zod.string().nullish(),
+  "sellerName": zod.string().nullish().describe('Name of the employee character who handled the offer; null when the venue owner handled it themselves.')
 }).optional(),
   "inventoryItem": zod.object({
   "id": zod.number(),
@@ -2531,7 +2536,8 @@ export const DenyOfferResponse = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().optional(),
   "venueName": zod.string().nullish(),
-  "buyerName": zod.string().nullish()
+  "buyerName": zod.string().nullish(),
+  "sellerName": zod.string().nullish().describe('Name of the employee character who handled the offer; null when the venue owner handled it themselves.')
 })
 
 
@@ -7025,7 +7031,8 @@ export const SellRipperdocItemResponse = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().optional(),
   "venueName": zod.string().nullish(),
-  "buyerName": zod.string().nullish()
+  "buyerName": zod.string().nullish(),
+  "sellerName": zod.string().nullish().describe('Name of the employee character who handled the offer; null when the venue owner handled it themselves.')
 }).optional(),
   "inventoryItem": zod.object({
   "id": zod.number(),
@@ -7102,7 +7109,8 @@ export const InstallRipperdocCyberwareResponse = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().optional(),
   "venueName": zod.string().nullish(),
-  "buyerName": zod.string().nullish()
+  "buyerName": zod.string().nullish(),
+  "sellerName": zod.string().nullish().describe('Name of the employee character who handled the offer; null when the venue owner handled it themselves.')
 }).optional(),
   "inventoryItem": zod.object({
   "id": zod.number(),
@@ -7173,7 +7181,8 @@ export const GiveRipperdocItemResponse = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().optional(),
   "venueName": zod.string().nullish(),
-  "buyerName": zod.string().nullish()
+  "buyerName": zod.string().nullish(),
+  "sellerName": zod.string().nullish().describe('Name of the employee character who handled the offer; null when the venue owner handled it themselves.')
 }).optional(),
   "inventoryItem": zod.object({
   "id": zod.number(),
@@ -7246,7 +7255,8 @@ export const RemoveRipperdocCyberwareResponse = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().optional(),
   "venueName": zod.string().nullish(),
-  "buyerName": zod.string().nullish()
+  "buyerName": zod.string().nullish(),
+  "sellerName": zod.string().nullish().describe('Name of the employee character who handled the offer; null when the venue owner handled it themselves.')
 }).optional(),
   "inventoryItem": zod.object({
   "id": zod.number(),
@@ -7400,7 +7410,8 @@ export const ListRipperdocOffersResponseItem = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date().optional(),
   "venueName": zod.string().nullish(),
-  "buyerName": zod.string().nullish()
+  "buyerName": zod.string().nullish(),
+  "sellerName": zod.string().nullish().describe('Name of the employee character who handled the offer; null when the venue owner handled it themselves.')
 })
 export const ListRipperdocOffersResponse = zod.array(ListRipperdocOffersResponseItem)
 
