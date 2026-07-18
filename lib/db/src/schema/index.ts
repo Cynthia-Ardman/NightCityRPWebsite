@@ -1523,6 +1523,38 @@ export const reviewSeen = pgTable("review_seen", {
 }));
 export type ReviewSeen = typeof reviewSeen.$inferSelect;
 
+// In-portal notification feed. One row per user-facing event (request/edit/
+// sheet/lore decision, mission application outcome, auto-charge, payout, new
+// sale offer, NCPD fine, breach challenge, ...). Additive to Discord DMs —
+// writers are fire-and-forget and must never block or fail the triggering
+// action. `href` is a portal-relative link for the bell dropdown; `readAt`
+// flips when the user opens the feed (mark-read).
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // Machine tag for the event family, e.g. "request_decision",
+    // "mission_application", "auto_charge", "mission_payout", "sale_offer",
+    // "ncpd_fine", "breach_challenge".
+    type: text("type").notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    // Portal-relative link (e.g. "/missions/12"). Nullable for pure FYIs.
+    href: text("href"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+  },
+  (t) => ({
+    userIdx: index("notifications_user_idx").on(t.userId, t.createdAt),
+    // Fast unread-count lookups.
+    unreadIdx: index("notifications_unread_idx").on(t.userId, t.readAt),
+  }),
+);
+export type Notification = typeof notifications.$inferSelect;
+
 // Per-character shop opens — one row per "the owner opened their venue
 // today" event. The monthly_rent cron counts rows in the current month to
 // scale a business lease's passive income. The UNIQUE (characterId, day)

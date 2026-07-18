@@ -25,6 +25,7 @@ import { hasRole, sendDirectMessage, postToChannel, NIGHTCITYBOT_LOGS_CHANNEL_ID
 import { applyWalletDelta } from "./economy";
 import { recordInventoryEvent } from "./inventoryEvents";
 import { logger } from "./logger";
+import { createNotification } from "./notifications";
 
 // A puzzle as serialized over the API. The stored row keeps grid/daemons/
 // selection as jsonb; we surface them as typed arrays plus a few joined display
@@ -258,6 +259,15 @@ export async function createPuzzle(
       status: "sent",
     })
     .returning();
+
+  // In-portal bell notification alongside the DM (additive; fire-and-forget).
+  void createNotification({
+    userId: player.id,
+    type: "breach_challenge",
+    title: `Breach Protocol — incoming ICE for ${character.name}`,
+    body: `Difficulty: ${difficulty} · Time limit: ${timeLimitSeconds}s.${contextLabel ? ` Context: ${contextLabel}.` : ""}`,
+    href: `/breach/play/${row.id}`,
+  });
 
   // DM the player a play link (best-effort; record delivery).
   const link = playLink(row.id);

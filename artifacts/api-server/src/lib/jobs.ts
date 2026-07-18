@@ -257,6 +257,7 @@ async function chargePersonalFeeWithReservation(opts: {
   await advanceSettledWalletBalance({ userId: opts.userId, amount: -opts.cost, ubTotalAfter: ub.total }).catch(() => {});
   void notifyAutoCharge({
     discordId: opts.discordId,
+    userId: opts.userId,
     amount: opts.cost,
     label: opts.dmLabel,
     characterName: opts.characterName,
@@ -593,6 +594,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         }
         void notifyAutoCharge({
           discordId: owner.discordId,
+          userId: owner.id,
           amount: rent,
           label: `${reasonLabel}: ${lease.address}`,
           characterName: c.name,
@@ -861,6 +863,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         await advanceSettledWalletBalance({ userId: ownerId, amount: -proj.charge, ubTotalAfter: ub.total }).catch(() => {});
         void notifyAutoCharge({
           discordId: owner.discordId,
+          userId: ownerId,
           amount: proj.charge,
           label: `Weekly cyberpsychosis meds (${proj.level})`,
           newBalance: ub.cash,

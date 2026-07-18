@@ -12,6 +12,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { sendDirectMessage } from "../lib/discord";
+import { createNotification } from "../lib/notifications";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
 import { runLoreImport, type LoreSourceRef } from "../lib/loreImport";
@@ -229,6 +230,22 @@ async function notifyFixerOfLoreDecision(
   summary: string | null,
   entryName: string | null,
 ): Promise<void> {
+  // In-portal bell notification — additive to the Discord DM below.
+  {
+    const what = edit.kind === "create" ? "new lore entry" : "lore edit";
+    const name = entryName ?? "an entry";
+    void createNotification({
+      userId: edit.submittedBy,
+      type: "lore_decision",
+      title: `${status === "approved" ? "Approved" : "Rejected"}: ${what} "${name}"`,
+      body: summary ? `${status === "approved" ? "Note" : "Reason"}: ${summary}` : null,
+      href: edit.appliedEntryId
+        ? `/directory/lore/${edit.appliedEntryId}`
+        : edit.loreEntryId
+          ? `/directory/lore/${edit.loreEntryId}`
+          : "/directory/lore/mine",
+    });
+  }
   try {
     const [u] = await db
       .select({ discordId: users.discordId })

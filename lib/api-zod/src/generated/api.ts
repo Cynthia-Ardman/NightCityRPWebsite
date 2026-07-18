@@ -13462,3 +13462,52 @@ export const GlobalSearchResponse = zod.object({
 })
 
 
+/**
+ * @summary The caller's notification feed, newest first. Cursor-paginated on id — pass before=<id> to fetch strictly older rows so new arrivals never shift pages.
+ */
+export const listNotificationsQueryLimitDefault = 20;
+export const listNotificationsQueryLimitMax = 100;
+
+
+
+export const ListNotificationsQueryParams = zod.object({
+  "limit": zod.coerce.number().min(1).max(listNotificationsQueryLimitMax).default(listNotificationsQueryLimitDefault),
+  "before": zod.coerce.number().optional().describe('Return rows with id strictly less than this cursor.')
+})
+
+export const ListNotificationsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "type": zod.string().describe('Machine kind (request_decision, edit_decision, sheet_decision, lore_decision, mission_application, auto_charge, mission_payout, sale_offer, ncpd_fine, breach_challenge, ...).'),
+  "title": zod.string(),
+  "body": zod.string().nullish(),
+  "href": zod.string().nullish().describe('Portal-relative link to the subject (e.g. \/missions\/12).'),
+  "createdAt": zod.coerce.date(),
+  "readAt": zod.coerce.date().nullish()
+})),
+  "hasMore": zod.boolean(),
+  "nextCursor": zod.number().nullish().describe('Pass as before= to fetch the next (older) page. Null when hasMore is false.')
+})
+
+
+/**
+ * @summary Lightweight unread count for the bell badge (polled).
+ */
+export const GetNotificationsUnreadCountResponse = zod.object({
+  "count": zod.number()
+})
+
+
+/**
+ * @summary Mark notifications read — either an explicit id list or all of the caller's unread rows. Scoped to the caller; ids belonging to other users are ignored.
+ */
+export const MarkNotificationsReadBody = zod.object({
+  "ids": zod.array(zod.number()).optional(),
+  "all": zod.boolean().optional()
+})
+
+export const MarkNotificationsReadResponse = zod.object({
+  "updated": zod.number()
+})
+
+

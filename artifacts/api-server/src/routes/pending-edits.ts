@@ -15,6 +15,7 @@ import {
 import type { Request } from "express";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, postToChannel, startThreadFromMessage, addGuildMemberRole, grantDeadCharacterRole, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { createNotification } from "../lib/notifications";
 import { logger } from "../lib/logger";
 import { isReviewer, isEligibleReviewer, listEligibleReviewerIds, listEligibleReviewers, loadLastActivityBySubject, majorityOf, type ReviewActionResult } from "../lib/review";
 import { recordAudit } from "../lib/audit";
@@ -1128,10 +1129,21 @@ export async function closeEdit(req: Request, id: number, note?: string): Promis
       .update(pendingCharacterEdits)
       .set({ status: "closed", closedAt: new Date(), closedBy: u.id })
       .where(eq(pendingCharacterEdits.id, id));
-    return { kind: "ok" as const, status: locked.status, ripperGrant, deadGrant };
+    return { kind: "ok" as const, status: locked.status, submittedBy: locked.submitted_by, characterId: locked.character_id, ripperGrant, deadGrant };
   });
   if (result.kind === "error") return { status: result.status, body: result.body };
   if (result.kind === "ok") {
+    // In-portal bell notification to the submitter. Character edits have no
+    // Discord DM on decision — the bell is the player's only push channel here.
+    if (result.status === "approved" || result.status === "rejected") {
+      void createNotification({
+        userId: result.submittedBy,
+        type: "edit_decision",
+        title: `Character edit ${result.status}`,
+        body: note ?? null,
+        href: `/characters/${result.characterId}`,
+      });
+    }
     await recordAudit({
       req,
       category: "character",

@@ -5,6 +5,25 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+export interface Notification {
+  id: number;
+  /** Machine kind (request_decision, edit_decision, sheet_decision, lore_decision, mission_application, auto_charge, mission_payout, sale_offer, ncpd_fine, breach_challenge, ...). */
+  type: string;
+  title: string;
+  body?: string | null;
+  /** Portal-relative link to the subject (e.g. /missions/12). */
+  href?: string | null;
+  createdAt: string;
+  readAt?: string | null;
+}
+
+export interface NotificationPage {
+  items: Notification[];
+  hasMore: boolean;
+  /** Pass as before= to fetch the next (older) page. Null when hasMore is false. */
+  nextCursor?: number | null;
+}
+
 export interface SearchResultItem {
   /** Portal-relative path to navigate to (e.g. /missions/12). */
   href: string;
@@ -7907,5 +7926,30 @@ export type GlobalSearchParams = {
  * Free-text query. Fewer than 2 characters returns empty groups.
  */
 q?: string;
+};
+
+export type ListNotificationsParams = {
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+/**
+ * Return rows with id strictly less than this cursor.
+ */
+before?: number;
+};
+
+export type GetNotificationsUnreadCount200 = {
+  count: number;
+};
+
+export type MarkNotificationsReadBody = {
+  ids?: number[];
+  all?: boolean;
+};
+
+export type MarkNotificationsRead200 = {
+  updated: number;
 };
 

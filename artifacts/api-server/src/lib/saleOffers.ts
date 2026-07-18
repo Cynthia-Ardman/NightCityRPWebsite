@@ -23,6 +23,7 @@ import { recordInventoryEvent } from "./inventoryEvents";
 import { cwpForItem, parseCwp, sumCwpByCharacter } from "./cyberware";
 import { buildCyberwareCostMap, checkCwpCapacity } from "./cyberware-cap";
 import { logger } from "./logger";
+import { createNotification } from "./notifications";
 
 // Offer kinds beyond a plain sale. `sale` is the historic default.
 //   stock_add — an admin proposes ADDING a cyberware piece to a venue's stock
@@ -226,6 +227,16 @@ export async function createOffer(opts: {
 
   const verb = offerType === "install" ? "install" : offerType === "give" ? "give" : "sell";
   const priceLabel = totalPrice > 0 ? `for €$${totalPrice}` : "for free";
+
+  // In-portal bell notification to the buyer — additive to any DM the offer
+  // flow sends; fire-and-forget so it can never block the sale.
+  void createNotification({
+    userId: buyer.ownerId,
+    type: "sale_offer",
+    title: `${offerType === "install" ? "Install offer" : offerType === "give" ? "Item offer" : "Sale offer"}: ${item.name} x${qty} ${priceLabel}`,
+    body: `${buyer.name} has a new ${verb} offer.${memo ? ` Memo: ${memo}` : ""}`,
+    href: "/inbox",
+  });
 
   const [offer] = await db
     .insert(saleOffers)

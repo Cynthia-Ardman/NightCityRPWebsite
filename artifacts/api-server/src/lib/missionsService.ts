@@ -31,7 +31,7 @@ import {
   listGuildScheduledEvents,
   hasRole,
 } from "./discord";
-import { notifyMissionPayout } from "./notifications";
+import { notifyMissionPayout, createNotification } from "./notifications";
 import { getMissionContext, type MissionExternalContext } from "./missionsConfig";
 import { resolveOrProvisionUser } from "./userProvision";
 
@@ -1486,6 +1486,7 @@ export async function reviewApplication(opts: {
     await notifyApplicantOfReview({
       userId: app.userId,
       characterId: app.characterId,
+      missionId: app.missionId,
       missionTitle: mission.title,
       action: "reject",
     });
@@ -1525,6 +1526,7 @@ export async function reviewApplication(opts: {
   await notifyApplicantOfReview({
     userId: app.userId,
     characterId: app.characterId,
+    missionId: app.missionId,
     missionTitle: mission.title,
     action: "accept",
   });
@@ -1975,6 +1977,7 @@ async function applySecondPhaseStatus(missionId: number): Promise<void> {
 async function notifyApplicantOfReview(opts: {
   userId: string;
   characterId: number;
+  missionId: number;
   missionTitle: string;
   action: "accept" | "reject";
 }): Promise<void> {
@@ -1989,6 +1992,19 @@ async function notifyApplicantOfReview(opts: {
       opts.action === "accept"
         ? `${name ?? "Your character"} was accepted for the mission "${opts.missionTitle}". Check the mission board for details.`
         : `Your application for ${name ?? "your character"} to the mission "${opts.missionTitle}" was declined this time. Keep an eye on the board for other jobs.`;
+    // In-portal bell notification is additive and NOT gated on missions
+    // Test/Live — the decision itself is real either way; only the Discord DM
+    // respects the external-write gate below.
+    void createNotification({
+      userId: opts.userId,
+      type: "mission_application",
+      title:
+        opts.action === "accept"
+          ? `Accepted for mission "${opts.missionTitle}"`
+          : `Application declined — "${opts.missionTitle}"`,
+      body: content,
+      href: `/missions/${opts.missionId}`,
+    });
     if (ctx.live) {
       await sendDirectMessage(opts.userId, content);
     } else {
@@ -2929,8 +2945,10 @@ export async function payMissionPlayers(
       }
       void notifyMissionPayout({
         discordId,
+        userId: a.userId,
         amount,
         missionTitle: mission.title,
+        missionId,
         newBalance: balance.cash,
       });
     }

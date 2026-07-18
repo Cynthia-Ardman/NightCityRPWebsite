@@ -17,6 +17,7 @@ import {
 } from "@workspace/db";
 import { requireAuth, requireAnyRole } from "../middlewares/auth";
 import { hasRole, sendDirectMessage } from "../lib/discord";
+import { createNotification } from "../lib/notifications";
 import { recordAudit } from "../lib/audit";
 import { getBalance } from "../lib/unbelievaboat";
 import { applyWalletDelta } from "../lib/economy";
@@ -480,6 +481,15 @@ router.post("/ncpd/fines", requireAuth, requireNcpd, async (req, res): Promise<v
     targetId: cid,
     message: `NCPD fine of €$${amt.toLocaleString()} issued to ${c.name}: ${r}`,
     after: row,
+  });
+  // In-portal bell notification to the character's current owner (additive to
+  // the Discord DM below).
+  void createNotification({
+    userId: c.ownerId,
+    type: "ncpd_fine",
+    title: `NCPD fine issued — €$${amt.toLocaleString()} (${c.name})`,
+    body: `Reason: ${r}. Pay it from the Inbox page.`,
+    href: "/inbox",
   });
   // Best-effort DM to the character's current owner so they know to pay it.
   if (c.ownerId) {

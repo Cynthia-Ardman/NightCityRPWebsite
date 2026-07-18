@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ViewAsControl, ViewAsBanner } from "@/components/layout/ViewAsControl";
 import { GlobalSearchDialog } from "@/components/layout/GlobalSearch";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 import { Search } from "lucide-react";
 import { offerNeedsMyDecision } from "@/components/offers/offerBadges";
 import { INBOX_REQUEST_TYPES } from "@/pages/Inbox";
@@ -51,6 +52,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         >
           <Search className="h-5 w-5" />
         </Button>
+        <NotificationBell />
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="outline" size="icon" className="border-nc-cyan text-nc-cyan">
@@ -532,6 +534,7 @@ function TopBar({ onOpenSearch }: { onOpenSearch: () => void }) {
           <span className="hidden lg:inline uppercase tracking-widest">Search</span>
           <kbd className="hidden lg:inline border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">Ctrl K</kbd>
         </button>
+        <NotificationBell />
         {user && wallet && typeof wallet.balance === "number" && (
           <div className="flex items-center gap-3 border border-nc-yellow/30 bg-nc-yellow/5 px-4 py-1.5 shadow-[0_0_10px_rgba(255,255,0,0.1)]" data-testid="pill-eddies">
             <div className="text-nc-yellow font-display text-sm tracking-widest">EDDIES</div>

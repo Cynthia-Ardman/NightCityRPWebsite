@@ -33,6 +33,8 @@ tags:
     description: NCPD arrest reports, warrants, character records and the Book of Laws.
   - name: search
     description: Site-wide command-palette search.
+  - name: notifications
+    description: In-portal notification bell feed (additive to Discord DMs).
 
 paths:
   /healthz:
@@ -6075,8 +6077,93 @@ paths:
               schema: { $ref: "#/components/schemas/GlobalSearchResults" }
         "401": { description: Authentication required }
 
+  # ---------------- NOTIFICATIONS ----------------
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: The caller's notification feed, newest first. Cursor-paginated on id — pass before=<id> to fetch strictly older rows so new arrivals never shift pages.
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - in: query
+          name: before
+          schema: { type: integer }
+          description: Return rows with id strictly less than this cursor.
+      responses:
+        "200":
+          description: Notification page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NotificationPage" }
+        "401": { description: Authentication required }
+  /notifications/unread-count:
+    get:
+      operationId: getNotificationsUnreadCount
+      tags: [notifications]
+      summary: Lightweight unread count for the bell badge (polled).
+      responses:
+        "200":
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count]
+                properties:
+                  count: { type: integer }
+        "401": { description: Authentication required }
+  /notifications/mark-read:
+    post:
+      operationId: markNotificationsRead
+      tags: [notifications]
+      summary: Mark notifications read — either an explicit id list or all of the caller's unread rows. Scoped to the caller; ids belonging to other users are ignored.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items: { type: integer }
+                all: { type: boolean }
+      responses:
+        "200":
+          description: Number of rows updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [updated]
+                properties:
+                  updated: { type: integer }
+        "401": { description: Authentication required }
+
 components:
   schemas:
+    Notification:
+      type: object
+      required: [id, type, title, createdAt]
+      properties:
+        id: { type: integer }
+        type: { type: string, description: "Machine kind (request_decision, edit_decision, sheet_decision, lore_decision, mission_application, auto_charge, mission_payout, sale_offer, ncpd_fine, breach_challenge, ...)." }
+        title: { type: string }
+        body: { type: string, nullable: true }
+        href: { type: string, nullable: true, description: "Portal-relative link to the subject (e.g. /missions/12)." }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: string, format: date-time, nullable: true }
+    NotificationPage:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Notification" }
+        hasMore: { type: boolean }
+        nextCursor: { type: integer, nullable: true, description: "Pass as before= to fetch the next (older) page. Null when hasMore is false." }
     SearchResultItem:
       type: object
       required: [href, name]

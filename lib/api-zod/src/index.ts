@@ -14,3 +14,5 @@ export { PurchaseEventTicketBody } from "./generated/api";
 export type { PurchaseEventTicketBody as PurchaseEventTicketBodyType } from "./generated/types";
 export { SetEventCheckinStaffBody } from "./generated/api";
 export type { SetEventCheckinStaffBody as SetEventCheckinStaffBodyType } from "./generated/types";
+export { MarkNotificationsReadBody } from "./generated/api";
+export type { MarkNotificationsReadBody as MarkNotificationsReadBodyType } from "./generated/types";

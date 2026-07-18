@@ -3,6 +3,7 @@ import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { db, characterSheets, characters, characterStatus, inventoryItems, inventoryEvents, users, activityEvents, catalogCyberware, catalogGuns, type User } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { postToChannel, startThreadFromMessage, hasRole, addGuildMemberRole, APPROVED_CHARACTER_ROLE_ID, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { createNotification } from "../lib/notifications";
 import { logger } from "../lib/logger";
 import { recordAudit } from "../lib/audit";
 import { collectCyberware, buildCyberwareCostMap, entryPoints, validateCyberware } from "../lib/cyberware-cap";
@@ -1112,9 +1113,27 @@ export async function closeSheet(
       .set({ status: "closed", closedAt: new Date(), closedBy: u.id })
       .where(eq(characterSheets.id, id))
       .returning();
-    return { kind: "archived" as const, sheet: updated };
+    return { kind: "archived" as const, sheet: updated, prevStatus: sheet.status };
   });
   if (result.kind === "error") return { status: result.status, body: result.body };
+  // In-portal bell notification to the sheet submitter (character sheets have
+  // no decision DM — the bell is the player's only push channel here). A
+  // player-cancelled sheet is their own action, so it never notifies.
+  if (result.kind === "applied" || result.kind === "archived") {
+    const approved = result.kind === "applied";
+    const wasRejected = result.kind === "archived" && result.prevStatus === "rejected";
+    if (approved || wasRejected) {
+      void createNotification({
+        userId: result.sheet.ownerId,
+        type: "sheet_decision",
+        title: approved
+          ? `Character sheet "${result.sheet.name}" approved`
+          : `Character sheet "${result.sheet.name}" rejected`,
+        body: note ?? null,
+        href: approved && result.sheet.characterId ? `/characters/${result.sheet.characterId}` : `/sheets/${id}`,
+      });
+    }
+  }
   if (result.kind === "applied") {
     await db.insert(activityEvents).values({
       kind: "character_approved",

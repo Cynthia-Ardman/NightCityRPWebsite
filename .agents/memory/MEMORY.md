@@ -153,3 +153,4 @@
 - [Event ticket money legs](event-ticket-money-legs.md) — reserve capacity (pending row under lock) BEFORE debit; runner credit never unwinds a purchase (payoutStatus failed + retry); attendance UPDATE repeats status='purchased' guard.
 - [Responsive dual layouts vs Playwright strict mode](responsive-dual-layout-e2e.md) — md:hidden card + hidden md:block table duplicate text in DOM; scope e2e text asserts with `visible=true`.
 - [Global search authz & hrefs](global-search-authz.md) — search result hrefs must be caller-openable pages; staff-scoped rows need staffOnly flag + effective-role scrub or View-as leaks.
+- [Portal bell notifications](portal-bell-notifications.md) — new player-facing events must `void createNotification(...)` at the SAME site as the DM but NOT gated on Test/Live or discordId; api-zod star-export body-name ambiguity trap.

@@ -22,6 +22,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, sendDirectMessage, postToChannel, startThreadFromMessage } from "../lib/discord";
+import { createNotification } from "../lib/notifications";
 import { reconcileBusinessChannelAccess } from "../lib/businessChannelAccess";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
 import { isListingReserved } from "../lib/listingReservations";
@@ -995,6 +996,21 @@ async function notifyRequesterOfDecision(
   approved: boolean,
   closingMessage?: string | null,
 ): Promise<void> {
+  // In-portal bell notification — additive to the Discord DM below, and not
+  // conditional on the requester having a resolvable Discord id.
+  {
+    const typeLabel = typeLabelFor(row.type);
+    const who = row.characterName ?? "your character";
+    void createNotification({
+      userId: row.requestedById,
+      type: "request_decision",
+      title: `${approved ? "Approved" : "Rejected"}: ${typeLabel} request "${row.title}"`,
+      body: approved
+        ? [summary, closingMessage].filter(Boolean).join("\n") || `Your ${typeLabel} request for ${who} was approved.`
+        : (closingMessage ?? row.reviewerNote ?? `Your ${typeLabel} request for ${who} was rejected.`),
+      href: "/submissions",
+    });
+  }
   try {
     const [u] = await db
       .select({ discordId: users.discordId })
