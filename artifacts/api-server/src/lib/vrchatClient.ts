@@ -370,11 +370,32 @@ export async function getSessionInfo(): Promise<VrchatSessionInfo> {
   };
 }
 
-// Authenticated GET against the VRChat API. Uses stored cookies; on 401 it
-// re-logs-in exactly once and retries. Returns parsed JSON or throws.
+// Session-expiry handling. VRChat forces email-OTP for logins from datacenter
+// IPs, so an unattended username/password re-login can NEVER succeed from this
+// server — worse, repeated attempts trip VRChat's per-network failed-login
+// limiter (429 "too many failed login attempts from network"), which then
+// blocks even the manual staff reconnect flow for hours. So on a 401 we do NOT
+// retry with login(); we clear the dead auth cookie (flipping the card to
+// "not connected") and surface a reconnect instruction.
+export const SESSION_EXPIRED_MSG =
+  "VRChat session expired — a staff member must reconnect via System Admin → VRChat (Connect + email code).";
+
+async function markSessionExpired(): Promise<void> {
+  // Keep the twoFactorAuth cookie: a remembered 2FA device can make the next
+  // manual reconnect skip the challenge. Only the auth cookie is dead.
+  await persistSession({ authCookie: null, lastError: SESSION_EXPIRED_MSG });
+}
+
+export async function vrchatSessionConnected(): Promise<boolean> {
+  const cookies = await loadSession();
+  return !!cookies.auth;
+}
+
+// Authenticated GET against the VRChat API. Uses stored cookies; a 401 marks
+// the session expired (no unattended re-login — see SESSION_EXPIRED_MSG).
 async function apiGet<T>(path: string): Promise<T> {
-  let cookies = await loadSession();
-  if (!cookies.auth) cookies = await login();
+  const cookies = await loadSession();
+  if (!cookies.auth) throw new Error(SESSION_EXPIRED_MSG);
 
   const doFetch = (c: SessionCookies) =>
     fetch(`${API_BASE}${path}`, {
@@ -382,10 +403,10 @@ async function apiGet<T>(path: string): Promise<T> {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
-  let res = await doFetch(cookies);
+  const res = await doFetch(cookies);
   if (res.status === 401) {
-    cookies = await login();
-    res = await doFetch(cookies);
+    await markSessionExpired();
+    throw new Error(SESSION_EXPIRED_MSG);
   }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -396,16 +417,16 @@ async function apiGet<T>(path: string): Promise<T> {
 }
 
 // Authenticated write (POST/PUT/DELETE) against the VRChat API. Mirrors apiGet:
-// replays stored cookies, re-logs-in exactly once on a 401 and retries. Returns
-// parsed JSON (or null for empty bodies) and throws on any non-2xx so callers
-// can persist the error. Body is JSON-encoded when present.
+// replays stored cookies, marks the session expired on a 401 (no unattended
+// re-login). Returns parsed JSON (or null for empty bodies) and throws on any
+// non-2xx so callers can persist the error. Body is JSON-encoded when present.
 async function apiSend<T>(
   method: "POST" | "PUT" | "DELETE",
   path: string,
   body?: unknown,
 ): Promise<T> {
-  let cookies = await loadSession();
-  if (!cookies.auth) cookies = await login();
+  const cookies = await loadSession();
+  if (!cookies.auth) throw new Error(SESSION_EXPIRED_MSG);
 
   const doFetch = (c: SessionCookies) =>
     fetch(`${API_BASE}${path}`, {
@@ -419,10 +440,10 @@ async function apiSend<T>(
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
-  let res = await doFetch(cookies);
+  const res = await doFetch(cookies);
   if (res.status === 401) {
-    cookies = await login();
-    res = await doFetch(cookies);
+    await markSessionExpired();
+    throw new Error(SESSION_EXPIRED_MSG);
   }
   if (!res.ok) {
     const errBody = await res.text().catch(() => "");
@@ -476,7 +497,10 @@ export async function deleteGroupCalendarEvent(
   calendarId: string,
   groupId: string = NCRP_GROUP_ID,
 ): Promise<void> {
-  await apiSend<unknown>("DELETE", `/calendar/${groupId}/${calendarId}/event`);
+  // NOTE: unlike create/update, VRChat's delete endpoint takes NO `/event`
+  // suffix — `DELETE /calendar/{groupId}/{calendarId}`. With the suffix it
+  // returns 405 Method Not Allowed.
+  await apiSend<unknown>("DELETE", `/calendar/${groupId}/${calendarId}`);
 }
 
 // Raw VRChat group instance shape (subset we use; the API returns more).

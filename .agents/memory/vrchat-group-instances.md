@@ -66,3 +66,21 @@ Gotchas:
 
 ## Former index detail (full)
 group API only returns GROUP instances (private/invite+ never listed); instance roleIds→names via cached group-roles map at poll time, read path never hits VRChat, drop unresolved `grol_` ids ([roles](vrchat-instance-roles.md)); cron deployment-gated, dev serves prod cache; emailOtp from datacenter IPs blocks unattended TOTP login; never log creds.
+
+## No unattended re-login (429 network lockout, fixed 2026-07-18)
+`apiGet`/`apiSend` must NEVER fall back to `login()` on a missing cookie or 401 —
+password login from the datacenter IP always dead-ends in emailOtp, and the
+2-minute poller retrying it trips VRChat's per-NETWORK failed-login limiter
+(429 "too many failed login attempts from network"), which then blocks even the
+manual staff reconnect for hours. Current behavior: missing cookie → throw
+SESSION_EXPIRED_MSG; 401 → `markSessionExpired()` (clears authCookie, KEEPS
+twoFactorAuth cookie, persists reconnect lastError) → card flips to
+Not connected; the instance-poll cron skips quietly while disconnected.
+After a lockout, wait ~1h+ before retrying Connect.
+
+## Calendar endpoint asymmetry (405 trap)
+Create `POST /calendar/{grp}/event` and update `PUT /calendar/{grp}/{cal}/event`
+keep the `/event` suffix, but delete is `DELETE /calendar/{grp}/{cal}` — WITH
+the suffix it returns 405 Method Not Allowed. Also: any calendar write for an
+event whose START has passed 400s ("Calendar Entry must start in the future"),
+so reconcile skips rows with past startAt (not endAt).

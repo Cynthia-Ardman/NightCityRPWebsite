@@ -601,8 +601,11 @@ export async function reconcileVrchatCalendar(): Promise<{ synced: number; faile
   let failed = 0;
   for (const row of rows) {
     if (shouldHaveVrchatEntry(row)) {
-      // Never backfill past events; only create/refresh upcoming ones.
-      if (new Date(row.endAt).getTime() < now) continue;
+      // Never backfill past or already-started events; only create/refresh
+      // ones whose START is still in the future — VRChat rejects any write
+      // with 400 "Calendar Entry must start in the future" once startAt has
+      // passed, so retrying an in-progress event just fails every cycle.
+      if (new Date(row.startAt).getTime() < now) continue;
       const needs = !row.vrchatCalendarId || row.vrchatSyncedHash !== vrchatContentHash(row);
       if (!needs) continue;
     } else {
