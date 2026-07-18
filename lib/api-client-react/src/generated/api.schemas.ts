@@ -5614,6 +5614,20 @@ export interface MissionSummary {
   createdAt: string;
 }
 
+export type FixerMissionsProfileFixer = {
+  id: string;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+  isTrial: boolean;
+};
+
+export interface FixerMissionsProfile {
+  fixer: FixerMissionsProfileFixer;
+  missions: MissionSummary[];
+}
+
 export interface MissionHistoryPage {
   items: MissionSummary[];
   /** True when more rows exist beyond this page (fetch with offset += limit). */

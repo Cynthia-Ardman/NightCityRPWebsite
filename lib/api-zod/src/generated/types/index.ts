@@ -224,6 +224,8 @@ export * from './eventView';
 export * from './eventViewEventType';
 export * from './eventViewStatus';
 export * from './eventViewTicketPayoutMode';
+export * from './fixerMissionsProfile';
+export * from './fixerMissionsProfileFixer';
 export * from './fixerNpc';
 export * from './fixerNpcInput';
 export * from './fixerNpcUpdate';

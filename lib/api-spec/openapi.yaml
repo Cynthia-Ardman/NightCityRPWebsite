@@ -1642,6 +1642,23 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/MissionSummary" }
         "403": { description: Insufficient role. }
+  /fixers/{userId}/missions:
+    get:
+      operationId: getFixerMissions
+      tags: [missions]
+      summary: "Public fixer profile: the fixer's identity plus missions they run, scoped to viewer visibility (players see posted only; managers see all)."
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FixerMissionsProfile" }
+        "404": { description: User not found. }
   /missions/history:
     get:
       operationId: listMissionHistory
@@ -9663,6 +9680,22 @@ components:
               portraitUrl: { type: ["string", "null"] }
               userId: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
+
+    FixerMissionsProfile:
+      type: object
+      required: [fixer, missions]
+      properties:
+        fixer:
+          type: object
+          required: [id, isTrial]
+          properties:
+            id: { type: string }
+            name: { type: ["string", "null"] }
+            avatarUrl: { type: ["string", "null"] }
+            isTrial: { type: boolean }
+        missions:
+          type: array
+          items: { $ref: "#/components/schemas/MissionSummary" }
 
     MissionHistoryPage:
       type: object

@@ -66,6 +66,7 @@ import CyberPsycho from "@/pages/fixer/CyberPsycho";
 import InventoryItemDetail from "@/pages/InventoryItemDetail";
 import Missions from "@/pages/Missions";
 import MissionDetail from "@/pages/MissionDetail";
+import FixerProfile from "@/pages/FixerProfile";
 import DirectoryCalendar from "@/pages/directory/DirectoryCalendar";
 import EventDetail from "@/pages/EventDetail";
 import FixerEvents from "@/pages/fixer/FixerEvents";
@@ -332,6 +333,7 @@ function AppRoutes() {
           <Route path="/dice" component={DiceRoller} />
           <Route path="/missions" component={Missions} />
           <Route path="/missions/:id" component={MissionDetail} />
+          <Route path="/fixers/:id" component={FixerProfile} />
           <Route path="/directory/calendar" component={DirectoryCalendar} />
           <Route path="/events/:id" component={EventDetail} />
           <Route path="/fixer/events">

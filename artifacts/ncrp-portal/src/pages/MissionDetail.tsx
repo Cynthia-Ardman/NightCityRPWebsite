@@ -630,7 +630,11 @@ function PlayerView({ data }: { data: MissionDetailModel }) {
         </CardHeader>
         <CardContent>
           {data.fixerId ? (
-            <div className="flex items-center gap-3" data-testid="block-fixer">
+            <Link
+              href={`/fixers/${data.fixerId}`}
+              className="flex items-center gap-3 group"
+              data-testid="block-fixer"
+            >
               <Avatar className="border border-nc-magenta/30 rounded-none w-12 h-12">
                 <AvatarImage src={data.fixerAvatarUrl ?? undefined} />
                 <AvatarFallback className="bg-background text-nc-magenta rounded-none font-display">
@@ -639,12 +643,14 @@ function PlayerView({ data }: { data: MissionDetailModel }) {
               </Avatar>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-display text-foreground">{data.fixerName ?? "(unknown fixer)"}</span>
+                  <span className="font-display text-foreground group-hover:text-nc-magenta group-hover:underline">
+                    {data.fixerName ?? "(unknown fixer)"}
+                  </span>
                   <TrialFixerBadge show={data.fixerIsTrial} testId="badge-fixer-trial" />
                 </div>
-                <div className="text-xs font-mono text-muted-foreground">Fixer running this job</div>
+                <div className="text-xs font-mono text-muted-foreground">Fixer running this job — view their missions</div>
               </div>
-            </div>
+            </Link>
           ) : (
             <div className="font-mono text-muted-foreground italic">Fixer record unavailable.</div>
           )}

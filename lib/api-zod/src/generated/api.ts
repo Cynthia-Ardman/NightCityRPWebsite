@@ -2894,6 +2894,88 @@ export const ListCreatedMissionsResponse = zod.array(ListCreatedMissionsResponse
 
 
 /**
+ * @summary Public fixer profile: the fixer's identity plus missions they run, scoped to viewer visibility (players see posted only; managers see all).
+ */
+export const GetFixerMissionsParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const GetFixerMissionsResponse = zod.object({
+  "fixer": zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "isTrial": zod.boolean()
+}),
+  "missions": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]),
+  "status": zod.enum(['open', 'pending', 'completed', 'completed_players_paid', 'completed_paid', 'cancelled']),
+  "workflowState": zod.enum(['draft', 'proposal', 'approved', 'posted']),
+  "startAt": zod.coerce.date().nullish(),
+  "durationMinutes": zod.number(),
+  "location": zod.string().nullish(),
+  "descriptionPreview": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "playerPay": zod.number(),
+  "npcPayAmount": zod.number().optional().describe('Eddies paid to each NPC sign-up confirmed as attended.'),
+  "slots": zod.number(),
+  "jobType": zod.union([zod.literal('combat'),zod.literal('non_combat'),zod.literal('mixed'),zod.literal(null)]).nullish(),
+  "requestedSkills": zod.string().nullish(),
+  "client": zod.string().nullish(),
+  "maxPlayers": zod.number(),
+  "assignedCount": zod.number(),
+  "fixerId": zod.string().nullish(),
+  "fixerName": zod.string().nullish(),
+  "fixerAvatarUrl": zod.string().nullish(),
+  "fixerIsTrial": zod.boolean().optional().describe('Display-only: true when the owning fixer is still on trial.'),
+  "discordEventId": zod.string().nullish(),
+  "discordSyncError": zod.string().nullish(),
+  "myCharacterId": zod.number().nullish(),
+  "myCharacterName": zod.string().nullish(),
+  "myPaymentStatus": zod.string().nullish(),
+  "myApplication": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userName": zod.string().nullish(),
+  "userAvatarUrl": zod.string().nullish(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "characterPortraitUrl": zod.string().nullish(),
+  "comment": zod.string().nullish(),
+  "availability": zod.array(zod.coerce.date()).optional().describe('When2Meet availability for this applicant: absolute UTC instant strings (30-min blocks). Optional — empty when none supplied.'),
+  "status": zod.enum(['pending', 'accepted', 'withdrawn', 'rejected']),
+  "reviewedBy": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "attendanceCount": zod.number(),
+  "lastAttendedAt": zod.coerce.date().nullish(),
+  "daysSinceLastMission": zod.number().nullish(),
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+}),zod.null()]).optional().describe('The caller\'s own application on this mission (null if none); powers the inline apply\/withdraw button.'),
+  "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
+  "mySignup": zod.union([zod.object({
+  "id": zod.number(),
+  "characterId": zod.number().nullish(),
+  "characterName": zod.string().nullish(),
+  "state": zod.enum(['signed_up', 'attended', 'no_show']),
+  "payAmount": zod.number().nullish(),
+  "paymentStatus": zod.enum(['unpaid', 'processing', 'paid', 'failed', 'simulated']),
+  "paidAt": zod.coerce.date().nullish()
+}),zod.null()]).optional().describe('The caller\'s own NPC sign-up (any state); null if none.'),
+  "players": zod.array(zod.object({
+  "characterId": zod.number(),
+  "name": zod.string(),
+  "portraitUrl": zod.string().nullish(),
+  "userId": zod.string().nullish()
+})).describe('Assigned characters (deduped), each clickable.'),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
  * @summary Completed/cancelled missions relevant to the caller (attended, or — for managers — run by them), most recent first. Paged.
  */
 export const listMissionHistoryQueryLimitDefault = 20;

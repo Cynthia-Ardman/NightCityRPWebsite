@@ -1272,20 +1272,19 @@ function FixerLink({
   isTrial?: boolean;
 }) {
   if (!fixerName) return <span className="text-muted-foreground">—</span>;
-  // Only admins have a user profile route to link to. Everyone else sees the
-  // name as plain text (graceful degradation — there is no public fixer page).
-  const inner =
-    isAdmin && fixerId ? (
-      <Link
-        href={`/admin/users/${fixerId}`}
-        className="text-nc-magenta hover:underline font-semibold"
-        data-testid={`link-fixer-${fixerId}`}
-      >
-        {fixerName}
-      </Link>
-    ) : (
-      <span className="text-nc-magenta font-semibold">{fixerName}</span>
-    );
+  // Everyone gets the public fixer profile (missions the fixer runs); admins
+  // keep their deeper admin user page instead.
+  const inner = fixerId ? (
+    <Link
+      href={isAdmin ? `/admin/users/${fixerId}` : `/fixers/${fixerId}`}
+      className="text-nc-magenta hover:underline font-semibold"
+      data-testid={`link-fixer-${fixerId}`}
+    >
+      {fixerName}
+    </Link>
+  ) : (
+    <span className="text-nc-magenta font-semibold">{fixerName}</span>
+  );
   return (
     <span className="inline-flex items-center gap-1.5">
       {inner}

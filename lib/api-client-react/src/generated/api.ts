@@ -136,6 +136,7 @@ import type {
   EventToMissionConvertInput,
   EventUpdateInput,
   EventView,
+  FixerMissionsProfile,
   FixerNpc,
   FixerNpcInput,
   FixerNpcUpdate,
@@ -7589,6 +7590,83 @@ export function useListCreatedMissions<TData = Awaited<ReturnType<typeof listCre
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListCreatedMissionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetFixerMissionsUrl = (userId: string,) => {
+
+
+
+
+  return `/api/fixers/${userId}/missions`
+}
+
+/**
+ * @summary Public fixer profile: the fixer's identity plus missions they run, scoped to viewer visibility (players see posted only; managers see all).
+ */
+export const getFixerMissions = async (userId: string, options?: RequestInit): Promise<FixerMissionsProfile> => {
+
+  return customFetch<FixerMissionsProfile>(getGetFixerMissionsUrl(userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFixerMissionsQueryKey = (userId: string,) => {
+    return [
+    `/api/fixers/${userId}/missions`
+    ] as const;
+    }
+
+
+export const getGetFixerMissionsQueryOptions = <TData = Awaited<ReturnType<typeof getFixerMissions>>, TError = ErrorType<void>>(userId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFixerMissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFixerMissionsQueryKey(userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFixerMissions>>> = ({ signal }) => getFixerMissions(userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(userId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFixerMissions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFixerMissionsQueryResult = NonNullable<Awaited<ReturnType<typeof getFixerMissions>>>
+export type GetFixerMissionsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Public fixer profile: the fixer's identity plus missions they run, scoped to viewer visibility (players see posted only; managers see all).
+ */
+
+export function useGetFixerMissions<TData = Awaited<ReturnType<typeof getFixerMissions>>, TError = ErrorType<void>>(
+ userId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFixerMissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFixerMissionsQueryOptions(userId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -20,6 +20,7 @@ import {
   listMyMissionSummaries,
   listOwnedMissionSummaries,
   listCreatedMissionSummaries,
+  getFixerMissionsProfile,
   listMissionHistory,
   listMyApplications,
   listMyActing,
@@ -567,6 +568,18 @@ router.get("/missions/created", requireAuth, async (req, res): Promise<void> => 
     return;
   }
   res.json(await listCreatedMissionSummaries(viewerOf(req)));
+});
+
+// Public fixer profile — the fixer's identity plus missions they run, scoped
+// to what the viewer may see (players: posted only; managers: everything).
+// Any authenticated user can read it.
+router.get("/fixers/:userId/missions", requireAuth, async (req, res): Promise<void> => {
+  const profile = await getFixerMissionsProfile(String(req.params.userId), viewerOf(req));
+  if (!profile) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.json(profile);
 });
 
 // "Mission History" — completed/cancelled missions relevant to the caller.

@@ -485,6 +485,34 @@ export async function listCreatedMissionSummaries(viewer: MissionViewer) {
   return rows.map((m) => toSummary(m, byMission.get(m.id) ?? [], viewer.id));
 }
 
+/**
+ * Public fixer profile: the fixer's identity plus every mission they run that
+ * the viewer is allowed to see. Regular players only see posted missions (the
+ * same visibility rule as the main board); managers see the full pipeline.
+ * Returns null when the user does not exist.
+ */
+export async function getFixerMissionsProfile(fixerId: string, viewer: MissionViewer) {
+  const [u] = await db
+    .select({ id: users.id, name: users.username, avatarUrl: users.avatarUrl, roles: users.roles })
+    .from(users)
+    .where(eq(users.id, fixerId))
+    .limit(1);
+  if (!u) return null;
+  const filters = [eq(missions.fixerId, fixerId)];
+  if (!viewer.isManager) filters.push(eq(missions.workflowState, "posted"));
+  const rows = await loadMissions(and(...filters));
+  const byMission = await loadAssignments(rows.map((r) => r.id));
+  return {
+    fixer: {
+      id: u.id,
+      name: u.name,
+      avatarUrl: u.avatarUrl,
+      isTrial: hasRole(u.roles ?? [], "TRIAL_FIXER"),
+    },
+    missions: rows.map((m) => toSummary(m, byMission.get(m.id) ?? [], viewer.id)),
+  };
+}
+
 // Terminal runtime statuses that put a mission in the history view.
 const HISTORY_STATUSES: MissionStatus[] = [
   "completed",
