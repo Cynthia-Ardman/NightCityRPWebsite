@@ -397,16 +397,18 @@ function AllMissionsTab({
   }, [rows, search, status, workflow, tier]);
 
   const selectClass =
-    "rounded-none bg-background border border-border font-mono text-xs px-2 py-1 text-foreground";
+    "rounded-none bg-background border border-border font-mono text-xs px-2 py-1 h-8 text-foreground w-full sm:w-auto";
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Mobile: full-width stacked controls (search on its own row, selects in a
+          2-up grid); desktop keeps the single compact row. */}
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search title, fixer, location…"
-          className="rounded-none font-mono text-xs h-8 max-w-xs"
+          className="rounded-none font-mono text-xs h-8 col-span-2 sm:col-span-1 sm:max-w-xs"
           data-testid="input-all-search"
         />
         <select
@@ -449,7 +451,7 @@ function AllMissionsTab({
             </option>
           ))}
         </select>
-        <span className="font-mono text-xs text-muted-foreground" data-testid="text-all-count">
+        <span className="font-mono text-xs text-muted-foreground col-span-2 sm:col-span-1" data-testid="text-all-count">
           {filtered.length} / {rows.length}
         </span>
       </div>

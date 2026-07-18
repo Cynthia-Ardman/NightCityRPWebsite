@@ -151,4 +151,5 @@
 - [Character death write paths](character-death-write-paths.md) — lifeStatus flips to dead via 3 write paths + role_sync self-heal; death side effects must wire ALL of them; statuses are active|dead|missing|loa|retired.
 - [Edit-dialog cyberware flush](edit-dialog-cyberware-flush.md) — cyberware grid is a separate immediate-apply save; main SAVE must flush dirty rows or they are silently lost (shipped once).
 - [Event ticket money legs](event-ticket-money-legs.md) — reserve capacity (pending row under lock) BEFORE debit; runner credit never unwinds a purchase (payoutStatus failed + retry); attendance UPDATE repeats status='purchased' guard.
+- [Responsive dual layouts vs Playwright strict mode](responsive-dual-layout-e2e.md) — md:hidden card + hidden md:block table duplicate text in DOM; scope e2e text asserts with `visible=true`.
 - [Global search authz & hrefs](global-search-authz.md) — search result hrefs must be caller-openable pages; staff-scoped rows need staffOnly flag + effective-role scrub or View-as leaks.

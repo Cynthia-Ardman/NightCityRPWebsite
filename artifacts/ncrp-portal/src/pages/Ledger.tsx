@@ -180,7 +180,56 @@ export default function Ledger() {
               No transactions yet.
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Mobile: stacked two-line cards instead of a wide table. */}
+            <ul className="md:hidden divide-y divide-border/30 font-mono text-sm">
+              {rows.map((t) => {
+                const credit = t.amount >= 0;
+                return (
+                  <li key={t.id} className="p-3 space-y-1" data-testid={`card-ledger-${t.id}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-foreground truncate">{typeLabel(t)}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {new Date(t.createdAt).toLocaleString()}
+                        </div>
+                      </div>
+                      <div
+                        className={`shrink-0 text-right font-bold ${credit ? "text-nc-green" : "text-nc-magenta"}`}
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          {credit ? (
+                            <ArrowDownLeft className="w-3 h-3" />
+                          ) : (
+                            <ArrowUpRight className="w-3 h-3" />
+                          )}
+                          {credit ? "+" : "−"}
+                          {Math.abs(t.amount).toLocaleString()} €$
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                      {t.characterId != null ? (
+                        <Link
+                          href={`/characters/${t.characterId}`}
+                          className="text-nc-cyan hover:underline cursor-pointer"
+                        >
+                          {t.characterName ?? `#${t.characterId}`}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground/70">Account</span>
+                      )}
+                      {hasDetails(t) && <Counterparty t={t} />}
+                    </div>
+                    {t.memo && (
+                      <div className="text-xs text-muted-foreground/80 break-words">{t.memo}</div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {/* Desktop: full table. */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full font-mono text-sm min-w-[600px]">
                 <thead className="border-b border-border bg-card">
                   <tr className="text-nc-cyan uppercase text-[10px] tracking-widest">
@@ -248,6 +297,7 @@ export default function Ledger() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </CardContent>
       </Card>

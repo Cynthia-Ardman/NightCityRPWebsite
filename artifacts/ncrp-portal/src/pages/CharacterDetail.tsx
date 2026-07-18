@@ -293,7 +293,34 @@ function BreachTab({ characterId }: { characterId: number }) {
         {rows.length === 0 ? (
           <div className="py-6 font-mono text-muted-foreground italic text-center">No breach protocols assigned to this character.</div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Mobile: stacked cards instead of the wide table. */}
+          <ul className="md:hidden divide-y divide-border/20 font-mono text-sm">
+            {rows.map((p) => (
+              <li key={p.id} className="py-3 space-y-1" data-testid={`char-breach-card-${p.id}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="uppercase text-foreground">{p.difficulty}</span>
+                  <span className={`uppercase text-xs ${statusClass[p.status] ?? "text-foreground"}`}>
+                    {p.status.replace("_", " ")}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                  <span>#{p.id}</span>
+                  <span>Daemons {p.solvedCount}/{p.daemons.length}</span>
+                  <span className="text-nc-yellow">
+                    {p.rewardPaidAt
+                      ? [p.rewardEddies > 0 ? `€$${p.rewardEddies.toLocaleString()}` : null, p.rewardItemName].filter(Boolean).join(" + ") || "—"
+                      : "—"}
+                  </span>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  {new Date(p.completedAt ?? p.createdAt).toLocaleString()}
+                </div>
+              </li>
+            ))}
+          </ul>
+          {/* Desktop: full table. */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="font-mono text-xs uppercase tracking-widest text-muted-foreground border-b border-border/40">
@@ -325,6 +352,7 @@ function BreachTab({ characterId }: { characterId: number }) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </CardContent>
     </Card>
@@ -371,18 +399,23 @@ function MissionsTab({ characterId, staffView = false }: { characterId: number; 
             return (
               <li key={m.id} className="border border-border/40 bg-background/40 hover:bg-background/70 transition-colors">
                 <Link href={`/missions/${m.id}`}>
-                  <a className="grid grid-cols-12 gap-2 p-3 items-center text-sm font-mono" data-testid={`char-mission-${m.id}`}>
-                    <span className="col-span-3 text-muted-foreground text-xs">
+                  <a
+                    className="flex flex-col gap-1 p-3 text-sm font-mono md:grid md:grid-cols-12 md:gap-2 md:items-center"
+                    data-testid={`char-mission-${m.id}`}
+                  >
+                    <span className="text-foreground truncate order-1 md:order-none md:col-span-6" title={m.title}>{m.title}</span>
+                    <span className="text-muted-foreground text-xs order-2 md:order-first md:col-span-3">
                       {new Date(when).toLocaleDateString()}
                     </span>
-                    <span className="col-span-6 text-foreground truncate" title={m.title}>{m.title}</span>
-                    <span className="col-span-1 text-xs uppercase">
-                      <Badge variant="outline" className={`rounded-none text-[10px] ${missionStatusClass(m.status)}`}>
-                        {missionStatusLabel(m.status)}
-                      </Badge>
-                    </span>
-                    <span className="col-span-2 text-right text-nc-yellow">
-                      {m.playerPay > 0 ? `${m.playerPay.toLocaleString()} €$${isPaid(m.status) ? "" : " (pending)"}` : "—"}
+                    <span className="order-3 md:order-none flex flex-wrap items-center justify-between gap-2 md:contents">
+                      <span className="text-xs uppercase md:col-span-1">
+                        <Badge variant="outline" className={`rounded-none text-[10px] ${missionStatusClass(m.status)}`}>
+                          {missionStatusLabel(m.status)}
+                        </Badge>
+                      </span>
+                      <span className="text-nc-yellow md:col-span-2 md:text-right">
+                        {m.playerPay > 0 ? `${m.playerPay.toLocaleString()} €$${isPaid(m.status) ? "" : " (pending)"}` : "—"}
+                      </span>
                     </span>
                   </a>
                 </Link>

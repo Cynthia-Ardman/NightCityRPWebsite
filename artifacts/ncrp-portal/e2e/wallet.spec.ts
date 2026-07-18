@@ -11,9 +11,11 @@ test.describe("wallet & ledger (player)", () => {
   test("ledger lists the seeded transactions", async ({ page }) => {
     await page.goto("/ledger");
     await expect(page.getByTestId("text-ledger-title")).toBeVisible();
-    await expect(page.getByText(STARTING_FUNDS_MEMO)).toBeVisible();
-    await expect(page.getByText(GEAR_PURCHASE_MEMO)).toBeVisible();
+    // Each memo renders twice in the DOM (hidden mobile card + desktop
+    // table), so assert on the visible occurrence rather than a unique match.
+    await expect(page.getByText(STARTING_FUNDS_MEMO).locator("visible=true")).toBeVisible();
+    await expect(page.getByText(GEAR_PURCHASE_MEMO).locator("visible=true")).toBeVisible();
     // The credited amount is rendered in eddies on the same ledger.
-    await expect(page.getByText("50,000 €$").first()).toBeVisible();
+    await expect(page.getByText("50,000 €$").locator("visible=true").first()).toBeVisible();
   });
 });
