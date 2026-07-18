@@ -31,6 +31,8 @@ tags:
     description: Admin/fixer VRChat CyberPsycho control panel (drives each staffer's local agent).
   - name: ncpd
     description: NCPD arrest reports, warrants, character records and the Book of Laws.
+  - name: search
+    description: Site-wide command-palette search.
 
 paths:
   /healthz:
@@ -6054,8 +6056,58 @@ paths:
         "403": { description: Commissioner/fixer/admin only }
         "404": { description: Law not found }
 
+  # ---------------- SITE-WIDE SEARCH ----------------
+  /search:
+    get:
+      operationId: globalSearch
+      tags: [search]
+      summary: Site-wide search across characters, missions, lore, guidebook, venues and NCPD records (permission-scoped per group).
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+          description: Free-text query. Fewer than 2 characters returns empty groups.
+      responses:
+        "200":
+          description: Grouped search results. Each group is capped and scoped to the caller's permissions (NCPD group is empty for non-officers; unposted missions only appear for managers).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GlobalSearchResults" }
+        "401": { description: Authentication required }
+
 components:
   schemas:
+    SearchResultItem:
+      type: object
+      required: [href, name]
+      properties:
+        href: { type: string, description: "Portal-relative path to navigate to (e.g. /missions/12)." }
+        name: { type: string }
+        subtitle: { type: string, nullable: true }
+        imageUrl: { type: string, nullable: true }
+        staffOnly: { type: boolean, description: "True when this row is only visible because the caller holds a staff/officer role (unposted missions, NCPD records). The client additionally hides these under the admin View-as-player preview." }
+    GlobalSearchResults:
+      type: object
+      required: [characters, missions, lore, guidebook, venues, ncpd]
+      properties:
+        characters:
+          type: array
+          items: { $ref: "#/components/schemas/SearchResultItem" }
+        missions:
+          type: array
+          items: { $ref: "#/components/schemas/SearchResultItem" }
+        lore:
+          type: array
+          items: { $ref: "#/components/schemas/SearchResultItem" }
+        guidebook:
+          type: array
+          items: { $ref: "#/components/schemas/SearchResultItem" }
+        venues:
+          type: array
+          items: { $ref: "#/components/schemas/SearchResultItem" }
+        ncpd:
+          type: array
+          items: { $ref: "#/components/schemas/SearchResultItem" }
     VrchatUserRef:
       type: object
       required: [id, name]

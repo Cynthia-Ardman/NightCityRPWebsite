@@ -25,6 +25,7 @@ import eventsRouter from "./events";
 import economyCommandsRouter from "./economy-commands";
 import vrchatRouter from "./vrchat";
 import ncpdRouter from "./ncpd";
+import searchRouter from "./search";
 
 import { requireVerified, requireSiteAccess } from "../middlewares/auth";
 
@@ -73,5 +74,6 @@ router.use(eventsRouter);
 router.use(economyCommandsRouter);
 router.use(vrchatRouter);
 router.use(ncpdRouter);
+router.use(searchRouter);
 
 export default router;

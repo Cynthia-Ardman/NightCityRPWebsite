@@ -5,6 +5,25 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+export interface SearchResultItem {
+  /** Portal-relative path to navigate to (e.g. /missions/12). */
+  href: string;
+  name: string;
+  subtitle?: string | null;
+  imageUrl?: string | null;
+  /** True when this row is only visible because the caller holds a staff/officer role (unposted missions, NCPD records). The client additionally hides these under the admin View-as-player preview. */
+  staffOnly?: boolean;
+}
+
+export interface GlobalSearchResults {
+  characters: SearchResultItem[];
+  missions: SearchResultItem[];
+  lore: SearchResultItem[];
+  guidebook: SearchResultItem[];
+  venues: SearchResultItem[];
+  ncpd: SearchResultItem[];
+}
+
 export interface VrchatUserRef {
   id: string;
   name: string;
@@ -7882,4 +7901,11 @@ export const ListNcpdWarrantsStatus = {
   served: 'served',
   revoked: 'revoked',
 } as const;
+
+export type GlobalSearchParams = {
+/**
+ * Free-text query. Fewer than 2 characters returns empty groups.
+ */
+q?: string;
+};
 

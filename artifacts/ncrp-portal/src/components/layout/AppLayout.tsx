@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffersQueryKey, useListMyNcpdFines, getListMyNcpdFinesQueryKey, useListMyCustomRequests, getListMyCustomRequestsQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, useGetMyUnseen, getGetMyUnseenQueryKey, useListLoreEdits, getListLoreEditsQueryKey, useListGuidebookEdits, getListGuidebookEditsQueryKey, useGetMyBreachPendingCount, getGetMyBreachPendingCountQueryKey, useListVrchatInstances, getListVrchatInstancesQueryKey, useDismissOnboarding, getGetMeQueryKey } from "@workspace/api-client-react";
@@ -10,19 +10,47 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ViewAsControl, ViewAsBanner } from "@/components/layout/ViewAsControl";
+import { GlobalSearchDialog } from "@/components/layout/GlobalSearch";
+import { Search } from "lucide-react";
 import { offerNeedsMyDecision } from "@/components/offers/offerBadges";
 import { INBOX_REQUEST_TYPES } from "@/pages/Inbox";
 import ncrpLogo from "@assets/image_1780331782394.png";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Global Ctrl+K / Cmd+K shortcut for the search palette.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setSearchOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
     <div className="min-h-screen w-full flex flex-col md:flex-row bg-background">
+      <GlobalSearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card">
         <Link href="/" className="flex items-center gap-2" data-testid="link-brand-mobile">
           <img src={ncrpLogo} alt="NCRP" className="h-12 w-12 object-contain" />
           <span className="font-display font-bold text-lg text-nc-cyan glitch-hover">NCRP_PORTAL</span>
         </Link>
+        <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="icon"
+          className="border-nc-cyan/50 text-nc-cyan"
+          onClick={() => setSearchOpen(true)}
+          aria-label="Search"
+          data-testid="button-search-mobile"
+        >
+          <Search className="h-5 w-5" />
+        </Button>
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="outline" size="icon" className="border-nc-cyan text-nc-cyan">
@@ -33,6 +61,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <SidebarContent />
           </SheetContent>
         </Sheet>
+        </div>
       </div>
 
       {/* Desktop Sidebar */}
@@ -43,7 +72,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         <TestEnvBanner />
-        <TopBar />
+        <TopBar onOpenSearch={() => setSearchOpen(true)} />
         <ViewAsBanner />
         <OnboardingBanner />
         <main className="flex-1 p-4 md:p-8 overflow-x-clip">
@@ -465,7 +494,7 @@ function OnboardingBanner() {
   );
 }
 
-function TopBar() {
+function TopBar({ onOpenSearch }: { onOpenSearch: () => void }) {
   const { data: user } = useEffectiveMe();
   // Eddies live on the Discord account via Unbelievaboat, not per-character —
   // so the pill is keyed off the user, not the active PC.
@@ -492,6 +521,17 @@ function TopBar() {
       </div>
 
       <div className="flex items-center gap-6">
+        <button
+          type="button"
+          onClick={onOpenSearch}
+          className="flex items-center gap-2 border border-border bg-card/60 px-3 py-1.5 font-mono text-xs text-muted-foreground transition-colors hover:border-nc-cyan/60 hover:text-nc-cyan"
+          aria-label="Search the portal"
+          data-testid="button-search-desktop"
+        >
+          <Search className="h-4 w-4" />
+          <span className="hidden lg:inline uppercase tracking-widest">Search</span>
+          <kbd className="hidden lg:inline border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">Ctrl K</kbd>
+        </button>
         {user && wallet && typeof wallet.balance === "number" && (
           <div className="flex items-center gap-3 border border-nc-yellow/30 bg-nc-yellow/5 px-4 py-1.5 shadow-[0_0_10px_rgba(255,255,0,0.1)]" data-testid="pill-eddies">
             <div className="text-nc-yellow font-display text-sm tracking-widest">EDDIES</div>

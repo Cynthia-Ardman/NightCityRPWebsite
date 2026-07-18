@@ -13409,3 +13409,56 @@ export const DeleteNcpdLawResponse = zod.object({
 })
 
 
+/**
+ * @summary Site-wide search across characters, missions, lore, guidebook, venues and NCPD records (permission-scoped per group).
+ */
+export const GlobalSearchQueryParams = zod.object({
+  "q": zod.coerce.string().optional().describe('Free-text query. Fewer than 2 characters returns empty groups.')
+})
+
+export const GlobalSearchResponse = zod.object({
+  "characters": zod.array(zod.object({
+  "href": zod.string().describe('Portal-relative path to navigate to (e.g. \/missions\/12).'),
+  "name": zod.string(),
+  "subtitle": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "staffOnly": zod.boolean().optional().describe('True when this row is only visible because the caller holds a staff\/officer role (unposted missions, NCPD records). The client additionally hides these under the admin View-as-player preview.')
+})),
+  "missions": zod.array(zod.object({
+  "href": zod.string().describe('Portal-relative path to navigate to (e.g. \/missions\/12).'),
+  "name": zod.string(),
+  "subtitle": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "staffOnly": zod.boolean().optional().describe('True when this row is only visible because the caller holds a staff\/officer role (unposted missions, NCPD records). The client additionally hides these under the admin View-as-player preview.')
+})),
+  "lore": zod.array(zod.object({
+  "href": zod.string().describe('Portal-relative path to navigate to (e.g. \/missions\/12).'),
+  "name": zod.string(),
+  "subtitle": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "staffOnly": zod.boolean().optional().describe('True when this row is only visible because the caller holds a staff\/officer role (unposted missions, NCPD records). The client additionally hides these under the admin View-as-player preview.')
+})),
+  "guidebook": zod.array(zod.object({
+  "href": zod.string().describe('Portal-relative path to navigate to (e.g. \/missions\/12).'),
+  "name": zod.string(),
+  "subtitle": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "staffOnly": zod.boolean().optional().describe('True when this row is only visible because the caller holds a staff\/officer role (unposted missions, NCPD records). The client additionally hides these under the admin View-as-player preview.')
+})),
+  "venues": zod.array(zod.object({
+  "href": zod.string().describe('Portal-relative path to navigate to (e.g. \/missions\/12).'),
+  "name": zod.string(),
+  "subtitle": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "staffOnly": zod.boolean().optional().describe('True when this row is only visible because the caller holds a staff\/officer role (unposted missions, NCPD records). The client additionally hides these under the admin View-as-player preview.')
+})),
+  "ncpd": zod.array(zod.object({
+  "href": zod.string().describe('Portal-relative path to navigate to (e.g. \/missions\/12).'),
+  "name": zod.string(),
+  "subtitle": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "staffOnly": zod.boolean().optional().describe('True when this row is only visible because the caller holds a staff\/officer role (unposted missions, NCPD records). The client additionally hides these under the admin View-as-player preview.')
+}))
+})
+
+

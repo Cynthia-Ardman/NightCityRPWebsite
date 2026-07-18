@@ -33,10 +33,13 @@ const requireNcpd = requireAnyRole([...NCPD_GROUPS]);
 // rank-and-file officers can read the restricted fields but not edit statutes.
 const requireLawWriter = requireAnyRole(["NCPD_COMMISSIONER", "FIXER", "ADMIN"]);
 
-function canSeeRestricted(user: { roles?: string[] | null }): boolean {
+// Exported so the site-wide search can gate its NCPD result group on the
+// EXACT same predicate this router enforces (never a forked copy).
+export function canSeeNcpdRecords(user: { roles?: string[] | null }): boolean {
   const roles = user.roles ?? [];
   return NCPD_GROUPS.some((g) => hasRole(roles, g));
 }
+const canSeeRestricted = canSeeNcpdRecords;
 
 const WARRANT_STATUSES = ["open", "served", "revoked"] as const;
 const SEVERITIES = ["infraction", "misdemeanor", "felony"] as const;
