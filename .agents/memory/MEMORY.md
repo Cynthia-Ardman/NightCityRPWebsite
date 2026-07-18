@@ -1,3 +1,4 @@
+- [pg pool idle-error handler](pg-pool-idle-error-handler.md) — every long-lived pg Pool needs pool.on("error") or a dropped idle Neon connection hard-crashes the process (prod outage 2026-07-18).
 - [OpenAPI list-only fields](openapi-list-only-fields.md) — a field only some endpoints of a reused schema (CustomRequest shape()) return must stay OPTIONAL in OpenAPI, never required.
 - Timeouts: [long-running scripts](long-running-scripts.md) SDK calls/fetches/pagination need explicit AbortSignal.timeout; [Anthropic SDK defaults](anthropic-sdk-timeouts.md) 10-min per-call + silent 429 retries stall batches.
 - [Background process suspension](bash-background-suspension.md) — detached/nohup processes started in one bash tool call freeze/die before the next; don't run long jobs that way — see topic.
