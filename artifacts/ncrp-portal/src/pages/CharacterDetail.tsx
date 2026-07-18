@@ -38,6 +38,7 @@ import { FIRE_MODES, GUN_CATEGORIES, GUN_WEAPON_TYPES, GUN_POWER_LEVELS } from "
 import { useListCyberware } from "@workspace/api-client-react";
 import StaffLeaseCard from "@/components/StaffLeaseCard";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
+import CyberwareReqInput from "@/components/CyberwareReqInput";
 import Markdown from "@/components/Markdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

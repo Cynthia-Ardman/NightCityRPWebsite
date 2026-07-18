@@ -101,6 +101,41 @@ function StockRowField({
   );
 }
 
+// Inline per-row cyberware-requirement editor. Keeps local state so rapid
+// add/remove of multiple tags builds on the latest local value rather than a
+// stale server snapshot (each change still saves immediately).
+function StockCyberReqField({
+  className,
+  initial,
+  suggestions,
+  testId,
+  onCommit,
+}: {
+  className?: string;
+  initial: string;
+  suggestions: string[];
+  testId?: string;
+  onCommit: (v: string) => void;
+}) {
+  const [v, setV] = useState(initial);
+  useEffect(() => {
+    setV(initial);
+  }, [initial]);
+  return (
+    <CyberwareReqInput
+      className={className}
+      value={v}
+      onChange={(next) => {
+        setV(next);
+        onCommit(next);
+      }}
+      suggestions={suggestions}
+      placeholder="Required cyberware to operate (optional)"
+      testId={testId}
+    />
+  );
+}
+
 export default function MyStoreDetail() {
   const { id } = useParams<{ id: string }>();
   const storeId = Number(id);
@@ -489,13 +524,12 @@ export default function MyStoreDetail() {
               </div>
               {showPowerLevel && (
                 <div className="grid grid-cols-12 gap-2">
-                  <CyberwareReqInput
+                  <StockCyberReqField
                     className="col-span-12 font-mono text-xs"
-                    value={s.cyberwareReq ?? ""}
-                    onChange={(v) => updateStock.mutate({ id: storeId, stockId: s.id, data: { cyberwareReq: v } })}
+                    initial={s.cyberwareReq ?? ""}
                     suggestions={(cyberCatalog ?? []).map((c) => c.name)}
-                    placeholder="Required cyberware to operate (optional)"
                     testId={`input-stock-cyberreq-${s.id}`}
+                    onCommit={(v) => updateStock.mutate({ id: storeId, stockId: s.id, data: { cyberwareReq: v } })}
                   />
                 </div>
               )}
