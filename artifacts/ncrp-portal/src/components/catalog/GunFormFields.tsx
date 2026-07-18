@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import SelectOrCustom from "@/components/SelectOrCustom";
+import CyberwareReqInput from "@/components/CyberwareReqInput";
 import SingleImageField from "./SingleImageField";
 import {
   FIRE_MODES,
@@ -165,19 +166,12 @@ export default function GunFormFields({
       </Field>
 
       <Field label="Required Cyberware to Operate">
-        <Input
+        <CyberwareReqInput
           value={form.cyberwareReq}
-          onChange={(e) => set("cyberwareReq", e.target.value)}
-          list="gun-cyberware-req-options"
-          placeholder="e.g. Smart Link (leave blank if none)"
-          className="rounded-none font-mono"
-          data-testid="input-gun-cyberwareReq"
+          onChange={(v) => set("cyberwareReq", v)}
+          suggestions={cyberwareNames}
+          testId="input-gun-cyberwareReq"
         />
-        <datalist id="gun-cyberware-req-options">
-          {cyberwareNames.map((n) => (
-            <option key={n} value={n} />
-          ))}
-        </datalist>
       </Field>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -1085,18 +1085,13 @@ function InventoryTab({ characterId }: { characterId: number }) {
                 </div>
                 <div className="sm:col-span-12">
                   <Label className="text-xs font-mono">REQUIRED CYBERWARE TO OPERATE</Label>
-                  <Input
-                    list="inventory-cyberware-req-options"
+                  <CyberwareReqInput
                     value={gunCyberReq}
-                    onChange={(e) => setGunCyberReq(e.target.value)}
+                    onChange={setGunCyberReq}
+                    suggestions={(cyberCatalog ?? []).map((c) => c.name)}
                     placeholder="e.g. Smart Link (optional)"
-                    data-testid="input-gun-cyberreq"
+                    testId="input-gun-cyberreq"
                   />
-                  <datalist id="inventory-cyberware-req-options">
-                    {(cyberCatalog ?? []).map((c) => (
-                      <option key={c.id} value={c.name} />
-                    ))}
-                  </datalist>
                 </div>
               </div>
             )}
@@ -1410,18 +1405,13 @@ function EditItemDialog({
             {!isCyberware && (
               <div>
                 <Label className="text-xs">REQUIRED CYBERWARE TO OPERATE</Label>
-                <Input
-                  list="edit-item-cyberware-req-options"
+                <CyberwareReqInput
                   value={cyberwareReq}
-                  onChange={(e) => setCyberwareReq(e.target.value)}
+                  onChange={setCyberwareReq}
+                  suggestions={(cyberCatalog ?? []).map((c) => c.name)}
                   placeholder="e.g. Smart Link (optional)"
-                  data-testid="input-edit-item-cyberreq"
+                  testId="input-edit-item-cyberreq"
                 />
-                <datalist id="edit-item-cyberware-req-options">
-                  {(cyberCatalog ?? []).map((c) => (
-                    <option key={c.id} value={c.name} />
-                  ))}
-                </datalist>
               </div>
             )}
             {errMsg && (

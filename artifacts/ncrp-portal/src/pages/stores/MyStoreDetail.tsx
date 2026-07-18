@@ -17,6 +17,7 @@ import {
   useGetStoreTransactions,
   useListStoreOffers,
   useRequestStoreStock,
+  useListCyberware,
   getGetStoreQueryKey,
   getGetStoreTransactionsQueryKey,
   getListStoreOffersQueryKey,
@@ -37,6 +38,7 @@ import { Label } from "@/components/ui/label";
 import { Plus, Trash2, DollarSign, PackagePlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import CatalogPicker from "@/components/CatalogPicker";
+import CyberwareReqInput from "@/components/CyberwareReqInput";
 import SellStockDialog from "@/components/SellStockDialog";
 import PurchaseStockDialog from "@/components/PurchaseStockDialog";
 import VenueOffersPanel from "@/components/VenueOffersPanel";
@@ -150,6 +152,7 @@ export default function MyStoreDetail() {
   const removeStock = useRemoveStoreStock({ mutation: { onSuccess: invalidate } });
   const { data: txns } = useGetStoreTransactions(storeId);
   const { data: offers } = useListStoreOffers(storeId);
+  const { data: cyberCatalog } = useListCyberware();
   const invalidateWallet = () => {
     invalidate();
     qc.invalidateQueries({ queryKey: getGetStoreTransactionsQueryKey(storeId) });
@@ -486,12 +489,13 @@ export default function MyStoreDetail() {
               </div>
               {showPowerLevel && (
                 <div className="grid grid-cols-12 gap-2">
-                  <Input
+                  <CyberwareReqInput
                     className="col-span-12 font-mono text-xs"
-                    defaultValue={s.cyberwareReq ?? ""}
+                    value={s.cyberwareReq ?? ""}
+                    onChange={(v) => updateStock.mutate({ id: storeId, stockId: s.id, data: { cyberwareReq: v } })}
+                    suggestions={(cyberCatalog ?? []).map((c) => c.name)}
                     placeholder="Required cyberware to operate (optional)"
-                    onBlur={(e) => updateStock.mutate({ id: storeId, stockId: s.id, data: { cyberwareReq: e.target.value } })}
-                    data-testid={`input-stock-cyberreq-${s.id}`}
+                    testId={`input-stock-cyberreq-${s.id}`}
                   />
                 </div>
               )}
@@ -623,12 +627,13 @@ export default function MyStoreDetail() {
                   />
                 )}
                 {showPowerLevel && (
-                  <Input
+                  <CyberwareReqInput
                     className="col-span-12 font-mono text-xs"
                     placeholder="Required cyberware to operate (optional)"
                     value={stockCyberReq}
-                    onChange={(e) => setStockCyberReq(e.target.value)}
-                    data-testid="input-add-stock-cyberreq"
+                    onChange={setStockCyberReq}
+                    suggestions={(cyberCatalog ?? []).map((c) => c.name)}
+                    testId="input-add-stock-cyberreq"
                   />
                 )}
               </div>
