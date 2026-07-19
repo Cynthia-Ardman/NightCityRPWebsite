@@ -759,3 +759,126 @@ export async function runGuidebookImport(actorId: string | null): Promise<Guideb
     sources,
   };
 }
+
+// --- internal link repair ----------------------------------------------------
+
+export interface GuidebookLinkRepairPage {
+  pageId: number;
+  title: string;
+  slug: string | null;
+  rewrites: string[];
+  brokenInternal: string[];
+}
+export interface GuidebookLinkRepairResult {
+  dryRun: boolean;
+  scanned: number;
+  pagesChanged: number;
+  totalRewrites: number;
+  brokenInternalLinks: number;
+  pages: GuidebookLinkRepairPage[];
+}
+
+// A markdown-link destination pointing at a Discord channel deep-link, e.g.
+// `](https://discord.com/channels/<guild>/<channel>)`. Repair rewrites these to
+// the mapped portal path (the import-time DISCORD_DEEPLINK_RE deliberately
+// skips destinations already inside `](...)`, so links imported before their
+// target page existed can be stranded on the Discord URL).
+const MD_DEST_CHANNEL_RE =
+  /\]\(https?:\/\/(?:discord\.com|discordapp\.com)\/channels\/\d+\/(\d+)(?:\/\d+)?\)/g;
+
+// Internal guidebook links `](/guidebook/<id>)` — verified against live page
+// ids so deleted/renumbered targets are reported (never guessed at).
+const MD_DEST_GUIDEBOOK_RE = /\]\(\/guidebook\/(\d+)(?:[#?][^)]*)?\)/g;
+
+/**
+ * Re-scan every guidebook page body and repair internal links against the
+ * CURRENT doc/channel link maps:
+ *   - docs.google.com links whose file id now maps to a portal page/catalog
+ *     (rewriteMappedDocUrls — same rewrite the importer applies)
+ *   - Discord channel deep-links (markdown destinations included) whose channel
+ *     now maps to a portal path
+ *   - reports (does not rewrite) `/guidebook/<id>` links pointing at pages that
+ *     no longer exist
+ * Pure DB operation — never calls Discord. Idempotent: a second run finds
+ * nothing left to rewrite. Does NOT flip editedSinceImport, because the result
+ * matches what a fresh import would produce anyway.
+ */
+// `dbc` lets a caller run the live repair inside its own transaction so the
+// audit row commits atomically with the page rewrites (reads still use `db`;
+// they are snapshot-safe and the repair is idempotent anyway).
+export async function repairGuidebookLinks(
+  dryRun: boolean,
+  dbc: Pick<typeof db, "update"> = db,
+): Promise<GuidebookLinkRepairResult> {
+  const docLinks = await buildDocLinkMap();
+  const channelLinks = await buildChannelLinkMap();
+  const rows = await db.select().from(guidebookPages).orderBy(guidebookPages.id);
+  const liveIds = new Set(rows.map((r) => r.id));
+
+  const pages: GuidebookLinkRepairPage[] = [];
+  let totalRewrites = 0;
+  let brokenInternalLinks = 0;
+
+  for (const page of rows) {
+    const rewrites: string[] = [];
+    let body = page.body;
+
+    // Google Docs/Sheets links -> portal equivalents (markdown + bare).
+    const afterDocs = rewriteMappedDocUrls(body, docLinks);
+    if (afterDocs !== body) {
+      rewrites.push("google-doc links -> portal pages");
+      body = afterDocs;
+    }
+
+    // Discord deep-links used as markdown destinations -> mapped portal path.
+    const afterMdChannels = body.replace(MD_DEST_CHANNEL_RE, (full, channelId: string) => {
+      const mapped = channelLinks.get(channelId);
+      if (!mapped) return full;
+      rewrites.push(`discord channel ${channelId} -> ${mapped}`);
+      return `](${mapped})`;
+    });
+    body = afterMdChannels;
+
+    // Bare Discord deep-links (not already a markdown destination/autolink).
+    body = body.replace(DISCORD_DEEPLINK_RE, (full, _guild: string, channelId: string) => {
+      const mapped = channelLinks.get(channelId);
+      if (!mapped) return full;
+      rewrites.push(`bare discord link ${channelId} -> ${mapped}`);
+      return `[${mapped}](${mapped})`;
+    });
+
+    // Broken internal links — report only (a wrong guess is worse than a report).
+    const broken: string[] = [];
+    for (const m of body.matchAll(MD_DEST_GUIDEBOOK_RE)) {
+      const id = Number(m[1]);
+      if (!liveIds.has(id)) broken.push(`/guidebook/${id}`);
+    }
+    brokenInternalLinks += broken.length;
+
+    if (rewrites.length === 0 && broken.length === 0) continue;
+    totalRewrites += rewrites.length;
+    pages.push({
+      pageId: page.id,
+      title: page.title,
+      slug: page.slug,
+      rewrites,
+      brokenInternal: broken,
+    });
+
+    if (!dryRun && rewrites.length > 0) {
+      await dbc
+        .update(guidebookPages)
+        .set({ body, updatedAt: new Date() })
+        .where(eq(guidebookPages.id, page.id));
+    }
+  }
+
+  return {
+    dryRun,
+    scanned: rows.length,
+    pagesChanged: pages.filter((p) => p.rewrites.length > 0).length,
+    totalRewrites,
+    brokenInternalLinks,
+    pages,
+  };
+}

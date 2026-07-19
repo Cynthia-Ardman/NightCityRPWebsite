@@ -121,6 +121,8 @@ import type {
   DismissNotificationPrompt200,
   DismissOnboarding200,
   EconomyOutOfSyncList,
+  EconomyReconcileInput,
+  EconomyReconcileResult,
   EconomyRetryResult,
   Employee,
   EmployeeDecisionInput,
@@ -153,6 +155,7 @@ import type {
   GuidebookEditProposalInput,
   GuidebookImportConflict,
   GuidebookImportRunResult,
+  GuidebookLinkRepairResult,
   GuidebookPage,
   GuidebookPageInput,
   GuidebookPageUpdate,
@@ -215,6 +218,7 @@ import type {
   LoreOverrideInput,
   LorePendingEdit,
   LoreVoteInput,
+  MaintenanceRunInput,
   MarkNotificationsRead200,
   MarkNotificationsReadBody,
   MarkReviewSeen200,
@@ -228,6 +232,7 @@ import type {
   MissionDetail,
   MissionHistoryPage,
   MissionSummary,
+  MissionThreadBackfillResult,
   MissionToEventConvertInput,
   MissionUpdateInput,
   MyUnseen,
@@ -268,6 +273,7 @@ import type {
   PurchaseEventTicketBody,
   ReactivateCharacter200,
   RefreshVrchatInstances200,
+  RehostEventImagesResult,
   ReopenReviewTicket200,
   RequestChangesInput,
   ResubmitPendingEdit200,
@@ -12445,6 +12451,290 @@ export const useAdminRetryEconomySync = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminRetryEconomySyncMutationOptions(options));
+    }
+
+export const getAdminMissionThreadBackfillUrl = () => {
+
+
+
+
+  return `/api/admin/maintenance/mission-thread-backfill`
+}
+
+/**
+ * @summary Backfill missing mission Discord threads (dryRun previews the targets).
+ */
+export const adminMissionThreadBackfill = async (maintenanceRunInput: MaintenanceRunInput, options?: RequestInit): Promise<MissionThreadBackfillResult> => {
+
+  return customFetch<MissionThreadBackfillResult>(getAdminMissionThreadBackfillUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      maintenanceRunInput,)
+  }
+);}
+
+
+
+
+export const getAdminMissionThreadBackfillMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminMissionThreadBackfill>>, TError,{data: BodyType<MaintenanceRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminMissionThreadBackfill>>, TError,{data: BodyType<MaintenanceRunInput>}, TContext> => {
+
+const mutationKey = ['adminMissionThreadBackfill'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminMissionThreadBackfill>>, {data: BodyType<MaintenanceRunInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminMissionThreadBackfill(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminMissionThreadBackfillMutationResult = NonNullable<Awaited<ReturnType<typeof adminMissionThreadBackfill>>>
+    export type AdminMissionThreadBackfillMutationBody = BodyType<MaintenanceRunInput>
+    export type AdminMissionThreadBackfillMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Backfill missing mission Discord threads (dryRun previews the targets).
+ */
+export const useAdminMissionThreadBackfill = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminMissionThreadBackfill>>, TError,{data: BodyType<MaintenanceRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminMissionThreadBackfill>>,
+        TError,
+        {data: BodyType<MaintenanceRunInput>},
+        TContext
+      > => {
+      return useMutation(getAdminMissionThreadBackfillMutationOptions(options));
+    }
+
+export const getAdminEconomyReconcileUrl = () => {
+
+
+
+
+  return `/api/admin/maintenance/economy-reconcile`
+}
+
+/**
+ * @summary Reconcile one player's wallet against UnbelievaBoat (dryRun previews the delta).
+ */
+export const adminEconomyReconcile = async (economyReconcileInput: EconomyReconcileInput, options?: RequestInit): Promise<EconomyReconcileResult> => {
+
+  return customFetch<EconomyReconcileResult>(getAdminEconomyReconcileUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      economyReconcileInput,)
+  }
+);}
+
+
+
+
+export const getAdminEconomyReconcileMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminEconomyReconcile>>, TError,{data: BodyType<EconomyReconcileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminEconomyReconcile>>, TError,{data: BodyType<EconomyReconcileInput>}, TContext> => {
+
+const mutationKey = ['adminEconomyReconcile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminEconomyReconcile>>, {data: BodyType<EconomyReconcileInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminEconomyReconcile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminEconomyReconcileMutationResult = NonNullable<Awaited<ReturnType<typeof adminEconomyReconcile>>>
+    export type AdminEconomyReconcileMutationBody = BodyType<EconomyReconcileInput>
+    export type AdminEconomyReconcileMutationError = ErrorType<void>
+
+    /**
+ * @summary Reconcile one player's wallet against UnbelievaBoat (dryRun previews the delta).
+ */
+export const useAdminEconomyReconcile = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminEconomyReconcile>>, TError,{data: BodyType<EconomyReconcileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminEconomyReconcile>>,
+        TError,
+        {data: BodyType<EconomyReconcileInput>},
+        TContext
+      > => {
+      return useMutation(getAdminEconomyReconcileMutationOptions(options));
+    }
+
+export const getAdminRehostEventImagesUrl = () => {
+
+
+
+
+  return `/api/admin/maintenance/rehost-event-images`
+}
+
+/**
+ * @summary Re-host expired Discord CDN event banners to object storage (dryRun previews).
+ */
+export const adminRehostEventImages = async (maintenanceRunInput: MaintenanceRunInput, options?: RequestInit): Promise<RehostEventImagesResult> => {
+
+  return customFetch<RehostEventImagesResult>(getAdminRehostEventImagesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      maintenanceRunInput,)
+  }
+);}
+
+
+
+
+export const getAdminRehostEventImagesMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminRehostEventImages>>, TError,{data: BodyType<MaintenanceRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminRehostEventImages>>, TError,{data: BodyType<MaintenanceRunInput>}, TContext> => {
+
+const mutationKey = ['adminRehostEventImages'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminRehostEventImages>>, {data: BodyType<MaintenanceRunInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminRehostEventImages(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminRehostEventImagesMutationResult = NonNullable<Awaited<ReturnType<typeof adminRehostEventImages>>>
+    export type AdminRehostEventImagesMutationBody = BodyType<MaintenanceRunInput>
+    export type AdminRehostEventImagesMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Re-host expired Discord CDN event banners to object storage (dryRun previews).
+ */
+export const useAdminRehostEventImages = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminRehostEventImages>>, TError,{data: BodyType<MaintenanceRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminRehostEventImages>>,
+        TError,
+        {data: BodyType<MaintenanceRunInput>},
+        TContext
+      > => {
+      return useMutation(getAdminRehostEventImagesMutationOptions(options));
+    }
+
+export const getAdminGuidebookLinkRepairUrl = () => {
+
+
+
+
+  return `/api/admin/maintenance/guidebook-link-repair`
+}
+
+/**
+ * @summary Re-scan guidebook pages and repair internal links (dryRun previews per-page changes).
+ */
+export const adminGuidebookLinkRepair = async (maintenanceRunInput: MaintenanceRunInput, options?: RequestInit): Promise<GuidebookLinkRepairResult> => {
+
+  return customFetch<GuidebookLinkRepairResult>(getAdminGuidebookLinkRepairUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      maintenanceRunInput,)
+  }
+);}
+
+
+
+
+export const getAdminGuidebookLinkRepairMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminGuidebookLinkRepair>>, TError,{data: BodyType<MaintenanceRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminGuidebookLinkRepair>>, TError,{data: BodyType<MaintenanceRunInput>}, TContext> => {
+
+const mutationKey = ['adminGuidebookLinkRepair'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminGuidebookLinkRepair>>, {data: BodyType<MaintenanceRunInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminGuidebookLinkRepair(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminGuidebookLinkRepairMutationResult = NonNullable<Awaited<ReturnType<typeof adminGuidebookLinkRepair>>>
+    export type AdminGuidebookLinkRepairMutationBody = BodyType<MaintenanceRunInput>
+    export type AdminGuidebookLinkRepairMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Re-scan guidebook pages and repair internal links (dryRun previews per-page changes).
+ */
+export const useAdminGuidebookLinkRepair = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminGuidebookLinkRepair>>, TError,{data: BodyType<MaintenanceRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminGuidebookLinkRepair>>,
+        TError,
+        {data: BodyType<MaintenanceRunInput>},
+        TContext
+      > => {
+      return useMutation(getAdminGuidebookLinkRepairMutationOptions(options));
     }
 
 export const getDepositToRipperdocUrl = (id: number,) => {

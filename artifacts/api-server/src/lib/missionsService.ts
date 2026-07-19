@@ -2553,14 +2553,10 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * un-marked and re-attempted on the next run rather than silently counted as
  * seeded. A short delay between writes keeps the run under Discord's rate limits.
  */
-export async function runMissionThreadBackfill(opts: { limit?: number } = {}): Promise<{
-  scanned: number;
-  created: number;
-  seeded: number;
-  failed: number;
-}> {
-  const ctx = await getMissionContext();
-  const targets = await db
+// Shared target query for the backfill run AND the admin maintenance dry-run,
+// so the preview always matches exactly what a live run would touch.
+export async function listMissionThreadBackfillTargets(limit = 500): Promise<Mission[]> {
+  return db
     .select()
     .from(missions)
     .where(
@@ -2572,7 +2568,17 @@ export async function runMissionThreadBackfill(opts: { limit?: number } = {}): P
       ),
     )
     .orderBy(missions.id)
-    .limit(opts.limit ?? 500);
+    .limit(limit);
+}
+
+export async function runMissionThreadBackfill(opts: { limit?: number } = {}): Promise<{
+  scanned: number;
+  created: number;
+  seeded: number;
+  failed: number;
+}> {
+  const ctx = await getMissionContext();
+  const targets = await listMissionThreadBackfillTargets(opts.limit ?? 500);
 
   let scanned = 0;
   let created = 0;

@@ -3300,6 +3300,103 @@ export interface EconomyRetryResult {
   error?: string | null;
 }
 
+export interface MaintenanceRunInput {
+  /** true = preview only, no writes. */
+  dryRun?: boolean;
+}
+
+export type MissionThreadBackfillResultTargetsItem = {
+  id: number;
+  title: string;
+  /** thread | snapshot */
+  missing: string;
+};
+
+export interface MissionThreadBackfillResult {
+  dryRun: boolean;
+  /** Whether Discord writes are allowed in this environment (deployment only). */
+  externalWritesAllowed: boolean;
+  /** Dry run: number of missions needing a thread or snapshot. */
+  count?: number;
+  /** Dry run: first 100 target missions. */
+  targets?: MissionThreadBackfillResultTargetsItem[];
+  scanned?: number;
+  created?: number;
+  seeded?: number;
+  failed?: number;
+}
+
+export interface EconomyReconcileInput {
+  userId: string;
+  /** true = preview the delta only, no writes. */
+  dryRun?: boolean;
+}
+
+export interface EconomyReconcileResult {
+  dryRun: boolean;
+  userId: string;
+  /** @nullable */
+  username?: string | null;
+  /** Dry run: current website wallet balance. */
+  walletBalance?: number;
+  /** Dry run: live UnbelievaBoat total. */
+  ubBalance?: number;
+  /** Dry run: last-synced UB baseline used for the delta. */
+  baseline?: number;
+  /** Dry run: true when the user has no sync baseline yet. */
+  wouldSeed?: boolean;
+  /** Live run outcome. */
+  ok?: boolean;
+  /** Live run: synced, disabled, dry_run, ub_unavailable, no_change. */
+  status?: string;
+  /** Live run: resulting wallet balance. */
+  balance?: number;
+  delta?: number;
+  /** @nullable */
+  error?: string | null;
+}
+
+export type RehostEventImagesResultTargetsItem = {
+  id: number;
+  title: string;
+};
+
+export type RehostEventImagesResultFailuresItem = {
+  id: number;
+  title: string;
+};
+
+export interface RehostEventImagesResult {
+  dryRun: boolean;
+  /** Dry run: events still pointing at a raw Discord CDN banner. */
+  count?: number;
+  /** Dry run: first 100 target events. */
+  targets?: RehostEventImagesResultTargetsItem[];
+  scanned?: number;
+  updated?: number;
+  failed?: number;
+  failures?: RehostEventImagesResultFailuresItem[];
+}
+
+export type GuidebookLinkRepairResultPagesItem = {
+  pageId: number;
+  title: string;
+  /** @nullable */
+  slug?: string | null;
+  rewrites: string[];
+  brokenInternal: string[];
+};
+
+export interface GuidebookLinkRepairResult {
+  dryRun: boolean;
+  scanned: number;
+  pagesChanged: number;
+  totalRewrites: number;
+  brokenInternalLinks: number;
+  /** First 100 pages with rewrites and/or broken internal links. */
+  pages: GuidebookLinkRepairResultPagesItem[];
+}
+
 export interface StockUpdate {
   /** @minLength 1 */
   name?: string;

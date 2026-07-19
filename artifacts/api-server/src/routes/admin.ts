@@ -21,7 +21,12 @@ import { resolveOrProvisionUser } from "../lib/userProvision";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
 import { runJob, deriveCyberwareBand, weeksSinceLastCheckup, CYBERWARE_MAX_STREAK, householdEffectiveCheckupDate } from "../lib/jobs";
-import { recordAudit } from "../lib/audit";
+import { recordAudit, recordAuditInline } from "../lib/audit";
+import { listMissionThreadBackfillTargets, runMissionThreadBackfill } from "../lib/missionsService";
+import { repairGuidebookLinks } from "../lib/guidebookImport";
+import { events } from "@workspace/db";
+import { like } from "drizzle-orm";
+import { rehostEventImage, guildEventImageUrl } from "../lib/eventsService";
 import { auditLog, classifyWalletCategory } from "@workspace/db";
 import { parseCwp, cwpForItem } from "../lib/cyberware";
 import { getLiveModeState, LIVE_MODE_KEYS, LIVE_SYSTEMS, type LiveSystem } from "../lib/liveMode";
@@ -2368,6 +2373,259 @@ router.post(
       skipped: skipped.length,
       externalWritesAllowed: externalWritesAllowed(),
       failures: failures.slice(0, 50),
+    });
+  },
+);
+
+// ─── Maintenance operations (dry-run preview + confirmed live run) ────────
+// Each of the four ops below takes { dryRun } and returns a preview (targets,
+// counts) on dryRun=true or the applied results on a live run. Live runs write
+// an INLINE audit row (recordAuditInline throws on failure — the audit is part
+// of the operation's contract, unlike the fire-and-forget recordAudit).
+
+// 1) Backfill missing mission Discord threads. Discord writes are internally
+// gated on externalWritesAllowed() (deployment only) inside postToChannel.
+router.post(
+  "/admin/maintenance/mission-thread-backfill",
+  adminOnly,
+  async (req, res): Promise<void> => {
+    const dryRun = (req.body as { dryRun?: boolean } | null)?.dryRun === true;
+    const targets = await listMissionThreadBackfillTargets();
+    const preview = targets.map((m) => ({
+      id: m.id,
+      title: m.title,
+      missing: m.discordThreadId ? "snapshot" : "thread",
+    }));
+    if (dryRun) {
+      await recordAuditInline(db, {
+        req,
+        category: "admin",
+        action: "maintenance_mission_thread_backfill",
+        targetType: "mission",
+        message: `Mission thread backfill DRY RUN — ${targets.length} missions missing a thread/snapshot`,
+        after: { dryRun: true, count: targets.length },
+      });
+      res.json({
+        dryRun: true,
+        count: targets.length,
+        externalWritesAllowed: externalWritesAllowed(),
+        targets: preview.slice(0, 100),
+      });
+      return;
+    }
+    // Discord thread creation is an external side effect, so there is no data
+    // transaction to pair the audit with; it is recorded inline right after.
+    const result = await runMissionThreadBackfill();
+    await recordAuditInline(db, {
+      req,
+      category: "admin",
+      action: "maintenance_mission_thread_backfill",
+      targetType: "mission",
+      message: `Mission thread backfill — scanned ${result.scanned}, created ${result.created}, seeded ${result.seeded}, failed ${result.failed}`,
+      after: { dryRun: false, ...result },
+    });
+    res.json({ dryRun: false, externalWritesAllowed: externalWritesAllowed(), ...result });
+  },
+);
+
+// 2) Economy reconcile for a single user: fold any Discord-side UnbelievaBoat
+// delta into the website wallet. Dry run computes the delta WITHOUT writing
+// (independent of the tri-state economy mode); the live run delegates to
+// reconcileOneUser, which still respects disabled/test modes.
+router.post(
+  "/admin/maintenance/economy-reconcile",
+  adminOnly,
+  async (req, res): Promise<void> => {
+    const body = req.body as { userId?: string; dryRun?: boolean } | null;
+    const userId = typeof body?.userId === "string" ? body.userId.trim() : "";
+    const dryRun = body?.dryRun === true;
+    if (!userId) {
+      res.status(400).json({ error: "Body must include userId" });
+      return;
+    }
+    const [u] = await db.select().from(users).where(eq(users.id, userId));
+    if (!u) {
+      res.status(404).json({ error: "Unknown user" });
+      return;
+    }
+    if (dryRun) {
+      const ub = await getBalance(u.discordId);
+      if (!ub) {
+        res.status(502).json({ error: "Could not reach UnbelievaBoat" });
+        return;
+      }
+      const baseline = u.lastSyncedUbBalance ?? u.walletBalance;
+      const delta = ub.total - baseline;
+      const summary = {
+        dryRun: true,
+        userId,
+        username: u.username,
+        walletBalance: u.walletBalance,
+        ubBalance: ub.total,
+        baseline,
+        delta,
+        wouldSeed: u.lastSyncedUbBalance === null,
+      };
+      await recordAuditInline(db, {
+        req,
+        category: "wallet",
+        action: "maintenance_economy_reconcile",
+        targetType: "user",
+        targetId: userId,
+        message: `Economy reconcile DRY RUN for ${u.username ?? userId} — delta ${delta} (wallet ${u.walletBalance}, UB ${ub.total})`,
+        after: summary,
+      });
+      res.json(summary);
+      return;
+    }
+    // The synced path audits INSIDE reconcileOneUser's wallet transaction via
+    // onApplied, so the audit row commits atomically with the fold. All other
+    // outcomes (disabled/test/no_change/unreachable) mutate nothing, so they
+    // are audited inline afterwards.
+    let auditedInTx = false;
+    const result = await reconcileOneUser(userId, async (tx) => {
+      auditedInTx = true;
+      await recordAuditInline(tx, {
+        req,
+        category: "wallet",
+        action: "maintenance_economy_reconcile",
+        targetType: "user",
+        targetId: userId,
+        message: `Economy reconcile for ${u.username ?? userId} — applied UB delta to wallet`,
+        after: { dryRun: false, status: "synced" },
+      });
+    });
+    if (!auditedInTx) {
+      await recordAuditInline(db, {
+        req,
+        category: "wallet",
+        action: "maintenance_economy_reconcile",
+        targetType: "user",
+        targetId: userId,
+        message: `Economy reconcile for ${u.username ?? userId} — ${result.status}, delta ${result.delta}, balance ${result.balance}`,
+        after: { dryRun: false, ...result },
+      });
+    }
+    res.json({ dryRun: false, userId, username: u.username, ...result });
+  },
+);
+
+// 3) Re-host raw Discord guild-events CDN banners (signed URLs that 401 after
+// ~24h) into object storage at 2048px. Read-only against Discord's CDN, so no
+// deployment gate is needed; idempotent because rewritten rows no longer match.
+router.post(
+  "/admin/maintenance/rehost-event-images",
+  adminOnly,
+  async (req, res): Promise<void> => {
+    const dryRun = (req.body as { dryRun?: boolean } | null)?.dryRun === true;
+    const highResUrl = (imageUrl: string): string | null => {
+      const m = imageUrl.match(/\/guild-events\/(\d+)\/([^./?]+)/);
+      return m ? guildEventImageUrl(m[1]!, m[2]!) : null;
+    };
+    const rows = await db
+      .select({ id: events.id, title: events.title, imageUrl: events.imageUrl })
+      .from(events)
+      .where(like(events.imageUrl, "https://cdn.discordapp.com/guild-events/%"));
+    if (dryRun) {
+      await recordAuditInline(db, {
+        req,
+        category: "admin",
+        action: "maintenance_rehost_event_images",
+        targetType: "event",
+        message: `Event image rehost DRY RUN — ${rows.length} events with raw CDN banners`,
+        after: { dryRun: true, count: rows.length },
+      });
+      res.json({
+        dryRun: true,
+        count: rows.length,
+        targets: rows.slice(0, 100).map((r) => ({ id: r.id, title: r.title })),
+      });
+      return;
+    }
+    // Fetch/rehost outside any transaction (slow external reads), then commit
+    // all row rewrites + the audit entry atomically in one transaction.
+    let failed = 0;
+    const failures: Array<{ id: number; title: string }> = [];
+    const pending: Array<{ id: number; hosted: string }> = [];
+    for (const row of rows) {
+      const src = row.imageUrl ? highResUrl(row.imageUrl) : null;
+      if (!src) continue;
+      const hosted = await rehostEventImage(src);
+      if (!hosted) {
+        failed++;
+        failures.push({ id: row.id, title: row.title });
+        continue;
+      }
+      pending.push({ id: row.id, hosted });
+    }
+    const updated = pending.length;
+    await db.transaction(async (tx) => {
+      for (const p of pending) {
+        await tx.update(events).set({ imageUrl: p.hosted }).where(eq(events.id, p.id));
+      }
+      await recordAuditInline(tx, {
+        req,
+        category: "admin",
+        action: "maintenance_rehost_event_images",
+        targetType: "event",
+        message: `Event image rehost — ${updated} rehosted, ${failed} failed of ${rows.length} raw CDN banners`,
+        after: { dryRun: false, scanned: rows.length, updated, failed },
+      });
+    });
+    res.json({ dryRun: false, scanned: rows.length, updated, failed, failures: failures.slice(0, 50) });
+  },
+);
+
+// 4) Re-scan guidebook page bodies and repair internal links against the
+// CURRENT doc/channel link maps. Pure DB operation (no Discord calls); the
+// audit row commits atomically with nothing else to pair with, so a plain
+// inline insert after the repair is sufficient (repair itself is idempotent).
+router.post(
+  "/admin/maintenance/guidebook-link-repair",
+  adminOnly,
+  async (req, res): Promise<void> => {
+    const dryRun = (req.body as { dryRun?: boolean } | null)?.dryRun === true;
+    let result: Awaited<ReturnType<typeof repairGuidebookLinks>>;
+    if (dryRun) {
+      result = await repairGuidebookLinks(true);
+      await recordAuditInline(db, {
+        req,
+        category: "admin",
+        action: "maintenance_guidebook_link_repair",
+        targetType: "guidebook",
+        message: `Guidebook link repair DRY RUN — ${result.pagesChanged} pages would be rewritten (${result.totalRewrites} rewrites), ${result.brokenInternalLinks} broken internal links across ${result.scanned} pages`,
+        after: {
+          dryRun: true,
+          scanned: result.scanned,
+          pagesChanged: result.pagesChanged,
+          totalRewrites: result.totalRewrites,
+          brokenInternalLinks: result.brokenInternalLinks,
+        },
+      });
+    } else {
+      // Live repair: page rewrites + audit row commit in ONE transaction.
+      result = await db.transaction(async (tx) => {
+        const r = await repairGuidebookLinks(false, tx);
+        await recordAuditInline(tx, {
+          req,
+          category: "admin",
+          action: "maintenance_guidebook_link_repair",
+          targetType: "guidebook",
+          message: `Guidebook link repair — ${r.pagesChanged} pages rewritten (${r.totalRewrites} rewrites), ${r.brokenInternalLinks} broken internal links reported across ${r.scanned} pages`,
+          after: {
+            dryRun: false,
+            scanned: r.scanned,
+            pagesChanged: r.pagesChanged,
+            totalRewrites: r.totalRewrites,
+            brokenInternalLinks: r.brokenInternalLinks,
+          },
+        });
+        return r;
+      });
+    }
+    res.json({
+      ...result,
+      pages: result.pages.slice(0, 100),
     });
   },
 );

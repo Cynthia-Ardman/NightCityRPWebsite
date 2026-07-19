@@ -565,7 +565,13 @@ export interface ReconcileUserResult {
  * reconciliation ledger row. No-op when already in sync. Respects the tri-state
  * mode (disabled => no-op, test => dry-run, enabled => live).
  */
-export async function reconcileOneUser(userId: string): Promise<ReconcileUserResult> {
+// `onApplied` (optional) runs INSIDE the wallet-write transaction, after the
+// guarded balance update + ledger insert succeed — used by the admin
+// maintenance endpoint to commit its audit row atomically with the fold.
+export async function reconcileOneUser(
+  userId: string,
+  onApplied?: (tx: Pick<typeof db, "insert">) => Promise<void>,
+): Promise<ReconcileUserResult> {
   const mode = await getEconomyMode();
   const [u] = await db.select().from(users).where(eq(users.id, userId));
   if (!u) {
@@ -632,6 +638,7 @@ export async function reconcileOneUser(userId: string): Promise<ReconcileUserRes
       previousBalance: appliedBalance - delta,
       newBalance: appliedBalance,
     });
+    if (onApplied) await onApplied(tx);
   });
   if (raced) {
     // Another writer synced this user between our read and write. Report the

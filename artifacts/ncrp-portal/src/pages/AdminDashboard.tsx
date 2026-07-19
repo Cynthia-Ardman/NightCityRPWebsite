@@ -1,4 +1,4 @@
-import { useAdminListUsers, useAdminHydrateUsers, useAdminSetCyberpsychoAccess, useAdminListCharacters, useAdminAdjustWallet, useAdminSinkWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminGetVrchatCalendarSync, getAdminGetVrchatCalendarSyncQueryKey, useAdminSetVrchatCalendarSync, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminHydrateUsers, useAdminSetCyberpsychoAccess, useAdminListCharacters, useAdminAdjustWallet, useAdminSinkWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminGetVrchatCalendarSync, getAdminGetVrchatCalendarSyncQueryKey, useAdminSetVrchatCalendarSync, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey, useAdminMissionThreadBackfill, useAdminEconomyReconcile, useAdminRehostEventImages, useAdminGuidebookLinkRepair, type MissionThreadBackfillResult, type EconomyReconcileResult, type RehostEventImagesResult, type GuidebookLinkRepairResult } from "@workspace/api-client-react";
 import { useState, useEffect } from "react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Link } from "wouter";
@@ -1817,7 +1817,323 @@ export function MaintenanceTab() {
       <ClaimByUsernameCard />
       <PortraitBackfillCard />
       <RipperdocBackfillCard />
+      <MissionThreadBackfillCard />
+      <EconomyReconcileCard />
+      <RehostEventImagesCard />
+      <GuidebookLinkRepairCard />
     </div>
+  );
+}
+
+function MissionThreadBackfillCard() {
+  const { toast } = useToast();
+  const [result, setResult] = useState<MissionThreadBackfillResult | null>(null);
+  const mutation = useAdminMissionThreadBackfill();
+
+  async function call(dryRun: boolean) {
+    try {
+      const body = await mutation.mutateAsync({ data: { dryRun } });
+      setResult(body);
+      if (!dryRun) {
+        toast({
+          title: "Mission thread backfill complete",
+          description: `Scanned ${body.scanned ?? 0}, created ${body.created ?? 0}, seeded ${body.seeded ?? 0}, failed ${body.failed ?? 0}.`,
+        });
+      }
+    } catch (e) {
+      toast({ title: dryRun ? "Preview failed" : "Backfill failed", description: (e as Error).message, variant: "destructive" });
+    }
+  }
+
+  function run() {
+    if (!result?.dryRun) return;
+    const ok = window.confirm(
+      `Backfill Discord threads for ${result.count ?? 0} mission(s)?\n\n` +
+      `This creates a Discord forum thread (and/or seeds the snapshot post) for each posted mission missing one.\n` +
+      (!result.externalWritesAllowed
+        ? `\nWARNING: Discord writes are DISABLED in this environment — thread creation will be skipped. Run this from the published app.`
+        : ""),
+    );
+    if (!ok) return;
+    void call(false);
+  }
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest">MISSION THREAD BACKFILL</CardTitle>
+        <CardDescription className="font-mono text-xs">
+          Creates the missing Discord forum thread (and seeds the mission snapshot post) for every
+          posted, still-active mission that lacks one. Idempotent — safe to re-run; failures are
+          left un-marked and retried on the next run. Always PREVIEW first. Discord writes only
+          happen when run from the published app.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="rounded-none" onClick={() => void call(true)} disabled={mutation.isPending} data-testid="button-mission-thread-scan">
+            {mutation.isPending ? "Working…" : "Preview targets"}
+          </Button>
+          <Button variant="default" className="rounded-none" onClick={run} disabled={!result?.dryRun || mutation.isPending} data-testid="button-mission-thread-run">
+            Backfill threads
+          </Button>
+        </div>
+        {result && (
+          <div className="font-mono text-xs space-y-2" data-testid="mission-thread-backfill-result">
+            <div className="text-muted-foreground">
+              {result.dryRun
+                ? `Preview — ${result.count ?? 0} mission(s) need a thread or snapshot.`
+                : `Done — scanned ${result.scanned ?? 0}, created ${result.created ?? 0}, seeded ${result.seeded ?? 0}, failed ${result.failed ?? 0}.`}
+              {!result.externalWritesAllowed && (
+                <span className="block text-destructive">Discord writes disabled here — run from the published app to create threads.</span>
+              )}
+            </div>
+            {result.targets && result.targets.length > 0 && (
+              <ul className="max-h-48 overflow-auto border border-border p-2 space-y-0.5">
+                {result.targets.map((t) => (
+                  <li key={t.id} className="flex justify-between gap-2">
+                    <span>#{t.id} {t.title}</span>
+                    <span className="text-nc-cyan">missing {t.missing}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function EconomyReconcileCard() {
+  const { toast } = useToast();
+  const [userId, setUserId] = useState("");
+  const [result, setResult] = useState<EconomyReconcileResult | null>(null);
+  const mutation = useAdminEconomyReconcile();
+
+  async function call(dryRun: boolean) {
+    try {
+      const body = await mutation.mutateAsync({ data: { userId: userId.trim(), dryRun } });
+      setResult(body);
+      if (!dryRun) {
+        toast({
+          title: "Economy reconcile complete",
+          description: `${body.username ?? body.userId}: ${body.status}, delta ${body.delta ?? 0}, balance ${body.balance ?? 0}.`,
+        });
+      }
+    } catch (e) {
+      toast({ title: dryRun ? "Preview failed" : "Reconcile failed", description: (e as Error).message, variant: "destructive" });
+    }
+  }
+
+  function run() {
+    if (!result?.dryRun) return;
+    const ok = window.confirm(
+      `Fold a delta of ${result.delta ?? 0} eddies into ${result.username ?? result.userId}'s website wallet?\n\n` +
+      `Website balance ${result.walletBalance ?? 0} → UnbelievaBoat total ${result.ubBalance ?? 0} (baseline ${result.baseline ?? 0}).` +
+      (result.wouldSeed ? `\n\nNo sync baseline yet — this SEEDS the wallet to the UnbelievaBoat total.` : ""),
+    );
+    if (!ok) return;
+    void call(false);
+  }
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest">ECONOMY RECONCILE (ONE USER)</CardTitle>
+        <CardDescription className="font-mono text-xs">
+          Re-pulls one player's live UnbelievaBoat balance and folds any Discord-side delta into
+          their website wallet with a reconciliation ledger row. Preview shows the exact delta
+          before anything is written. The live run respects the economy mode (disabled/test = no
+          real write).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2 items-center">
+          <Input
+            value={userId}
+            onChange={(e) => { setUserId(e.target.value); setResult(null); }}
+            placeholder="User ID (Discord snowflake)"
+            className="rounded-none w-64 font-mono text-xs"
+            data-testid="input-economy-reconcile-user"
+          />
+          <Button variant="outline" className="rounded-none" onClick={() => void call(true)} disabled={!userId.trim() || mutation.isPending} data-testid="button-economy-reconcile-scan">
+            {mutation.isPending ? "Working…" : "Preview delta"}
+          </Button>
+          <Button variant="default" className="rounded-none" onClick={run} disabled={!result?.dryRun || mutation.isPending} data-testid="button-economy-reconcile-run">
+            Reconcile wallet
+          </Button>
+        </div>
+        {result && (
+          <div className="font-mono text-xs text-muted-foreground" data-testid="economy-reconcile-result">
+            {result.dryRun ? (
+              <>
+                Preview for {result.username ?? result.userId}: website {result.walletBalance ?? 0}, UnbelievaBoat {result.ubBalance ?? 0},
+                baseline {result.baseline ?? 0} → delta <span className={result.delta ? "text-nc-yellow" : "text-nc-cyan"}>{result.delta ?? 0}</span>
+                {result.wouldSeed ? " (would seed baseline)" : ""}.
+              </>
+            ) : (
+              <>Done — {result.status}, delta {result.delta ?? 0}, balance {result.balance ?? 0}.{result.error ? ` Error: ${result.error}` : ""}</>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function RehostEventImagesCard() {
+  const { toast } = useToast();
+  const [result, setResult] = useState<RehostEventImagesResult | null>(null);
+  const mutation = useAdminRehostEventImages();
+
+  async function call(dryRun: boolean) {
+    try {
+      const body = await mutation.mutateAsync({ data: { dryRun } });
+      setResult(body);
+      if (!dryRun) {
+        toast({
+          title: "Event image rehost complete",
+          description: `Rehosted ${body.updated ?? 0}, failed ${body.failed ?? 0} of ${body.scanned ?? 0}.`,
+        });
+      }
+    } catch (e) {
+      toast({ title: dryRun ? "Preview failed" : "Rehost failed", description: (e as Error).message, variant: "destructive" });
+    }
+  }
+
+  function run() {
+    if (!result?.dryRun) return;
+    const ok = window.confirm(
+      `Re-host ${result.count ?? 0} event banner(s) from Discord's CDN to object storage?\n\n` +
+      `Discord CDN links expire after ~24h; this fetches each banner at full resolution and rewrites the event to a permanent hosted copy.`,
+    );
+    if (!ok) return;
+    void call(false);
+  }
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest">EVENT IMAGE REHOST</CardTitle>
+        <CardDescription className="font-mono text-xs">
+          Finds events whose banner still points at a raw (expiring) Discord CDN guild-events URL,
+          re-fetches it at 2048px and re-hosts it to object storage. Idempotent — rewritten events
+          no longer match the scan. Reads only from Discord's CDN, so it is safe to run anywhere.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="rounded-none" onClick={() => void call(true)} disabled={mutation.isPending} data-testid="button-rehost-images-scan">
+            {mutation.isPending ? "Working…" : "Preview targets"}
+          </Button>
+          <Button variant="default" className="rounded-none" onClick={run} disabled={!result?.dryRun || mutation.isPending} data-testid="button-rehost-images-run">
+            Rehost images
+          </Button>
+        </div>
+        {result && (
+          <div className="font-mono text-xs space-y-2" data-testid="rehost-images-result">
+            <div className="text-muted-foreground">
+              {result.dryRun
+                ? `Preview — ${result.count ?? 0} event(s) with an expiring banner.`
+                : `Done — rehosted ${result.updated ?? 0}, failed ${result.failed ?? 0} of ${result.scanned ?? 0}.`}
+            </div>
+            {result.targets && result.targets.length > 0 && (
+              <ul className="max-h-48 overflow-auto border border-border p-2 space-y-0.5">
+                {result.targets.map((t) => (
+                  <li key={t.id}>#{t.id} {t.title}</li>
+                ))}
+              </ul>
+            )}
+            {result.failures && result.failures.length > 0 && (
+              <ul className="max-h-32 overflow-auto border border-destructive/40 p-2 space-y-0.5 text-destructive">
+                {result.failures.map((f) => (
+                  <li key={f.id}>#{f.id} {f.title}: rehost failed</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function GuidebookLinkRepairCard() {
+  const { toast } = useToast();
+  const [result, setResult] = useState<GuidebookLinkRepairResult | null>(null);
+  const mutation = useAdminGuidebookLinkRepair();
+
+  async function call(dryRun: boolean) {
+    try {
+      const body = await mutation.mutateAsync({ data: { dryRun } });
+      setResult(body);
+      if (!dryRun) {
+        toast({
+          title: "Guidebook link repair complete",
+          description: `Rewrote ${body.pagesChanged} page(s), ${body.brokenInternalLinks} broken internal link(s) reported.`,
+        });
+      }
+    } catch (e) {
+      toast({ title: dryRun ? "Scan failed" : "Repair failed", description: (e as Error).message, variant: "destructive" });
+    }
+  }
+
+  function run() {
+    if (!result?.dryRun) return;
+    const ok = window.confirm(
+      `Rewrite internal links on ${result.pagesChanged} guidebook page(s) (${result.totalRewrites} rewrite(s))?\n\n` +
+      `Google Doc links and Discord channel links that now have a portal page are rewritten in place. Broken internal links are only reported, never guessed at.`,
+    );
+    if (!ok) return;
+    void call(false);
+  }
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest">GUIDEBOOK LINK REPAIR</CardTitle>
+        <CardDescription className="font-mono text-xs">
+          Re-scans every guidebook page against the CURRENT link maps: Google Doc links and Discord
+          channel links that now map to a portal page are rewritten; internal links pointing at
+          deleted pages are reported. Pure database operation (no Discord calls), idempotent.
+          Always SCAN first.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="rounded-none" onClick={() => void call(true)} disabled={mutation.isPending} data-testid="button-guidebook-repair-scan">
+            {mutation.isPending ? "Working…" : "Scan links"}
+          </Button>
+          <Button variant="default" className="rounded-none" onClick={run} disabled={!result?.dryRun || mutation.isPending || (result?.pagesChanged ?? 0) === 0} data-testid="button-guidebook-repair-run">
+            Repair links
+          </Button>
+        </div>
+        {result && (
+          <div className="font-mono text-xs space-y-2" data-testid="guidebook-repair-result">
+            <div className="text-muted-foreground">
+              {result.dryRun ? "Scan" : "Done"} — {result.scanned} page(s) scanned, {result.pagesChanged} with rewrites
+              ({result.totalRewrites} total), {result.brokenInternalLinks} broken internal link(s).
+            </div>
+            {result.pages.length > 0 && (
+              <ul className="max-h-48 overflow-auto border border-border p-2 space-y-1">
+                {result.pages.map((p) => (
+                  <li key={p.pageId}>
+                    <span className="text-foreground">{p.title}</span>
+                    {p.rewrites.length > 0 && (
+                      <span className="block text-nc-cyan pl-2">{p.rewrites.join("; ")}</span>
+                    )}
+                    {p.brokenInternal.length > 0 && (
+                      <span className="block text-destructive pl-2">broken: {p.brokenInternal.join(", ")}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

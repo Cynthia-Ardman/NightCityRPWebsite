@@ -76,6 +76,11 @@ vi.mock("@workspace/api-client-react", () => ({
   getAdminGetLiveModeQueryKey: () => ["admin-live-mode"],
   getGetMissionConfigQueryKey: () => ["mission-config"],
   useAdminScanVrchatLinks: () => ({ mutate: h.mutate, isPending: false }),
+  // Maintenance operations (rendered by MaintenanceTab's op cards)
+  useAdminMissionThreadBackfill: () => ({ mutate: h.mutate, mutateAsync: h.mutate, isPending: false }),
+  useAdminEconomyReconcile: () => ({ mutate: h.mutate, mutateAsync: h.mutate, isPending: false }),
+  useAdminRehostEventImages: () => ({ mutate: h.mutate, mutateAsync: h.mutate, isPending: false }),
+  useAdminGuidebookLinkRepair: () => ({ mutate: h.mutate, mutateAsync: h.mutate, isPending: false }),
   // Site-access / login restriction (rendered by JobsTab's LoginRestrictionCard)
   useAdminGetSiteAccess: () => ({ data: undefined, isLoading: false }),
   useAdminSetSiteAccess: () => ({ mutate: h.mutate, isPending: false }),

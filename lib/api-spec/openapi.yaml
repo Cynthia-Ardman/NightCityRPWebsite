@@ -2724,6 +2724,77 @@ paths:
         "404": { description: Unknown user }
         "409": { description: Economy disabled }
 
+  /admin/maintenance/mission-thread-backfill:
+    post:
+      operationId: adminMissionThreadBackfill
+      tags: [admin]
+      summary: "Backfill missing mission Discord threads (dryRun previews the targets)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MaintenanceRunInput" }
+      responses:
+        "200":
+          description: Preview or run result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissionThreadBackfillResult" }
+
+  /admin/maintenance/economy-reconcile:
+    post:
+      operationId: adminEconomyReconcile
+      tags: [admin]
+      summary: "Reconcile one player's wallet against UnbelievaBoat (dryRun previews the delta)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EconomyReconcileInput" }
+      responses:
+        "200":
+          description: Preview or run result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EconomyReconcileResult" }
+        "400": { description: Missing userId }
+        "404": { description: Unknown user }
+        "502": { description: UnbelievaBoat unreachable }
+
+  /admin/maintenance/rehost-event-images:
+    post:
+      operationId: adminRehostEventImages
+      tags: [admin]
+      summary: "Re-host expired Discord CDN event banners to object storage (dryRun previews)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MaintenanceRunInput" }
+      responses:
+        "200":
+          description: Preview or run result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RehostEventImagesResult" }
+
+  /admin/maintenance/guidebook-link-repair:
+    post:
+      operationId: adminGuidebookLinkRepair
+      tags: [admin]
+      summary: "Re-scan guidebook pages and repair internal links (dryRun previews per-page changes)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MaintenanceRunInput" }
+      responses:
+        "200":
+          description: Preview or run result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GuidebookLinkRepairResult" }
+
   /ripperdocs/{id}/deposit:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -8459,6 +8530,106 @@ components:
         status: { type: string, description: "Outcome of the retry (synced, failed, disabled, dry_run, duplicate, pending, insufficient_funds)." }
         balance: { type: integer }
         error: { type: ["string", "null"] }
+
+    MaintenanceRunInput:
+      type: object
+      properties:
+        dryRun: { type: boolean, description: "true = preview only, no writes." }
+
+    MissionThreadBackfillResult:
+      type: object
+      required: [dryRun, externalWritesAllowed]
+      properties:
+        dryRun: { type: boolean }
+        externalWritesAllowed: { type: boolean, description: "Whether Discord writes are allowed in this environment (deployment only)." }
+        count: { type: integer, description: "Dry run: number of missions needing a thread or snapshot." }
+        targets:
+          type: array
+          description: "Dry run: first 100 target missions."
+          items:
+            type: object
+            required: [id, title, missing]
+            properties:
+              id: { type: integer }
+              title: { type: string }
+              missing: { type: string, description: "thread | snapshot" }
+        scanned: { type: integer }
+        created: { type: integer }
+        seeded: { type: integer }
+        failed: { type: integer }
+
+    EconomyReconcileInput:
+      type: object
+      required: [userId]
+      properties:
+        userId: { type: string }
+        dryRun: { type: boolean, description: "true = preview the delta only, no writes." }
+
+    EconomyReconcileResult:
+      type: object
+      required: [dryRun, userId]
+      properties:
+        dryRun: { type: boolean }
+        userId: { type: string }
+        username: { type: ["string", "null"] }
+        walletBalance: { type: integer, description: "Dry run: current website wallet balance." }
+        ubBalance: { type: integer, description: "Dry run: live UnbelievaBoat total." }
+        baseline: { type: integer, description: "Dry run: last-synced UB baseline used for the delta." }
+        wouldSeed: { type: boolean, description: "Dry run: true when the user has no sync baseline yet." }
+        ok: { type: boolean, description: "Live run outcome." }
+        status: { type: string, description: "Live run: synced, disabled, dry_run, ub_unavailable, no_change." }
+        balance: { type: integer, description: "Live run: resulting wallet balance." }
+        delta: { type: integer }
+        error: { type: ["string", "null"] }
+
+    RehostEventImagesResult:
+      type: object
+      required: [dryRun]
+      properties:
+        dryRun: { type: boolean }
+        count: { type: integer, description: "Dry run: events still pointing at a raw Discord CDN banner." }
+        targets:
+          type: array
+          description: "Dry run: first 100 target events."
+          items:
+            type: object
+            required: [id, title]
+            properties:
+              id: { type: integer }
+              title: { type: string }
+        scanned: { type: integer }
+        updated: { type: integer }
+        failed: { type: integer }
+        failures:
+          type: array
+          items:
+            type: object
+            required: [id, title]
+            properties:
+              id: { type: integer }
+              title: { type: string }
+
+    GuidebookLinkRepairResult:
+      type: object
+      required: [dryRun, scanned, pagesChanged, totalRewrites, brokenInternalLinks, pages]
+      properties:
+        dryRun: { type: boolean }
+        scanned: { type: integer }
+        pagesChanged: { type: integer }
+        totalRewrites: { type: integer }
+        brokenInternalLinks: { type: integer }
+        pages:
+          type: array
+          description: "First 100 pages with rewrites and/or broken internal links."
+          items:
+            type: object
+            required: [pageId, title, rewrites, brokenInternal]
+            properties:
+              pageId: { type: integer }
+              title: { type: string }
+              slug: { type: ["string", "null"] }
+              rewrites: { type: array, items: { type: string } }
+              brokenInternal: { type: array, items: { type: string } }
 
     StockUpdate:
       type: object

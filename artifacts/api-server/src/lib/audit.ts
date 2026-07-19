@@ -1,6 +1,9 @@
 import type { Request } from "express";
 import { db, auditLog } from "@workspace/db";
 
+// Any handle that can insert — the shared `db` or a transaction inside one.
+export type DbHandle = Pick<typeof db, "insert">;
+
 // Single category enum — keep in sync with the AdminDashboard "Audit Log"
 // sub-tabs. New categories are cheap to add; pick the closest existing one
 // before inventing a new bucket.
@@ -59,4 +62,30 @@ export async function recordAudit(input: RecordAuditInput): Promise<void> {
   } catch (err) {
     console.error("[audit] failed to record event", input.category, input.action, err);
   }
+}
+
+// Inline (throwing) audit writer for admin maintenance operations: the audit
+// row is part of the operation's contract, so a failure must fail the request
+// (unlike recordAudit, which deliberately swallows). Pass a transaction handle
+// to commit the audit row atomically with the changes it describes.
+export async function recordAuditInline(dbc: DbHandle, input: RecordAuditInput): Promise<void> {
+  const u = input.req?.user;
+  const actorId = input.actorId ?? u?.id ?? null;
+  const actorName = input.actorName ?? u?.username ?? null;
+  const fwd = input.req?.headers["x-forwarded-for"];
+  const ip = (Array.isArray(fwd) ? fwd[0] : (fwd?.toString().split(",")[0] ?? input.req?.ip)) ?? null;
+  const ua = input.req?.headers["user-agent"]?.toString().slice(0, 500) ?? null;
+  await dbc.insert(auditLog).values({
+    category: input.category,
+    action: input.action,
+    actorId,
+    actorName,
+    actorIp: ip,
+    actorUa: ua,
+    targetType: input.targetType ?? null,
+    targetId: input.targetId != null ? String(input.targetId) : null,
+    message: input.message ?? null,
+    beforeJson: input.before === undefined ? null : (input.before as never),
+    afterJson: input.after === undefined ? null : (input.after as never),
+  });
 }

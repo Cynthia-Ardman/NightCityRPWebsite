@@ -6972,6 +6972,100 @@ export const AdminRetryEconomySyncResponse = zod.object({
 
 
 /**
+ * @summary Backfill missing mission Discord threads (dryRun previews the targets).
+ */
+export const AdminMissionThreadBackfillBody = zod.object({
+  "dryRun": zod.boolean().optional().describe('true = preview only, no writes.')
+})
+
+export const AdminMissionThreadBackfillResponse = zod.object({
+  "dryRun": zod.boolean(),
+  "externalWritesAllowed": zod.boolean().describe('Whether Discord writes are allowed in this environment (deployment only).'),
+  "count": zod.number().optional().describe('Dry run: number of missions needing a thread or snapshot.'),
+  "targets": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "missing": zod.string().describe('thread | snapshot')
+})).optional().describe('Dry run: first 100 target missions.'),
+  "scanned": zod.number().optional(),
+  "created": zod.number().optional(),
+  "seeded": zod.number().optional(),
+  "failed": zod.number().optional()
+})
+
+
+/**
+ * @summary Reconcile one player's wallet against UnbelievaBoat (dryRun previews the delta).
+ */
+export const AdminEconomyReconcileBody = zod.object({
+  "userId": zod.string(),
+  "dryRun": zod.boolean().optional().describe('true = preview the delta only, no writes.')
+})
+
+export const AdminEconomyReconcileResponse = zod.object({
+  "dryRun": zod.boolean(),
+  "userId": zod.string(),
+  "username": zod.string().nullish(),
+  "walletBalance": zod.number().optional().describe('Dry run: current website wallet balance.'),
+  "ubBalance": zod.number().optional().describe('Dry run: live UnbelievaBoat total.'),
+  "baseline": zod.number().optional().describe('Dry run: last-synced UB baseline used for the delta.'),
+  "wouldSeed": zod.boolean().optional().describe('Dry run: true when the user has no sync baseline yet.'),
+  "ok": zod.boolean().optional().describe('Live run outcome.'),
+  "status": zod.string().optional().describe('Live run: synced, disabled, dry_run, ub_unavailable, no_change.'),
+  "balance": zod.number().optional().describe('Live run: resulting wallet balance.'),
+  "delta": zod.number().optional(),
+  "error": zod.string().nullish()
+})
+
+
+/**
+ * @summary Re-host expired Discord CDN event banners to object storage (dryRun previews).
+ */
+export const AdminRehostEventImagesBody = zod.object({
+  "dryRun": zod.boolean().optional().describe('true = preview only, no writes.')
+})
+
+export const AdminRehostEventImagesResponse = zod.object({
+  "dryRun": zod.boolean(),
+  "count": zod.number().optional().describe('Dry run: events still pointing at a raw Discord CDN banner.'),
+  "targets": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string()
+})).optional().describe('Dry run: first 100 target events.'),
+  "scanned": zod.number().optional(),
+  "updated": zod.number().optional(),
+  "failed": zod.number().optional(),
+  "failures": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string()
+})).optional()
+})
+
+
+/**
+ * @summary Re-scan guidebook pages and repair internal links (dryRun previews per-page changes).
+ */
+export const AdminGuidebookLinkRepairBody = zod.object({
+  "dryRun": zod.boolean().optional().describe('true = preview only, no writes.')
+})
+
+export const AdminGuidebookLinkRepairResponse = zod.object({
+  "dryRun": zod.boolean(),
+  "scanned": zod.number(),
+  "pagesChanged": zod.number(),
+  "totalRewrites": zod.number(),
+  "brokenInternalLinks": zod.number(),
+  "pages": zod.array(zod.object({
+  "pageId": zod.number(),
+  "title": zod.string(),
+  "slug": zod.string().nullish(),
+  "rewrites": zod.array(zod.string()),
+  "brokenInternal": zod.array(zod.string())
+})).describe('First 100 pages with rewrites and\/or broken internal links.')
+})
+
+
+/**
  * @summary Owner moves eddies from their personal wallet into the clinic account
  */
 export const DepositToRipperdocParams = zod.object({
