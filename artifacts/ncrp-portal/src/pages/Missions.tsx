@@ -660,7 +660,7 @@ function MyApplicationCard({ a }: { a: MissionApplicationListItem }) {
       </CardHeader>
       <CardContent className="space-y-3 font-mono text-sm">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-muted-foreground">
-          <span className="flex items-center gap-2">
+          <span className="flex items-center gap-2 whitespace-nowrap">
             <CalendarDays className="w-4 h-4 shrink-0" />
             {when ? (
               <span>
@@ -756,7 +756,7 @@ function ActingCard({ r }: { r: ActingEntry }) {
       </CardHeader>
       <CardContent className="space-y-3 font-mono text-sm">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-muted-foreground">
-          <span className="flex items-center gap-2">
+          <span className="flex items-center gap-2 whitespace-nowrap">
             <CalendarDays className="w-4 h-4 shrink-0" />
             {when.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
           </span>
@@ -849,10 +849,10 @@ function MissionCard({
         )}
 
         {/* 4. Schedule */}
-        <div className="flex items-center gap-2 text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
           <CalendarDays className="w-4 h-4 shrink-0" />
           {when ? (
-            <span>
+            <span className="break-words">
               {when.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}{" "}
               {when.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
               {m.durationMinutes ? ` · ${m.durationMinutes} min` : ""}
@@ -864,15 +864,15 @@ function MissionCard({
 
         {/* 5. Location */}
         {m.location && (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <MapPin className="w-4 h-4 shrink-0" />
-            <span>{m.location}</span>
+          <div className="flex items-start gap-2 text-muted-foreground">
+            <MapPin className="w-4 h-4 shrink-0 mt-0.5" />
+            <span className="break-words min-w-0">{m.location}</span>
           </div>
         )}
 
         {/* 6. Slots + player pay */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-muted-foreground">
-          <span className="flex items-center gap-2">
+          <span className="flex items-center gap-2 whitespace-nowrap">
             <Users className="w-4 h-4 shrink-0" />
             {m.assignedCount}
             {m.slots > 0 ? ` / ${m.slots}` : ""} players
@@ -881,7 +881,7 @@ function MissionCard({
         </div>
 
         {/* 7. Fixer (clickable for admins) */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <User className="w-4 h-4 shrink-0 text-muted-foreground" />
           <span className="text-muted-foreground uppercase text-xs tracking-widest">Fixer:</span>
           <FixerLink fixerId={m.fixerId} fixerName={m.fixerName} isAdmin={isAdmin} isTrial={m.fixerIsTrial} />

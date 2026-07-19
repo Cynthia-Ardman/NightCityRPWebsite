@@ -1200,26 +1200,28 @@ function InventoryTab({ characterId }: { characterId: number }) {
           ) : (
             <div className="space-y-2 font-mono text-sm" data-testid="list-inventory">
               {items.map((it) => (
-                <div key={it.id} className="grid grid-cols-12 gap-2 border border-border/40 p-2 items-center" data-testid={`row-item-${it.id}`}>
-                  <span className="col-span-3 text-foreground break-words">
+                <div key={it.id} className="flex flex-col gap-1.5 border border-border/40 p-2 md:grid md:grid-cols-12 md:gap-2 md:items-center" data-testid={`row-item-${it.id}`}>
+                  <span className="md:col-span-3 text-foreground break-words">
                     {it.name}
                     {it.cyberwareReq && (
                       <span className="ml-2 text-nc-magenta uppercase text-[10px]" data-testid={`text-item-cyberreq-${it.id}`}>REQ: {it.cyberwareReq}</span>
                     )}
                   </span>
-                  <span className="col-span-2 text-nc-cyan uppercase truncate">{it.category ?? "—"}</span>
-                  <span className="col-span-1 text-right">x{it.quantity}</span>
-                  <span className="col-span-2 truncate text-muted-foreground">{stripImportSentinel(it.notes)}</span>
+                  <span className="flex flex-wrap items-baseline gap-x-3 md:contents">
+                    <span className="md:col-span-2 text-nc-cyan uppercase break-words md:truncate">{it.category ?? "—"}</span>
+                    <span className="md:col-span-1 md:text-right">x{it.quantity}</span>
+                  </span>
+                  <span className="md:col-span-2 break-words md:truncate text-muted-foreground">{stripImportSentinel(it.notes)}</span>
                   {isCyberwareCategory(it.category) ? (
                     <span
-                      className="col-span-1 text-[10px] leading-tight text-muted-foreground"
+                      className="md:col-span-1 text-[10px] leading-tight text-muted-foreground"
                       title="Cyberware is installed or removed by a ripperdoc."
                       data-testid={`text-cyber-ripperdoc-${it.id}`}
                     >
                       via ripperdoc
                     </span>
                   ) : (
-                    <label className="col-span-1 flex items-center gap-1 text-xs">
+                    <label className="md:col-span-1 flex items-center gap-1 text-xs">
                       <UiSwitch
                         checked={!!it.equipped}
                         onCheckedChange={(v) => updateItem.mutate({ id: characterId, itemId: it.id, data: { equipped: v } })}
@@ -1228,7 +1230,7 @@ function InventoryTab({ characterId }: { characterId: number }) {
                       EQ
                     </label>
                   )}
-                  <div className="col-span-3 flex justify-end gap-1">
+                  <div className="md:col-span-3 flex flex-wrap justify-start md:justify-end gap-1">
                     <Link href={`/items/${it.instanceUuid}`}>
                       <Button
                         type="button"
