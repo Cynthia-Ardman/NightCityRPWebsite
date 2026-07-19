@@ -324,13 +324,13 @@ export default function DirectoryCalendar() {
           <span className="inline-block w-3 h-3 bg-nc-orange/30 border border-nc-orange/60" /> Social
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block px-1 text-[9px] font-display tracking-wider bg-nc-green/20 border border-nc-green/60 text-nc-green">
+          <span className="inline-block px-1 text-[0.6875rem] font-display tracking-wider bg-nc-green/20 border border-nc-green/60 text-nc-green">
             PLAYER
           </span>{" "}
           You're playing
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block px-1 text-[9px] font-display tracking-wider bg-nc-yellow/20 border border-nc-yellow/60 text-nc-yellow">
+          <span className="inline-block px-1 text-[0.6875rem] font-display tracking-wider bg-nc-yellow/20 border border-nc-yellow/60 text-nc-yellow">
             NPC
           </span>{" "}
           You're an NPC
@@ -369,8 +369,8 @@ export default function DirectoryCalendar() {
                       >
                         {d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }).toUpperCase()}
                       </span>
-                      {isToday && <span className="font-mono text-[10px] text-nc-cyan">TODAY</span>}
-                      <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+                      {isToday && <span className="font-mono text-[0.75rem] text-nc-cyan">TODAY</span>}
+                      <span className="ml-auto font-mono text-[0.75rem] text-muted-foreground">
                         {dayItems.length} {dayItems.length === 1 ? "item" : "items"}
                       </span>
                     </div>
@@ -434,7 +434,7 @@ export default function DirectoryCalendar() {
                         {d.getDate()}
                       </span>
                       {dayItems.length > 0 && (
-                        <span className="font-mono text-[9px] text-muted-foreground">{dayItems.length}</span>
+                        <span className="font-mono text-[0.6875rem] text-muted-foreground">{dayItems.length}</span>
                       )}
                     </div>
                     <div className={`flex flex-col gap-1 ${view === "week" ? "overflow-y-auto" : ""}`}>
@@ -451,7 +451,7 @@ export default function DirectoryCalendar() {
                         <button
                           type="button"
                           onClick={() => jumpToWeekOf(d)}
-                          className="text-left font-mono text-[9px] text-nc-cyan hover:text-nc-cyan/80 px-1"
+                          className="text-left font-mono text-[0.6875rem] text-nc-cyan hover:text-nc-cyan/80 px-1"
                           data-testid={`more-${dayKey(d)}`}
                         >
                           +{hidden} more
@@ -555,12 +555,12 @@ function CalChip({
         className={`block ${dense ? "px-1 py-0.5" : "px-1.5 py-1"} ${canQuickNpc ? "pr-7 md:pr-5" : ""}`}
         title={`${item.title} · ${item.subtype} · ${time}${statusLabel ? ` · ${statusLabel}` : ""}`}
       >
-        <div className={`flex items-center gap-1 font-mono leading-tight ${dense ? "text-[10px]" : "text-[11px]"}`}>
+        <div className={`flex items-center gap-1 font-mono leading-tight ${dense ? "text-[0.75rem]" : "text-[0.8125rem]"}`}>
           <Icon className={`shrink-0 ${dense ? "w-2.5 h-2.5" : "w-3 h-3"}`} />
           <span className="font-semibold tabular-nums tracking-tight text-foreground">{time}</span>
           {item.myStatus && (
             <span
-              className={`ml-auto shrink-0 px-1 font-display tracking-wider border ${dense ? "text-[7px]" : "text-[8px]"} ${
+              className={`ml-auto shrink-0 px-1 font-display tracking-wider border ${dense ? "text-[0.5625rem]" : "text-[0.625rem]"} ${
                 item.myStatus === "player"
                   ? "bg-nc-green/20 border-nc-green/60 text-nc-green"
                   : "bg-nc-yellow/20 border-nc-yellow/60 text-nc-yellow"
@@ -572,7 +572,7 @@ function CalChip({
           )}
         </div>
         <div
-          className={`font-mono leading-tight text-foreground break-words ${dense ? "text-[9px]" : "text-[11px]"}`}
+          className={`font-mono leading-tight text-foreground break-words ${dense ? "text-[0.6875rem]" : "text-[0.8125rem]"}`}
         >
           {item.title}
         </div>
