@@ -3,7 +3,7 @@ import { useListMyFixerNpcs, useListAllFixerNpcs } from "@workspace/api-client-r
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { Plus, Users, FileText, Search, Briefcase, BarChart3, Coins, UserSearch, ArrowRight, PartyPopper, UserPlus, ShieldAlert, Building2, type LucideIcon } from "lucide-react";
+import { Plus, Users, FileText, Search, Briefcase, BarChart3, Coins, UserSearch, ArrowRight, PartyPopper, UserPlus, ShieldAlert, Building2, Activity, type LucideIcon } from "lucide-react";
 
 type FixerTool = {
   href: string;
@@ -51,6 +51,15 @@ const FIXER_TOOLS: FixerTool[] = [
     description: "Schedule sessions, socials, and other non-mission events — they sync to Discord and show on the calendar.",
     cta: "Manage events",
     accent: "cyan",
+  },
+  {
+    href: "/fixer/analytics",
+    testId: "link-fixer-analytics",
+    icon: Activity,
+    title: "Server Analytics",
+    description: "Server health at a glance — economy flow, mission throughput, review-queue aging, and player activity.",
+    cta: "View analytics",
+    accent: "yellow",
   },
   {
     href: "/fixer/reports",

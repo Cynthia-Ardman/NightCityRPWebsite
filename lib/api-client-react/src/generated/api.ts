@@ -27,8 +27,10 @@ import type {
   ActorPayoutEvent,
   ActorPayoutResult,
   ActorReportRow,
+  AdminAnalytics,
   AdminCharacterSummary,
   AdminCreateCharacterInput,
+  AdminGetAnalyticsParams,
   AdminListAuditLogParams,
   AdminListAuditParams,
   AdminRecordCheckup200,
@@ -11495,6 +11497,90 @@ export function useAdminListAudit<TData = Awaited<ReturnType<typeof adminListAud
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getAdminListAuditQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminGetAnalyticsUrl = (params?: AdminGetAnalyticsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/analytics?${stringifiedParams}` : `/api/admin/analytics`
+}
+
+/**
+ * @summary Staff analytics: server-health aggregates (economy, missions, review-queue aging, player activity).
+ */
+export const adminGetAnalytics = async (params?: AdminGetAnalyticsParams, options?: RequestInit): Promise<AdminAnalytics> => {
+
+  return customFetch<AdminAnalytics>(getAdminGetAnalyticsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetAnalyticsQueryKey = (params?: AdminGetAnalyticsParams,) => {
+    return [
+    `/api/admin/analytics`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminGetAnalyticsQueryOptions = <TData = Awaited<ReturnType<typeof adminGetAnalytics>>, TError = ErrorType<unknown>>(params?: AdminGetAnalyticsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalytics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetAnalyticsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetAnalytics>>> = ({ signal }) => adminGetAnalytics(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalytics>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetAnalyticsQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetAnalytics>>>
+export type AdminGetAnalyticsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Staff analytics: server-health aggregates (economy, missions, review-queue aging, player activity).
+ */
+
+export function useAdminGetAnalytics<TData = Awaited<ReturnType<typeof adminGetAnalytics>>, TError = ErrorType<unknown>>(
+ params?: AdminGetAnalyticsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalytics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetAnalyticsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

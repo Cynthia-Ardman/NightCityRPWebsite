@@ -5,7 +5,7 @@ import { useGetMyWallet, getGetMyWalletQueryKey, useListMyOffers, getListMyOffer
 import { useEffectiveMe, useViewAs } from "@/contexts/ViewAsContext";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { ONBOARDING_BANNER_LINKS, guidebookSectionHref } from "@/lib/guidebookLinks";
-import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, Inbox as InboxIcon, BookOpen, BookMarked, Cpu, CalendarDays, Settings, X, Stethoscope, HeartPulse, Wrench, Building2, Warehouse, Archive, Network, Radio, Scale, Siren } from "lucide-react";
+import { LogOut, User, Users, Shield, Store, Syringe, Skull, Dice5, FileText, Menu, Briefcase, Receipt, ClipboardList, Inbox as InboxIcon, BookOpen, BookMarked, Cpu, CalendarDays, Settings, X, Stethoscope, HeartPulse, Wrench, Building2, Warehouse, Archive, Network, Radio, Scale, Siren, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -356,6 +356,7 @@ function SidebarContent() {
           <NavItem href="/directory/characters" icon={Archive} label="Character Archive" tone="magenta" />
         )}
         {user && (user.isFixer || user.isAdmin) && <NavItem href="/breach" icon={Cpu} label="Breach Control" tone="magenta" />}
+        {user && (user.isFixer || user.isAdmin) && <NavItem href="/fixer/analytics" icon={Activity} label="Analytics" tone="magenta" />}
         {user && (user.isFixer || user.isAdmin || user.canCyberpsycho) && <NavItem href="/fixer/cyberpsycho" icon={Skull} label="CyberPsycho" tone="magenta" />}
         {/* Unified staff review queue (misc requests / character edits /
             new characters). Each tab self-gates by role inside the page,

@@ -6754,6 +6754,68 @@ export const AdminListAuditResponse = zod.array(AdminListAuditResponseItem)
 
 
 /**
+ * @summary Staff analytics: server-health aggregates (economy, missions, review-queue aging, player activity).
+ */
+export const adminGetAnalyticsQueryRangeDefault = `3m`;
+
+export const AdminGetAnalyticsQueryParams = zod.object({
+  "range": zod.enum(['4w', '3m', '1y']).default(adminGetAnalyticsQueryRangeDefault)
+})
+
+export const AdminGetAnalyticsResponse = zod.object({
+  "range": zod.enum(['4w', '3m', '1y']),
+  "since": zod.coerce.date(),
+  "economy": zod.object({
+  "weekly": zod.array(zod.object({
+  "weekStart": zod.coerce.date(),
+  "created": zod.record(zod.string(), zod.number()),
+  "destroyed": zod.record(zod.string(), zod.number())
+})),
+  "supply": zod.array(zod.object({
+  "weekStart": zod.coerce.date(),
+  "net": zod.number(),
+  "total": zod.number()
+}))
+}),
+  "missions": zod.object({
+  "weekly": zod.array(zod.object({
+  "weekStart": zod.coerce.date(),
+  "missionsRun": zod.number(),
+  "payoutTotal": zod.number()
+})),
+  "totalMissions": zod.number(),
+  "totalApplications": zod.number(),
+  "avgApplicationsPerMission": zod.number(),
+  "totalPayout": zod.number()
+}),
+  "reviews": zod.array(zod.object({
+  "queue": zod.string(),
+  "label": zod.string(),
+  "open": zod.number(),
+  "decidedAwaitingClose": zod.number(),
+  "changesRequested": zod.number(),
+  "oldestDays": zod.number().nullish(),
+  "ageBuckets": zod.object({
+  "under1d": zod.number(),
+  "d1to3": zod.number(),
+  "d3to7": zod.number(),
+  "d7to30": zod.number(),
+  "over30": zod.number()
+})
+})),
+  "players": zod.object({
+  "lifeStatus": zod.record(zod.string(), zod.number()),
+  "activeRecent": zod.number(),
+  "dormant": zod.number(),
+  "sheetsPerMonth": zod.array(zod.object({
+  "month": zod.coerce.date(),
+  "count": zod.number()
+}))
+})
+})
+
+
+/**
  * @summary Unified staff-facing audit log.
  */
 export const adminListAuditLogQueryLimitDefault = 200;

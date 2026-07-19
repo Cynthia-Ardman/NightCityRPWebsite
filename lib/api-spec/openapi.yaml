@@ -2549,6 +2549,20 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/ActivityEvent" }
 
+  /admin/analytics:
+    get:
+      operationId: adminGetAnalytics
+      tags: [admin]
+      summary: "Staff analytics: server-health aggregates (economy, missions, review-queue aging, player activity)."
+      parameters:
+        - { in: query, name: range, schema: { type: string, enum: [4w, 3m, 1y], default: 3m } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminAnalytics" }
+
   /admin/audit-log:
     get:
       operationId: adminListAuditLog
@@ -10867,6 +10881,102 @@ components:
         actorAvatarUrl: { type: ["string", "null"] }
         message: { type: string }
         createdAt: { type: string, format: date-time }
+
+    AdminAnalytics:
+      type: object
+      required: [range, since, economy, missions, reviews, players]
+      properties:
+        range: { type: string, enum: [4w, 3m, 1y] }
+        since: { type: string, format: date-time }
+        economy: { $ref: "#/components/schemas/AnalyticsEconomy" }
+        missions: { $ref: "#/components/schemas/AnalyticsMissions" }
+        reviews:
+          type: array
+          items: { $ref: "#/components/schemas/AnalyticsReviewQueue" }
+        players: { $ref: "#/components/schemas/AnalyticsPlayers" }
+
+    AnalyticsEconomy:
+      type: object
+      required: [weekly, supply]
+      properties:
+        weekly:
+          type: array
+          items:
+            type: object
+            required: [weekStart, created, destroyed]
+            properties:
+              weekStart: { type: string, format: date-time }
+              created:
+                type: object
+                additionalProperties: { type: number }
+              destroyed:
+                type: object
+                additionalProperties: { type: number }
+        supply:
+          type: array
+          items:
+            type: object
+            required: [weekStart, net, total]
+            properties:
+              weekStart: { type: string, format: date-time }
+              net: { type: number }
+              total: { type: number }
+
+    AnalyticsMissions:
+      type: object
+      required: [weekly, totalMissions, totalApplications, avgApplicationsPerMission, totalPayout]
+      properties:
+        weekly:
+          type: array
+          items:
+            type: object
+            required: [weekStart, missionsRun, payoutTotal]
+            properties:
+              weekStart: { type: string, format: date-time }
+              missionsRun: { type: integer }
+              payoutTotal: { type: number }
+        totalMissions: { type: integer }
+        totalApplications: { type: integer }
+        avgApplicationsPerMission: { type: number }
+        totalPayout: { type: number }
+
+    AnalyticsReviewQueue:
+      type: object
+      required: [queue, label, open, decidedAwaitingClose, changesRequested, ageBuckets]
+      properties:
+        queue: { type: string }
+        label: { type: string }
+        open: { type: integer }
+        decidedAwaitingClose: { type: integer }
+        changesRequested: { type: integer }
+        oldestDays: { type: ["number", "null"] }
+        ageBuckets:
+          type: object
+          required: [under1d, d1to3, d3to7, d7to30, over30]
+          properties:
+            under1d: { type: integer }
+            d1to3: { type: integer }
+            d3to7: { type: integer }
+            d7to30: { type: integer }
+            over30: { type: integer }
+
+    AnalyticsPlayers:
+      type: object
+      required: [lifeStatus, activeRecent, dormant, sheetsPerMonth]
+      properties:
+        lifeStatus:
+          type: object
+          additionalProperties: { type: integer }
+        activeRecent: { type: integer }
+        dormant: { type: integer }
+        sheetsPerMonth:
+          type: array
+          items:
+            type: object
+            required: [month, count]
+            properties:
+              month: { type: string, format: date-time }
+              count: { type: integer }
 
     AuditLogRow:
       type: object

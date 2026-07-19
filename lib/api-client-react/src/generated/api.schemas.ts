@@ -7022,6 +7022,92 @@ export interface ActivityEvent {
   createdAt: string;
 }
 
+export type AdminAnalyticsRange = typeof AdminAnalyticsRange[keyof typeof AdminAnalyticsRange];
+
+
+export const AdminAnalyticsRange = {
+  '4w': '4w',
+  '3m': '3m',
+  '1y': '1y',
+} as const;
+
+export type AnalyticsEconomyWeeklyItemCreated = {[key: string]: number};
+
+export type AnalyticsEconomyWeeklyItemDestroyed = {[key: string]: number};
+
+export type AnalyticsEconomyWeeklyItem = {
+  weekStart: string;
+  created: AnalyticsEconomyWeeklyItemCreated;
+  destroyed: AnalyticsEconomyWeeklyItemDestroyed;
+};
+
+export type AnalyticsEconomySupplyItem = {
+  weekStart: string;
+  net: number;
+  total: number;
+};
+
+export interface AnalyticsEconomy {
+  weekly: AnalyticsEconomyWeeklyItem[];
+  supply: AnalyticsEconomySupplyItem[];
+}
+
+export type AnalyticsMissionsWeeklyItem = {
+  weekStart: string;
+  missionsRun: number;
+  payoutTotal: number;
+};
+
+export interface AnalyticsMissions {
+  weekly: AnalyticsMissionsWeeklyItem[];
+  totalMissions: number;
+  totalApplications: number;
+  avgApplicationsPerMission: number;
+  totalPayout: number;
+}
+
+export type AnalyticsReviewQueueAgeBuckets = {
+  under1d: number;
+  d1to3: number;
+  d3to7: number;
+  d7to30: number;
+  over30: number;
+};
+
+export interface AnalyticsReviewQueue {
+  queue: string;
+  label: string;
+  open: number;
+  decidedAwaitingClose: number;
+  changesRequested: number;
+  /** @nullable */
+  oldestDays?: number | null;
+  ageBuckets: AnalyticsReviewQueueAgeBuckets;
+}
+
+export type AnalyticsPlayersLifeStatus = {[key: string]: number};
+
+export type AnalyticsPlayersSheetsPerMonthItem = {
+  month: string;
+  count: number;
+};
+
+export interface AnalyticsPlayers {
+  lifeStatus: AnalyticsPlayersLifeStatus;
+  activeRecent: number;
+  dormant: number;
+  sheetsPerMonth: AnalyticsPlayersSheetsPerMonthItem[];
+}
+
+export interface AdminAnalytics {
+  range: AdminAnalyticsRange;
+  since: string;
+  economy: AnalyticsEconomy;
+  missions: AnalyticsMissions;
+  reviews: AnalyticsReviewQueue[];
+  players: AnalyticsPlayers;
+}
+
 export interface AuditLogRow {
   id: number;
   category: string;
@@ -7550,6 +7636,19 @@ since?: string;
  */
 limit?: number;
 };
+
+export type AdminGetAnalyticsParams = {
+range?: AdminGetAnalyticsRange;
+};
+
+export type AdminGetAnalyticsRange = typeof AdminGetAnalyticsRange[keyof typeof AdminGetAnalyticsRange];
+
+
+export const AdminGetAnalyticsRange = {
+  '4w': '4w',
+  '3m': '3m',
+  '1y': '1y',
+} as const;
 
 export type AdminListAuditLogParams = {
 category?: string;

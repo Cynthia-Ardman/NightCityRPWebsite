@@ -57,6 +57,7 @@ import FixerHub from "@/pages/fixer/FixerHub";
 import FixerCreateCharacter from "@/pages/fixer/FixerCreateCharacter";
 import FixerMissions from "@/pages/fixer/FixerMissions";
 import FixerReports from "@/pages/fixer/FixerReports";
+import FixerAnalytics from "@/pages/fixer/FixerAnalytics";
 import PayActors from "@/pages/fixer/PayActors";
 import FixerInventorySearch from "@/pages/fixer/FixerInventorySearch";
 import FixerPlayerLookup from "@/pages/fixer/FixerPlayerLookup";
@@ -303,6 +304,9 @@ function AppRoutes() {
           </Route>
           <Route path="/fixer/missions">
             <FixerOrTrialGuard><FixerMissions /></FixerOrTrialGuard>
+          </Route>
+          <Route path="/fixer/analytics">
+            <FixerGuard><FixerAnalytics /></FixerGuard>
           </Route>
           <Route path="/fixer/reports">
             <FixerGuard><FixerReports /></FixerGuard>

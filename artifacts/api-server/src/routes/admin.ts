@@ -34,6 +34,7 @@ import { isLoginRestricted, LOGIN_RESTRICTED_KEY } from "../lib/siteAccess";
 import { isVrchatCalendarSyncEnabled, VRCHAT_SYNC_FLAG } from "../lib/eventsService";
 import { scanVrchatChannel } from "../lib/vrchatLinks";
 import { getEconomyMode, reconcileOneUser, recordSettledWalletMovement, applyWalletDelta } from "../lib/economy";
+import { computeAdminAnalytics, parseAnalyticsRange } from "../lib/analytics";
 
 const router: IRouter = Router();
 
@@ -56,6 +57,15 @@ const adminOrFixer = requireAnyRole(["ADMIN", "FIXER"]);
 // a character to ANYONE in the guild; if the target has no `users` row yet we
 // mint one keyed on their Discord id, which their first login then adopts.
 const resolveOrProvisionOwner = resolveOrProvisionUser;
+
+// Staff analytics: server-health aggregates (economy, missions, review-queue
+// aging, player activity). Fixer-and-up — this powers the Analytics page in
+// the staff navigation. All aggregation happens in SQL (see lib/analytics).
+router.get("/admin/analytics", adminOrFixer, async (req, res): Promise<void> => {
+  const range = parseAnalyticsRange(req.query.range);
+  const payload = await computeAdminAnalytics(range);
+  res.json(payload);
+});
 
 router.get("/admin/users", adminOnly, async (_req, res): Promise<void> => {
   const rows = await db.select().from(users).orderBy(desc(users.lastSeenAt));
