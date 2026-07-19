@@ -929,6 +929,47 @@ describe("runMissionAutoPay window selection", () => {
     expect(futureAssign.paymentStatus).toBe("unpaid"); // untouched
   });
 
+  it("settles player pay end-to-end: complete → cron → simulated row with the mission's payAmount", async () => {
+    const admin = await createUser({ roles: ["admin"] });
+    const player = await createUser();
+    // Scheduled far enough back that the run window (start + duration + delay)
+    // has fully elapsed by the time the cron ticks.
+    const m = await seedMission({
+      playerPay: 150,
+      status: "open",
+      startAt: new Date(Date.now() - 10 * 3_600_000),
+    });
+    await seedAssignment(m.id, player.id);
+
+    // Complete through the real completion path (not a raw column write).
+    const done = await setMissionCompleted(m.id, true, {
+      id: admin.id,
+      isManager: true,
+      isAdmin: true,
+      isArchivist: true,
+      isTrialAuthor: false,
+    });
+    expect(done.ok).toBe(true);
+
+    const processed = await runMissionAutoPay();
+    expect(processed).toBe(1);
+
+    // Test mode: the roster row settles as 'simulated' with the right amount,
+    // and no real money moves.
+    const [a] = await db.select().from(missionAssignments).where(eq(missionAssignments.missionId, m.id));
+    expect(a.paymentStatus).toBe("simulated");
+    expect(a.payAmount).toBe(150);
+    expect(a.paidAt).not.toBeNull();
+    expect(mockPatch).not.toHaveBeenCalled();
+
+    const [after] = await db.select().from(missions).where(eq(missions.id, m.id));
+    expect(after.autoPayProcessedAt).not.toBeNull();
+    expect(after.status).toBe("completed_players_paid");
+
+    // Idempotent: a second tick re-selects nothing.
+    expect(await runMissionAutoPay()).toBe(0);
+  });
+
   it("skips missions that were already auto-processed", async () => {
     const player = await createUser();
     const m = await seedMission({
