@@ -1,5 +1,5 @@
-import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, activityEvents, botConfig, shopOpens, inventoryItems, stores, ripperdocs } from "@workspace/db";
-import { eq, and, desc, sql, isNotNull, gte, inArray, ne } from "drizzle-orm";
+import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, activityEvents, botConfig, shopOpens, inventoryItems, stores, ripperdocs, notifications } from "@workspace/db";
+import { eq, and, desc, sql, isNotNull, gte, inArray, ne, lt } from "drizzle-orm";
 import { logger } from "./logger";
 import { recordAudit } from "./audit";
 import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchAllGuildMemberRoles, VERIFIED_18_ROLE_ID, RULES_ROLE_ID, DEAD_CHARACTER_ROLE_ID, applyRoleIdGrants, addGuildMemberRole, postToChannel } from "./discord";
@@ -267,7 +267,12 @@ async function chargePersonalFeeWithReservation(opts: {
   return true;
 }
 
-export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile" | "discord_event_sync" | "main_session_backfill" | "mission_thread_backfill";
+export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile" | "discord_event_sync" | "main_session_backfill" | "mission_thread_backfill" | "notification_prune";
+
+// Retention policy for the bell-feed notifications table (append-only
+// otherwise): READ rows older than this are deleted; unread rows are kept
+// indefinitely so nobody loses a notification they never saw.
+const NOTIFICATION_READ_RETENTION_DAYS = 90;
 
 // Jobs guarded against overlapping in-process runs (see runJob). Money-moving
 // jobs (monthly_rent, cyberware_humanity) would double-charge; mission_thread_-
@@ -982,6 +987,23 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       const r = await runMissionThreadBackfill();
       affected = r.created;
       message = `mission thread backfill: scanned ${r.scanned}, created ${r.created} thread(s), seeded ${r.seeded} snapshot(s), failed ${r.failed}`;
+    } else if (name === "notification_prune") {
+      // Retention sweep for the bell-feed notifications table. Notification
+      // writers are append-only (one row per user per auto-charge, payout,
+      // offer, fine, decision, ...), so without this the table grows without
+      // bound. Delete only rows the user has already READ and that are older
+      // than the retention window; unread rows are kept indefinitely so a
+      // notification is never removed before its recipient has seen it.
+      // Deliberately NOT in liveSystemByJob: this is internal housekeeping with
+      // no external (Discord/UB) effects, safe to run in Test mode too.
+      const cutoff = new Date(Date.now() - NOTIFICATION_READ_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+      // Count via the driver's rowCount instead of RETURNING so a large
+      // first-run sweep doesn't materialize every deleted row in memory.
+      const result = await db
+        .delete(notifications)
+        .where(and(isNotNull(notifications.readAt), lt(notifications.createdAt, cutoff)));
+      affected = result.rowCount ?? 0;
+      message = `notification prune: deleted ${affected} read notification(s) older than ${NOTIFICATION_READ_RETENTION_DAYS} days (unread kept)`;
     }
   } catch (err) {
     status = "failed";
@@ -1083,6 +1105,14 @@ export function startCron() {
     // tick (different Discord API buckets, but keep the writes spread out).
     cron.schedule("5,15,25,35,45,55 * * * *", () => {
       runJob("mission_thread_backfill").catch((err) => logger.error({ err }, "mission_thread_backfill cron"));
+    });
+    // Daily notification retention sweep at 06:10 UTC — deletes READ bell-feed
+    // rows older than the retention window (unread rows kept indefinitely).
+    // Pure internal housekeeping (no Discord/UB effects), so it is not kill-
+    // switch or Test/Live gated. Offset off other jobs' minutes to keep the
+    // early-morning cron ticks spread out.
+    cron.schedule("10 6 * * *", () => {
+      runJob("notification_prune").catch((err) => logger.error({ err }, "notification_prune cron"));
     });
     // Live VRChat instance browser poll, every 2 minutes. Reads the NCRP group's
     // open instances and refreshes the member-facing cache. Gated to the

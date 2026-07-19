@@ -16,4 +16,5 @@ export const JobRunInputJob = {
   eviction_sweep: 'eviction_sweep',
   discord_event_sync: 'discord_event_sync',
   mission_thread_backfill: 'mission_thread_backfill',
+  notification_prune: 'notification_prune',
 } as const;

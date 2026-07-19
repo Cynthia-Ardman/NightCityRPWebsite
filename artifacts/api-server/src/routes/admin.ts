@@ -1054,11 +1054,11 @@ router.get("/admin/jobs", adminOnly, async (_req, res): Promise<void> => {
 
 router.post("/admin/jobs/run", adminOnly, async (req, res): Promise<void> => {
   const job = String(req.body?.job ?? "");
-  if (!["cyberware_humanity", "monthly_rent", "role_sync", "eviction_sweep", "discord_event_sync", "main_session_backfill", "mission_thread_backfill"].includes(job)) {
+  if (!["cyberware_humanity", "monthly_rent", "role_sync", "eviction_sweep", "discord_event_sync", "main_session_backfill", "mission_thread_backfill", "notification_prune"].includes(job)) {
     res.status(400).json({ error: "Unknown job" });
     return;
   }
-  const result = await runJob(job as "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "discord_event_sync" | "main_session_backfill" | "mission_thread_backfill");
+  const result = await runJob(job as "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "discord_event_sync" | "main_session_backfill" | "mission_thread_backfill" | "notification_prune");
   res.json(result);
 });
 
