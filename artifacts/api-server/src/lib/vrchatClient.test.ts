@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { db, vrchatSessions } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { fetchGroupInstances, SESSION_EXPIRED_MSG } from "./vrchatClient";
+import {
+  fetchGroupInstances,
+  SESSION_EXPIRED_MSG,
+  __resetAutoReconnectCooldownForTests,
+} from "./vrchatClient";
 
 // Unit-level coverage for the session-drop fix: a lone 401 must NOT wipe the
 // stored auth cookie unless a confirming /auth/user call also says the cookie
@@ -39,20 +43,33 @@ function jsonResponse(body: unknown, init: { status?: number; setCookies?: strin
 }
 
 const realFetch = global.fetch;
+const realEnv = {
+  VRCHAT_USERNAME: process.env.VRCHAT_USERNAME,
+  VRCHAT_PASSWORD: process.env.VRCHAT_PASSWORD,
+};
 
 afterEach(() => {
   global.fetch = realFetch;
   vi.restoreAllMocks();
+  for (const [k, v] of Object.entries(realEnv)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
 });
 
 beforeEach(async () => {
   await seedSession();
+  __resetAutoReconnectCooldownForTests();
+  // Auto-reconnect requires credentials; default to none so 401 tests hit the
+  // manual-reconnect fallback deterministically.
+  delete process.env.VRCHAT_USERNAME;
+  delete process.env.VRCHAT_PASSWORD;
 });
 
 describe("vrchatClient 401 handling", () => {
   it("keeps the session when the 401 is transient (confirm check says cookie is alive)", async () => {
     const calls: string[] = [];
-    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+    global.fetch = vi.fn(async (url: Parameters<typeof fetch>[0]) => {
       const u = String(url);
       calls.push(u);
       if (u.includes("/groups/")) return jsonResponse({ error: "unauthorized" }, { status: 401 });
@@ -68,7 +85,7 @@ describe("vrchatClient 401 handling", () => {
   });
 
   it("keeps the session when the confirm check itself fails (network error = inconclusive)", async () => {
-    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+    global.fetch = vi.fn(async (url: Parameters<typeof fetch>[0]) => {
       const u = String(url);
       if (u.includes("/groups/")) return jsonResponse({}, { status: 401 });
       throw new Error("network down");
@@ -79,7 +96,7 @@ describe("vrchatClient 401 handling", () => {
   });
 
   it("expires the session only when the confirm check also returns 401, recording context", async () => {
-    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+    global.fetch = vi.fn(async (url: Parameters<typeof fetch>[0]) => {
       const u = String(url);
       if (u.includes("/groups/")) return jsonResponse({}, { status: 401 });
       if (u.includes("/auth/user")) return jsonResponse({}, { status: 401 });
@@ -92,6 +109,80 @@ describe("vrchatClient 401 handling", () => {
     expect(row?.authCookie).toBeNull(); // cookie cleared
     expect(row?.twoFactorCookie).toBe("tfa-A"); // 2FA device memory kept
     expect(row?.lastError).toContain("401 on GET /groups/grp_test/instances");
+  });
+
+  it("does not clobber a newer session when the 401 came from a stale cookie", async () => {
+    global.fetch = vi.fn(async (url: Parameters<typeof fetch>[0]) => {
+      const u = String(url);
+      if (u.includes("/groups/")) return jsonResponse({}, { status: 401 });
+      if (u.includes("/auth/user")) {
+        // Simulate a concurrent reconnect landing while this request is in
+        // flight: by the time the confirm check runs, the DB already holds a
+        // fresh cookie that must survive.
+        await db
+          .update(vrchatSessions)
+          .set({ authCookie: "cookie-FRESH" })
+          .where(eq(vrchatSessions.id, SESSION_ID));
+        return jsonResponse({}, { status: 401 });
+      }
+      return jsonResponse({}, { status: 500 });
+    }) as typeof fetch;
+
+    await expect(fetchGroupInstances("grp_test")).rejects.toThrow(SESSION_EXPIRED_MSG);
+
+    const row = await readSession();
+    expect(row?.authCookie).toBe("cookie-FRESH"); // NOT nulled by the stale 401
+  });
+
+  it("auto-reconnects with the remembered 2FA device when the cookie is confirmed dead", async () => {
+    process.env.VRCHAT_USERNAME = "bot";
+    process.env.VRCHAT_PASSWORD = "pw";
+    global.fetch = vi.fn(async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/groups/")) return jsonResponse({}, { status: 401 });
+      if (u.includes("/auth/user")) {
+        const headers = new Headers(init?.headers as Record<string, string> | undefined);
+        if (headers.get("Authorization")?.startsWith("Basic ")) {
+          // Password login with remembered twoFactorAuth cookie: no challenge.
+          return jsonResponse(
+            { id: "usr_x", displayName: "Bot", requiresTwoFactorAuth: [] },
+            { setCookies: ["auth=cookie-NEW; Path=/; HttpOnly"] },
+          );
+        }
+        return jsonResponse({}, { status: 401 }); // confirm check: cookie dead
+      }
+      return jsonResponse({}, { status: 500 });
+    }) as typeof fetch;
+
+    await expect(fetchGroupInstances("grp_test")).rejects.toThrow(/auto-reconnected/);
+
+    const row = await readSession();
+    expect(row?.authCookie).toBe("cookie-NEW"); // fresh session, no staff action
+    expect(row?.twoFactorCookie).toBe("tfa-A");
+    expect(row?.lastError).toBeNull();
+  });
+
+  it("falls back to manual reconnect when the auto-reconnect login fails", async () => {
+    process.env.VRCHAT_USERNAME = "bot";
+    process.env.VRCHAT_PASSWORD = "pw";
+    global.fetch = vi.fn(async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/groups/")) return jsonResponse({}, { status: 401 });
+      if (u.includes("/auth/user")) {
+        const headers = new Headers(init?.headers as Record<string, string> | undefined);
+        if (headers.get("Authorization")?.startsWith("Basic ")) {
+          return jsonResponse({ error: "too many attempts" }, { status: 429 });
+        }
+        return jsonResponse({}, { status: 401 });
+      }
+      return jsonResponse({}, { status: 500 });
+    }) as typeof fetch;
+
+    await expect(fetchGroupInstances("grp_test")).rejects.toThrow(SESSION_EXPIRED_MSG);
+
+    const row = await readSession();
+    expect(row?.authCookie).toBeNull();
+    expect(row?.twoFactorCookie).toBe("tfa-A");
   });
 });
 

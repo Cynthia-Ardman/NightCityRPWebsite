@@ -77,6 +77,17 @@ from Set-Cookie on every successful apiGet/apiSend, so the stored session tracks
 VRChat's rotation instead of going stale. `markSessionExpired` records the
 endpoint+timestamp in lastError for diagnosis. Tests: vrchatClient.test.ts.
 
+## Auto-reconnect via remembered 2FA device
+When the cookie is CONFIRMED dead, one unattended `beginManualLogin()` attempt
+is allowed (15-min in-process cooldown): a remembered twoFactorAuth cookie makes
+password login complete with NO challenge (this is what staff's one-click
+Connect does). `needs_email_code`/failure → fall back to expired card (the OTP
+email was already sent + pendingAuthCookie stashed, so manual finish is
+paste-only). **Why safe:** single attempt + cooldown never trips the per-network
+failed-login limiter. Expiry is compare-and-set on the exact stale cookie
+(`WHERE authCookie = <stale>`) so a slow in-flight 401 can never clobber a
+session freshly restored by a concurrent reconnect.
+
 ## No unattended re-login (429 network lockout, fixed 2026-07-18)
 `apiGet`/`apiSend` must NEVER fall back to `login()` on a missing cookie or 401 —
 password login from the datacenter IP always dead-ends in emailOtp, and the

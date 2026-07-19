@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { db, vrchatSessions } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { logger } from "./logger";
 
 // ---------------------------------------------------------------------------
@@ -380,13 +380,29 @@ export async function getSessionInfo(): Promise<VrchatSessionInfo> {
 export const SESSION_EXPIRED_MSG =
   "VRChat session expired — a staff member must reconnect via System Admin → VRChat (Connect + email code).";
 
-async function markSessionExpired(context: string): Promise<void> {
+async function markSessionExpired(context: string, staleAuth: string | null): Promise<void> {
   // Keep the twoFactorAuth cookie: a remembered 2FA device can make the next
   // manual reconnect skip the challenge. Only the auth cookie is dead.
-  await persistSession({
-    authCookie: null,
-    lastError: `${SESSION_EXPIRED_MSG} (401 on ${context} at ${new Date().toISOString()})`.slice(0, 500),
-  });
+  //
+  // Compare-and-set on the exact cookie this request saw fail: a concurrent
+  // caller (or the auto-reconnect) may have already replaced the cookie with a
+  // fresh one, and a stale in-flight 401 must never clobber that new session.
+  const result = await db
+    .update(vrchatSessions)
+    .set({
+      authCookie: null,
+      lastError: `${SESSION_EXPIRED_MSG} (401 on ${context} at ${new Date().toISOString()})`.slice(0, 500),
+    })
+    .where(
+      staleAuth === null
+        ? eq(vrchatSessions.id, SESSION_ID)
+        : and(eq(vrchatSessions.id, SESSION_ID), eq(vrchatSessions.authCookie, staleAuth)),
+    )
+    .returning({ id: vrchatSessions.id });
+  if (result.length === 0) {
+    logger.info({ context }, "VRChat 401 on a stale cookie; a newer session already exists — not expiring");
+    return;
+  }
   logger.warn({ context }, "VRChat session marked expired");
 }
 
@@ -431,10 +447,46 @@ async function captureRotatedCookies(res: Response, prior: SessionCookies): Prom
   }
 }
 
+// When the cookie is confirmed dead, try ONE unattended reconnect using the
+// remembered twoFactorAuth cookie (beginManualLogin's no-challenge path — the
+// same thing a staff member's single "Connect" click does when no email code
+// is asked). Cooldown-guarded so a broken password / revoked 2FA device can't
+// hammer VRChat's per-network failed-login limiter; if VRChat demands a code
+// we fall back to marking the session expired for a manual reconnect (the
+// code email is already on its way, so the staff click is one paste away).
+const AUTO_RECONNECT_COOLDOWN_MS = 15 * 60 * 1000;
+let lastAutoReconnectAt = 0;
+
+/** Test-only: clear the auto-reconnect cooldown between test cases. */
+export function __resetAutoReconnectCooldownForTests(): void {
+  lastAutoReconnectAt = 0;
+}
+
+async function tryAutoReconnect(context: string): Promise<boolean> {
+  const nowMs = Date.now();
+  if (nowMs - lastAutoReconnectAt < AUTO_RECONNECT_COOLDOWN_MS) return false;
+  lastAutoReconnectAt = nowMs;
+  try {
+    const res = await beginManualLogin();
+    if (res.status === "connected") {
+      logger.info({ context }, "VRChat session auto-reconnected via remembered 2FA device");
+      return true;
+    }
+    logger.warn({ context }, "VRChat auto-reconnect needs an email code; leaving for manual reconnect");
+    return false;
+  } catch (err) {
+    logger.warn({ context, err }, "VRChat auto-reconnect attempt failed");
+    return false;
+  }
+}
+
 // Shared 401 handling for apiGet/apiSend: verify before discarding.
 async function handleUnauthorized(cookies: SessionCookies, context: string): Promise<never> {
   if (await confirmCookieDead(cookies)) {
-    await markSessionExpired(context);
+    if (await tryAutoReconnect(context)) {
+      throw new Error(`VRChat ${context} hit an expired cookie — session auto-reconnected, will retry next cycle.`);
+    }
+    await markSessionExpired(context, cookies.auth);
     throw new Error(SESSION_EXPIRED_MSG);
   }
   logger.warn({ context }, "VRChat returned a transient 401; keeping session");
