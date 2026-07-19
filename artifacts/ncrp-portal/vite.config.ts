@@ -4,29 +4,27 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-const rawPort = process.env.PORT;
-
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
+// PORT is only needed when actually serving (dev server / preview). The
+// production build runs without PORT set, so only validate it lazily.
+function requirePort(): number {
+  const rawPort = process.env.PORT;
+  if (!rawPort) {
+    throw new Error(
+      "PORT environment variable is required but was not provided.",
+    );
+  }
+  const port = Number(rawPort);
+  if (Number.isNaN(port) || port <= 0) {
+    throw new Error(`Invalid PORT value: "${rawPort}"`);
+  }
+  return port;
 }
 
-const port = Number(rawPort);
+// In dev the workflow sets BASE_PATH; in the production build it is absent —
+// the portal is served at the site root there.
+const basePath = process.env.BASE_PATH ?? "/";
 
-if (Number.isNaN(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: "${rawPort}"`);
-}
-
-const basePath = process.env.BASE_PATH;
-
-if (!basePath) {
-  throw new Error(
-    "BASE_PATH environment variable is required but was not provided.",
-  );
-}
-
-export default defineConfig({
+export default defineConfig(async ({ command }) => ({
   base: basePath,
   plugins: [
     react(),
@@ -58,18 +56,21 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
   },
-  server: {
-    port,
-    strictPort: true,
-    host: "0.0.0.0",
-    allowedHosts: true,
-    fs: {
-      strict: true,
-    },
-  },
+  server:
+    command === "serve"
+      ? {
+          port: requirePort(),
+          strictPort: true,
+          host: "0.0.0.0",
+          allowedHosts: true,
+          fs: {
+            strict: true,
+          },
+        }
+      : undefined,
   preview: {
-    port,
+    ...(process.env.PORT ? { port: requirePort() } : {}),
     host: "0.0.0.0",
     allowedHosts: true,
   },
-});
+}));
