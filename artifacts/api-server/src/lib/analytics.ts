@@ -54,6 +54,8 @@ interface ReviewQueueStats {
 export interface AdminAnalytics {
   range: AnalyticsRange;
   since: string;
+  excludeAbove: number | null;
+  excludedWallets: number;
   economy: { weekly: EconomyWeek[]; supply: SupplyPoint[] };
   missions: {
     weekly: MissionWeek[];
@@ -91,10 +93,37 @@ function bucketAges(dates: Date[], now: Date): { buckets: AgeBuckets; oldestDays
 // internal store/clinic ledgers, not player money supply.
 const SETTLED = sql`sync_status IN ('synced', 'reconciled') AND user_id IS NOT NULL`;
 
-export async function computeAdminAnalytics(range: AnalyticsRange): Promise<AdminAnalytics> {
+export function parseExcludeAbove(raw: unknown): number | null {
+  if (typeof raw !== "string" || raw.trim() === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.floor(n);
+}
+
+export async function computeAdminAnalytics(
+  range: AnalyticsRange,
+  excludeAbove: number | null = null,
+): Promise<AdminAnalytics> {
   const weeks = RANGE_WEEKS[range];
   const now = new Date();
   const since = new Date(now.getTime() - weeks * 7 * 86_400_000);
+
+  // Optional whale filter: staff can exclude wallets whose all-time settled
+  // net balance exceeds a typed-in threshold so one outlier account doesn't
+  // dwarf the economy charts. The exclusion is a subquery (not an in-memory
+  // id list) so it composes into each aggregate without parameter spreading.
+  const WHALES = sql`
+    SELECT user_id FROM wallet_transactions
+    WHERE ${SETTLED}
+    GROUP BY user_id
+    HAVING SUM(amount) > ${excludeAbove ?? 0}
+  `;
+  const EXCLUDE = excludeAbove === null ? sql`` : sql`AND user_id NOT IN (${WHALES})`;
+  let excludedWallets = 0;
+  if (excludeAbove !== null) {
+    const res = await db.execute(sql`SELECT COUNT(*)::int AS n FROM (${WHALES}) w`);
+    excludedWallets = Number((res.rows[0] as { n: number } | undefined)?.n) || 0;
+  }
 
   // ---- Economy: weekly created vs destroyed, grouped by category -----------
   // Rows are grouped by (week, category, kind) so null-category live rows can
@@ -112,6 +141,7 @@ export async function computeAdminAnalytics(range: AnalyticsRange): Promise<Admi
     WHERE ${SETTLED}
       AND created_at >= ${since}
       AND kind NOT IN ('reconcile_seed', 'transfer', 'transfer_in', 'transfer_out')
+      ${EXCLUDE}
     GROUP BY 1, 2, 3
     ORDER BY 1
   `);
@@ -139,6 +169,7 @@ export async function computeAdminAnalytics(range: AnalyticsRange): Promise<Admi
     FROM wallet_transactions
     WHERE ${SETTLED}
       AND kind NOT IN ('transfer', 'transfer_in', 'transfer_out')
+      ${EXCLUDE}
     GROUP BY 1
     ORDER BY 1
   `);
@@ -170,6 +201,7 @@ export async function computeAdminAnalytics(range: AnalyticsRange): Promise<Admi
       AND created_at >= ${since}
       AND amount > 0
       AND (category = 'mission' OR (category IS NULL AND kind = 'mission'))
+      ${EXCLUDE}
     GROUP BY 1 ORDER BY 1
   `);
   const missionWeekMap = new Map<string, MissionWeek>();
@@ -312,6 +344,8 @@ export async function computeAdminAnalytics(range: AnalyticsRange): Promise<Admi
   return {
     range,
     since: since.toISOString(),
+    excludeAbove,
+    excludedWallets,
     economy: {
       weekly: [...econByWeek.values()].sort((a, b) => a.weekStart.localeCompare(b.weekStart)),
       supply,

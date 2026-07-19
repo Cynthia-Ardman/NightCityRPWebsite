@@ -9,4 +9,9 @@ import type { AdminGetAnalyticsRange } from './adminGetAnalyticsRange';
 
 export type AdminGetAnalyticsParams = {
 range?: AdminGetAnalyticsRange;
+/**
+ * Exclude wallets whose all-time settled net balance exceeds this amount from the economy charts.
+ * @minimum 0
+ */
+excludeAbove?: number;
 };

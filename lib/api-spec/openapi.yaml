@@ -2556,6 +2556,7 @@ paths:
       summary: "Staff analytics: server-health aggregates (economy, missions, review-queue aging, player activity)."
       parameters:
         - { in: query, name: range, schema: { type: string, enum: [4w, 3m, 1y], default: 3m } }
+        - { in: query, name: excludeAbove, description: "Exclude wallets whose all-time settled net balance exceeds this amount from the economy charts.", schema: { type: integer, minimum: 0 } }
       responses:
         "200":
           description: OK
@@ -10894,6 +10895,8 @@ components:
           type: array
           items: { $ref: "#/components/schemas/AnalyticsReviewQueue" }
         players: { $ref: "#/components/schemas/AnalyticsPlayers" }
+        excludeAbove: { type: ["integer", "null"], description: "Echo of the wallet-balance exclusion threshold applied, if any." }
+        excludedWallets: { type: integer, description: "Number of wallets excluded by the threshold." }
 
     AnalyticsEconomy:
       type: object

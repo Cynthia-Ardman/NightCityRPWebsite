@@ -18,4 +18,11 @@ export interface AdminAnalytics {
   missions: AnalyticsMissions;
   reviews: AnalyticsReviewQueue[];
   players: AnalyticsPlayers;
+  /**
+     * Echo of the wallet-balance exclusion threshold applied, if any.
+     * @nullable
+     */
+  excludeAbove?: number | null;
+  /** Number of wallets excluded by the threshold. */
+  excludedWallets?: number;
 }

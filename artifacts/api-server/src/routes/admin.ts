@@ -34,7 +34,7 @@ import { isLoginRestricted, LOGIN_RESTRICTED_KEY } from "../lib/siteAccess";
 import { isVrchatCalendarSyncEnabled, VRCHAT_SYNC_FLAG } from "../lib/eventsService";
 import { scanVrchatChannel } from "../lib/vrchatLinks";
 import { getEconomyMode, reconcileOneUser, recordSettledWalletMovement, applyWalletDelta } from "../lib/economy";
-import { computeAdminAnalytics, parseAnalyticsRange } from "../lib/analytics";
+import { computeAdminAnalytics, parseAnalyticsRange, parseExcludeAbove } from "../lib/analytics";
 
 const router: IRouter = Router();
 
@@ -63,7 +63,8 @@ const resolveOrProvisionOwner = resolveOrProvisionUser;
 // the staff navigation. All aggregation happens in SQL (see lib/analytics).
 router.get("/admin/analytics", adminOrFixer, async (req, res): Promise<void> => {
   const range = parseAnalyticsRange(req.query.range);
-  const payload = await computeAdminAnalytics(range);
+  const excludeAbove = parseExcludeAbove(req.query.excludeAbove);
+  const payload = await computeAdminAnalytics(range, excludeAbove);
   res.json(payload);
 });
 

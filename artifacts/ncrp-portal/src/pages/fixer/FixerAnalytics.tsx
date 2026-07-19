@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useAdminGetAnalytics, type AdminGetAnalyticsRange } from "@workspace/api-client-react";
+import { useAdminGetAnalytics, getAdminGetAnalyticsQueryKey, type AdminGetAnalyticsRange } from "@workspace/api-client-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, Coins, Briefcase, ClipboardList, Users } from "lucide-react";
@@ -70,11 +70,18 @@ const tooltipStyle = {
 export default function FixerAnalytics() {
   const { data: user, isLoading: userLoading } = useEffectiveMe();
   const [range, setRange] = useState<RangeKey>("3m");
+  const [excludeInput, setExcludeInput] = useState("");
+  const [excludeAbove, setExcludeAbove] = useState<number | null>(null);
   const isStaff = !!user && (user.isFixer || user.isAdmin);
-  const { data, isLoading } = useAdminGetAnalytics(
-    { range: range as AdminGetAnalyticsRange },
-    { query: { enabled: isStaff } },
-  );
+  const params = { range: range as AdminGetAnalyticsRange, ...(excludeAbove !== null ? { excludeAbove } : {}) };
+  const { data, isLoading } = useAdminGetAnalytics(params, {
+    query: { enabled: isStaff, queryKey: getAdminGetAnalyticsQueryKey(params) },
+  });
+
+  const applyExclude = () => {
+    const n = Number(excludeInput.replace(/[,\s]/g, ""));
+    setExcludeAbove(Number.isFinite(n) && n > 0 ? Math.floor(n) : null);
+  };
 
   if (userLoading) return null;
   if (!isStaff) {
@@ -150,6 +157,48 @@ export default function FixerAnalytics() {
             ← fixer hub
           </Link>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+        <span className="text-muted-foreground">EXCLUDE WALLETS ABOVE</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={excludeInput}
+          onChange={(e) => setExcludeInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") applyExclude();
+          }}
+          placeholder="e.g. 1,000,000"
+          data-testid="input-exclude-above"
+          className="w-36 bg-background border border-border px-2 py-1 font-mono text-xs focus:outline-none focus:border-nc-cyan"
+        />
+        <button
+          onClick={applyExclude}
+          data-testid="button-apply-exclude"
+          className="px-3 py-1 border border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 transition-colors"
+        >
+          APPLY
+        </button>
+        {excludeAbove !== null && (
+          <>
+            <button
+              onClick={() => {
+                setExcludeInput("");
+                setExcludeAbove(null);
+              }}
+              data-testid="button-clear-exclude"
+              className="px-3 py-1 border border-border text-muted-foreground hover:text-foreground transition-colors"
+            >
+              CLEAR
+            </button>
+            <span className="text-nc-yellow" data-testid="text-excluded-wallets">
+              {typeof data?.excludedWallets === "number"
+                ? `${data.excludedWallets} wallet${data.excludedWallets === 1 ? "" : "s"} above €$ ${excludeAbove.toLocaleString()} excluded from economy charts`
+                : `filtering wallets above €$ ${excludeAbove.toLocaleString()}…`}
+            </span>
+          </>
+        )}
       </div>
 
       {isLoading || !data ? (

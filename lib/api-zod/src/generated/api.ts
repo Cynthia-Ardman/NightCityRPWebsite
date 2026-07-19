@@ -6757,9 +6757,13 @@ export const AdminListAuditResponse = zod.array(AdminListAuditResponseItem)
  * @summary Staff analytics: server-health aggregates (economy, missions, review-queue aging, player activity).
  */
 export const adminGetAnalyticsQueryRangeDefault = `3m`;
+export const adminGetAnalyticsQueryExcludeAboveMin = 0;
+
+
 
 export const AdminGetAnalyticsQueryParams = zod.object({
-  "range": zod.enum(['4w', '3m', '1y']).default(adminGetAnalyticsQueryRangeDefault)
+  "range": zod.enum(['4w', '3m', '1y']).default(adminGetAnalyticsQueryRangeDefault),
+  "excludeAbove": zod.coerce.number().min(adminGetAnalyticsQueryExcludeAboveMin).optional().describe('Exclude wallets whose all-time settled net balance exceeds this amount from the economy charts.')
 })
 
 export const AdminGetAnalyticsResponse = zod.object({
@@ -6811,7 +6815,9 @@ export const AdminGetAnalyticsResponse = zod.object({
   "month": zod.coerce.date(),
   "count": zod.number()
 }))
-})
+}),
+  "excludeAbove": zod.number().nullish().describe('Echo of the wallet-balance exclusion threshold applied, if any.'),
+  "excludedWallets": zod.number().optional().describe('Number of wallets excluded by the threshold.')
 })
 
 

@@ -7107,6 +7107,13 @@ export interface AdminAnalytics {
   missions: AnalyticsMissions;
   reviews: AnalyticsReviewQueue[];
   players: AnalyticsPlayers;
+  /**
+     * Echo of the wallet-balance exclusion threshold applied, if any.
+     * @nullable
+     */
+  excludeAbove?: number | null;
+  /** Number of wallets excluded by the threshold. */
+  excludedWallets?: number;
 }
 
 export interface AuditLogRow {
@@ -7640,6 +7647,11 @@ limit?: number;
 
 export type AdminGetAnalyticsParams = {
 range?: AdminGetAnalyticsRange;
+/**
+ * Exclude wallets whose all-time settled net balance exceeds this amount from the economy charts.
+ * @minimum 0
+ */
+excludeAbove?: number;
 };
 
 export type AdminGetAnalyticsRange = typeof AdminGetAnalyticsRange[keyof typeof AdminGetAnalyticsRange];
