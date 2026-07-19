@@ -43,3 +43,26 @@ same origin). Command: `pnpm --filter @workspace/ncrp-portal run test:e2e`.
 
 ## Former index detail (full)
 Nix `which chromium` executablePath; test-login backdoor gated by NODE_ENV+ENABLE_TEST_AUTH+`e2e-` prefix; per-role storageState seeded via raw pg; balance not seedable (assert wallet_transactions); keep workers=1.
+
+## Vite dev error overlay blocks clicks
+- The suite runs against the Vite DEV server, so any benign runtime error (e.g.
+  the expected `/me/wallet` 502 for unseeded UB balances) pops
+  `<vite-error-overlay>` which intercepts ALL pointer events and makes clicks
+  time out. Removing it via MutationObserver doesn't stick (it re-spawns);
+  inject a CSS kill via `page.addInitScript`:
+  `vite-error-overlay{display:none!important;pointer-events:none!important;}`.
+
+## Journey-spec gotchas (journeys.spec.ts)
+- Multi-role serial journeys: `browser.newContext({storageState: stateFile(role)})`
+  per step inside `test.describe.serial`; look up ids by seeded names via
+  `withPool` from `./seed`.
+- Sheet submit requires pronouns/occupation/psych/physical/background/age/skills
+  (see api-server sheet-validation REQUIRED_SHEET_FIELDS) + portrait & stats
+  uploads; a failed submit silently leaves a draft row.
+- Mission `button-approve` lives on the FIXER tab and approve AUTO-POSTS
+  (approveMission delegates to postMission — no separate post step).
+- Mission completion only stamps completedAt/completedBy; `missions.status`
+  stays "open" (it's the signup toggle). Player pay settles only via the
+  autopay cron — assert mission_assignments payment fields, not money.
+- Long runs: never background playwright (bash suspension trap); run foreground
+  in chunks with `timeout 110 npx playwright test <files>` per bash call.

@@ -60,11 +60,13 @@ export async function seedPlayerCharacter(pool: pg.Pool): Promise<SeededCharacte
   let id: number;
   if (existing.rows[0]) {
     id = existing.rows[0].id;
-    await pool.query(`update characters set kind = 'pc', claimed = true where id = $1`, [id]);
+    // approved=true so the character is eligible for self-serve flows
+    // (residential leases, mission applications) exercised by the journeys.
+    await pool.query(`update characters set kind = 'pc', claimed = true, approved = true where id = $1`, [id]);
   } else {
     const inserted = await pool.query<{ id: number }>(
-      `insert into characters (owner_id, name, kind, claimed, archetype, background)
-       values ($1, $2, 'pc', true, 'Solo', 'Seeded by the e2e suite.')
+      `insert into characters (owner_id, name, kind, claimed, approved, archetype, background)
+       values ($1, $2, 'pc', true, true, 'Solo', 'Seeded by the e2e suite.')
        returning id`,
       [ownerId, name],
     );
@@ -87,10 +89,75 @@ export async function seedPlayerCharacter(pool: pg.Pool): Promise<SeededCharacte
   return { id, name };
 }
 
+// ---------------------------------------------------------------------------
+// Journey fixtures — full create-and-approve flows (sheet approval, mission
+// lifecycle, residential lease). Everything the journeys create at runtime is
+// namespaced with the JOURNEY_PREFIX so a rerun can wipe last run's leftovers
+// here and start from a clean slate.
+
+export const JOURNEY_PREFIX = "E2E Journey";
+export const JOURNEY_SHEET_NAME = `${JOURNEY_PREFIX} Runner`;
+export const JOURNEY_MISSION_TITLE = `${JOURNEY_PREFIX} Heist`;
+export const JOURNEY_LISTING_NAME = `${JOURNEY_PREFIX} Apartment`;
+export const JOURNEY_DISTRICT = "E2E District";
+
+/** Remove everything a previous journey run created, then (re)seed the
+ *  rentable listing the commerce journey leases. Idempotent. */
+export async function seedJourneyFixtures(pool: pg.Pool): Promise<{ listingId: number }> {
+  const ownerId = `${TEST_PREFIX}player`;
+
+  // Missions: children (applications/assignments) cascade on delete.
+  await pool.query(`delete from missions where title like $1`, [`${JOURNEY_PREFIX}%`]);
+
+  // Character sheets + the characters materialized from them.
+  await pool.query(`delete from character_sheets where owner_id = $1 and name like $2`, [
+    ownerId,
+    `${JOURNEY_PREFIX}%`,
+  ]);
+  await pool.query(`delete from characters where owner_id = $1 and name like $2`, [
+    ownerId,
+    `${JOURNEY_PREFIX}%`,
+  ]);
+
+  // Housing: drop any lease held by an e2e-owned character so the seeded
+  // listing is vacant again and the one-per-district cap can't trip.
+  await pool.query(
+    `delete from housing where character_id in (select id from characters where owner_id like $1)`,
+    [`${TEST_PREFIX}%`],
+  );
+
+  // The rentable listing itself (residential + leasable so a player can
+  // self-serve lease it). Upsert by name — catalog_rent has no natural key.
+  const existing = await pool.query<{ id: number }>(
+    `select id from catalog_rent where name = $1 limit 1`,
+    [JOURNEY_LISTING_NAME],
+  );
+  let listingId: number;
+  if (existing.rows[0]) {
+    listingId = existing.rows[0].id;
+    await pool.query(
+      `update catalog_rent set district = $2, kind = 'residential', leasable = true, monthly_rent = 1000 where id = $1`,
+      [listingId, JOURNEY_DISTRICT],
+    );
+    // A stale lease from an older run may reference the listing directly.
+    await pool.query(`delete from housing where listing_id = $1`, [listingId]);
+  } else {
+    const inserted = await pool.query<{ id: number }>(
+      `insert into catalog_rent (name, district, tier, monthly_rent, description, kind, leasable)
+       values ($1, $2, 'Tier 1', 1000, 'Seeded by the e2e suite for the lease journey.', 'residential', true)
+       returning id`,
+      [JOURNEY_LISTING_NAME, JOURNEY_DISTRICT],
+    );
+    listingId = inserted.rows[0].id;
+  }
+  return { listingId };
+}
+
 export async function seedAll(): Promise<{ playerCharacter: SeededCharacter }> {
   return withPool(async (pool) => {
     await seedUsers(pool);
     const playerCharacter = await seedPlayerCharacter(pool);
+    await seedJourneyFixtures(pool);
     return { playerCharacter };
   });
 }
