@@ -555,12 +555,12 @@ function CalChip({
         className={`block ${dense ? "px-1 py-0.5" : "px-1.5 py-1"} ${canQuickNpc ? "pr-7 md:pr-5" : ""}`}
         title={`${item.title} · ${item.subtype} · ${time}${statusLabel ? ` · ${statusLabel}` : ""}`}
       >
-        <div className={`flex items-center gap-1 font-mono leading-tight ${dense ? "text-[0.75rem]" : "text-[0.8125rem]"}`}>
-          <Icon className={`shrink-0 ${dense ? "w-2.5 h-2.5" : "w-3 h-3"}`} />
+        <div className={`flex items-center gap-1 font-mono leading-tight text-[0.8125rem]`}>
+          <Icon className={`shrink-0 w-3 h-3`} />
           <span className="font-semibold tabular-nums tracking-tight text-foreground">{time}</span>
           {item.myStatus && (
             <span
-              className={`ml-auto shrink-0 px-1 font-display tracking-wider border ${dense ? "text-[0.5625rem]" : "text-[0.625rem]"} ${
+              className={`ml-auto shrink-0 px-1 font-display tracking-wider border text-[0.625rem] ${
                 item.myStatus === "player"
                   ? "bg-nc-green/20 border-nc-green/60 text-nc-green"
                   : "bg-nc-yellow/20 border-nc-yellow/60 text-nc-yellow"
@@ -572,7 +572,7 @@ function CalChip({
           )}
         </div>
         <div
-          className={`font-mono leading-tight text-foreground break-words ${dense ? "text-[0.6875rem]" : "text-[0.8125rem]"}`}
+          className={`font-mono leading-tight text-foreground break-words text-[0.8125rem]`}
         >
           {item.title}
         </div>
