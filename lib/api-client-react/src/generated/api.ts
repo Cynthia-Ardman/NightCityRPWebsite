@@ -294,6 +294,7 @@ import type {
   RunIncomeWork429,
   SaleOffer,
   SearchFixerPlayersParams,
+  SearchFixerVrchatPlayersParams,
   SearchInventoryByOwnerParams,
   SearchMissionActorsParams,
   ServiceBillInput,
@@ -334,6 +335,8 @@ import type {
   VrchatCommandRequest,
   VrchatConnectResult,
   VrchatInstanceList,
+  VrchatPlayerSearchResult,
+  VrchatPlayerVisit,
   VrchatScanResult,
   VrchatSessionInfo,
   VrchatStatusResponse,
@@ -14731,6 +14734,167 @@ export function useGetFixerPlayerActivity<TData = Awaited<ReturnType<typeof getF
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetFixerPlayerActivityQueryOptions(userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSearchFixerVrchatPlayersUrl = (params?: SearchFixerVrchatPlayersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/fixer/vrchat/players?${stringifiedParams}` : `/api/fixer/vrchat/players`
+}
+
+/**
+ * @summary Search VRChat players seen in imported instance history by display name (fixer/admin)
+ */
+export const searchFixerVrchatPlayers = async (params?: SearchFixerVrchatPlayersParams, options?: RequestInit): Promise<VrchatPlayerSearchResult[]> => {
+
+  return customFetch<VrchatPlayerSearchResult[]>(getSearchFixerVrchatPlayersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchFixerVrchatPlayersQueryKey = (params?: SearchFixerVrchatPlayersParams,) => {
+    return [
+    `/api/fixer/vrchat/players`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchFixerVrchatPlayersQueryOptions = <TData = Awaited<ReturnType<typeof searchFixerVrchatPlayers>>, TError = ErrorType<unknown>>(params?: SearchFixerVrchatPlayersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchFixerVrchatPlayers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchFixerVrchatPlayersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchFixerVrchatPlayers>>> = ({ signal }) => searchFixerVrchatPlayers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchFixerVrchatPlayers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchFixerVrchatPlayersQueryResult = NonNullable<Awaited<ReturnType<typeof searchFixerVrchatPlayers>>>
+export type SearchFixerVrchatPlayersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Search VRChat players seen in imported instance history by display name (fixer/admin)
+ */
+
+export function useSearchFixerVrchatPlayers<TData = Awaited<ReturnType<typeof searchFixerVrchatPlayers>>, TError = ErrorType<unknown>>(
+ params?: SearchFixerVrchatPlayersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchFixerVrchatPlayers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchFixerVrchatPlayersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListFixerVrchatPlayerVisitsUrl = (vrchatUserId: string,) => {
+
+
+
+
+  return `/api/fixer/vrchat/players/${vrchatUserId}/visits`
+}
+
+/**
+ * @summary All imported instance visits for one VRChat player, newest first (fixer/admin)
+ */
+export const listFixerVrchatPlayerVisits = async (vrchatUserId: string, options?: RequestInit): Promise<VrchatPlayerVisit[]> => {
+
+  return customFetch<VrchatPlayerVisit[]>(getListFixerVrchatPlayerVisitsUrl(vrchatUserId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFixerVrchatPlayerVisitsQueryKey = (vrchatUserId: string,) => {
+    return [
+    `/api/fixer/vrchat/players/${vrchatUserId}/visits`
+    ] as const;
+    }
+
+
+export const getListFixerVrchatPlayerVisitsQueryOptions = <TData = Awaited<ReturnType<typeof listFixerVrchatPlayerVisits>>, TError = ErrorType<unknown>>(vrchatUserId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFixerVrchatPlayerVisits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFixerVrchatPlayerVisitsQueryKey(vrchatUserId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFixerVrchatPlayerVisits>>> = ({ signal }) => listFixerVrchatPlayerVisits(vrchatUserId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(vrchatUserId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFixerVrchatPlayerVisits>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListFixerVrchatPlayerVisitsQueryResult = NonNullable<Awaited<ReturnType<typeof listFixerVrchatPlayerVisits>>>
+export type ListFixerVrchatPlayerVisitsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary All imported instance visits for one VRChat player, newest first (fixer/admin)
+ */
+
+export function useListFixerVrchatPlayerVisits<TData = Awaited<ReturnType<typeof listFixerVrchatPlayerVisits>>, TError = ErrorType<unknown>>(
+ vrchatUserId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFixerVrchatPlayerVisits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListFixerVrchatPlayerVisitsQueryOptions(vrchatUserId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

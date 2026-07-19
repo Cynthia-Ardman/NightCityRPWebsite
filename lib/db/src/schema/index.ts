@@ -2340,6 +2340,32 @@ export const vrchatInstanceSamples = pgTable(
 );
 export type VrchatInstanceSample = typeof vrchatInstanceSamples.$inferSelect;
 
+// Per-player visits inside a session — only knowable from VRCX gamelog imports
+// (the live group-instances API returns head counts, never identities).
+export const vrchatInstanceVisits = pgTable(
+  "vrchat_instance_visits",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: integer("session_id")
+      .notNull()
+      .references(() => vrchatInstanceSessions.id, { onDelete: "cascade" }),
+    vrchatUserId: text("vrchat_user_id").notNull(),
+    displayName: text("display_name").notNull(),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull(),
+    // NULL when no matching leave event was seen — the visit is treated as
+    // lasting until the session's last event.
+    leftAt: timestamp("left_at", { withTimezone: true }),
+    durationMs: integer("duration_ms").notNull().default(0),
+  },
+  (t) => ({
+    sessionIdx: index("viv_session_idx").on(t.sessionId),
+    userIdx: index("viv_user_idx").on(t.vrchatUserId),
+    nameIdx: index("viv_name_idx").on(sql`lower(${t.displayName})`),
+    joinedIdx: index("viv_joined_idx").on(t.joinedAt),
+  }),
+);
+export type VrchatInstanceVisit = typeof vrchatInstanceVisits.$inferSelect;
+
 // ---------------------------------------------------------------------------
 // NCPD (Night City Police Department)
 // ---------------------------------------------------------------------------

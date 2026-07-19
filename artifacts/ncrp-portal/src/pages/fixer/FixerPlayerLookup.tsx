@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import {
   useSearchFixerPlayers,
@@ -26,6 +26,7 @@ import {
   ArrowLeft,
   FileEdit,
   FileX,
+  Globe,
 } from "lucide-react";
 
 // Player-facing labels for custom-request (proposal) types.
@@ -92,6 +93,13 @@ export default function FixerPlayerLookup() {
   const [qInput, setQInput] = useState("");
   const [query, setQuery] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Deep-link support: /fixer/players?userId=<id> opens that player's dossier
+  // directly (used by the VRChat player search on the analytics page).
+  useEffect(() => {
+    const userId = new URLSearchParams(window.location.search).get("userId");
+    if (userId) setSelectedId(userId);
+  }, []);
 
   const searchParams = { q: query ?? undefined };
   const { data: results, isFetching: searching } = useSearchFixerPlayers(searchParams, {
@@ -483,6 +491,36 @@ export default function FixerPlayerLookup() {
                       {profile.historicalAppearances.dates.map((d, i) => (
                         <Row key={`appearance-${i}`} testId={`row-appearance-${i}`} when={fmtDate(d)}>
                           <span className="text-foreground">Mission appearance</span>
+                        </Row>
+                      ))}
+                    </RowList>
+                  )}
+                </Section>
+              )}
+
+              {/* VRChat instance attendance (from imported VRCX gamelogs) */}
+              {profile.vrchatAttendance && (
+                <Section
+                  icon={<Globe className="w-4 h-4" />}
+                  title="VRCHAT ATTENDANCE"
+                  count={profile.vrchatAttendance.totalVisits}
+                >
+                  <div className="font-mono text-xs text-muted-foreground mb-2" data-testid="text-vr-attendance-summary">
+                    {profile.vrchatAttendance.vrchatUsername ?? profile.vrchatAttendance.vrchatUserId}
+                    {" · "}
+                    {profile.vrchatAttendance.matchKind === "linked" ? "linked via #vrchat-username" : "matched by display name"}
+                    {" · "}
+                    {profile.vrchatAttendance.totalVisits} visits · {profile.vrchatAttendance.totalHours.toLocaleString()}h total
+                  </div>
+                  {profile.vrchatAttendance.visits.length === 0 ? (
+                    <Empty>No recorded instance visits.</Empty>
+                  ) : (
+                    <RowList>
+                      {profile.vrchatAttendance.visits.map((v) => (
+                        <Row key={v.id} testId={`row-vr-visit-${v.id}`} when={fmt(v.joinedAt)}>
+                          <span className="text-foreground">{v.worldName}</span>
+                          <span className="text-nc-cyan"> · {Math.round(v.durationMs / 60_000)}m</span>
+                          {!v.leftAt && <span className="text-muted-foreground"> · open at import</span>}
                         </Row>
                       ))}
                     </RowList>

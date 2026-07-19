@@ -19,6 +19,7 @@ import type { PlayerActivityProfilePlayer } from './playerActivityProfilePlayer'
 import type { PlayerActivityProfileRejectedRequestsItem } from './playerActivityProfileRejectedRequestsItem';
 import type { PlayerActivityProfileRipperdocsItem } from './playerActivityProfileRipperdocsItem';
 import type { PlayerActivityProfileStoresItem } from './playerActivityProfileStoresItem';
+import type { PlayerActivityProfileVrchatAttendance } from './playerActivityProfileVrchatAttendance';
 import type { PlayerActivityProfileWalletTransactionsItem } from './playerActivityProfileWalletTransactionsItem';
 
 export interface PlayerActivityProfile {
@@ -45,4 +46,9 @@ export interface PlayerActivityProfile {
      * @nullable
      */
   historicalAppearances?: PlayerActivityProfileHistoricalAppearances;
+  /**
+     * VRChat instance attendance from imported VRCX gamelogs. Identity is resolved via the self-service #vrchat-username link (matchKind "linked") or an unambiguous display-name match (matchKind "name"). Null when no VRChat identity could be resolved.
+     * @nullable
+     */
+  vrchatAttendance?: PlayerActivityProfileVrchatAttendance;
 }

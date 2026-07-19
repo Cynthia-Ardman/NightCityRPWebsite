@@ -3296,6 +3296,36 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PlayerActivityProfile" }
         "404": { description: Player not found }
+  /fixer/vrchat/players:
+    get:
+      operationId: searchFixerVrchatPlayers
+      tags: [fixer]
+      summary: Search VRChat players seen in imported instance history by display name (fixer/admin)
+      parameters:
+        - { in: query, name: q, schema: { type: string }, description: "Display-name fragment (ILIKE). Empty returns the top players by instance-hours." }
+      responses:
+        "200":
+          description: Matching VRChat players with visit aggregates and linked portal user
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/VrchatPlayerSearchResult" }
+  /fixer/vrchat/players/{vrchatUserId}/visits:
+    parameters:
+      - { in: path, name: vrchatUserId, required: true, schema: { type: string } }
+    get:
+      operationId: listFixerVrchatPlayerVisits
+      tags: [fixer]
+      summary: All imported instance visits for one VRChat player, newest first (fixer/admin)
+      responses:
+        "200":
+          description: Visit rows with world/session context
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/VrchatPlayerVisit" }
   /fixer/npcs/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -8036,6 +8066,65 @@ components:
               items: { type: string }
             username: { type: [string, "null"] }
             updatedAt: { type: [string, "null"], format: date-time }
+        vrchatAttendance:
+          type: [object, "null"]
+          description: >-
+            VRChat instance attendance from imported VRCX gamelogs. Identity is
+            resolved via the self-service #vrchat-username link (matchKind
+            "linked") or an unambiguous display-name match (matchKind "name").
+            Null when no VRChat identity could be resolved.
+          required: [vrchatUserId, matchKind, totalVisits, totalHours, visits]
+          properties:
+            vrchatUserId: { type: string }
+            vrchatUsername: { type: [string, "null"] }
+            matchKind: { type: string, enum: [linked, name] }
+            totalVisits: { type: integer }
+            totalHours: { type: number }
+            visits:
+              type: array
+              description: Most recent visits, newest first (capped).
+              items:
+                type: object
+                required: [id, worldName, joinedAt, durationMs]
+                properties:
+                  id: { type: integer }
+                  worldName: { type: string }
+                  joinedAt: { type: string, format: date-time }
+                  leftAt: { type: [string, "null"], format: date-time }
+                  durationMs: { type: integer }
+
+    VrchatPlayerSearchResult:
+      type: object
+      required: [vrchatUserId, displayName, visitCount, totalHours, firstSeenAt, lastSeenAt]
+      properties:
+        vrchatUserId: { type: string }
+        displayName: { type: string }
+        visitCount: { type: integer }
+        totalHours: { type: number }
+        firstSeenAt: { type: string, format: date-time }
+        lastSeenAt: { type: string, format: date-time }
+        portalUser:
+          type: [object, "null"]
+          required: [userId, username, matchKind]
+          properties:
+            userId: { type: string }
+            username: { type: string }
+            globalName: { type: [string, "null"] }
+            matchKind: { type: string, enum: [linked, name] }
+
+    VrchatPlayerVisit:
+      type: object
+      required: [id, sessionId, displayName, joinedAt, durationMs, worldName, sessionDate]
+      properties:
+        id: { type: integer }
+        sessionId: { type: integer }
+        displayName: { type: string }
+        joinedAt: { type: string, format: date-time }
+        leftAt: { type: [string, "null"], format: date-time }
+        durationMs: { type: integer }
+        worldName: { type: string }
+        accessType: { type: [string, "null"] }
+        sessionDate: { type: string, format: date-time }
 
     InventoryItemInput:
       type: object

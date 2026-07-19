@@ -87,8 +87,7 @@
 - [Fixer NPCs are characters](fixer-npcs-are-characters.md) — NPCs = characters kind='npc' (view /characters/:id); legacy fixer_npcs table empty, its /fixer/npcs/:id detail+create+patch endpoints are orphaned dead code.
 - [Session events always need NPCs](session-npc-derivation.md) — needsNpcs is DERIVED (manual flag OR eventType==="session"); route all view/gate reads through eventNeedsNpcs(e), not the raw column.
 - [Main Sessions are discrete weekly rows](main-sessions-discrete.md) — one event row per Sunday (own discord id), NOT recurrence_rule — see topic.
-- [Wallet int4 ceiling](wallet-int4-ceiling.md) — wallet/store/ripperdoc balances are int4 (max 2,147,483,647); applyWalletDelta guards credits via MAX_WALLET_BALANCE, but UB->website reconcile paths remain an overflow vector.
-- [Wallet atomic increments](wallet-atomic-increments.md) — money-balance writes must be relative SQL increments, never read-then-write absolute values.
+- Wallet writes: [int4 ceiling](wallet-int4-ceiling.md) balances max 2,147,483,647, UB→website reconcile is an overflow vector; [atomic increments](wallet-atomic-increments.md) always relative SQL increments, never read-then-write.
 - [Economy disabled symptom](economy-disabled-symptom.md) — dashboard income WORK/SLUT "command failed" = economy toggled off; see topic for where the on/off controls live.
 - [react-query auth gate loop](react-query-auth-loop.md) — root gate on useQuery(authMe).isLoading + errored query + retryOnMount default true = 1Hz mount/unmount loop; see topic for QueryClient defaults.
 - Calendar dup: [mission+event sharing one discord_event_id render twice, reconcile auto-heals](calendar-mission-event-dup.md); [convert = REPLACE in one tx, hand off discord_event_id](event-mission-convert-handoff.md).
@@ -114,8 +113,7 @@
 - Approver pool: [isReviewer vs isEligibleReviewer (no admin), tallies filter to eligible](review-approver-pool-split.md); [trial-fixer author-only tier](trial-fixer-tier.md) exclude at isReviewer + strip stale grants.
 - Discord thread mirror: [cs-approver drawer pop-out, mount 15s-polling panel only when open](discord-thread-drawer.md); [persist discordThreadId at creation so "linked" never lies](discord-thread-mirror-linkage.md).
 - [Stock schema trio drift](stock-schema-trio.md) — store stock has 3 separate OpenAPI schemas (StockItem/StockInput/StockUpdate); a new field must hit ALL THREE or the PATCH path tsc-fails; same for InventoryItem trio.
-- [VRChat instance session history](vrchat-instance-session-history.md) — poller-written durable sessions; close=absence, closedAt=lastSeenAt; uniqueUsers only via VRCX import.
-- VRChat: [calendar sync](vrchat-calendar-sync.md) + [mirror gating](vrchat-calendar-mirror.md); [group instances](vrchat-group-instances.md); [allowed-roles](vrchat-instance-roles.md); [agent queue CLAIM](vrchat-agent-command-queue.md).
+- VRChat: [session history](vrchat-instance-session-history.md) poller-written, close=absence, uniqueUsers via VRCX import; [calendar sync](vrchat-calendar-sync.md) + [mirror gating](vrchat-calendar-mirror.md); [group instances](vrchat-group-instances.md); [allowed-roles](vrchat-instance-roles.md); [agent queue CLAIM](vrchat-agent-command-queue.md).
 - [Meds refund forensics + checkup extraction](meds-refund-forensics.md) — June-2026 probe: legacy meds charges were CORRECT (reset on checkup, scale w/ gap), new cron never charged — see topic.
 - [sheetData merge + passthrough](sheetdata-merge-passthrough.md) — char edit whole-replaces sheetData; forms must spread-merge existing keys AND EditableSchema must `.passthrough()` or sheet-created story/gear/identity fields silently wipe.
 - [Sheet self-declaration flags](sheet-self-declaration-flags.md) — boolean flags (ripperDoc/fbc) live in free-form sheetData, persist via full-blob materialize + passthrough; a new one needs 3 form surfaces + payloadSig dep + reset-on-open; effects opt-in.
@@ -128,8 +126,7 @@
 - [Sheet import of Discord IDs](sheet-import-discord-ids.md) — 64-bit Discord IDs corrupt under numeric/XLSX parsing (>2^53); parse CSV as raw strings. SRF can't nest in an aggregate. Attendance → bot_mission_log, surfaced in Fixer Player Lookup.
 - Review close: [reopen CLEARS votes for ALL three queues](reopen-preserves-votes.md) else finalize-on-read re-decides; [decisionParams entered at close, every materialize branch re-validates](review-params-at-close.md).
 - [Cosmetic auto-apply policy](cosmetic-autoapply-policy.md) — char-edit skips review only when prose word-multiset is unchanged (formatting/re-sectioning); stats=statsImageUrls+inventory_items, NOT sheetData.sections, so sections=prose is safe.
-- [Mission post chokepoint](mission-post-chokepoint.md) — postMission is the single approved→posted→open transition (approveMission delegates); gate "on open" side effects — see topic.
-- [Opposing transition race](mission-post-revert-race.md) — post↔revert pairs: conditional persist of external-effect results + compensating teardown on lost race + re-read after claim.
+- Mission posting: [post chokepoint](mission-post-chokepoint.md) postMission is the single approved→posted→open transition, gate "on open" side effects there; [post↔revert race](mission-post-revert-race.md) conditional persist + compensating teardown + re-read after claim.
 - [Mission board markdown preview](mission-board-markdown-preview.md) — color/markdown tags only render where descriptionPreview goes through <Markdown>; plain <p> on board cards shows raw `[c=..]`. Detail page already renders.
 - [Draft mission hard-delete](draft-mission-delete.md) — only workflowState='draft' is hard-deletable (owner-or-manager); anything further must be CANCELLED (preserve history/Discord); lock+re-check FOR UPDATE; FK children cascade.
 - [UB native commands uncontrollable](ub-native-commands.md) — Discord `!work`/`!slut` are UnbelievaBoat-native with no cooldown/config API; website cooldown can't dedupe against them; only fix is disabling them in the UB dashboard.
@@ -156,4 +153,4 @@
 - [Global search authz & hrefs](global-search-authz.md) — search result hrefs must be caller-openable pages; staff-scoped rows need staffOnly flag + effective-role scrub or View-as leaks.
 - [Portal bell notifications](portal-bell-notifications.md) — new player-facing events must `void createNotification(...)` at the SAME site as the DM but NOT gated on Test/Live or discordId; api-zod star-export body-name ambiguity trap.
 - [Text-scale px immunity](text-scale-px-immunity.md) — the text-size setting scales rem only; any `text-[Npx]` literal is immune AND tiny; new micro-text must use rem arbitrary values.
-- [VRChat 401 verify-before-expire](vrchat-group-instances.md) — a lone 401 must not wipe the session; confirm via /auth/user first + persist rotated Set-Cookie values.
+- VRChat auth/identity: [identity resolution](vrchat-identity-resolution.md) linked attribution only when exactly ONE user claims the id, ambiguous never name-matches; [401 verify-before-expire](vrchat-group-instances.md) confirm via /auth/user before wiping session.

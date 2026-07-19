@@ -8126,8 +8126,67 @@ export const GetFixerPlayerActivityResponse = zod.object({
   "dates": zod.array(zod.string()),
   "username": zod.string().nullish(),
   "updatedAt": zod.coerce.date().nullish()
-}).nullish().describe('Imported historical mission attendance for this player from the community attendance sheet (appearance count + dates). Null when no imported record exists.')
+}).nullish().describe('Imported historical mission attendance for this player from the community attendance sheet (appearance count + dates). Null when no imported record exists.'),
+  "vrchatAttendance": zod.object({
+  "vrchatUserId": zod.string(),
+  "vrchatUsername": zod.string().nullish(),
+  "matchKind": zod.enum(['linked', 'name']),
+  "totalVisits": zod.number(),
+  "totalHours": zod.number(),
+  "visits": zod.array(zod.object({
+  "id": zod.number(),
+  "worldName": zod.string(),
+  "joinedAt": zod.coerce.date(),
+  "leftAt": zod.coerce.date().nullish(),
+  "durationMs": zod.number()
+})).describe('Most recent visits, newest first (capped).')
+}).nullish().describe('VRChat instance attendance from imported VRCX gamelogs. Identity is resolved via the self-service #vrchat-username link (matchKind \"linked\") or an unambiguous display-name match (matchKind \"name\"). Null when no VRChat identity could be resolved.')
 })
+
+
+/**
+ * @summary Search VRChat players seen in imported instance history by display name (fixer/admin)
+ */
+export const SearchFixerVrchatPlayersQueryParams = zod.object({
+  "q": zod.coerce.string().optional().describe('Display-name fragment (ILIKE). Empty returns the top players by instance-hours.')
+})
+
+export const SearchFixerVrchatPlayersResponseItem = zod.object({
+  "vrchatUserId": zod.string(),
+  "displayName": zod.string(),
+  "visitCount": zod.number(),
+  "totalHours": zod.number(),
+  "firstSeenAt": zod.coerce.date(),
+  "lastSeenAt": zod.coerce.date(),
+  "portalUser": zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "globalName": zod.string().nullish(),
+  "matchKind": zod.enum(['linked', 'name'])
+}).nullish()
+})
+export const SearchFixerVrchatPlayersResponse = zod.array(SearchFixerVrchatPlayersResponseItem)
+
+
+/**
+ * @summary All imported instance visits for one VRChat player, newest first (fixer/admin)
+ */
+export const ListFixerVrchatPlayerVisitsParams = zod.object({
+  "vrchatUserId": zod.coerce.string()
+})
+
+export const ListFixerVrchatPlayerVisitsResponseItem = zod.object({
+  "id": zod.number(),
+  "sessionId": zod.number(),
+  "displayName": zod.string(),
+  "joinedAt": zod.coerce.date(),
+  "leftAt": zod.coerce.date().nullish(),
+  "durationMs": zod.number(),
+  "worldName": zod.string(),
+  "accessType": zod.string().nullish(),
+  "sessionDate": zod.coerce.date()
+})
+export const ListFixerVrchatPlayerVisitsResponse = zod.array(ListFixerVrchatPlayerVisitsResponseItem)
 
 
 export const GetFixerNpcParams = zod.object({

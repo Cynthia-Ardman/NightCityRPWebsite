@@ -4,6 +4,7 @@ import { useAdminGetAnalytics, getAdminGetAnalyticsQueryKey, type AdminGetAnalyt
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, Coins, Briefcase, ClipboardList, Users, Globe } from "lucide-react";
+import VrchatPlayerSearch from "@/components/fixer/VrchatPlayerSearch";
 import {
   ResponsiveContainer,
   BarChart,
@@ -419,8 +420,12 @@ export default function FixerAnalytics() {
                   </div>
                 </div>
               )}
+              <div className="border-t border-border pt-4">
+                <div className="font-display tracking-widest text-sm mb-2">PLAYER LOOKUP</div>
+                <VrchatPlayerSearch />
+              </div>
               <p className="font-mono text-xs text-muted-foreground">
-                Head counts come from the group-instance poller (every 2 min, live server only). Unique-player stats require a VRCX log import.
+                Head counts come from the group-instance poller (every 2 min, live server only). Per-player visit history comes from VRCX log imports.
               </p>
             </CardContent>
           </Card>

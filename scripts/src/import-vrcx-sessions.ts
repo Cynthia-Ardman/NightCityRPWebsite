@@ -132,6 +132,14 @@ interface Ev {
   at: number;
   join: boolean;
   userId: string;
+  displayName: string;
+}
+interface Visit {
+  vrchatUserId: string;
+  displayName: string;
+  joinedAt: Date;
+  leftAt: Date | null;
+  durationMs: number;
 }
 interface Session {
   location: string;
@@ -145,6 +153,7 @@ interface Session {
   sumUserCounts: number;
   uniqueUsers: number;
   samples: Array<{ at: Date; userCount: number }>;
+  visits: Visit[];
 }
 
 function buildSessions(location: string, events: Ev[]): Session[] {
@@ -182,6 +191,52 @@ function buildSessions(location: string, events: Ev[]): Session[] {
     }
     const durationMs = evs[evs.length - 1].at - evs[0].at;
     const avg = durationMs > 0 ? integralMs / durationMs : peak;
+
+    // Per-player visits: pair each join with the next leave for that user.
+    // A leave with no open join means the join predates the session window
+    // (open at session start); a join with no leave means the player was
+    // still there at the last event (leftAt stays NULL).
+    const sessionStart = evs[0].at;
+    const sessionEnd = evs[evs.length - 1].at;
+    const visits: Visit[] = [];
+    const open = new Map<string, { at: number; displayName: string }>();
+    for (const e of evs) {
+      if (!e.userId) continue;
+      if (e.join) {
+        // Double-join without a leave: close the earlier visit at this point.
+        const prior = open.get(e.userId);
+        if (prior) {
+          visits.push({
+            vrchatUserId: e.userId,
+            displayName: prior.displayName,
+            joinedAt: new Date(prior.at),
+            leftAt: new Date(e.at),
+            durationMs: e.at - prior.at,
+          });
+        }
+        open.set(e.userId, { at: e.at, displayName: e.displayName });
+      } else {
+        const j = open.get(e.userId);
+        const joinedAt = j?.at ?? sessionStart;
+        visits.push({
+          vrchatUserId: e.userId,
+          displayName: j?.displayName || e.displayName,
+          joinedAt: new Date(joinedAt),
+          leftAt: new Date(e.at),
+          durationMs: Math.max(0, e.at - joinedAt),
+        });
+        open.delete(e.userId);
+      }
+    }
+    for (const [userId, j] of open) {
+      visits.push({
+        vrchatUserId: userId,
+        displayName: j.displayName,
+        joinedAt: new Date(j.at),
+        leftAt: null,
+        durationMs: Math.max(0, sessionEnd - j.at),
+      });
+    }
     const sampleCount = evs.length;
     return {
       location,
@@ -195,6 +250,7 @@ function buildSessions(location: string, events: Ev[]): Session[] {
       sumUserCounts: Math.round(avg * sampleCount),
       uniqueUsers: unique.size,
       samples,
+      visits,
     };
   });
 }
@@ -290,6 +346,7 @@ async function main() {
   const cType = col("type");
   const cLoc = col("location");
   const cUser = col("user_id");
+  const cName = col("display_name");
 
   const byLocation = new Map<string, Ev[]>();
   let skipped = 0;
@@ -311,7 +368,7 @@ async function main() {
     }
     let evs = byLocation.get(loc);
     if (!evs) byLocation.set(loc, (evs = []));
-    evs.push({ at, join: type === "OnPlayerJoined", userId: r[cUser] });
+    evs.push({ at, join: type === "OnPlayerJoined", userId: r[cUser], displayName: r[cName] ?? "" });
   }
   console.log(`events: ${rows.length - 1} rows, ${skipped} skipped, ${byLocation.size} locations`);
 
@@ -333,6 +390,7 @@ async function main() {
 
     let inserted = 0;
     let sampleRows = 0;
+    let visitRows = 0;
     for (const s of sessions) {
       const { rows: ins } = await client.query<{ id: number }>(
         `INSERT INTO vrchat_instance_sessions
@@ -366,9 +424,27 @@ async function main() {
         [sessionId, ats, counts],
       );
       sampleRows += s.samples.length;
+      if (s.visits.length > 0) {
+        await client.query(
+          `INSERT INTO vrchat_instance_visits
+             (session_id, vrchat_user_id, display_name, joined_at, left_at, duration_ms)
+           SELECT $1, x.uid, x.name, x.j, x.l, x.d
+           FROM unnest($2::text[], $3::text[], $4::timestamptz[], $5::timestamptz[], $6::int[])
+             AS x(uid, name, j, l, d)`,
+          [
+            sessionId,
+            s.visits.map((v) => v.vrchatUserId),
+            s.visits.map((v) => v.displayName),
+            s.visits.map((v) => v.joinedAt.toISOString()),
+            s.visits.map((v) => (v.leftAt ? v.leftAt.toISOString() : null)),
+            s.visits.map((v) => v.durationMs),
+          ],
+        );
+        visitRows += s.visits.length;
+      }
     }
     await client.query("COMMIT");
-    console.log(`inserted ${inserted} sessions, ${sampleRows} samples`);
+    console.log(`inserted ${inserted} sessions, ${sampleRows} samples, ${visitRows} visits`);
 
     const { rows: summary } = await client.query(
       `SELECT source, COUNT(*)::int AS n,

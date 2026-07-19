@@ -19,6 +19,9 @@ import {
   botMissionLog,
   stores,
   ripperdocs,
+  vrchatInstanceVisits,
+  vrchatInstanceSessions,
+  vrchatLinks,
   classifyWalletCategory,
 } from "@workspace/db";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
@@ -470,6 +473,81 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
     : ([] as { id: number; name: string }[]);
   const counterpartyCharNameById = new Map(txCounterpartyCharRows.map((c) => [c.id, c.name]));
 
+  // VRChat instance attendance. Identity resolution: exact vrchat_links row
+  // for this player's Discord id first, then an unambiguous display-name match
+  // against imported visits (VRChat name == portal username/global name).
+  const vrchatAttendance = await (async () => {
+    let vrchatUserId: string | null = null;
+    let vrchatUsername: string | null = null;
+    let matchKind: "linked" | "name" | null = null;
+    const [link] = await db
+      .select({ vrchatUserId: vrchatLinks.vrchatUserId, vrchatUsername: vrchatLinks.vrchatUsername })
+      .from(vrchatLinks)
+      .where(eq(vrchatLinks.discordId, u.discordId));
+    if (link) {
+      vrchatUserId = link.vrchatUserId;
+      vrchatUsername = link.vrchatUsername;
+      matchKind = "linked";
+    } else {
+      const nameCandidates = [u.username.toLowerCase(), u.globalName?.toLowerCase()].filter(
+        (x): x is string => !!x,
+      );
+      const cands = await db
+        .select({
+          vrchatUserId: vrchatInstanceVisits.vrchatUserId,
+          displayName: sql<string>`(array_agg(${vrchatInstanceVisits.displayName} ORDER BY ${vrchatInstanceVisits.joinedAt} DESC))[1]`,
+        })
+        .from(vrchatInstanceVisits)
+        .where(inArray(sql`lower(${vrchatInstanceVisits.displayName})`, nameCandidates))
+        .groupBy(vrchatInstanceVisits.vrchatUserId);
+      if (cands.length === 1) {
+        vrchatUserId = cands[0].vrchatUserId;
+        vrchatUsername = cands[0].displayName;
+        matchKind = "name";
+      }
+    }
+    if (!vrchatUserId) return null;
+    const visitRows = await db
+      .select({
+        id: vrchatInstanceVisits.id,
+        joinedAt: vrchatInstanceVisits.joinedAt,
+        leftAt: vrchatInstanceVisits.leftAt,
+        durationMs: vrchatInstanceVisits.durationMs,
+        worldName: vrchatInstanceSessions.worldName,
+      })
+      .from(vrchatInstanceVisits)
+      .innerJoin(vrchatInstanceSessions, eq(vrchatInstanceSessions.id, vrchatInstanceVisits.sessionId))
+      .where(eq(vrchatInstanceVisits.vrchatUserId, vrchatUserId))
+      .orderBy(desc(vrchatInstanceVisits.joinedAt))
+      .limit(LIMIT);
+    if (visitRows.length === 0 && matchKind === "linked") {
+      // Linked but never seen in imported history — still show the identity.
+      return { vrchatUserId, vrchatUsername, matchKind, totalVisits: 0, totalHours: 0, visits: [] };
+    }
+    if (visitRows.length === 0) return null;
+    const [agg] = await db
+      .select({
+        totalVisits: sql<number>`COUNT(*)::int`,
+        totalMs: sql<number>`COALESCE(SUM(${vrchatInstanceVisits.durationMs}), 0)::bigint`,
+      })
+      .from(vrchatInstanceVisits)
+      .where(eq(vrchatInstanceVisits.vrchatUserId, vrchatUserId));
+    return {
+      vrchatUserId,
+      vrchatUsername,
+      matchKind,
+      totalVisits: agg?.totalVisits ?? visitRows.length,
+      totalHours: Math.round((Number(agg?.totalMs ?? 0) / 3_600_000) * 10) / 10,
+      visits: visitRows.map((v) => ({
+        id: v.id,
+        worldName: v.worldName,
+        joinedAt: v.joinedAt.toISOString(),
+        leftAt: v.leftAt ? v.leftAt.toISOString() : null,
+        durationMs: v.durationMs,
+      })),
+    };
+  })();
+
   res.json({
     player: {
       id: u.id,
@@ -605,7 +683,158 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
         updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
       };
     })(),
+    vrchatAttendance,
   });
+});
+
+// ---------------------------------------------------------------------------
+// VRChat attendance lookup (fixer/admin).
+//
+// Per-player instance visits come from VRCX gamelog imports
+// (vrchat_instance_visits). Portal identity resolution is two-tier:
+//   1. exact: vrchat_links (self-service #vrchat-username channel scan)
+//   2. name match: lower(display_name) equals the portal username/global name
+// ---------------------------------------------------------------------------
+
+/** Resolve portal users for a set of VRChat players (exact link first, then name). */
+async function resolvePortalUsers(
+  players: Array<{ vrchatUserId: string; displayName: string }>,
+): Promise<Map<string, { userId: string; username: string; globalName: string | null; matchKind: "linked" | "name" }>> {
+  const out = new Map<string, { userId: string; username: string; globalName: string | null; matchKind: "linked" | "name" }>();
+  if (players.length === 0) return out;
+  const ids = [...new Set(players.map((p) => p.vrchatUserId))];
+  const links = await db
+    .select({
+      vrchatUserId: vrchatLinks.vrchatUserId,
+      userId: users.id,
+      username: users.username,
+      globalName: users.globalName,
+    })
+    .from(vrchatLinks)
+    .innerJoin(users, eq(users.discordId, vrchatLinks.discordId))
+    .where(inArray(vrchatLinks.vrchatUserId, ids));
+  // A VRChat account claimed by more than one distinct portal user is
+  // ambiguous — never attribute it to anyone (no last-write-wins).
+  const linksByVrchatId = new Map<string, (typeof links)[number][]>();
+  for (const l of links) {
+    const arr = linksByVrchatId.get(l.vrchatUserId) ?? [];
+    arr.push(l);
+    linksByVrchatId.set(l.vrchatUserId, arr);
+  }
+  const ambiguous = new Set<string>();
+  for (const [vrchatUserId, ls] of linksByVrchatId) {
+    if (new Set(ls.map((l) => l.userId)).size === 1) {
+      const l = ls[0];
+      out.set(vrchatUserId, { userId: l.userId, username: l.username, globalName: l.globalName, matchKind: "linked" });
+    } else {
+      ambiguous.add(vrchatUserId);
+    }
+  }
+  // Ambiguously-linked accounts must not fall through to name matching either.
+  const unresolved = players.filter((p) => !out.has(p.vrchatUserId) && !ambiguous.has(p.vrchatUserId));
+  const names = [...new Set(unresolved.map((p) => p.displayName.toLowerCase()))].filter(Boolean);
+  if (names.length > 0) {
+    const matches = await db
+      .select({ id: users.id, username: users.username, globalName: users.globalName })
+      .from(users)
+      .where(or(inArray(sql`lower(${users.username})`, names), inArray(sql`lower(${users.globalName})`, names)));
+    const byName = new Map<string, (typeof matches)[number][]>();
+    for (const m of matches) {
+      for (const key of [m.username.toLowerCase(), m.globalName?.toLowerCase()]) {
+        if (!key) continue;
+        const arr = byName.get(key) ?? [];
+        arr.push(m);
+        byName.set(key, arr);
+      }
+    }
+    for (const p of unresolved) {
+      const cands = byName.get(p.displayName.toLowerCase());
+      // Only accept an unambiguous single-user name match.
+      if (cands && new Set(cands.map((c) => c.id)).size === 1) {
+        const m = cands[0];
+        out.set(p.vrchatUserId, { userId: m.id, username: m.username, globalName: m.globalName, matchKind: "name" });
+      }
+    }
+  }
+  return out;
+}
+
+// GET /fixer/vrchat/players?q= — search VRChat players seen in imported
+// instance history by display name; each row aggregates their visits and
+// carries the linked portal user when one can be resolved.
+router.get("/fixer/vrchat/players", requireAuth, requireAnyRole(["FIXER", "ADMIN"]), async (req, res): Promise<void> => {
+  const q = String(req.query.q ?? "").trim();
+  const like = q ? `%${q.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%` : null;
+  const rows = await db
+    .select({
+      vrchatUserId: vrchatInstanceVisits.vrchatUserId,
+      // Latest display name wins (players rename).
+      displayName: sql<string>`(array_agg(${vrchatInstanceVisits.displayName} ORDER BY ${vrchatInstanceVisits.joinedAt} DESC))[1]`,
+      visitCount: sql<number>`COUNT(*)::int`,
+      totalMs: sql<number>`COALESCE(SUM(${vrchatInstanceVisits.durationMs}), 0)::bigint`,
+      firstSeenAt: sql<string>`MIN(${vrchatInstanceVisits.joinedAt})`,
+      lastSeenAt: sql<string>`MAX(${vrchatInstanceVisits.joinedAt})`,
+    })
+    .from(vrchatInstanceVisits)
+    .where(like ? sql`${vrchatInstanceVisits.displayName} ILIKE ${like}` : sql`TRUE`)
+    .groupBy(vrchatInstanceVisits.vrchatUserId)
+    .orderBy(sql`SUM(${vrchatInstanceVisits.durationMs}) DESC`)
+    .limit(50);
+
+  const portal = await resolvePortalUsers(rows);
+  res.json(
+    rows.map((r) => {
+      const p = portal.get(r.vrchatUserId);
+      return {
+        vrchatUserId: r.vrchatUserId,
+        displayName: r.displayName,
+        visitCount: r.visitCount,
+        totalHours: Math.round((Number(r.totalMs) / 3_600_000) * 10) / 10,
+        firstSeenAt: new Date(r.firstSeenAt).toISOString(),
+        lastSeenAt: new Date(r.lastSeenAt).toISOString(),
+        portalUser: p
+          ? { userId: p.userId, username: p.username, globalName: p.globalName, matchKind: p.matchKind }
+          : null,
+      };
+    }),
+  );
+});
+
+// GET /fixer/vrchat/players/:vrchatUserId/visits — every imported instance
+// visit for one VRChat player, newest first, with world/session context.
+router.get("/fixer/vrchat/players/:vrchatUserId/visits", requireAuth, requireAnyRole(["FIXER", "ADMIN"]), async (req, res): Promise<void> => {
+  const vrchatUserId = String(req.params.vrchatUserId);
+  const rows = await db
+    .select({
+      id: vrchatInstanceVisits.id,
+      sessionId: vrchatInstanceVisits.sessionId,
+      displayName: vrchatInstanceVisits.displayName,
+      joinedAt: vrchatInstanceVisits.joinedAt,
+      leftAt: vrchatInstanceVisits.leftAt,
+      durationMs: vrchatInstanceVisits.durationMs,
+      worldName: vrchatInstanceSessions.worldName,
+      location: vrchatInstanceSessions.location,
+      accessType: vrchatInstanceSessions.accessType,
+      sessionFirstSeenAt: vrchatInstanceSessions.firstSeenAt,
+    })
+    .from(vrchatInstanceVisits)
+    .innerJoin(vrchatInstanceSessions, eq(vrchatInstanceSessions.id, vrchatInstanceVisits.sessionId))
+    .where(eq(vrchatInstanceVisits.vrchatUserId, vrchatUserId))
+    .orderBy(desc(vrchatInstanceVisits.joinedAt))
+    .limit(500);
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      sessionId: r.sessionId,
+      displayName: r.displayName,
+      joinedAt: r.joinedAt.toISOString(),
+      leftAt: r.leftAt ? r.leftAt.toISOString() : null,
+      durationMs: r.durationMs,
+      worldName: r.worldName,
+      accessType: r.accessType,
+      sessionDate: r.sessionFirstSeenAt.toISOString(),
+    })),
+  );
 });
 
 // Cyberware slot-cap violators (fixer/admin). Lists player characters holding

@@ -2386,6 +2386,28 @@ export type PlayerActivityProfileHistoricalAppearances = {
   updatedAt?: string | null;
 } | null;
 
+/**
+ * VRChat instance attendance from imported VRCX gamelogs. Identity is resolved via the self-service #vrchat-username link (matchKind "linked") or an unambiguous display-name match (matchKind "name"). Null when no VRChat identity could be resolved.
+ * @nullable
+ */
+export type PlayerActivityProfileVrchatAttendance = {
+  vrchatUserId: string;
+  /** @nullable */
+  vrchatUsername?: string | null;
+  matchKind: 'linked' | 'name';
+  totalVisits: number;
+  totalHours: number;
+  /** Most recent visits, newest first (capped). */
+  visits: ({
+  id: number;
+  worldName: string;
+  joinedAt: string;
+  /** @nullable */
+  leftAt?: string | null;
+  durationMs: number;
+})[];
+} | null;
+
 export interface PlayerActivityProfile {
   player: PlayerActivityProfilePlayer;
   characters: PlayerActivityProfileCharactersItem[];
@@ -2410,6 +2432,47 @@ export interface PlayerActivityProfile {
      * @nullable
      */
   historicalAppearances?: PlayerActivityProfileHistoricalAppearances;
+  /**
+     * VRChat instance attendance from imported VRCX gamelogs. Identity is resolved via the self-service #vrchat-username link (matchKind "linked") or an unambiguous display-name match (matchKind "name"). Null when no VRChat identity could be resolved.
+     * @nullable
+     */
+  vrchatAttendance?: PlayerActivityProfileVrchatAttendance;
+}
+
+/**
+ * @nullable
+ */
+export type VrchatPlayerSearchResultPortalUser = {
+  userId: string;
+  username: string;
+  /** @nullable */
+  globalName?: string | null;
+  matchKind: 'linked' | 'name';
+} | null;
+
+export interface VrchatPlayerSearchResult {
+  vrchatUserId: string;
+  displayName: string;
+  visitCount: number;
+  totalHours: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  /** @nullable */
+  portalUser?: VrchatPlayerSearchResultPortalUser;
+}
+
+export interface VrchatPlayerVisit {
+  id: number;
+  sessionId: number;
+  displayName: string;
+  joinedAt: string;
+  /** @nullable */
+  leftAt?: string | null;
+  durationMs: number;
+  worldName: string;
+  /** @nullable */
+  accessType?: string | null;
+  sessionDate: string;
 }
 
 export interface InventoryItemInput {
@@ -7752,6 +7815,13 @@ owner?: string;
 export type SearchFixerPlayersParams = {
 /**
  * Name fragment matched against username, global name, and owned character names (ILIKE)
+ */
+q?: string;
+};
+
+export type SearchFixerVrchatPlayersParams = {
+/**
+ * Display-name fragment (ILIKE). Empty returns the top players by instance-hours.
  */
 q?: string;
 };
