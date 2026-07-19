@@ -12,7 +12,14 @@ import {
   type NotificationRoleKey,
   type NotificationRolesStatus,
 } from "@/hooks/useNotificationRoles";
-import { Bell, BellOff, LogOut, User } from "lucide-react";
+import { Bell, BellOff, LogOut, Type, User } from "lucide-react";
+import { useState } from "react";
+import {
+  TEXT_SCALE_OPTIONS,
+  getTextScale,
+  setTextScale,
+  type TextScale,
+} from "@/lib/textScale";
 import { useListMyCharacters } from "@workspace/api-client-react";
 import { PlayerLoaControl } from "./Home";
 
@@ -39,10 +46,60 @@ export default function Settings() {
         </p>
       </div>
 
+      <TextSizeSection />
       <NotificationsSection />
       <PlayerLoaControl characters={characters ?? []} />
       <AccountSection />
     </div>
+  );
+}
+
+function TextSizeSection() {
+  const [scale, setScale] = useState<TextScale>(() => getTextScale());
+
+  const pick = (next: TextScale) => {
+    setScale(next);
+    setTextScale(next); // applies instantly + persists in this browser
+  };
+
+  return (
+    <Card className="rounded-none border-border bg-card/50" data-testid="card-text-size">
+      <CardHeader>
+        <CardTitle className="font-display text-xl flex items-center gap-2">
+          <Type className="w-5 h-5 text-nc-yellow" /> TEXT SIZE
+        </CardTitle>
+        <CardDescription className="font-mono text-xs">
+          Scale all text across the portal. Saved in this browser and applied immediately.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {TEXT_SCALE_OPTIONS.map((opt) => {
+            const active = scale === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => pick(opt.value)}
+                aria-pressed={active}
+                className={`text-left border p-3 transition-colors ${
+                  active
+                    ? "border-nc-yellow bg-nc-yellow/10"
+                    : "border-border bg-card hover:border-nc-yellow/50"
+                }`}
+                data-testid={`button-text-size-${opt.value}`}
+              >
+                <div className={`font-display text-sm ${active ? "text-nc-yellow" : "text-foreground"}`}>
+                  {opt.label}
+                  {active && <span className="ml-2 font-mono text-[10px] uppercase tracking-widest">Active</span>}
+                </div>
+                <div className="font-mono text-xs text-muted-foreground mt-1">{opt.description}</div>
+              </button>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

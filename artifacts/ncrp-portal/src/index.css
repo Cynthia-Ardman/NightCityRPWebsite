@@ -66,7 +66,21 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* Readability bump: Space Mono reads small, so raise the two workhorse
+     sizes slightly above Tailwind's defaults (xs 12→13px, sm 14→15px).
+     True micro-labels that should stay tiny use text-[10px]/text-[11px]. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.375rem;
 }
+
+/* User-selectable text size (Settings → Text size). Scaling the root font
+   size scales every rem-based Tailwind size across the app. The class is
+   applied to <html> before first paint by an inline script in index.html. */
+html.text-scale-lg { font-size: 110%; }
+html.text-scale-xl { font-size: 120%; }
 
 :root, .dark {
   --button-outline: rgba(255, 255, 255, 0.10);

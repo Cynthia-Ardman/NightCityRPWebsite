@@ -20,6 +20,18 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   </head>
   <body>
+    <script>
+      // Apply the saved text-size preference before first paint to avoid a
+      // flash of resized text. Keep in sync with src/lib/textScale.ts.
+      (function () {
+        try {
+          var v = localStorage.getItem("ncrp-text-scale");
+          if (v === "lg" || v === "xl") {
+            document.documentElement.classList.add("text-scale-" + v);
+          }
+        } catch (e) {}
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
