@@ -26,6 +26,19 @@ export const DiscordCallbackQueryParams = zod.object({
 
 
 /**
+ * @summary Save the account-level text-size preference so it follows the user across devices
+ */
+export const SetTextScalePreferenceBody = zod.object({
+  "scale": zod.enum(['default', 'lg', 'xl'])
+})
+
+export const SetTextScalePreferenceResponse = zod.object({
+  "ok": zod.boolean(),
+  "textScale": zod.enum(['default', 'lg', 'xl'])
+})
+
+
+/**
  * @summary Dismiss the first-run onboarding banner for the current user
  */
 export const DismissOnboardingResponse = zod.object({
@@ -83,6 +96,7 @@ export const GetMeResponse = zod.object({
   "onboardingBannerDismissed": zod.boolean().optional().describe('True once the user has dismissed the onboarding banner; it then never re-appears.'),
   "notificationPromptDismissed": zod.boolean().optional().describe('True once the user has dismissed the dashboard notification-preferences prompt; it then never re-appears. The Settings toggles remain available regardless.'),
   "rulesAccepted": zod.boolean().optional().describe('True once the user has accepted the server rules on the first-run rules splash. While false, the SPA shows a blocking rules gate to signed-in members.'),
+  "textScale": zod.union([zod.enum(['default', 'lg', 'xl']),zod.null()]).optional().describe('Account-level text-size preference, or null if never set from any device. The SPA hydrates its localStorage copy from this so the choice follows the account across browsers.'),
   "loginRestricted": zod.boolean().optional().describe('True when an admin has enabled staff-only login restriction. While true, only ADMIN \/ FIXER \/ ARCHIVIST may use the portal; the SPA shows a maintenance screen to everyone else.'),
   "vrchat": zod.union([zod.object({
   "vrchatUserId": zod.string(),

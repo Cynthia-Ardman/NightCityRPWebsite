@@ -20,7 +20,7 @@ import {
   setTextScale,
   type TextScale,
 } from "@/lib/textScale";
-import { useListMyCharacters } from "@workspace/api-client-react";
+import { useListMyCharacters, getGetMeQueryKey } from "@workspace/api-client-react";
 import { PlayerLoaControl } from "./Home";
 
 export default function Settings() {
@@ -56,10 +56,45 @@ export default function Settings() {
 
 function TextSizeSection() {
   const [scale, setScale] = useState<TextScale>(() => getTextScale());
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  // Persist to the account so the choice follows the user across devices.
+  // The local apply is instant; the server write is background — on failure
+  // the choice still works in this browser, we just tell the user it won't
+  // follow them elsewhere.
+  const save = useMutation({
+    mutationFn: async (next: TextScale) => {
+      const r = await fetch("/api/auth/text-scale", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scale: next }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return next;
+    },
+    onSuccess: (next) => {
+      // Keep the cached /auth/me snapshot in step so the app-level hydration
+      // effect never reverts to a stale server value.
+      qc.setQueryData(
+        getGetMeQueryKey(),
+        (prev: unknown) => (prev && typeof prev === "object" ? { ...prev, textScale: next } : prev),
+      );
+    },
+    onError: () => {
+      toast({
+        title: "Saved on this device only",
+        description: "Couldn't sync your text size to your account — it won't follow you to other devices yet.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const pick = (next: TextScale) => {
     setScale(next);
     setTextScale(next); // applies instantly + persists in this browser
+    save.mutate(next); // syncs to the account in the background
   };
 
   return (
@@ -69,7 +104,7 @@ function TextSizeSection() {
           <Type className="w-5 h-5 text-nc-yellow" /> TEXT SIZE
         </CardTitle>
         <CardDescription className="font-mono text-xs">
-          Scale all text across the portal. Saved in this browser and applied immediately.
+          Scale all text across the portal. Applied immediately and saved to your account, so it follows you across devices.
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -45,6 +45,8 @@ export interface Me {
   notificationPromptDismissed?: boolean;
   /** True once the user has accepted the server rules on the first-run rules splash. While false, the SPA shows a blocking rules gate to signed-in members. */
   rulesAccepted?: boolean;
+  /** Account-level text-size preference, or null if never set from any device. The SPA hydrates its localStorage copy from this so the choice follows the account across browsers. */
+  textScale?: 'default' | 'lg' | 'xl' | null;
   /** True when an admin has enabled staff-only login restriction. While true, only ADMIN / FIXER / ARCHIVIST may use the portal; the SPA shows a maintenance screen to everyone else. */
   loginRestricted?: boolean;
   /** Linked VRChat profile for this Discord user, or null if none registered. */

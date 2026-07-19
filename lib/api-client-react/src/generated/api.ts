@@ -299,6 +299,8 @@ import type {
   ServiceBillInput,
   SetEventCheckinStaffBody,
   SetEventTicketAttendanceBody,
+  SetTextScalePreference200,
+  SetTextScalePreferenceBody,
   SheetVoteInput,
   SheetVoteResult,
   SinkInput,
@@ -655,6 +657,77 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getLogoutMutationOptions(options));
+    }
+
+export const getSetTextScalePreferenceUrl = () => {
+
+
+
+
+  return `/api/auth/text-scale`
+}
+
+/**
+ * @summary Save the account-level text-size preference so it follows the user across devices
+ */
+export const setTextScalePreference = async (setTextScalePreferenceBody: SetTextScalePreferenceBody, options?: RequestInit): Promise<SetTextScalePreference200> => {
+
+  return customFetch<SetTextScalePreference200>(getSetTextScalePreferenceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      setTextScalePreferenceBody,)
+  }
+);}
+
+
+
+
+export const getSetTextScalePreferenceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setTextScalePreference>>, TError,{data: BodyType<SetTextScalePreferenceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setTextScalePreference>>, TError,{data: BodyType<SetTextScalePreferenceBody>}, TContext> => {
+
+const mutationKey = ['setTextScalePreference'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setTextScalePreference>>, {data: BodyType<SetTextScalePreferenceBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setTextScalePreference(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetTextScalePreferenceMutationResult = NonNullable<Awaited<ReturnType<typeof setTextScalePreference>>>
+    export type SetTextScalePreferenceMutationBody = BodyType<SetTextScalePreferenceBody>
+    export type SetTextScalePreferenceMutationError = ErrorType<void>
+
+    /**
+ * @summary Save the account-level text-size preference so it follows the user across devices
+ */
+export const useSetTextScalePreference = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setTextScalePreference>>, TError,{data: BodyType<SetTextScalePreferenceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setTextScalePreference>>,
+        TError,
+        {data: BodyType<SetTextScalePreferenceBody>},
+        TContext
+      > => {
+      return useMutation(getSetTextScalePreferenceMutationOptions(options));
     }
 
 export const getDismissOnboardingUrl = () => {

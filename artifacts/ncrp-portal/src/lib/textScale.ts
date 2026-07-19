@@ -47,3 +47,14 @@ export function setTextScale(scale: TextScale): void {
   }
   applyTextScale(scale);
 }
+
+// Hydrate the local (per-browser) copy from the account-level preference
+// returned by /auth/me. The localStorage value still applies pre-paint (no
+// flash); once the server value arrives it wins, so the choice follows the
+// account across devices. A null server value means "never set anywhere" —
+// leave the local choice alone.
+export function hydrateTextScaleFromServer(server: string | null | undefined): void {
+  if (server !== "default" && server !== "lg" && server !== "xl") return;
+  if (server === getTextScale()) return;
+  setTextScale(server);
+}

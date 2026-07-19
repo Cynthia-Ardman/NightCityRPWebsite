@@ -58,6 +58,11 @@ export const users = pgTable(
     // Fixers/admins always have access; this flag lets admins hand the tool to
     // specific non-staff users from the portal without touching Discord roles.
     cyberpsychoAccess: boolean("cyberpsycho_access").notNull().default(false),
+    // Account-level UI text-size preference: "default" | "lg" | "xl". Null =
+    // never set from any device (client falls back to its localStorage value).
+    // Synced so the choice follows the player across browsers/devices; the
+    // client still applies its localStorage copy pre-paint to avoid a flash.
+    textScale: text("text_scale"),
     // ---- Economy: website-authoritative player wallet (synced to UnbelievaBoat) ----
     // The website's own balance for this player, in eddies. Every website-side
     // money change goes through the sync wrapper which updates this AND UB. UB

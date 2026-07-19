@@ -1356,6 +1356,8 @@ export interface Me {
   notificationPromptDismissed?: boolean;
   /** True once the user has accepted the server rules on the first-run rules splash. While false, the SPA shows a blocking rules gate to signed-in members. */
   rulesAccepted?: boolean;
+  /** Account-level text-size preference, or null if never set from any device. The SPA hydrates its localStorage copy from this so the choice follows the account across browsers. */
+  textScale?: 'default' | 'lg' | 'xl' | null;
   /** True when an admin has enabled staff-only login restriction. While true, only ADMIN / FIXER / ARCHIVIST may use the portal; the SPA shows a maintenance screen to everyone else. */
   loginRestricted?: boolean;
   /** Linked VRChat profile for this Discord user, or null if none registered. */
@@ -7517,6 +7519,33 @@ export interface NcpdLawUpdate {
 export type DiscordCallbackParams = {
 code?: string;
 state?: string;
+};
+
+export type SetTextScalePreferenceBodyScale = typeof SetTextScalePreferenceBodyScale[keyof typeof SetTextScalePreferenceBodyScale];
+
+
+export const SetTextScalePreferenceBodyScale = {
+  default: 'default',
+  lg: 'lg',
+  xl: 'xl',
+} as const;
+
+export type SetTextScalePreferenceBody = {
+  scale: SetTextScalePreferenceBodyScale;
+};
+
+export type SetTextScalePreference200TextScale = typeof SetTextScalePreference200TextScale[keyof typeof SetTextScalePreference200TextScale];
+
+
+export const SetTextScalePreference200TextScale = {
+  default: 'default',
+  lg: 'lg',
+  xl: 'xl',
+} as const;
+
+export type SetTextScalePreference200 = {
+  ok: boolean;
+  textScale: SetTextScalePreference200TextScale;
 };
 
 export type DismissOnboarding200 = {

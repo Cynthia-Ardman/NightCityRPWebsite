@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuthMe } from "@/hooks/useAuthMe";
+import { useEffect } from "react";
+import { hydrateTextScaleFromServer } from "@/lib/textScale";
 
 import { ViewAsProvider } from "@/contexts/ViewAsContext";
 import AppLayout from "@/components/layout/AppLayout";
@@ -166,6 +168,13 @@ function StaffBreachGuard({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   const { data: user, isLoading } = useAuthMe();
+
+  // Account-level text-size preference. localStorage applies pre-paint (inline
+  // script in index.html), then the server value hydrates/overrides here once
+  // the login state arrives — so the choice follows the account across devices.
+  useEffect(() => {
+    if (user) hydrateTextScaleFromServer(user.textScale);
+  }, [user]);
 
   if (isLoading) {
     return (

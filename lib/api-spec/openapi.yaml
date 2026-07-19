@@ -73,6 +73,33 @@ paths:
       tags: [auth]
       responses:
         "204": { description: Logged out }
+  /auth/text-scale:
+    post:
+      operationId: setTextScalePreference
+      tags: [auth]
+      summary: Save the account-level text-size preference so it follows the user across devices
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scale]
+              properties:
+                scale: { type: string, enum: [default, lg, xl] }
+      responses:
+        "200":
+          description: Preference saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, textScale]
+                properties:
+                  ok: { type: boolean }
+                  textScale: { type: string, enum: [default, lg, xl] }
+        "400": { description: Invalid scale value }
+        "401": { description: Not logged in }
   /auth/onboarding/dismiss:
     post:
       operationId: dismissOnboarding
@@ -7273,6 +7300,11 @@ components:
         rulesAccepted:
           type: boolean
           description: "True once the user has accepted the server rules on the first-run rules splash. While false, the SPA shows a blocking rules gate to signed-in members."
+        textScale:
+          oneOf:
+            - { type: string, enum: [default, lg, xl] }
+            - { type: "null" }
+          description: "Account-level text-size preference, or null if never set from any device. The SPA hydrates its localStorage copy from this so the choice follows the account across browsers."
         loginRestricted:
           type: boolean
           description: "True when an admin has enabled staff-only login restriction. While true, only ADMIN / FIXER / ARCHIVIST may use the portal; the SPA shows a maintenance screen to everyone else."

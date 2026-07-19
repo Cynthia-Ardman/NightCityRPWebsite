@@ -339,6 +339,10 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
     onboardingBannerDismissed: u.onboardingBannerDismissed,
     notificationPromptDismissed: u.notificationPromptDismissed,
     rulesAccepted: u.rulesAccepted,
+    // Account-level text-size preference ("default" | "lg" | "xl"), or null if
+    // never set from any device. The SPA hydrates its localStorage copy from
+    // this so the choice follows the account across browsers.
+    textScale: u.textScale ?? null,
     isAdmin: hasRole(u.roles, "ADMIN"),
     isFixer: hasRole(u.roles, "FIXER"),
     // Display-only: true when this user holds the narrow Trial Fixer tier
@@ -542,6 +546,20 @@ router.post("/auth/notification-roles", requireAuth, async (req, res): Promise<v
     ),
     changed: key,
   });
+});
+
+// Save the account-level text-size preference so it follows the user across
+// devices. "default" is stored literally (not null) so it can override a
+// larger localStorage choice on another device. Idempotent.
+router.post("/auth/text-scale", requireAuth, async (req, res): Promise<void> => {
+  const u = req.user!;
+  const scale = (req.body as { scale?: unknown } | undefined)?.scale;
+  if (scale !== "default" && scale !== "lg" && scale !== "xl") {
+    res.status(400).json({ error: "scale must be one of: default, lg, xl" });
+    return;
+  }
+  await db.update(users).set({ textScale: scale }).where(eq(users.id, u.id));
+  res.json({ ok: true, textScale: scale });
 });
 
 // Dismiss the dashboard "set your Discord ping preferences" prompt for the
