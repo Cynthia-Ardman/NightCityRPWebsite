@@ -29,9 +29,21 @@ describe("selectTodaysMissions", () => {
     expect(selectTodaysMissions([mission()], now)).toHaveLength(1);
   });
 
-  it("includes a mission that already started earlier today", () => {
-    const m = mission({ startAt: new Date(2026, 6, 18, 10, 0).toISOString() });
+  it("includes a mission that started within the 2-hour grace window", () => {
+    const m = mission({ startAt: new Date(2026, 6, 18, 13, 30).toISOString() }); // 1.5h ago
     expect(selectTodaysMissions([m], now)).toHaveLength(1);
+  });
+
+  it("includes a mission exactly at the 2-hour boundary", () => {
+    const m = mission({ startAt: new Date(2026, 6, 18, 13, 0).toISOString() }); // exactly 2h ago
+    expect(selectTodaysMissions([m], now)).toHaveLength(1);
+  });
+
+  it("excludes a mission more than 2 hours past its start", () => {
+    const m = mission({ startAt: new Date(2026, 6, 18, 10, 0).toISOString() }); // 5h ago
+    expect(selectTodaysMissions([m], now)).toHaveLength(0);
+    const justOver = mission({ startAt: new Date(2026, 6, 18, 12, 59).toISOString() }); // 2h1m ago
+    expect(selectTodaysMissions([justOver], now)).toHaveLength(0);
   });
 
   it("excludes missions on other days", () => {

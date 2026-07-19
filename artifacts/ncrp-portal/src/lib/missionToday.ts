@@ -35,12 +35,20 @@ export function isSameLocalDay(a: Date, b: Date): boolean {
 }
 
 /**
+ * How long after a mission's start time the banner keeps showing. A mission
+ * night is realistically wrapped a couple hours after kickoff, so the
+ * reminder (and its "join comms" button) disappears rather than lingering
+ * until midnight.
+ */
+export const MISSION_BANNER_GRACE_MS = 2 * 60 * 60 * 1000;
+
+/**
  * Missions that run TODAY (viewer-local calendar day), soonest first. Only
  * active (open/pending), player-visible (posted) missions qualify — cancelled,
  * completed, and unposted pipeline states never trigger the banner. Missions
- * whose start already passed earlier today still count: the mission is
- * happening today either way, and the banner is a same-day reminder, not a
- * countdown.
+ * whose start already passed still count while they're plausibly running, but
+ * drop off once more than MISSION_BANNER_GRACE_MS has elapsed since start —
+ * the mission is over, the reminder is stale.
  */
 export function selectTodaysMissions(
   missions: readonly MissionTodayInput[] | null | undefined,
@@ -56,6 +64,7 @@ export function selectTodaysMissions(
     const start = new Date(m.startAt);
     if (Number.isNaN(start.getTime())) continue;
     if (!isSameLocalDay(start, now)) continue;
+    if (now.getTime() - start.getTime() > MISSION_BANNER_GRACE_MS) continue;
     out.push({
       id: m.id,
       title: m.title,
