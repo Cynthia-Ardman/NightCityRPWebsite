@@ -7100,6 +7100,29 @@ export interface AnalyticsPlayers {
   sheetsPerMonth: AnalyticsPlayersSheetsPerMonthItem[];
 }
 
+export type AnalyticsVrchatWeeklyItem = {
+  weekStart: string;
+  sessions: number;
+  hours: number;
+};
+
+export type AnalyticsVrchatTopWorldsItem = {
+  worldName: string;
+  sessions: number;
+  hours: number;
+  peakUserCount: number;
+};
+
+export interface AnalyticsVrchat {
+  weekly: AnalyticsVrchatWeeklyItem[];
+  totalSessions: number;
+  totalHours: number;
+  avgDurationMinutes: number;
+  peakUserCount: number;
+  openNow: number;
+  topWorlds: AnalyticsVrchatTopWorldsItem[];
+}
+
 export interface AdminAnalytics {
   range: AdminAnalyticsRange;
   since: string;
@@ -7107,6 +7130,7 @@ export interface AdminAnalytics {
   missions: AnalyticsMissions;
   reviews: AnalyticsReviewQueue[];
   players: AnalyticsPlayers;
+  vrchat: AnalyticsVrchat;
   /**
      * Echo of the wallet-balance exclusion threshold applied, if any.
      * @nullable

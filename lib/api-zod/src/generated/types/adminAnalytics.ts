@@ -10,6 +10,7 @@ import type { AnalyticsEconomy } from './analyticsEconomy';
 import type { AnalyticsMissions } from './analyticsMissions';
 import type { AnalyticsPlayers } from './analyticsPlayers';
 import type { AnalyticsReviewQueue } from './analyticsReviewQueue';
+import type { AnalyticsVrchat } from './analyticsVrchat';
 
 export interface AdminAnalytics {
   range: AdminAnalyticsRange;
@@ -18,6 +19,7 @@ export interface AdminAnalytics {
   missions: AnalyticsMissions;
   reviews: AnalyticsReviewQueue[];
   players: AnalyticsPlayers;
+  vrchat: AnalyticsVrchat;
   /**
      * Echo of the wallet-balance exclusion threshold applied, if any.
      * @nullable

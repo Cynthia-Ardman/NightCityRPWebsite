@@ -2278,6 +2278,63 @@ export const vrchatInstances = pgTable("vrchat_instances", {
 });
 export type VrchatInstance = typeof vrchatInstances.$inferSelect;
 
+// Historical record of VRChat group instance sessions: one row per instance
+// lifetime (opened → closed), written by the same poller that maintains the
+// live vrchat_instances cache. `source` distinguishes live-poll rows from
+// VRCX-imported historical rows; uniqueUsers is only knowable for VRCX rows
+// (the group-instances API returns head counts, never identities).
+export const vrchatInstanceSessions = pgTable(
+  "vrchat_instance_sessions",
+  {
+    id: serial("id").primaryKey(),
+    location: text("location").notNull(),
+    worldId: text("world_id").notNull(),
+    worldName: text("world_name").notNull(),
+    accessType: text("access_type").notNull().default("unknown"),
+    region: text("region"),
+    source: text("source").notNull().default("live"), // live | vrcx
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+    // NULL while the instance is still open; set when a successful poll no
+    // longer lists the location.
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    peakUserCount: integer("peak_user_count").notNull().default(0),
+    // Running sum + count of per-poll head-count samples → average occupancy.
+    sampleCount: integer("sample_count").notNull().default(0),
+    sumUserCounts: integer("sum_user_counts").notNull().default(0),
+    capacity: integer("capacity"),
+    // Distinct players seen in the instance — VRCX-imported rows only.
+    uniqueUsers: integer("unique_users"),
+  },
+  (t) => ({
+    // At most one OPEN live session per location (a location string can be
+    // reused by a later instance, so uniqueness only applies while open).
+    openLocationIdx: uniqueIndex("vis_open_location_idx")
+      .on(t.location)
+      .where(sql`closed_at IS NULL AND source = 'live'`),
+    firstSeenIdx: index("vis_first_seen_idx").on(t.firstSeenAt),
+  }),
+);
+export type VrchatInstanceSession = typeof vrchatInstanceSessions.$inferSelect;
+
+// Per-poll head-count samples for a session (one row every poll tick) so we
+// can chart occupancy over an instance's lifetime.
+export const vrchatInstanceSamples = pgTable(
+  "vrchat_instance_samples",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: integer("session_id")
+      .notNull()
+      .references(() => vrchatInstanceSessions.id, { onDelete: "cascade" }),
+    at: timestamp("at", { withTimezone: true }).notNull(),
+    userCount: integer("user_count").notNull().default(0),
+  },
+  (t) => ({
+    sessionIdx: index("visamp_session_idx").on(t.sessionId),
+  }),
+);
+export type VrchatInstanceSample = typeof vrchatInstanceSamples.$inferSelect;
+
 // ---------------------------------------------------------------------------
 // NCPD (Night City Police Department)
 // ---------------------------------------------------------------------------

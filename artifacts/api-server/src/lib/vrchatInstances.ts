@@ -1,5 +1,5 @@
-import { db, vrchatInstances } from "@workspace/db";
-import { notInArray } from "drizzle-orm";
+import { db, vrchatInstances, vrchatInstanceSessions, vrchatInstanceSamples } from "@workspace/db";
+import { and, eq, isNull, notInArray, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import {
   fetchGroupInstances,
@@ -189,8 +189,90 @@ export async function pollGroupInstances(): Promise<number> {
     await db.delete(vrchatInstances).where(notInArray(vrchatInstances.location, locations));
   }
 
+  // Append to the durable session history (never pruned) so analytics can
+  // report instance lifetimes and occupancy long after an instance closes.
+  try {
+    await recordInstanceSessions(live, now);
+  } catch (err) {
+    // History is best-effort: a recording failure must never break the live
+    // instance browser refresh.
+    logger.error(
+      { err: err instanceof Error ? err.message : String(err) },
+      "VRChat instance session recording failed",
+    );
+  }
+
   logger.info({ count: seen.size }, "VRChat instances refreshed");
   return seen.size;
+}
+
+// Upsert one OPEN session row per live instance (keyed by the partial unique
+// index on location WHERE closed_at IS NULL AND source='live'), append a
+// head-count sample per poll tick, and close any open sessions whose location
+// vanished from this (successful) poll. Exported for tests.
+export async function recordInstanceSessions(
+  live: Array<Pick<NormalisedInstance, "location" | "worldId" | "worldName" | "accessType" | "region" | "userCount" | "capacity">>,
+  now: Date,
+): Promise<void> {
+  // One transaction per poll tick so a partial failure can't close sessions
+  // it never re-upserted (or vice versa), and overlapping polls serialize on
+  // the partial unique index instead of interleaving.
+  await db.transaction(async (tx) => {
+  const seen = new Set<string>();
+  for (const i of live) {
+    if (seen.has(i.location)) continue;
+    seen.add(i.location);
+    const [row] = await tx
+      .insert(vrchatInstanceSessions)
+      .values({
+        location: i.location,
+        worldId: i.worldId,
+        worldName: i.worldName,
+        accessType: i.accessType,
+        region: i.region,
+        source: "live",
+        firstSeenAt: now,
+        lastSeenAt: now,
+        peakUserCount: i.userCount,
+        sampleCount: 1,
+        sumUserCounts: i.userCount,
+        capacity: i.capacity,
+      })
+      .onConflictDoUpdate({
+        target: vrchatInstanceSessions.location,
+        targetWhere: sql`closed_at IS NULL AND source = 'live'`,
+        set: {
+          worldName: i.worldName,
+          lastSeenAt: now,
+          peakUserCount: sql`GREATEST(${vrchatInstanceSessions.peakUserCount}, ${i.userCount})`,
+          sampleCount: sql`${vrchatInstanceSessions.sampleCount} + 1`,
+          sumUserCounts: sql`${vrchatInstanceSessions.sumUserCounts} + ${i.userCount}`,
+          capacity: i.capacity,
+        },
+      })
+      .returning({ id: vrchatInstanceSessions.id });
+    if (row) {
+      await tx.insert(vrchatInstanceSamples).values({
+        sessionId: row.id,
+        at: now,
+        userCount: i.userCount,
+      });
+    }
+  }
+
+  // Close open sessions no longer present. closedAt = the last poll that DID
+  // see the instance (lastSeenAt), not "now", so durations aren't inflated by
+  // the poll interval.
+  const openFilter = and(isNull(vrchatInstanceSessions.closedAt), eq(vrchatInstanceSessions.source, "live"));
+  const gone =
+    seen.size === 0
+      ? openFilter
+      : and(openFilter, notInArray(vrchatInstanceSessions.location, [...seen]));
+  await tx
+    .update(vrchatInstanceSessions)
+    .set({ closedAt: sql`${vrchatInstanceSessions.lastSeenAt}` })
+    .where(gone);
+  });
 }
 
 export interface VrchatInstanceView {

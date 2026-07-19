@@ -114,6 +114,7 @@
 - Approver pool: [isReviewer vs isEligibleReviewer (no admin), tallies filter to eligible](review-approver-pool-split.md); [trial-fixer author-only tier](trial-fixer-tier.md) exclude at isReviewer + strip stale grants.
 - Discord thread mirror: [cs-approver drawer pop-out, mount 15s-polling panel only when open](discord-thread-drawer.md); [persist discordThreadId at creation so "linked" never lies](discord-thread-mirror-linkage.md).
 - [Stock schema trio drift](stock-schema-trio.md) — store stock has 3 separate OpenAPI schemas (StockItem/StockInput/StockUpdate); a new field must hit ALL THREE or the PATCH path tsc-fails; same for InventoryItem trio.
+- [VRChat instance session history](vrchat-instance-session-history.md) — poller-written durable sessions; close=absence, closedAt=lastSeenAt; uniqueUsers only via VRCX import.
 - VRChat: [calendar sync](vrchat-calendar-sync.md) + [mirror gating](vrchat-calendar-mirror.md); [group instances](vrchat-group-instances.md); [allowed-roles](vrchat-instance-roles.md); [agent queue CLAIM](vrchat-agent-command-queue.md).
 - [Meds refund forensics + checkup extraction](meds-refund-forensics.md) — June-2026 probe: legacy meds charges were CORRECT (reset on checkup, scale w/ gap), new cron never charged — see topic.
 - [sheetData merge + passthrough](sheetdata-merge-passthrough.md) — char edit whole-replaces sheetData; forms must spread-merge existing keys AND EditableSchema must `.passthrough()` or sheet-created story/gear/identity fields silently wipe.

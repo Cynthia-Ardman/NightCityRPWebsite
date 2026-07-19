@@ -10885,7 +10885,7 @@ components:
 
     AdminAnalytics:
       type: object
-      required: [range, since, economy, missions, reviews, players]
+      required: [range, since, economy, missions, reviews, players, vrchat]
       properties:
         range: { type: string, enum: [4w, 3m, 1y] }
         since: { type: string, format: date-time }
@@ -10895,6 +10895,7 @@ components:
           type: array
           items: { $ref: "#/components/schemas/AnalyticsReviewQueue" }
         players: { $ref: "#/components/schemas/AnalyticsPlayers" }
+        vrchat: { $ref: "#/components/schemas/AnalyticsVrchat" }
         excludeAbove: { type: ["integer", "null"], description: "Echo of the wallet-balance exclusion threshold applied, if any." }
         excludedWallets: { type: integer, description: "Number of wallets excluded by the threshold." }
 
@@ -10980,6 +10981,35 @@ components:
             properties:
               month: { type: string, format: date-time }
               count: { type: integer }
+
+    AnalyticsVrchat:
+      type: object
+      required: [weekly, totalSessions, totalHours, avgDurationMinutes, peakUserCount, openNow, topWorlds]
+      properties:
+        weekly:
+          type: array
+          items:
+            type: object
+            required: [weekStart, sessions, hours]
+            properties:
+              weekStart: { type: string, format: date-time }
+              sessions: { type: integer }
+              hours: { type: number }
+        totalSessions: { type: integer }
+        totalHours: { type: number }
+        avgDurationMinutes: { type: integer }
+        peakUserCount: { type: integer }
+        openNow: { type: integer }
+        topWorlds:
+          type: array
+          items:
+            type: object
+            required: [worldName, sessions, hours, peakUserCount]
+            properties:
+              worldName: { type: string }
+              sessions: { type: integer }
+              hours: { type: number }
+              peakUserCount: { type: integer }
 
     AuditLogRow:
       type: object

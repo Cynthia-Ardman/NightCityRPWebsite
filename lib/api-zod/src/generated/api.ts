@@ -6816,6 +6816,24 @@ export const AdminGetAnalyticsResponse = zod.object({
   "count": zod.number()
 }))
 }),
+  "vrchat": zod.object({
+  "weekly": zod.array(zod.object({
+  "weekStart": zod.coerce.date(),
+  "sessions": zod.number(),
+  "hours": zod.number()
+})),
+  "totalSessions": zod.number(),
+  "totalHours": zod.number(),
+  "avgDurationMinutes": zod.number(),
+  "peakUserCount": zod.number(),
+  "openNow": zod.number(),
+  "topWorlds": zod.array(zod.object({
+  "worldName": zod.string(),
+  "sessions": zod.number(),
+  "hours": zod.number(),
+  "peakUserCount": zod.number()
+}))
+}),
   "excludeAbove": zod.number().nullish().describe('Echo of the wallet-balance exclusion threshold applied, if any.'),
   "excludedWallets": zod.number().optional().describe('Number of wallets excluded by the threshold.')
 })

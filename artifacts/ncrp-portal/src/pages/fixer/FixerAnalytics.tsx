@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { useAdminGetAnalytics, getAdminGetAnalyticsQueryKey, type AdminGetAnalyticsRange } from "@workspace/api-client-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Coins, Briefcase, ClipboardList, Users } from "lucide-react";
+import { Activity, Coins, Briefcase, ClipboardList, Users, Globe } from "lucide-react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -131,6 +131,12 @@ export default function FixerAnalytics() {
   }));
 
   const lifeEntries = Object.entries(data?.players.lifeStatus ?? {}).sort((a, b) => b[1] - a[1]);
+
+  const vrWeeklyRows = (data?.vrchat.weekly ?? []).map((w) => ({
+    week: fmtWeek(w.weekStart),
+    instances: w.sessions,
+    hours: w.hours,
+  }));
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -345,6 +351,77 @@ export default function FixerAnalytics() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* --------------------------- VRCHAT INSTANCES --------------------------- */}
+          <Card className="rounded-none border-border bg-card/50">
+            <CardHeader>
+              <CardTitle className="font-display tracking-widest flex items-center gap-2">
+                <Globe className="w-4 h-4 text-nc-cyan" /> VRCHAT INSTANCES
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 font-mono text-sm">
+                <div className="border border-border p-3">
+                  <div className="text-xs text-muted-foreground">INSTANCES</div>
+                  <div className="text-2xl text-nc-cyan" data-testid="stat-vr-sessions">{data.vrchat.totalSessions}</div>
+                </div>
+                <div className="border border-border p-3">
+                  <div className="text-xs text-muted-foreground">TOTAL HOURS</div>
+                  <div className="text-2xl text-nc-cyan" data-testid="stat-vr-hours">{data.vrchat.totalHours.toLocaleString()}</div>
+                </div>
+                <div className="border border-border p-3">
+                  <div className="text-xs text-muted-foreground">AVG DURATION</div>
+                  <div className="text-2xl text-nc-yellow" data-testid="stat-vr-avg-duration">{data.vrchat.avgDurationMinutes}m</div>
+                </div>
+                <div className="border border-border p-3">
+                  <div className="text-xs text-muted-foreground">PEAK HEADCOUNT</div>
+                  <div className="text-2xl text-nc-magenta" data-testid="stat-vr-peak">{data.vrchat.peakUserCount}</div>
+                </div>
+                <div className="border border-border p-3">
+                  <div className="text-xs text-muted-foreground">OPEN NOW</div>
+                  <div className={`text-2xl ${data.vrchat.openNow > 0 ? "text-nc-cyan" : "text-muted-foreground"}`} data-testid="stat-vr-open-now">{data.vrchat.openNow}</div>
+                </div>
+              </div>
+              {vrWeeklyRows.length === 0 ? (
+                <p className="font-mono text-muted-foreground italic" data-testid="text-vr-empty">
+                  No instance history in this range yet — recording started when session tracking shipped, so charts fill in from here forward.
+                </p>
+              ) : (
+                <div className="h-64" data-testid="chart-vrchat-weekly">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={vrWeeklyRows}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 20%)" />
+                      <XAxis dataKey="week" tick={{ fontSize: 11, fontFamily: "monospace" }} />
+                      <YAxis yAxisId="left" tick={{ fontSize: 11, fontFamily: "monospace" }} allowDecimals={false} />
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fontFamily: "monospace" }} />
+                      <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => (name === "hours" ? [`${v}h`, "instance-hours"] : [v, "instances"])} />
+                      <Legend />
+                      <Bar yAxisId="left" dataKey="instances" fill="#00f0ff" />
+                      <Bar yAxisId="right" dataKey="hours" fill="#b17aff" fillOpacity={0.7} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              {data.vrchat.topWorlds.length > 0 && (
+                <div>
+                  <div className="font-display tracking-widest text-sm mb-2">TOP WORLDS BY INSTANCE-HOURS</div>
+                  <div className="space-y-1 font-mono text-xs" data-testid="list-vr-top-worlds">
+                    {data.vrchat.topWorlds.map((w) => (
+                      <div key={w.worldName} className="flex items-center justify-between border border-border px-3 py-2">
+                        <span className="text-foreground truncate mr-3">{w.worldName}</span>
+                        <span className="text-muted-foreground whitespace-nowrap">
+                          {w.sessions} inst · {w.hours.toLocaleString()}h · peak <span className="text-nc-magenta">{w.peakUserCount}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <p className="font-mono text-xs text-muted-foreground">
+                Head counts come from the group-instance poller (every 2 min, live server only). Unique-player stats require a VRCX log import.
+              </p>
             </CardContent>
           </Card>
 

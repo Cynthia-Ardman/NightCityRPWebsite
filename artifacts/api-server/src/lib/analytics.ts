@@ -51,6 +51,29 @@ interface ReviewQueueStats {
   ageBuckets: AgeBuckets;
 }
 
+interface VrchatWeek {
+  weekStart: string;
+  sessions: number;
+  hours: number;
+}
+
+interface VrchatWorldStat {
+  worldName: string;
+  sessions: number;
+  hours: number;
+  peakUserCount: number;
+}
+
+interface VrchatStats {
+  weekly: VrchatWeek[];
+  totalSessions: number;
+  totalHours: number;
+  avgDurationMinutes: number;
+  peakUserCount: number;
+  openNow: number;
+  topWorlds: VrchatWorldStat[];
+}
+
 export interface AdminAnalytics {
   range: AnalyticsRange;
   since: string;
@@ -71,6 +94,7 @@ export interface AdminAnalytics {
     dormant: number;
     sheetsPerMonth: Array<{ month: string; count: number }>;
   };
+  vrchat: VrchatStats;
 }
 
 function bucketAges(dates: Date[], now: Date): { buckets: AgeBuckets; oldestDays: number | null } {
@@ -341,6 +365,62 @@ export async function computeAdminAnalytics(
     GROUP BY 1 ORDER BY 1
   `);
 
+  // ---- VRChat instance sessions ---------------------------------------------
+  // Session history written by the group-instance poller (plus VRCX-imported
+  // rows). Durations use COALESCE(closed_at, last_seen_at) so still-open
+  // sessions count their elapsed time without inflating by the poll gap.
+  const vrDur = sql`EXTRACT(EPOCH FROM (COALESCE(closed_at, last_seen_at) - first_seen_at))`;
+  const [vrWeeklyRes, vrTotalsRes, vrTopRes] = await Promise.all([
+    db.execute(sql`
+      SELECT date_trunc('week', first_seen_at) AS week,
+             COUNT(*)::int AS sessions,
+             COALESCE(SUM(${vrDur}), 0)::float8 AS seconds
+      FROM vrchat_instance_sessions
+      WHERE first_seen_at >= ${since}
+      GROUP BY 1 ORDER BY 1
+    `),
+    db.execute(sql`
+      SELECT COUNT(*) FILTER (WHERE first_seen_at >= ${since})::int AS sessions,
+             COALESCE(SUM(${vrDur}) FILTER (WHERE first_seen_at >= ${since}), 0)::float8 AS seconds,
+             COALESCE(MAX(peak_user_count) FILTER (WHERE first_seen_at >= ${since}), 0)::int AS peak,
+             COUNT(*) FILTER (WHERE closed_at IS NULL AND source = 'live')::int AS open_now
+      FROM vrchat_instance_sessions
+    `),
+    db.execute(sql`
+      SELECT world_name,
+             COUNT(*)::int AS sessions,
+             COALESCE(SUM(${vrDur}), 0)::float8 AS seconds,
+             COALESCE(MAX(peak_user_count), 0)::int AS peak
+      FROM vrchat_instance_sessions
+      WHERE first_seen_at >= ${since}
+      GROUP BY 1 ORDER BY SUM(${vrDur}) DESC NULLS LAST LIMIT 8
+    `),
+  ]);
+  const hoursOf = (seconds: unknown) => Math.round(((Number(seconds) || 0) / 3600) * 10) / 10;
+  const vrTotals = vrTotalsRes.rows[0] as
+    | { sessions: number; seconds: string; peak: number; open_now: number }
+    | undefined;
+  const vrTotalSessions = Number(vrTotals?.sessions) || 0;
+  const vrTotalSeconds = Number(vrTotals?.seconds) || 0;
+  const vrchat: VrchatStats = {
+    weekly: (vrWeeklyRes.rows as Array<{ week: Date | string; sessions: number; seconds: string }>).map((r) => ({
+      weekStart: new Date(r.week as string).toISOString(),
+      sessions: Number(r.sessions) || 0,
+      hours: hoursOf(r.seconds),
+    })),
+    totalSessions: vrTotalSessions,
+    totalHours: hoursOf(vrTotalSeconds),
+    avgDurationMinutes: vrTotalSessions > 0 ? Math.round(vrTotalSeconds / vrTotalSessions / 60) : 0,
+    peakUserCount: Number(vrTotals?.peak) || 0,
+    openNow: Number(vrTotals?.open_now) || 0,
+    topWorlds: (vrTopRes.rows as Array<{ world_name: string; sessions: number; seconds: string; peak: number }>).map((r) => ({
+      worldName: r.world_name,
+      sessions: Number(r.sessions) || 0,
+      hours: hoursOf(r.seconds),
+      peakUserCount: Number(r.peak) || 0,
+    })),
+  };
+
   return {
     range,
     since: since.toISOString(),
@@ -367,5 +447,6 @@ export async function computeAdminAnalytics(
         count: Number(r.n) || 0,
       })),
     },
+    vrchat,
   };
 }
