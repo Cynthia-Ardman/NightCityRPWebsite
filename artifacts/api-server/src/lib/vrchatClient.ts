@@ -380,10 +380,65 @@ export async function getSessionInfo(): Promise<VrchatSessionInfo> {
 export const SESSION_EXPIRED_MSG =
   "VRChat session expired — a staff member must reconnect via System Admin → VRChat (Connect + email code).";
 
-async function markSessionExpired(): Promise<void> {
+async function markSessionExpired(context: string): Promise<void> {
   // Keep the twoFactorAuth cookie: a remembered 2FA device can make the next
   // manual reconnect skip the challenge. Only the auth cookie is dead.
-  await persistSession({ authCookie: null, lastError: SESSION_EXPIRED_MSG });
+  await persistSession({
+    authCookie: null,
+    lastError: `${SESSION_EXPIRED_MSG} (401 on ${context} at ${new Date().toISOString()})`.slice(0, 500),
+  });
+  logger.warn({ context }, "VRChat session marked expired");
+}
+
+// A lone 401 from one endpoint is not proof the cookie is dead — VRChat
+// occasionally returns transient 401s under rate-limit/CDN hiccups, and the
+// 2-minute poller turns any such blip into a forced manual reconnect. Before
+// discarding the cookie, confirm it is really dead against /auth/user. If the
+// confirm call itself errors (network), treat the 401 as transient and keep
+// the session.
+async function confirmCookieDead(cookies: SessionCookies): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/auth/user`, {
+      headers: { ...baseHeaders(), Cookie: cookieHeader(cookies) },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (res.status === 401 || res.status === 403) return true;
+    if (res.ok) {
+      // Cookie still valid; VRChat may require 2FA re-verify (body has
+      // requiresTwoFactorAuth) but the auth cookie itself lives.
+      return false;
+    }
+    return false; // 5xx/429 etc — inconclusive, keep the session
+  } catch {
+    return false; // network error — inconclusive, keep the session
+  }
+}
+
+// VRChat rotates/refreshes cookies via Set-Cookie on ordinary API responses.
+// Persist any rotation so the stored session tracks the live one instead of
+// going stale and eventually 401ing.
+async function captureRotatedCookies(res: Response, prior: SessionCookies): Promise<void> {
+  const setCookies = res.headers.getSetCookie?.() ?? [];
+  if (setCookies.length === 0) return;
+  const auth = readSetCookie(setCookies, "auth");
+  const twoFactor = readSetCookie(setCookies, "twoFactorAuth");
+  const patch: Partial<typeof vrchatSessions.$inferInsert> = {};
+  if (auth && auth !== prior.auth) patch.authCookie = auth;
+  if (twoFactor && twoFactor !== prior.twoFactor) patch.twoFactorCookie = twoFactor;
+  if (Object.keys(patch).length > 0) {
+    await persistSession(patch);
+    logger.info("VRChat session cookies rotated");
+  }
+}
+
+// Shared 401 handling for apiGet/apiSend: verify before discarding.
+async function handleUnauthorized(cookies: SessionCookies, context: string): Promise<never> {
+  if (await confirmCookieDead(cookies)) {
+    await markSessionExpired(context);
+    throw new Error(SESSION_EXPIRED_MSG);
+  }
+  logger.warn({ context }, "VRChat returned a transient 401; keeping session");
+  throw new Error(`VRChat ${context} returned a transient 401 — session kept, will retry next cycle.`);
 }
 
 export async function vrchatSessionConnected(): Promise<boolean> {
@@ -405,13 +460,13 @@ async function apiGet<T>(path: string): Promise<T> {
 
   const res = await doFetch(cookies);
   if (res.status === 401) {
-    await markSessionExpired();
-    throw new Error(SESSION_EXPIRED_MSG);
+    await handleUnauthorized(cookies, `GET ${path}`);
   }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`VRChat GET ${path} failed (${res.status}): ${body.slice(0, 200)}`);
   }
+  await captureRotatedCookies(res, cookies);
   await persistSession({ lastAuthAt: new Date(), lastError: null });
   return (await res.json()) as T;
 }
@@ -442,13 +497,13 @@ async function apiSend<T>(
 
   const res = await doFetch(cookies);
   if (res.status === 401) {
-    await markSessionExpired();
-    throw new Error(SESSION_EXPIRED_MSG);
+    await handleUnauthorized(cookies, `${method} ${path}`);
   }
   if (!res.ok) {
     const errBody = await res.text().catch(() => "");
     throw new Error(`VRChat ${method} ${path} failed (${res.status}): ${errBody.slice(0, 200)}`);
   }
+  await captureRotatedCookies(res, cookies);
   await persistSession({ lastAuthAt: new Date(), lastError: null });
   const text = await res.text().catch(() => "");
   return (text ? JSON.parse(text) : null) as T;

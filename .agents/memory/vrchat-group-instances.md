@@ -67,6 +67,16 @@ Gotchas:
 ## Former index detail (full)
 group API only returns GROUP instances (private/invite+ never listed); instance roleIds→names via cached group-roles map at poll time, read path never hits VRChat, drop unresolved `grol_` ids ([roles](vrchat-instance-roles.md)); cron deployment-gated, dev serves prod cache; emailOtp from datacenter IPs blocks unattended TOTP login; never log creds.
 
+## 401 handling: verify-before-expire + cookie rotation (2026-07-19)
+A lone 401 from one endpoint must NOT wipe the session — the 2-min poller turns
+any transient blip into a forced manual reconnect. `handleUnauthorized` re-checks
+the cookie against `GET /auth/user`: only a confirmed 401/403 clears authCookie
+(5xx/429/network = inconclusive, keep + throw a "transient 401" error the cron
+retries). Also `captureRotatedCookies` persists rotated auth/twoFactorAuth values
+from Set-Cookie on every successful apiGet/apiSend, so the stored session tracks
+VRChat's rotation instead of going stale. `markSessionExpired` records the
+endpoint+timestamp in lastError for diagnosis. Tests: vrchatClient.test.ts.
+
 ## No unattended re-login (429 network lockout, fixed 2026-07-18)
 `apiGet`/`apiSend` must NEVER fall back to `login()` on a missing cookie or 401 —
 password login from the datacenter IP always dead-ends in emailOtp, and the

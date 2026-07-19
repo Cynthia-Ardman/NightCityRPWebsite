@@ -154,4 +154,5 @@
 - [Responsive dual layouts vs Playwright strict mode](responsive-dual-layout-e2e.md) — md:hidden card + hidden md:block table duplicate text in DOM; scope e2e text asserts with `visible=true`.
 - [Global search authz & hrefs](global-search-authz.md) — search result hrefs must be caller-openable pages; staff-scoped rows need staffOnly flag + effective-role scrub or View-as leaks.
 - [Portal bell notifications](portal-bell-notifications.md) — new player-facing events must `void createNotification(...)` at the SAME site as the DM but NOT gated on Test/Live or discordId; api-zod star-export body-name ambiguity trap.
-- [Text-scale px immunity](text-scale-px-immunity.md) — the text-size setting scales rem only; any `text-[Npx]` literal is immune AND tiny — calendar chips converted to rem equivalents (0.5625–0.8125rem); new micro-text must use rem arbitrary values.
+- [Text-scale px immunity](text-scale-px-immunity.md) — the text-size setting scales rem only; any `text-[Npx]` literal is immune AND tiny; new micro-text must use rem arbitrary values.
+- [VRChat 401 verify-before-expire](vrchat-group-instances.md) — a lone 401 must not wipe the session; confirm via /auth/user first + persist rotated Set-Cookie values.
