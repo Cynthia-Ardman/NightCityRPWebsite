@@ -13,4 +13,5 @@ export const AdminAnalyticsRange = {
   '4w': '4w',
   '3m': '3m',
   '1y': '1y',
+  all: 'all',
 } as const;

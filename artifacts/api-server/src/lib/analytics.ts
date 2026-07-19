@@ -7,12 +7,14 @@ import { sql } from "drizzle-orm";
 // ever receives small pre-bucketed series, never raw transaction dumps.
 // ---------------------------------------------------------------------------
 
-export type AnalyticsRange = "4w" | "3m" | "1y";
+export type AnalyticsRange = "4w" | "3m" | "1y" | "all";
 
-const RANGE_WEEKS: Record<AnalyticsRange, number> = { "4w": 4, "3m": 13, "1y": 52 };
+// "all" uses a far-past window start so every recorded row qualifies; the
+// portal's data only goes back to early 2025, so charts stay a sane size.
+const RANGE_WEEKS: Record<AnalyticsRange, number> = { "4w": 4, "3m": 13, "1y": 52, all: 20 * 52 };
 
 export function parseAnalyticsRange(raw: unknown): AnalyticsRange {
-  return raw === "4w" || raw === "1y" ? raw : "3m";
+  return raw === "4w" || raw === "1y" || raw === "all" ? raw : "3m";
 }
 
 interface EconomyWeek {

@@ -6776,12 +6776,12 @@ export const adminGetAnalyticsQueryExcludeAboveMin = 0;
 
 
 export const AdminGetAnalyticsQueryParams = zod.object({
-  "range": zod.enum(['4w', '3m', '1y']).default(adminGetAnalyticsQueryRangeDefault),
+  "range": zod.enum(['4w', '3m', '1y', 'all']).default(adminGetAnalyticsQueryRangeDefault),
   "excludeAbove": zod.coerce.number().min(adminGetAnalyticsQueryExcludeAboveMin).optional().describe('Exclude wallets whose all-time settled net balance exceeds this amount from the economy charts.')
 })
 
 export const AdminGetAnalyticsResponse = zod.object({
-  "range": zod.enum(['4w', '3m', '1y']),
+  "range": zod.enum(['4w', '3m', '1y', 'all']),
   "since": zod.coerce.date(),
   "economy": zod.object({
   "weekly": zod.array(zod.object({

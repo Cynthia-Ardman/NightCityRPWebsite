@@ -18,12 +18,13 @@ import {
   CartesianGrid,
 } from "recharts";
 
-type RangeKey = "4w" | "3m" | "1y";
+type RangeKey = "4w" | "3m" | "1y" | "all";
 
 const RANGES: Array<{ key: RangeKey; label: string }> = [
   { key: "4w", label: "4 WEEKS" },
   { key: "3m", label: "3 MONTHS" },
   { key: "1y", label: "1 YEAR" },
+  { key: "all", label: "ALL TIME" },
 ];
 
 const CATEGORY_COLORS: Record<string, string> = {

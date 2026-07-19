@@ -2582,7 +2582,7 @@ paths:
       tags: [admin]
       summary: "Staff analytics: server-health aggregates (economy, missions, review-queue aging, player activity)."
       parameters:
-        - { in: query, name: range, schema: { type: string, enum: [4w, 3m, 1y], default: 3m } }
+        - { in: query, name: range, schema: { type: string, enum: [4w, 3m, 1y, all], default: 3m } }
         - { in: query, name: excludeAbove, description: "Exclude wallets whose all-time settled net balance exceeds this amount from the economy charts.", schema: { type: integer, minimum: 0 } }
       responses:
         "200":
@@ -11008,7 +11008,7 @@ components:
       type: object
       required: [range, since, economy, missions, reviews, players, vrchat]
       properties:
-        range: { type: string, enum: [4w, 3m, 1y] }
+        range: { type: string, enum: [4w, 3m, 1y, all] }
         since: { type: string, format: date-time }
         economy: { $ref: "#/components/schemas/AnalyticsEconomy" }
         missions: { $ref: "#/components/schemas/AnalyticsMissions" }
