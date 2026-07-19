@@ -1201,14 +1201,14 @@ function ActivityHistoryDialog({
           <div className="font-mono text-sm text-muted-foreground py-6 text-center">NO_HISTORY_RECORDED</div>
         ) : (
           <div className="space-y-2 min-w-0">
-            <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+            <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
               {data.totalCount} TOTAL · {data.botCount} BOT-ERA · {data.portalCount} PORTAL
             </div>
             <div className="max-h-[55vh] overflow-y-auto divide-y divide-border/40 border border-border/40">
               {data.entries.map((e, i) => (
                 <div
                   key={`${e.source}-${e.at ?? e.date}-${i}`}
-                  className="flex items-center justify-between gap-3 px-3 py-2 font-mono text-xs"
+                  className="flex items-center justify-between gap-3 px-3 py-2 font-mono text-sm"
                   data-testid={`row-history-${i}`}
                 >
                   <span className="flex min-w-0 flex-col">
@@ -1220,7 +1220,7 @@ function ActivityHistoryDialog({
                       })}
                     </span>
                     {e.label && (
-                      <span className="truncate text-[10px] text-muted-foreground" title={e.label}>
+                      <span className="truncate text-xs text-muted-foreground" title={e.label}>
                         {e.label}
                       </span>
                     )}
@@ -1233,7 +1233,7 @@ function ActivityHistoryDialog({
                     )}
                     <Badge
                       variant="outline"
-                      className={`rounded-none text-[9px] tracking-widest ${
+                      className={`rounded-none text-[0.6875rem] tracking-widest ${
                         e.source === "bot" ? "border-nc-magenta/50 text-nc-magenta" : "border-nc-cyan/50 text-nc-cyan"
                       }`}
                     >

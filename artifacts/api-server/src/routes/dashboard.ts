@@ -810,7 +810,7 @@ router.get("/me/rent-history", requireAuth, async (req, res): Promise<void> => {
   const RENT_REASON_RE =
     "(flat monthly fee|housing rent|business rent|xanadu gold membership|trauma team subscription)";
 
-  const [channelRows, ledgerRows] = await Promise.all([
+  const [channelRows, ledgerRows, portalRows] = await Promise.all([
     db
       .select()
       .from(botRentPaymentEvents)
@@ -838,6 +838,26 @@ router.get("/me/rent-history", requireAuth, async (req, res): Promise<void> => {
         ),
       )
       .orderBy(desc(botBalanceHistory.ts))
+      .limit(500),
+    // Portal-native rent-style charges written by the monthly billing cron.
+    // kind='historical' importer mirrors of the bot ledger are excluded by the
+    // kind filter (botBalanceHistory above already carries those rows).
+    db
+      .select()
+      .from(walletTransactions)
+      .where(
+        and(
+          eq(walletTransactions.userId, discordId),
+          inArray(walletTransactions.kind, [
+            "rent",
+            "business_rent",
+            "baseline",
+            "trauma_team",
+            "xanadu_gold",
+          ]),
+        ),
+      )
+      .orderBy(desc(walletTransactions.createdAt))
       .limit(500),
   ]);
 
@@ -872,14 +892,32 @@ router.get("/me/rent-history", requireAuth, async (req, res): Promise<void> => {
       };
     });
 
-  const entries = [...ledgerEntries, ...channelEntries]
+  // Portal charges never duplicate the bot sources (the bot never writes
+  // wallet_transactions and importer mirrors use kind='historical', filtered
+  // out above); keep the cheap memo guard against any stray legacy-tagged row.
+  const portalEntries = portalRows
+    .filter((r) => !(r.memo ?? "").includes("[legacy-bal:"))
+    .map((r) => {
+      const at = r.createdAt ?? new Date();
+      return {
+        source: "portal" as const,
+        date: at.toISOString().slice(0, 10),
+        at: at.toISOString(),
+        amount: r.amount,
+        label: r.memo ?? ledgerRentLabel(r.kind),
+      };
+    });
+
+  const entries = [...ledgerEntries, ...channelEntries, ...portalEntries]
     .sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""))
     .slice(0, 500);
 
+  const botCount = entries.filter((e) => e.source === "bot").length;
+
   res.json({
     totalCount: entries.length,
-    portalCount: 0,
-    botCount: entries.length,
+    portalCount: entries.length - botCount,
+    botCount,
     entries,
   });
 });
@@ -892,14 +930,30 @@ router.get("/me/rent-history", requireAuth, async (req, res): Promise<void> => {
 // coverage starts ~2026-05.
 router.get("/me/financial-history", requireAuth, async (req, res): Promise<void> => {
   const discordId = req.user!.discordId;
-  const rows = await db
-    .select()
-    .from(botBalanceHistory)
-    .where(eq(botBalanceHistory.userId, discordId))
-    .orderBy(desc(botBalanceHistory.ts))
-    .limit(500);
+  const [rows, portalRows] = await Promise.all([
+    db
+      .select()
+      .from(botBalanceHistory)
+      .where(eq(botBalanceHistory.userId, discordId))
+      .orderBy(desc(botBalanceHistory.ts))
+      .limit(500),
+    // Portal-native wallet movement (crons, purchases, transfers, payouts…).
+    // kind='historical' rows are the importer's mirror of the bot ledger above,
+    // so they're excluded to avoid double-counting.
+    db
+      .select()
+      .from(walletTransactions)
+      .where(
+        and(
+          eq(walletTransactions.userId, discordId),
+          sql`${walletTransactions.kind} <> 'historical'`,
+        ),
+      )
+      .orderBy(desc(walletTransactions.createdAt))
+      .limit(500),
+  ]);
 
-  const entries = rows.map((r) => {
+  const botEntries = rows.map((r) => {
     const at = new Date(r.ts);
     return {
       source: "bot" as const,
@@ -910,10 +964,29 @@ router.get("/me/financial-history", requireAuth, async (req, res): Promise<void>
     };
   });
 
+  const portalEntries = portalRows
+    .filter((r) => !(r.memo ?? "").includes("[legacy-bal:"))
+    .map((r) => {
+      const at = r.createdAt ?? new Date();
+      return {
+        source: "portal" as const,
+        date: at.toISOString().slice(0, 10),
+        at: at.toISOString(),
+        amount: r.amount,
+        label: r.memo ?? r.kind,
+      };
+    });
+
+  const entries = [...botEntries, ...portalEntries]
+    .sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""))
+    .slice(0, 500);
+
+  const botCount = entries.filter((e) => e.source === "bot").length;
+
   res.json({
     totalCount: entries.length,
-    portalCount: 0,
-    botCount: entries.length,
+    portalCount: entries.length - botCount,
+    botCount,
     entries,
   });
 });
