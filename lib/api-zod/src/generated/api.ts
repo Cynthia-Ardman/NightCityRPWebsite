@@ -6766,6 +6766,11 @@ export const AdminListAuditLogQueryParams = zod.object({
   "action": zod.coerce.string().optional(),
   "actorId": zod.coerce.string().optional(),
   "since": zod.date().optional(),
+  "until": zod.date().optional(),
+  "targetType": zod.coerce.string().optional(),
+  "targetId": zod.coerce.string().optional(),
+  "q": zod.coerce.string().optional().describe('Free-text search across message, action, and JSON change details.'),
+  "beforeId": zod.coerce.number().optional().describe('Keyset pagination cursor — return only rows with id strictly below this value (rows are ordered by id descending).'),
   "limit": zod.coerce.number().max(adminListAuditLogQueryLimitMax).default(adminListAuditLogQueryLimitDefault)
 })
 

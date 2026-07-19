@@ -629,6 +629,7 @@ export const auditLog = pgTable("audit_log", {
   createdIdx: index("audit_log_created_idx").on(t.createdAt),
   categoryIdx: index("audit_log_category_idx").on(t.category),
   actorIdx: index("audit_log_actor_idx").on(t.actorId),
+  targetIdx: index("audit_log_target_idx").on(t.targetType, t.targetId),
 }));
 export type AuditLogRow = typeof auditLog.$inferSelect;
 

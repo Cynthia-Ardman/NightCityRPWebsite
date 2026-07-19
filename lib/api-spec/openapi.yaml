@@ -2559,6 +2559,11 @@ paths:
         - { in: query, name: action, schema: { type: string } }
         - { in: query, name: actorId, schema: { type: string } }
         - { in: query, name: since, schema: { type: string, format: date-time } }
+        - { in: query, name: until, schema: { type: string, format: date-time } }
+        - { in: query, name: targetType, schema: { type: string } }
+        - { in: query, name: targetId, schema: { type: string } }
+        - { in: query, name: q, description: "Free-text search across message, action, and JSON change details.", schema: { type: string } }
+        - { in: query, name: beforeId, description: "Keyset pagination cursor — return only rows with id strictly below this value (rows are ordered by id descending).", schema: { type: integer } }
         - { in: query, name: limit, schema: { type: integer, default: 200, maximum: 500 } }
       responses:
         "200":

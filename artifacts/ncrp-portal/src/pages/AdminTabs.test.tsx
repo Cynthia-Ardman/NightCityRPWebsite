@@ -67,9 +67,13 @@ vi.mock("@workspace/api-client-react", () => ({
   useAdminListAuditLog: () => ({
     data: h.state.audit,
     isLoading: h.state.auditLoading,
+    isFetching: false,
     refetch: vi.fn(),
   }),
   getAdminListAuditLogQueryKey: () => ["admin-audit-log"],
+  // Character picker (rendered by AuditLogTab's target-character filter)
+  useListPublicCharacters: () => ({ data: undefined, isFetching: false }),
+  getListPublicCharactersQueryKey: () => ["public-characters"],
   // Live-mode switchboard
   useAdminGetLiveMode: () => ({ data: h.state.liveMode, isLoading: false }),
   useAdminSetLiveMode: () => ({ mutate: h.mutate, isPending: false }),

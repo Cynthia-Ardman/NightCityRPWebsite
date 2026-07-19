@@ -11,6 +11,17 @@ category?: string;
 action?: string;
 actorId?: string;
 since?: Date;
+until?: Date;
+targetType?: string;
+targetId?: string;
+/**
+ * Free-text search across message, action, and JSON change details.
+ */
+q?: string;
+/**
+ * Keyset pagination cursor — return only rows with id strictly below this value (rows are ordered by id descending).
+ */
+beforeId?: number;
 /**
  * @maximum 500
  */

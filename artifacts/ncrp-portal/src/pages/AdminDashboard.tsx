@@ -1,5 +1,5 @@
-import { useAdminListUsers, useAdminHydrateUsers, useAdminSetCyberpsychoAccess, useAdminListCharacters, useAdminAdjustWallet, useAdminSinkWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminGetVrchatCalendarSync, getAdminGetVrchatCalendarSyncQueryKey, useAdminSetVrchatCalendarSync, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey, useAdminMissionThreadBackfill, useAdminEconomyReconcile, useAdminRehostEventImages, useAdminGuidebookLinkRepair, type MissionThreadBackfillResult, type EconomyReconcileResult, type RehostEventImagesResult, type GuidebookLinkRepairResult } from "@workspace/api-client-react";
-import { useState, useEffect } from "react";
+import { useAdminListUsers, useAdminHydrateUsers, useAdminSetCyberpsychoAccess, useAdminListCharacters, useAdminAdjustWallet, useAdminSinkWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminGetVrchatCalendarSync, getAdminGetVrchatCalendarSyncQueryKey, useAdminSetVrchatCalendarSync, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey, useAdminMissionThreadBackfill, useAdminEconomyReconcile, useAdminRehostEventImages, useAdminGuidebookLinkRepair, type MissionThreadBackfillResult, type EconomyReconcileResult, type RehostEventImagesResult, type GuidebookLinkRepairResult, type AuditLogRow } from "@workspace/api-client-react";
+import { useState, useEffect, Fragment } from "react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Link } from "wouter";
 import { Shield, Users, Database, Zap, Activity } from "lucide-react";
@@ -162,7 +162,7 @@ function AuditTab() {
                   <TableRow key={e.id} className="hover:bg-muted/50 border-border" data-testid={`row-audit-${e.id}`}>
                     <TableCell className="text-muted-foreground">{new Date(e.createdAt).toLocaleString()}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="rounded-none border-nc-magenta text-nc-magenta text-[10px] px-1 py-0">
+                      <Badge variant="outline" className="rounded-none border-nc-magenta text-nc-magenta text-[0.625rem] px-1 py-0">
                         {e.kind}
                       </Badge>
                     </TableCell>
@@ -206,37 +206,208 @@ const AUDIT_SUBTABS: Array<{ key: string; label: string; categories: string[]; a
   { key: "admin", label: "Admin", categories: ["admin"] },
 ];
 
+// Deep-link map: given a targetType + targetId, where does clicking the entry
+// take the investigator? null-returning types have no viewable page.
+const AUDIT_TARGET_LINKS: Record<string, (id: string) => string | null> = {
+  character: (id) => `/characters/${id}`,
+  mission: (id) => `/missions/${id}`,
+  user: (id) => `/admin/users/${id}`,
+  store: (id) => `/stores/${id}`,
+  ripperdoc: (id) => `/clinics/${id}`,
+  sheet: (id) => `/sheets/${id}`,
+  event: (id) => `/events/${id}`,
+  custom_request: () => `/requests`,
+  lore_entry: (id) => `/directory/lore/${id}`,
+  guidebook_page: (id) => `/guidebook/${id}`,
+  pending_character_edit: (id) => `/pending-edits/${id}`,
+  catalog_gun: () => `/catalog/guns`,
+  catalog_cyberware: () => `/catalog/cyberware`,
+  catalog_rent: () => `/catalog/rent`,
+  housing: () => `/catalog/rent`,
+};
+
+// Target types whose destination page doesn't need an id — these can link
+// even when the audit row recorded no targetId.
+const AUDIT_STATIC_TARGETS = new Set(["custom_request", "catalog_gun", "catalog_cyberware", "catalog_rent", "housing"]);
+
+function auditTargetLink(targetType?: string | null, targetId?: string | null): string | null {
+  if (!targetType) return null;
+  const fn = AUDIT_TARGET_LINKS[targetType];
+  if (!fn) return null;
+  if (!targetId && !AUDIT_STATIC_TARGETS.has(targetType)) return null;
+  return fn(targetId ?? "");
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function fmtAuditValue(v: unknown): string {
+  if (v === undefined) return "—";
+  if (v === null) return "null";
+  if (typeof v === "string") return v;
+  const s = JSON.stringify(v);
+  return s.length > 200 ? `${s.slice(0, 200)}…` : s;
+}
+
+// Human-readable change details: when before/after are flat-ish objects,
+// render a per-field old → new table (changed fields highlighted); otherwise
+// fall back to pretty-printed JSON.
+function AuditDiff({ before, after }: { before: unknown; after: unknown }) {
+  if (before == null && after == null) {
+    return <div className="text-muted-foreground">No change details recorded.</div>;
+  }
+  if (isPlainObject(before) || isPlainObject(after)) {
+    const b = isPlainObject(before) ? before : {};
+    const a = isPlainObject(after) ? after : {};
+    const keys = Array.from(new Set([...Object.keys(b), ...Object.keys(a)]));
+    return (
+      <div className="border border-border/60">
+        <div className="grid grid-cols-[minmax(90px,1fr)_2fr_2fr] gap-x-3 px-2 py-1 bg-muted/40 text-muted-foreground uppercase text-[0.625rem] tracking-widest">
+          <span>Field</span><span>Before</span><span>After</span>
+        </div>
+        {keys.map((k) => {
+          const changed = JSON.stringify(b[k]) !== JSON.stringify(a[k]);
+          return (
+            <div key={k} className={`grid grid-cols-[minmax(90px,1fr)_2fr_2fr] gap-x-3 px-2 py-1 border-t border-border/40 ${changed ? "" : "opacity-60"}`}>
+              <span className="text-nc-cyan break-all">{k}</span>
+              <span className={`break-all whitespace-pre-wrap ${changed ? "text-destructive" : "text-muted-foreground"}`}>{k in b ? fmtAuditValue(b[k]) : "—"}</span>
+              <span className={`break-all whitespace-pre-wrap ${changed ? "text-nc-yellow" : "text-muted-foreground"}`}>{k in a ? fmtAuditValue(a[k]) : "—"}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+  return (
+    <div className="grid md:grid-cols-2 gap-2">
+      {before != null && (
+        <div>
+          <div className="text-muted-foreground uppercase text-[0.625rem] tracking-widest mb-1">Before</div>
+          <pre className="whitespace-pre-wrap break-all bg-muted/30 p-2 border border-border/50">{JSON.stringify(before, null, 2)}</pre>
+        </div>
+      )}
+      {after != null && (
+        <div>
+          <div className="text-muted-foreground uppercase text-[0.625rem] tracking-widest mb-1">After</div>
+          <pre className="whitespace-pre-wrap break-all bg-muted/30 p-2 border border-border/50">{JSON.stringify(after, null, 2)}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const AUDIT_PAGE_SIZE = 100;
+
 export function AuditLogTab() {
   const [sub, setSub] = useState("all");
   const [actorId, setActorId] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
   const [since, setSince] = useState("");
+  const [until, setUntil] = useState("");
+  const [q, setQ] = useState("");
+  const [targetChar, setTargetChar] = useState<CharacterPickerValue>(null);
+  // A pivot target ("related activity" from an entry) can be any target type,
+  // not just characters; it overrides the character picker when set.
+  const [pivotTarget, setPivotTarget] = useState<{ type: string; id: string; label: string } | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [cursor, setCursor] = useState<number | undefined>(undefined);
+  const [acc, setAcc] = useState<AuditLogRow[]>([]);
+
   const tab = AUDIT_SUBTABS.find((t) => t.key === sub) ?? AUDIT_SUBTABS[0];
   // Single-category sub-tabs use the server filter; multi-category sub-tabs
   // (shop+attend) pull "all" and filter client-side. Action-scoped sub-tabs
   // (payouts) also push their action list to the server so non-matching rows
   // can't crowd payouts out of the limited result window.
   const serverCategory = tab.categories.length === 1 ? tab.categories[0] : undefined;
-  const serverAction = tab.actions?.length ? tab.actions.join(",") : undefined;
-  const params = {
+  // An explicit action filter (comma-separated list) overrides the sub-tab's
+  // preset action list on the server side.
+  const explicitActions = actionFilter
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const serverAction = explicitActions.length
+    ? explicitActions.join(",")
+    : tab.actions?.length
+      ? tab.actions.join(",")
+      : undefined;
+  const target = pivotTarget ?? (targetChar ? { type: "character", id: String(targetChar.id), label: targetChar.name } : null);
+  const baseParams = {
     ...(serverCategory ? { category: serverCategory } : {}),
     ...(serverAction ? { action: serverAction } : {}),
     ...(actorId ? { actorId } : {}),
     ...(since ? { since: new Date(since).toISOString() } : {}),
-    limit: 200,
+    ...(until ? { until: new Date(until).toISOString() } : {}),
+    ...(target ? { targetType: target.type, targetId: target.id } : {}),
+    ...(q.trim() ? { q: q.trim() } : {}),
   };
-  const { data: rows, isLoading, refetch } = useAdminListAuditLog(params);
+  const filterSig = JSON.stringify(baseParams);
+  // Reset the accumulated pages whenever any filter changes.
+  useEffect(() => {
+    setAcc([]);
+    setCursor(undefined);
+    setExpandedId(null);
+  }, [filterSig]);
+
+  const params = { ...baseParams, ...(cursor !== undefined ? { beforeId: cursor } : {}), limit: AUDIT_PAGE_SIZE };
+  const { data: rows, isLoading, isFetching, refetch } = useAdminListAuditLog(params);
   const qc = useQueryClient();
+  useEffect(() => {
+    if (!rows) return;
+    setAcc((prev) => {
+      const seen = new Set(prev.map((r) => r.id));
+      const merged = [...prev, ...rows.filter((r) => !seen.has(r.id))];
+      merged.sort((x, y) => y.id - x.id);
+      return merged;
+    });
+  }, [rows]);
+  const hasMore = (rows?.length ?? 0) === AUDIT_PAGE_SIZE;
+
   let visibleRows = tab.categories.length > 1
-    ? (rows ?? []).filter((r) => tab.categories.includes(r.category))
-    : (rows ?? []);
-  if (tab.actions?.length) {
+    ? acc.filter((r) => tab.categories.includes(r.category))
+    : acc;
+  if (explicitActions.length) {
+    visibleRows = visibleRows.filter((r) => explicitActions.includes(r.action));
+  } else if (tab.actions?.length) {
     visibleRows = visibleRows.filter((r) => tab.actions!.includes(r.action));
   }
+
+  const anyFilter = Boolean(actorId || actionFilter || since || until || q || target || sub !== "all");
+  const clearAll = () => {
+    setSub("all");
+    setActorId("");
+    setActionFilter("");
+    setSince("");
+    setUntil("");
+    setQ("");
+    setTargetChar(null);
+    setPivotTarget(null);
+  };
+  const refresh = () => {
+    setAcc([]);
+    setCursor(undefined);
+    qc.invalidateQueries({ queryKey: getAdminListAuditLogQueryKey() });
+    refetch();
+  };
+  const pivotToActor = (e: AuditLogRow) => {
+    setActorId(e.actorId ?? e.actorName ?? "");
+    setPivotTarget(null);
+    setTargetChar(null);
+  };
+  const pivotToTarget = (e: AuditLogRow) => {
+    if (!e.targetType || !e.targetId) return;
+    setActorId("");
+    setTargetChar(null);
+    setPivotTarget({ type: e.targetType, id: e.targetId, label: `${e.targetType} #${e.targetId}` });
+  };
+
   return (
     <Card className="rounded-none border-border bg-card/50">
       <CardHeader>
         <CardTitle className="font-display text-nc-cyan">Audit Log</CardTitle>
-        <CardDescription className="font-mono">Unified staff-facing audit. Pick a category sub-tab or filter by actor / since.</CardDescription>
+        <CardDescription className="font-mono">
+          Unified staff-facing audit explorer. Stack filters, click a row for full change details, and pivot to related activity.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <Tabs value={sub} onValueChange={setSub}>
@@ -253,21 +424,48 @@ export function AuditLogTab() {
             ))}
           </TabsList>
         </Tabs>
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-2 font-mono text-xs">
-          <Input className="md:col-span-5" placeholder="actor name or user id" value={actorId} onChange={(e) => setActorId(e.target.value)} data-testid="input-auditlog-actor" />
-          <Input className="md:col-span-5" type="datetime-local" value={since} onChange={(e) => setSince(e.target.value)} data-testid="input-auditlog-since" />
-          <Button
-            className="md:col-span-2 rounded-none bg-nc-cyan text-background font-display"
-            onClick={() => {
-              qc.invalidateQueries({ queryKey: getAdminListAuditLogQueryKey() });
-              refetch();
-            }}
-            data-testid="button-auditlog-apply"
-          >
-            APPLY
-          </Button>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-2 font-mono text-xs items-start">
+          <Input className="md:col-span-3" placeholder="Search details (message, action, changed values)..." value={q} onChange={(e) => setQ(e.target.value)} data-testid="input-auditlog-search" />
+          <Input className="md:col-span-3" placeholder="actor name or user id" value={actorId} onChange={(e) => setActorId(e.target.value)} data-testid="input-auditlog-actor" />
+          <Input className="md:col-span-3" placeholder="action (comma-separated)" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} data-testid="input-auditlog-action" />
+          <div className="md:col-span-3">
+            {pivotTarget ? (
+              <div className="flex items-center justify-between border border-nc-cyan/60 bg-background px-3 h-10" data-testid="chip-auditlog-target">
+                <span className="truncate text-foreground">Target: {pivotTarget.label}</span>
+                <button type="button" className="text-muted-foreground hover:text-destructive ml-2" onClick={() => setPivotTarget(null)} data-testid="button-auditlog-target-clear">✕</button>
+              </div>
+            ) : (
+              <CharacterPicker value={targetChar} onChange={setTargetChar} scope="all" placeholder="Target character..." testId="picker-auditlog-character" />
+            )}
+          </div>
+          <div className="md:col-span-4">
+            <Label className="text-[0.625rem] uppercase text-muted-foreground">From</Label>
+            <Input type="datetime-local" value={since} onChange={(e) => setSince(e.target.value)} data-testid="input-auditlog-since" />
+          </div>
+          <div className="md:col-span-4">
+            <Label className="text-[0.625rem] uppercase text-muted-foreground">To</Label>
+            <Input type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} data-testid="input-auditlog-until" />
+          </div>
+          <div className="md:col-span-4 flex gap-2 md:self-end">
+            <Button
+              className="flex-1 rounded-none bg-nc-cyan text-background font-display"
+              onClick={refresh}
+              data-testid="button-auditlog-apply"
+            >
+              REFRESH
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1 rounded-none border-border font-display"
+              disabled={!anyFilter}
+              onClick={clearAll}
+              data-testid="button-auditlog-clear"
+            >
+              CLEAR
+            </Button>
+          </div>
         </div>
-        {isLoading ? (
+        {isLoading && acc.length === 0 ? (
           <div className="text-nc-cyan font-mono animate-pulse">Loading events...</div>
         ) : (
           <div className="rounded-md border border-border">
@@ -282,19 +480,60 @@ export function AuditLogTab() {
                 </TableRow>
               </TableHeader>
               <TableBody className="font-mono text-xs">
-                {visibleRows.map((e) => (
-                  <TableRow key={e.id} className="hover:bg-muted/50 border-border" data-testid={`row-auditlog-${e.id}`}>
-                    <TableCell className="text-muted-foreground">{new Date(e.createdAt).toLocaleString()}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="rounded-none border-nc-yellow text-nc-yellow text-[10px] px-1 py-0">
-                        {e.category}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-nc-magenta">{e.action}</TableCell>
-                    <TableCell className="text-nc-cyan">{e.actorName ?? e.actorId ?? "—"}</TableCell>
-                    <TableCell className="text-foreground">{e.message ?? "—"}</TableCell>
-                  </TableRow>
-                ))}
+                {visibleRows.map((e) => {
+                  const link = auditTargetLink(e.targetType, e.targetId);
+                  const expanded = expandedId === e.id;
+                  return (
+                    <Fragment key={e.id}>
+                      <TableRow
+                        className="hover:bg-muted/50 border-border cursor-pointer"
+                        onClick={() => setExpandedId(expanded ? null : e.id)}
+                        data-testid={`row-auditlog-${e.id}`}
+                      >
+                        <TableCell className="text-muted-foreground">{new Date(e.createdAt).toLocaleString()}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="rounded-none border-nc-yellow text-nc-yellow text-[0.625rem] px-1 py-0">
+                            {e.category}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-nc-magenta">{e.action}</TableCell>
+                        <TableCell className="text-nc-cyan">{e.actorName ?? e.actorId ?? "—"}</TableCell>
+                        <TableCell className="text-foreground">{e.message ?? "—"}</TableCell>
+                      </TableRow>
+                      {expanded && (
+                        <TableRow className="border-border bg-muted/20 hover:bg-muted/20">
+                          <TableCell colSpan={5} className="p-4 space-y-3" data-testid={`detail-auditlog-${e.id}`}>
+                            <div className="flex flex-wrap gap-2 items-center">
+                              {link && (
+                                <Link href={link} onClick={(ev) => ev.stopPropagation()}>
+                                  <Button size="sm" variant="outline" className="rounded-none border-nc-cyan text-nc-cyan font-display text-xs" data-testid={`link-auditlog-target-${e.id}`}>
+                                    OPEN {e.targetType?.replace(/_/g, " ").toUpperCase()}
+                                  </Button>
+                                </Link>
+                              )}
+                              {(e.actorId || e.actorName) && (
+                                <Button size="sm" variant="outline" className="rounded-none border-border font-display text-xs" onClick={(ev) => { ev.stopPropagation(); pivotToActor(e); }} data-testid={`button-auditlog-pivot-actor-${e.id}`}>
+                                  SAME ACTOR
+                                </Button>
+                              )}
+                              {e.targetType && e.targetId && (
+                                <Button size="sm" variant="outline" className="rounded-none border-border font-display text-xs" onClick={(ev) => { ev.stopPropagation(); pivotToTarget(e); }} data-testid={`button-auditlog-pivot-target-${e.id}`}>
+                                  SAME TARGET
+                                </Button>
+                              )}
+                            </div>
+                            <div className="grid md:grid-cols-2 gap-x-6 gap-y-1 text-muted-foreground">
+                              {e.targetType && <div>Target: <span className="text-foreground">{e.targetType} {e.targetId ?? ""}</span></div>}
+                              {e.actorId && <div>Actor ID: <span className="text-foreground">{e.actorId}</span></div>}
+                              {e.actorIp && <div>IP: <span className="text-foreground">{e.actorIp}</span></div>}
+                            </div>
+                            <AuditDiff before={e.beforeJson} after={e.afterJson} />
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
+                  );
+                })}
                 {!visibleRows.length && (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground h-24">NO EVENTS</TableCell>
@@ -304,6 +543,22 @@ export function AuditLogTab() {
             </Table>
           </div>
         )}
+        <div className="flex justify-center">
+          {hasMore && (
+            <Button
+              variant="outline"
+              className="rounded-none border-nc-cyan text-nc-cyan font-display"
+              disabled={isFetching}
+              onClick={() => {
+                const minId = acc.length ? Math.min(...acc.map((r) => r.id)) : undefined;
+                if (minId !== undefined) setCursor(minId);
+              }}
+              data-testid="button-auditlog-more"
+            >
+              {isFetching ? "LOADING..." : "LOAD MORE"}
+            </Button>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -684,14 +939,14 @@ export function UsersTab() {
                       {u.avatarUrl ? (
                         <img src={u.avatarUrl} alt="" className="w-8 h-8 rounded-none border border-border object-contain" />
                       ) : (
-                        <div className="w-8 h-8 rounded-none border border-border bg-muted flex items-center justify-center text-[10px] text-muted-foreground">
+                        <div className="w-8 h-8 rounded-none border border-border bg-muted flex items-center justify-center text-[0.625rem] text-muted-foreground">
                           {(display || u.discordId).slice(0, 2).toUpperCase()}
                         </div>
                       )}
                       <div className="flex flex-col">
                         <span>{display ?? <span className="text-nc-yellow italic">unhydrated</span>}</span>
                         {!isPlaceholder && (
-                          <span className="text-[10px] text-muted-foreground">@{u.username}</span>
+                          <span className="text-[0.625rem] text-muted-foreground">@{u.username}</span>
                         )}
                       </div>
                     </Link>
@@ -699,24 +954,24 @@ export function UsersTab() {
                   <TableCell className="text-muted-foreground text-xs">{u.discordId}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
-                      {u.isAdmin && <Badge variant="outline" className="border-destructive text-destructive rounded-none text-[10px] px-1 py-0">ADMIN</Badge>}
-                      {u.isFixer && <Badge variant="outline" className="border-nc-magenta text-nc-magenta rounded-none text-[10px] px-1 py-0">FIXER</Badge>}
-                      {u.isTrialFixer && <Badge variant="outline" className="border-orange-400 text-orange-400 rounded-none text-[10px] px-1 py-0" data-testid={`badge-trial-${u.id}`}>TRIAL</Badge>}
-                      {u.isRipperdoc && <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none text-[10px] px-1 py-0">RIPPER</Badge>}
-                      {u.isStoreOwner && <Badge variant="outline" className="border-nc-cyan text-nc-cyan rounded-none text-[10px] px-1 py-0">SHOP</Badge>}
-                      {u.isCsApprover && <Badge variant="outline" className="border-green-500 text-green-500 rounded-none text-[10px] px-1 py-0">CS_APPROVER</Badge>}
-                      {npcDiscordIds?.has(u.discordId) && <Badge variant="outline" className="border-purple-400 text-purple-400 rounded-none text-[10px] px-1 py-0" data-testid={`badge-npc-${u.id}`}>NPC</Badge>}
+                      {u.isAdmin && <Badge variant="outline" className="border-destructive text-destructive rounded-none text-[0.625rem] px-1 py-0">ADMIN</Badge>}
+                      {u.isFixer && <Badge variant="outline" className="border-nc-magenta text-nc-magenta rounded-none text-[0.625rem] px-1 py-0">FIXER</Badge>}
+                      {u.isTrialFixer && <Badge variant="outline" className="border-orange-400 text-orange-400 rounded-none text-[0.625rem] px-1 py-0" data-testid={`badge-trial-${u.id}`}>TRIAL</Badge>}
+                      {u.isRipperdoc && <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none text-[0.625rem] px-1 py-0">RIPPER</Badge>}
+                      {u.isStoreOwner && <Badge variant="outline" className="border-nc-cyan text-nc-cyan rounded-none text-[0.625rem] px-1 py-0">SHOP</Badge>}
+                      {u.isCsApprover && <Badge variant="outline" className="border-green-500 text-green-500 rounded-none text-[0.625rem] px-1 py-0">CS_APPROVER</Badge>}
+                      {npcDiscordIds?.has(u.discordId) && <Badge variant="outline" className="border-purple-400 text-purple-400 rounded-none text-[0.625rem] px-1 py-0" data-testid={`badge-npc-${u.id}`}>NPC</Badge>}
                     </div>
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     {u.isAdmin || u.isFixer ? (
-                      <span className="text-[10px] text-muted-foreground uppercase">via role</span>
+                      <span className="text-[0.625rem] text-muted-foreground uppercase">via role</span>
                     ) : (
                       <button
                         type="button"
                         disabled={setCyberpsycho.isPending}
                         onClick={() => setCyberpsycho.mutate({ userId: u.id, data: { enabled: !u.cyberpsychoAccess } })}
-                        className={`px-2 py-0.5 border font-display text-[10px] uppercase tracking-widest transition-colors ${u.cyberpsychoAccess ? "border-nc-magenta text-nc-magenta bg-nc-magenta/10" : "border-border text-muted-foreground hover:text-foreground"}`}
+                        className={`px-2 py-0.5 border font-display text-[0.625rem] uppercase tracking-widest transition-colors ${u.cyberpsychoAccess ? "border-nc-magenta text-nc-magenta bg-nc-magenta/10" : "border-border text-muted-foreground hover:text-foreground"}`}
                         data-testid={`button-cyberpsycho-access-${u.id}`}
                       >
                         {u.cyberpsychoAccess ? "GRANTED" : "GRANT"}
@@ -792,7 +1047,7 @@ export function CharactersTab() {
                   <TableCell className="font-medium text-foreground">
                     <Link href={`/characters/${c.id}`} className="hover:underline">{c.name}</Link>
                     {c.legacyDiscordUsername && (
-                      <div className="text-[10px] text-muted-foreground">legacy: {c.legacyDiscordUsername}</div>
+                      <div className="text-[0.625rem] text-muted-foreground">legacy: {c.legacyDiscordUsername}</div>
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
@@ -803,11 +1058,11 @@ export function CharactersTab() {
                     {c.ownerName ? <span className="text-nc-cyan">@{c.ownerName}</span> : <span className="text-nc-magenta">UNCLAIMED</span>}
                   </TableCell>
                   <TableCell>
-                    {c.archived && <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none text-[10px] px-1 py-0 mr-1">RETIRED</Badge>}
+                    {c.archived && <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none text-[0.625rem] px-1 py-0 mr-1">RETIRED</Badge>}
                     {c.approved ? (
-                      <Badge variant="outline" className="border-nc-cyan text-nc-cyan rounded-none text-[10px] px-1 py-0">APPROVED</Badge>
+                      <Badge variant="outline" className="border-nc-cyan text-nc-cyan rounded-none text-[0.625rem] px-1 py-0">APPROVED</Badge>
                     ) : (
-                      <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none text-[10px] px-1 py-0">PENDING</Badge>
+                      <Badge variant="outline" className="border-nc-yellow text-nc-yellow rounded-none text-[0.625rem] px-1 py-0">PENDING</Badge>
                     )}
                   </TableCell>
                   <TableCell>
@@ -1620,7 +1875,7 @@ export function JobsTab() {
                   <TableRow key={j.id} className="hover:bg-muted/50 border-border" data-testid={`row-job-${j.id}`}>
                     <TableCell className="font-medium text-foreground">{j.job}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={`rounded-none text-[10px] px-1 py-0 ${j.status === 'success' ? 'border-nc-cyan text-nc-cyan' : j.status === 'failed' ? 'border-destructive text-destructive' : 'border-nc-yellow text-nc-yellow'}`}>
+                      <Badge variant="outline" className={`rounded-none text-[0.625rem] px-1 py-0 ${j.status === 'success' ? 'border-nc-cyan text-nc-cyan' : j.status === 'failed' ? 'border-destructive text-destructive' : 'border-nc-yellow text-nc-yellow'}`}>
                         {j.status.toUpperCase()}
                       </Badge>
                     </TableCell>
@@ -2467,7 +2722,7 @@ function MergeAccountCard() {
               {Object.keys(preview.wouldRepoint).length === 0 ? (
                 <em className="text-muted-foreground/50">none</em>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-0.5 text-[10px]">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-0.5 text-[0.625rem]">
                   {Object.entries(preview.wouldRepoint).map(([k, n]) => (
                     <div key={k} className="flex justify-between gap-2">
                       <span className="truncate">{k}</span>
@@ -2476,7 +2731,7 @@ function MergeAccountCard() {
                   ))}
                 </div>
               )}
-              <div className="text-[10px] text-muted-foreground/60 mt-1 italic">
+              <div className="text-[0.625rem] text-muted-foreground/60 mt-1 italic">
                 Preview shows ownership highlights only; the merge repoints every reference, including
                 staff-action and review-vote rows not listed here.
               </div>
@@ -2620,7 +2875,7 @@ function DuplicateCleanupCard() {
                           {isKeep ? "KEEP" : "drop"} #{row.id}
                         </span>
                       </label>
-                      <div className="flex-1 min-w-0 grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px]">
+                      <div className="flex-1 min-w-0 grid grid-cols-2 md:grid-cols-4 gap-2 text-[0.625rem]">
                         <span title="archetype">{row.archetype || <em className="text-muted-foreground/50">no archetype</em>}</span>
                         <span title="portrait">{row.portraitUrl ? `${row.portraitCount} portrait${row.portraitCount === 1 ? "" : "s"}` : <em className="text-muted-foreground/50">no portrait</em>}</span>
                         <span title="sheet">{row.hasSheetData ? "sheet ✓" : <em className="text-muted-foreground/50">no sheet</em>}</span>
@@ -2783,7 +3038,7 @@ function ClaimByUsernameCard() {
                     <div key={m.characterId} className={`border px-3 py-2 text-xs font-mono flex items-center justify-between gap-3 ${tone}`} data-testid={`claim-row-${m.characterId}`}>
                       <div className="min-w-0">
                         <div className="truncate"><span className="text-foreground">{m.characterName}</span> <span className="opacity-50">[{m.kind}] #{m.characterId}</span></div>
-                        <div className="text-[10px] opacity-70 truncate">legacy: {m.legacyDiscordUsername}</div>
+                        <div className="text-[0.625rem] opacity-70 truncate">legacy: {m.legacyDiscordUsername}</div>
                       </div>
                       <div className="text-right whitespace-nowrap">
                         {m.matchedUserIds.length === 1 && <span>→ @{m.matchedUsernames[0]}</span>}
@@ -2809,7 +3064,7 @@ function ClaimByUsernameCard() {
             {applyResult.skipped.length > 0 && (
               <div className="space-y-1 max-h-32 overflow-y-auto">
                 {applyResult.skipped.map((s) => (
-                  <div key={s.characterId} className="text-[10px] font-mono text-nc-yellow border border-nc-yellow/30 px-2 py-1">
+                  <div key={s.characterId} className="text-[0.625rem] font-mono text-nc-yellow border border-nc-yellow/30 px-2 py-1">
                     #{s.characterId} {s.characterName}: {s.reason}
                   </div>
                 ))}
@@ -2979,7 +3234,7 @@ function PortraitBackfillCard() {
                             <span className="text-foreground">{c.characterName}</span>{" "}
                             <span className="opacity-50">[{c.kind}] #{c.characterId}</span>
                           </div>
-                          <div className="text-[10px] opacity-70 truncate">
+                          <div className="text-[0.625rem] opacity-70 truncate">
                             {c.firstAttachment?.filename}
                             {c.firstAttachment?.width && c.firstAttachment?.height
                               ? ` · ${c.firstAttachment.width}×${c.firstAttachment.height}`
@@ -3001,7 +3256,7 @@ function PortraitBackfillCard() {
                 </summary>
                 <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
                   {noImg.map((c) => (
-                    <div key={c.characterId} className="text-[10px] font-mono text-muted-foreground">
+                    <div key={c.characterId} className="text-[0.625rem] font-mono text-muted-foreground">
                       <span className="text-foreground">{c.characterName}</span>{" "}
                       <span className="opacity-50">[{c.kind}] #{c.characterId}</span>
                       <span className="opacity-70"> — {c.reason ?? "unknown"}</span>
@@ -3024,7 +3279,7 @@ function PortraitBackfillCard() {
             {result.skipped.length > 0 && (
               <div className="space-y-1 max-h-32 overflow-y-auto">
                 {result.skipped.map((s) => (
-                  <div key={s.characterId} className="text-[10px] font-mono text-nc-yellow border border-nc-yellow/30 px-2 py-1">
+                  <div key={s.characterId} className="text-[0.625rem] font-mono text-nc-yellow border border-nc-yellow/30 px-2 py-1">
                     #{s.characterId} {s.characterName}: {s.reason}
                   </div>
                 ))}

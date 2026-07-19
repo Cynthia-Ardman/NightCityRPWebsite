@@ -1,6 +1,7 @@
 import { db, users, jobRuns, characters, characterStatus, walletTransactions, housing, activityEvents, botConfig, shopOpens, inventoryItems, stores, ripperdocs } from "@workspace/db";
 import { eq, and, desc, sql, isNotNull, gte, inArray, ne } from "drizzle-orm";
 import { logger } from "./logger";
+import { recordAudit } from "./audit";
 import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchAllGuildMemberRoles, VERIFIED_18_ROLE_ID, RULES_ROLE_ID, DEAD_CHARACTER_ROLE_ID, applyRoleIdGrants, addGuildMemberRole, postToChannel } from "./discord";
 import { reconcileBusinessChannelAccess } from "./businessChannelAccess";
 import { notifyAutoCharge } from "./notifications";
@@ -578,6 +579,15 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
               actorId: c.ownerId,
               message: `${c.name} could not pay rent on ${lease.address} (€$${rent})`,
             });
+            await recordAudit({
+              category: "housing",
+              action: "housing.delinquent",
+              actorId: c.ownerId,
+              targetType: "character",
+              targetId: String(c.id),
+              message: `${c.name} could not pay rent on ${lease.address} (€$${rent})`,
+              after: { leaseId: lease.id, address: lease.address, rent },
+            });
           }
           continue;
         }
@@ -891,6 +901,15 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           kind: "housing_evicted",
           actorId: c.ownerId,
           message: `${c.name} evicted from ${lease.address} after ${HOUSING_GRACE_DAYS}-day grace period`,
+        });
+        await recordAudit({
+          category: "housing",
+          action: "housing.evicted",
+          actorId: c.ownerId,
+          targetType: "character",
+          targetId: String(c.id),
+          message: `${c.name} evicted from ${lease.address} after ${HOUSING_GRACE_DAYS}-day grace period`,
+          before: { leaseId: lease.id, address: lease.address, delinquentSince: lease.delinquentSince },
         });
         if (EVICTION_CHANNEL_ID) {
           await postToChannel(
