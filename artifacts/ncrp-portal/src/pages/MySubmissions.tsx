@@ -11,6 +11,7 @@ import {
   useResubmitCustomRequest,
   useSubmitDraftCustomRequest,
   useDeleteDraftCustomRequest,
+  useWithdrawCustomRequest,
   useGetMyUnseen,
   getListMyCustomRequestsQueryKey,
   getListPendingEditsQueryKey,
@@ -35,7 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
-import { ClipboardList, RotateCcw, Pencil, Trash2, MessageSquare, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { ClipboardList, RotateCcw, Pencil, Trash2, MessageSquare, ChevronDown, ChevronUp, ExternalLink, Undo2 } from "lucide-react";
 import ReviewCommentThread from "@/components/ReviewCommentThread";
 import MultiImageUpload from "@/components/MultiImageUpload";
 import PendingEditDiffInline from "@/components/PendingEditDiffInline";
@@ -248,6 +249,20 @@ export default function MySubmissions() {
       onError: (err) => toast({ title: "Could not submit", description: errMsg(err, "Submit failed"), variant: "destructive" }),
     },
   });
+  // Withdraw = the player pulls their own pending / changes-requested request
+  // out of the review queue. Confirmation dialog first — it can't be undone
+  // (the row lands in Resolved as WITHDRAWN; a new request must be created).
+  const [withdrawing, setWithdrawing] = useState<{ id: number; title: string } | null>(null);
+  const withdraw = useWithdrawCustomRequest({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Request withdrawn", description: "It has left the review queue." });
+        setWithdrawing(null);
+        invalidateMine();
+      },
+      onError: (err) => toast({ title: "Could not withdraw", description: errMsg(err, "Withdraw failed"), variant: "destructive" }),
+    },
+  });
   const deleteDraft = useDeleteDraftCustomRequest({
     mutation: {
       onSuccess: () => { toast({ title: "Draft deleted" }); invalidateMine(); },
@@ -423,7 +438,11 @@ export default function MySubmissions() {
           {r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString() : "—"}
         </td>
         <td className="p-3" onClick={(e) => e.stopPropagation()}>
-          <RequestStatusBadge status={r.status} stagedApproval={!!r.subjectType} />
+          <RequestStatusBadge
+            status={r.status}
+            stagedApproval={!!r.subjectType}
+            cancelledLabel={r.customId != null ? "WITHDRAWN" : undefined}
+          />
           {r.status === "changes_requested" && r.customId != null && r.customType !== "stock_cost" ? (
             <div className="flex gap-2 mt-2">
               <Button
@@ -445,6 +464,26 @@ export default function MySubmissions() {
                 data-testid={`button-resubmit-${r.customId}`}
               >
                 <RotateCcw className="w-3 h-3 mr-1" /> RESUBMIT
+              </Button>
+            </div>
+          ) : null}
+          {/* Withdraw: the player pulls their own in-flight fixer-voted request
+              out of the queue (confirmation dialog first). Only pending /
+              changes-requested rows are withdrawable; the server re-checks. */}
+          {(r.status === "pending" || r.status === "changes_requested") &&
+          r.customId != null &&
+          r.customType &&
+          FIXER_VOTED_TYPES.has(r.customType) ? (
+            <div className="flex gap-2 mt-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="rounded-none border-destructive text-destructive font-display text-[10px] tracking-widest"
+                onClick={() => setWithdrawing({ id: r.customId!, title: r.title })}
+                data-testid={`button-withdraw-${r.customId}`}
+              >
+                <Undo2 className="w-3 h-3 mr-1" /> WITHDRAW
               </Button>
             </div>
           ) : null}
@@ -698,6 +737,38 @@ export default function MySubmissions() {
           {(["active", "resolved"] as const).map((b) => renderSection(b))}
         </div>
       )}
+
+      <Dialog open={withdrawing != null} onOpenChange={(o) => { if (!o) setWithdrawing(null); }}>
+        <DialogContent className="rounded-none border-destructive bg-card">
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-widest text-destructive">WITHDRAW REQUEST</DialogTitle>
+          </DialogHeader>
+          <p className="font-mono text-sm text-muted-foreground">
+            Withdraw <span className="text-foreground">"{withdrawing?.title}"</span> from the review queue? This can't
+            be undone — if you change your mind you'll need to submit a new request.
+          </p>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none font-display"
+              onClick={() => setWithdrawing(null)}
+              data-testid="button-withdraw-cancel"
+            >
+              KEEP IT
+            </Button>
+            <Button
+              type="button"
+              disabled={withdraw.isPending}
+              className="rounded-none bg-destructive text-destructive-foreground hover:bg-destructive/80 font-display"
+              onClick={() => withdrawing && withdraw.mutate({ id: withdrawing.id })}
+              data-testid="button-withdraw-confirm"
+            >
+              WITHDRAW
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={editing != null} onOpenChange={(o) => { if (!o) setEditing(null); }}>
         <DialogContent className="rounded-none border-nc-cyan bg-card">

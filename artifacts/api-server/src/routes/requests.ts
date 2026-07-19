@@ -1794,6 +1794,72 @@ router.post("/requests/:id/resubmit", requireAuth, async (req, res): Promise<voi
   res.json(shape(row));
 });
 
+// POST /requests/:id/withdraw — the requester pulls their own in-flight request
+// out of the review queue. Only pending / changes_requested rows can be
+// withdrawn (never approved/rejected/closed — a staged or applied decision must
+// go through the staff close/reopen tools). Status-guarded conditional UPDATE
+// under a FOR UPDATE lock so it can't race a concurrent approve/override:
+// whoever flips the status first wins, the loser 409s. Withdrawn rows land in
+// status "cancelled" (already excluded from every reviewer queue / badge count,
+// which only look at pending/changes_requested). reviewedAt stays null so the
+// player's own action never lights their My Submissions unread badge.
+router.post("/requests/:id/withdraw", requireAuth, async (req, res): Promise<void> => {
+  const rid = parseInt(String(req.params.id), 10);
+  if (!Number.isFinite(rid) || rid <= 0) { res.status(400).json({ error: "Bad request id" }); return; }
+  const result = await db.transaction(async (tx) => {
+    const [reqRow] = await tx.select().from(customRequests).where(eq(customRequests.id, rid)).for("update");
+    if (!reqRow) return { error: { status: 404, body: { error: "Request not found" } } };
+    // Strictly owner-only (no admin bypass): withdrawing is the PLAYER backing
+    // out. Staff who want a ticket gone use their own reject/close tools so
+    // the decision trail correctly attributes who ended it.
+    if (reqRow.requestedById !== req.user!.id) {
+      return { error: { status: 403, body: { error: "Only the requester can withdraw this request" } } };
+    }
+    // Player-decided / owner-decided rows have their own decision flows
+    // (Inbox / stock-decision); withdrawing them here would strand the decider.
+    const blocked = ownerDecidedError(reqRow.type);
+    if (blocked) return { error: blocked };
+    if (reqRow.status !== "pending" && reqRow.status !== "changes_requested") {
+      return { error: { status: 409, body: { error: `Request is ${reqRow.status} — only pending or changes-requested requests can be withdrawn` } } };
+    }
+    if (reqRow.appliedRef) {
+      return { error: { status: 409, body: { error: "Request has already been applied and cannot be withdrawn" } } };
+    }
+    const [changed] = await tx
+      .update(customRequests)
+      .set({ status: "cancelled" })
+      .where(and(eq(customRequests.id, rid), inArray(customRequests.status, ["pending", "changes_requested"])))
+      .returning();
+    if (!changed) return { error: { status: 409, body: { error: "Request was decided before it could be withdrawn" } } };
+    // Clear any votes already cast so a later staff reopen starts genuinely
+    // fresh (mirrors resubmit/reopen semantics).
+    await clearReviewVotes({ subjectType: "request", subjectId: rid, conn: tx });
+    return { ok: { reqRow: changed } };
+  });
+  if ("error" in result && result.error) {
+    res.status(result.error.status).json(result.error.body);
+    return;
+  }
+  const row = (result as { ok: { reqRow: RequestSelectRow } }).ok.reqRow;
+  await recordAudit({
+    req,
+    category: auditCategoryFor(row.type),
+    action: "request_withdrawn",
+    targetType: "custom_request",
+    targetId: rid,
+    message: `Withdrawn by player: ${row.type} request "${row.title}"`,
+  });
+  // Best-effort note into the cs-approver review thread so reviewers see the
+  // ticket left the queue. Fire-and-forget; a Discord miss never blocks.
+  if (row.discordThreadId) {
+    void postToChannel(row.discordThreadId, `This request was withdrawn by the player and has left the review queue.`).catch((err) =>
+      logger.warn({ err, requestId: rid }, "withdraw thread note failed"),
+    );
+  }
+  const [shaped] = await selectWhere(eq(customRequests.id, rid));
+  res.json(shape(shaped));
+});
+
 // POST /requests/:id/submit — the requester promotes their own draft into the
 // review queue. Mirrors the sheet draft→submit flow: flips status to pending,
 // re-reserves the on-map building (if any) under a FOR UPDATE lock, and fires

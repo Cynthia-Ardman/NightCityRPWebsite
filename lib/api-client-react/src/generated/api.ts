@@ -20318,6 +20318,76 @@ export const useResubmitCustomRequest = <TError = ErrorType<void>,
       return useMutation(getResubmitCustomRequestMutationOptions(options));
     }
 
+export const getWithdrawCustomRequestUrl = (id: number,) => {
+
+
+
+
+  return `/api/requests/${id}/withdraw`
+}
+
+/**
+ * @summary The requester pulls their own pending / changes-requested request out of the review queue. It becomes cancelled (shown as withdrawn) and drops out of reviewer queues and badges. Decided or applied requests cannot be withdrawn.
+ */
+export const withdrawCustomRequest = async (id: number, options?: RequestInit): Promise<CustomRequest> => {
+
+  return customFetch<CustomRequest>(getWithdrawCustomRequestUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getWithdrawCustomRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawCustomRequest>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof withdrawCustomRequest>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['withdrawCustomRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdrawCustomRequest>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  withdrawCustomRequest(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type WithdrawCustomRequestMutationResult = NonNullable<Awaited<ReturnType<typeof withdrawCustomRequest>>>
+
+    export type WithdrawCustomRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary The requester pulls their own pending / changes-requested request out of the review queue. It becomes cancelled (shown as withdrawn) and drops out of reviewer queues and badges. Decided or applied requests cannot be withdrawn.
+ */
+export const useWithdrawCustomRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof withdrawCustomRequest>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof withdrawCustomRequest>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getWithdrawCustomRequestMutationOptions(options));
+    }
+
 export const getSubmitDraftCustomRequestUrl = (id: number,) => {
 
 

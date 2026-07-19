@@ -10572,6 +10572,53 @@ export const ResubmitCustomRequestResponse = zod.object({
 
 
 /**
+ * @summary The requester pulls their own pending / changes-requested request out of the review queue. It becomes cancelled (shown as withdrawn) and drops out of reviewer queues and badges. Decided or applied requests cannot be withdrawn.
+ */
+export const WithdrawCustomRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const WithdrawCustomRequestResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "characterId": zod.number(),
+  "characterName": zod.string(),
+  "requestedById": zod.string(),
+  "requestedByName": zod.string().nullish(),
+  "title": zod.string().describe('Player label: location\/address (property), item name (gun\/cyberware), or venue name (store\/ripperdoc).'),
+  "description": zod.string().nullish(),
+  "imageUrl": zod.string().nullish().describe('Legacy single reference image — always the first entry of imageUrls.'),
+  "imageUrls": zod.array(zod.string()).optional().describe('All reference images the player attached (ordered). Legacy rows with only imageUrl are surfaced as a one-element array.'),
+  "details": zod.unknown().nullish().describe('Optional type-specific payload captured at submit time. For store\/ripperdoc carries { purpose, location }.'),
+  "status": zod.enum(['draft', 'pending', 'approved', 'rejected', 'changes_requested', 'cancelled', 'closed']),
+  "reviewedById": zod.string().nullish(),
+  "reviewedAt": zod.coerce.date().nullish(),
+  "reviewerNote": zod.string().nullish().describe('On changes_requested this carries the reviewer\'s comment to the player.'),
+  "appliedRef": zod.string().nullish().describe('What was materialized on approval (housing:<id> \/ inventory:<uuid>).'),
+  "overriddenBy": zod.string().nullish().describe('Admin user id if approved via override.'),
+  "approveCount": zod.number().optional().describe('Review tally — present on list responses.'),
+  "rejectCount": zod.number().optional(),
+  "pauseCount": zod.number().optional().describe('Pause markers — visible flag only, never counted toward the decision threshold.'),
+  "threshold": zod.number().optional().describe('Majority needed among eligible reviewers (excludes the requester).'),
+  "myVote": zod.union([zod.literal('approve'),zod.literal('reject'),zod.literal('pause'),zod.literal(null)]).nullish().describe('The viewer\'s own vote, if any.'),
+  "eligibleReviewers": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "isTrialFixer": zod.boolean().describe('Display-only: true when this reviewer is a trial fixer (still on probation).')
+}).describe('A reviewer permitted to vote on a subject (excludes the submitter). Used to render who has not voted yet.')).optional().describe('Full roster of reviewers eligible to vote on this request (excludes the requester). Present on list responses.'),
+  "voters": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "vote": zod.enum(['approve', 'reject', 'pause'])
+})).optional().describe('Reviewers who have already cast a vote on this request. Present on list responses.'),
+  "createdAt": zod.coerce.date(),
+  "lastActivityAt": zod.coerce.date().optional()
+})
+
+
+/**
  * @summary The requester promotes their own draft into the review queue. Re-reserves the on-map building (if any) and announces to reviewers.
  */
 export const SubmitDraftCustomRequestParams = zod.object({

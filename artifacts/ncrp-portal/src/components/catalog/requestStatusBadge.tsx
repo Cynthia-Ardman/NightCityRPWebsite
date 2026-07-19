@@ -7,8 +7,13 @@ import { CheckCircle2, Clock, XCircle, MessageSquareWarning, FileEdit } from "lu
 export function RequestStatusBadge({
   status,
   stagedApproval = false,
+  cancelledLabel = "CANCELLED",
 }: {
   status: string;
+  // Custom requests reach "cancelled" when the PLAYER withdraws them, so
+  // owner-facing surfaces pass "WITHDRAWN" to read as the player's own action
+  // rather than a staff cancellation. Other subjects keep the default.
+  cancelledLabel?: string;
   // A decision that is "approved" only STAGES the outcome — a staff member must
   // still click "Close and Apply" before the effect (lease / item / character
   // edit / sheet) takes hold and the owner is DM'd. Owner-facing surfaces for
@@ -60,7 +65,7 @@ export function RequestStatusBadge({
     case "cancelled":
       return (
         <Badge variant="outline" className="border-muted-foreground text-muted-foreground rounded-none font-mono text-[10px]">
-          <XCircle className="w-3 h-3 mr-1" /> CANCELLED
+          <XCircle className="w-3 h-3 mr-1" /> {cancelledLabel}
         </Badge>
       );
     default:

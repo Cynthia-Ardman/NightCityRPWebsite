@@ -4555,6 +4555,23 @@ paths:
         "403": { description: Only the requester can resubmit }
         "404": { description: Not found }
         "409": { description: Not awaiting changes }
+  /requests/{id}/withdraw:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: withdrawCustomRequest
+      tags: [requests]
+      summary: "The requester pulls their own pending / changes-requested request out of the review queue. It becomes cancelled (shown as withdrawn) and drops out of reviewer queues and badges. Decided or applied requests cannot be withdrawn."
+      responses:
+        "200":
+          description: Withdrawn
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomRequest" }
+        "400": { description: Player/owner-decided request types cannot be withdrawn here }
+        "403": { description: Only the requester can withdraw }
+        "404": { description: Not found }
+        "409": { description: "Already decided, applied, or otherwise not withdrawable" }
   /requests/{id}/submit:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }

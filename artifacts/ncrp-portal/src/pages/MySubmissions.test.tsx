@@ -29,6 +29,7 @@ vi.mock("@workspace/api-client-react", () => ({
   useResubmitCustomRequest: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   useSubmitDraftCustomRequest: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   useDeleteDraftCustomRequest: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
+  useWithdrawCustomRequest: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   useGetMyUnseen: () => ({ data: { request: [], edit: [], sheet: [], total: 0 }, isLoading: false }),
   getListMyCustomRequestsQueryKey: () => ["my-custom-requests"],
   getListPendingEditsQueryKey: (params?: unknown) => ["pending-edits", params],
