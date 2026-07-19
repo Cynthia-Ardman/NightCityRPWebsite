@@ -158,12 +158,16 @@ export default function DiscordThreadDrawer({
       <Button
         variant="outline"
         size="sm"
-        className={`${baseClassName} ${flashClassName}`.trim()}
+        className={`${baseClassName} ${flashClassName} max-w-full`.trim()}
         onClick={() => handleOpenChange(!open)}
         data-testid={`button-discord-thread-${subjectType}-${subjectId}`}
       >
-        <Hash className={iconOnly ? "w-4 h-4" : "w-3 h-3 mr-1"} />
-        {iconOnly ? <span className="sr-only">{buttonLabel}</span> : buttonLabel}
+        <Hash className={iconOnly ? "w-4 h-4" : "w-3 h-3 mr-1 shrink-0"} />
+        {iconOnly ? (
+          <span className="sr-only">{buttonLabel}</span>
+        ) : (
+          <span className="truncate min-w-0">{buttonLabel}</span>
+        )}
         {unread && (
           <span
             className="ml-2 inline-flex items-center justify-center min-w-[1.15rem] h-[1.15rem] px-1 rounded-full bg-nc-yellow text-background font-mono text-[10px] font-bold shadow-[0_0_6px_rgba(255,255,0,0.9)]"

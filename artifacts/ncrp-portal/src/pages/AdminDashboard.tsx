@@ -883,8 +883,8 @@ export function UsersTab() {
 
   return (
     <Card className="rounded-none border-border bg-card/50">
-      <CardHeader className="flex flex-row items-start justify-between gap-3">
-        <div>
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
           <CardTitle className="font-display">Registered Users</CardTitle>
           <CardDescription className="font-mono">
             Discord identities linked to the portal. Discord ID is the unique key — everything (characters, housing, guns, cyberware) hangs off it.
