@@ -9227,7 +9227,8 @@ export const AdminFixerActivityResponse = zod.object({
   "eventsCreated": zod.number(),
   "actorPayments": zod.number().describe('Manual NPC\/actor payouts issued in the window.'),
   "auditActions": zod.number().describe('All staff actions recorded in the audit log in the window.'),
-  "weekly": zod.array(zod.number()).describe('Audit-log action counts per week within the window, oldest week first.')
+  "weekly": zod.array(zod.number()).describe('Audit-log action counts per week within the window, oldest week first.'),
+  "weeklyBySource": zod.record(zod.string(), zod.array(zod.number())).describe('Per-source weekly action counts within the window, oldest week first. Keys: missionsCreated, missionsCompleted, reviewVotes, reviewComments, requestsClosed, eventsCreated, actorPayments, auditActions.')
 }))
 })
 

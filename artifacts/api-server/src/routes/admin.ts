@@ -87,27 +87,48 @@ router.get("/admin/fixer-activity", adminOnly, async (req, res): Promise<void> =
   }
   const ids = fixers.map((f) => f.id);
 
-  // Each source: window count + ALL-TIME latest action per user, in one pass.
+  // Each source: window count + ALL-TIME latest action per user, plus
+  // in-window weekly buckets (for charts), in two grouped queries.
   type Agg = { uid: string | null; cnt: number; last: Date | null };
+  type SourceResult = { agg: Agg[]; weekly: Map<string, number[]> };
   const aggregate = async (
     table: PgTable,
     uidCol: AnyPgColumn,
     tsCol: AnyPgColumn,
-  ): Promise<Agg[]> => {
-    const rows = await db
-      .select({
-        uid: sql<string | null>`${uidCol}`,
-        cnt: sql<number>`count(*) filter (where ${tsCol} >= ${since})::int`,
-        last: sql<Date | null>`max(${tsCol})`,
-      })
-      .from(table)
-      .where(inArray(uidCol, ids))
-      .groupBy(uidCol);
-    return rows as Agg[];
+  ): Promise<SourceResult> => {
+    const [rows, wkRows] = await Promise.all([
+      db
+        .select({
+          uid: sql<string | null>`${uidCol}`,
+          cnt: sql<number>`count(*) filter (where ${tsCol} >= ${since})::int`,
+          last: sql<Date | null>`max(${tsCol})`,
+        })
+        .from(table)
+        .where(inArray(uidCol, ids))
+        .groupBy(uidCol),
+      // Weekly buckets: wk 0 = the most recent week; stored oldest-first.
+      db
+        .select({
+          uid: sql<string | null>`${uidCol}`,
+          wk: sql<number>`floor(extract(epoch from (now() - ${tsCol})) / 604800)::int`,
+          cnt: sql<number>`count(*)::int`,
+        })
+        .from(table)
+        .where(and(inArray(uidCol, ids), gte(tsCol, since)))
+        .groupBy(uidCol, sql`2`),
+    ]);
+    const weekly = new Map<string, number[]>();
+    for (const r of wkRows) {
+      if (!r.uid || r.wk == null || r.wk < 0 || r.wk >= weeks) continue;
+      const arr = weekly.get(r.uid) ?? new Array(weeks).fill(0);
+      arr[weeks - 1 - r.wk] = r.cnt;
+      weekly.set(r.uid, arr);
+    }
+    return { agg: rows as Agg[], weekly };
   };
 
   const [
-    created, completed, votes, comments, closed, eventsCreated, payments, audits, weeklyRows,
+    created, completed, votes, comments, closed, eventsCreated, payments, audits,
   ] = await Promise.all([
     aggregate(missions, missions.fixerId, missions.createdAt),
     aggregate(missions, missions.completedBy, missions.completedAt),
@@ -117,16 +138,6 @@ router.get("/admin/fixer-activity", adminOnly, async (req, res): Promise<void> =
     aggregate(events, events.createdById, events.createdAt),
     aggregate(missionActorPayments, missionActorPayments.fixerId, missionActorPayments.createdAt),
     aggregate(auditLog, auditLog.actorId, auditLog.createdAt),
-    // Weekly audit-action buckets for the sparkline: 0 = the most recent week.
-    db
-      .select({
-        uid: sql<string | null>`${auditLog.actorId}`,
-        wk: sql<number>`floor(extract(epoch from (now() - ${auditLog.createdAt})) / 604800)::int`,
-        cnt: sql<number>`count(*)::int`,
-      })
-      .from(auditLog)
-      .where(and(inArray(sql`${auditLog.actorId}`, ids), gte(auditLog.createdAt, since)))
-      .groupBy(sql`${auditLog.actorId}`, sql`2`),
   ]);
 
   const byUid = (rows: Agg[]) => {
@@ -134,22 +145,25 @@ router.get("/admin/fixer-activity", adminOnly, async (req, res): Promise<void> =
     for (const r of rows) if (r.uid) m.set(r.uid, r);
     return m;
   };
-  const mCreated = byUid(created);
-  const mCompleted = byUid(completed);
-  const mVotes = byUid(votes);
-  const mComments = byUid(comments);
-  const mClosed = byUid(closed);
-  const mEvents = byUid(eventsCreated);
-  const mPayments = byUid(payments);
-  const mAudits = byUid(audits);
-  const weeklyByUid = new Map<string, number[]>();
-  for (const r of weeklyRows) {
-    if (!r.uid || r.wk == null || r.wk < 0 || r.wk >= weeks) continue;
-    const arr = weeklyByUid.get(r.uid) ?? new Array(weeks).fill(0);
-    // wk 0 = most recent week → store oldest-first.
-    arr[weeks - 1 - r.wk] = r.cnt;
-    weeklyByUid.set(r.uid, arr);
-  }
+  const mCreated = byUid(created.agg);
+  const mCompleted = byUid(completed.agg);
+  const mVotes = byUid(votes.agg);
+  const mComments = byUid(comments.agg);
+  const mClosed = byUid(closed.agg);
+  const mEvents = byUid(eventsCreated.agg);
+  const mPayments = byUid(payments.agg);
+  const mAudits = byUid(audits.agg);
+  const zeros = () => new Array(weeks).fill(0) as number[];
+  const weeklySources: Array<[string, SourceResult]> = [
+    ["missionsCreated", created],
+    ["missionsCompleted", completed],
+    ["reviewVotes", votes],
+    ["reviewComments", comments],
+    ["requestsClosed", closed],
+    ["eventsCreated", eventsCreated],
+    ["actorPayments", payments],
+    ["auditActions", audits],
+  ];
 
   const asTime = (d: Date | string | null | undefined): number | null => {
     if (!d) return null;
@@ -181,7 +195,10 @@ router.get("/admin/fixer-activity", adminOnly, async (req, res): Promise<void> =
       eventsCreated: mEvents.get(f.id)?.cnt ?? 0,
       actorPayments: mPayments.get(f.id)?.cnt ?? 0,
       auditActions: mAudits.get(f.id)?.cnt ?? 0,
-      weekly: weeklyByUid.get(f.id) ?? new Array(weeks).fill(0),
+      weekly: audits.weekly.get(f.id) ?? zeros(),
+      weeklyBySource: Object.fromEntries(
+        weeklySources.map(([key, src]) => [key, src.weekly.get(f.id) ?? zeros()]),
+      ),
     };
   });
   // Least-recently-active first — that is the whole point of the report.

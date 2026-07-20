@@ -9957,7 +9957,7 @@ components:
       required:
         [userId, username, roles, isTrialFixer, missionsCreated, missionsCompleted,
          reviewVotes, reviewComments, requestsClosed, eventsCreated, actorPayments,
-         auditActions, weekly]
+         auditActions, weekly, weeklyBySource]
       properties:
         userId: { type: string }
         username: { type: string }
@@ -9981,6 +9981,12 @@ components:
           type: array
           items: { type: integer }
           description: "Audit-log action counts per week within the window, oldest week first."
+        weeklyBySource:
+          type: object
+          description: "Per-source weekly action counts within the window, oldest week first. Keys: missionsCreated, missionsCompleted, reviewVotes, reviewComments, requestsClosed, eventsCreated, actorPayments, auditActions."
+          additionalProperties:
+            type: array
+            items: { type: integer }
 
     FixerActivityReport:
       type: object

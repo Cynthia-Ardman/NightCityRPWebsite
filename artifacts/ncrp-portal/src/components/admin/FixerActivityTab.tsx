@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAdminFixerActivity, type FixerActivityRow } from "@workspace/api-client-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDate } from "@/lib/format";
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, CartesianGrid,
+} from "recharts";
 
 const WINDOWS = [
   { days: 30, label: "30 days" },
@@ -55,6 +59,162 @@ function totalActivity(f: FixerActivityRow): number {
   );
 }
 
+// Metrics selectable in the chart. "overall" sums the 7 fixer-work sources
+// (auditActions overlaps them, so it stays a separate metric of its own).
+const METRICS = [
+  { key: "overall", label: "Overall fixer work" },
+  { key: "missionsCreated", label: "Missions created" },
+  { key: "missionsCompleted", label: "Missions completed" },
+  { key: "reviewVotes", label: "Review votes" },
+  { key: "reviewComments", label: "Comments" },
+  { key: "requestsClosed", label: "Tickets closed" },
+  { key: "eventsCreated", label: "Events created" },
+  { key: "actorPayments", label: "NPC payouts" },
+  { key: "auditActions", label: "All staff actions" },
+] as const;
+type MetricKey = (typeof METRICS)[number]["key"];
+
+const OVERALL_KEYS = [
+  "missionsCreated", "missionsCompleted", "reviewVotes", "reviewComments",
+  "requestsClosed", "eventsCreated", "actorPayments",
+] as const;
+
+function fixerColor(i: number): string {
+  // Golden-angle hue spread → visually distinct colors for any fixer count.
+  return `hsl(${Math.round((i * 137.508) % 360)} 85% 60%)`;
+}
+
+function metricValue(f: FixerActivityRow, metric: MetricKey): number {
+  if (metric === "overall") return totalActivity(f);
+  return f[metric];
+}
+
+function weeklySeries(f: FixerActivityRow, metric: MetricKey, weeks: number): number[] {
+  const src = (f.weeklyBySource ?? {}) as Record<string, number[]>;
+  if (metric !== "overall") return src[metric] ?? new Array(weeks).fill(0);
+  const out = new Array(weeks).fill(0);
+  for (const k of OVERALL_KEYS) {
+    const arr = src[k];
+    if (arr) for (let i = 0; i < out.length; i++) out[i] += arr[i] ?? 0;
+  }
+  return out;
+}
+
+function weekLabel(index: number, weeks: number): string {
+  // index 0 = oldest week. Buckets are "N weeks back from now", so label each
+  // bucket by its END date — the newest bucket then reads as today.
+  const end = new Date(Date.now() - (weeks - 1 - index) * 7 * 86_400_000);
+  return end.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function FixerActivityChart({
+  fixers, weeks,
+}: { fixers: FixerActivityRow[]; weeks: number }) {
+  const [metric, setMetric] = useState<MetricKey>("overall");
+  const [fixerId, setFixerId] = useState<string>("all");
+
+  // Stable color per fixer (assigned in the report's order).
+  const colorById = useMemo(
+    () => new Map(fixers.map((f, i) => [f.userId, fixerColor(i)])),
+    [fixers],
+  );
+  const selected = fixerId === "all" ? null : fixers.find((f) => f.userId === fixerId) ?? null;
+
+  const allData = useMemo(
+    () =>
+      [...fixers]
+        .map((f) => ({
+          name: f.globalName || f.username,
+          userId: f.userId,
+          value: metricValue(f, metric),
+          color: colorById.get(f.userId)!,
+        }))
+        .sort((a, b) => b.value - a.value),
+    [fixers, metric, colorById],
+  );
+
+  const singleData = useMemo(() => {
+    if (!selected) return [];
+    return weeklySeries(selected, metric, weeks).map((v, i) => ({
+      name: weekLabel(i, weeks),
+      value: v,
+    }));
+  }, [selected, metric, weeks]);
+
+  const metricLabel = METRICS.find((m) => m.key === metric)?.label ?? "";
+
+  return (
+    <div className="mb-8">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <Select value={metric} onValueChange={(v) => setMetric(v as MetricKey)}>
+          <SelectTrigger className="w-56 rounded-none font-mono" data-testid="select-chart-metric">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {METRICS.map((m) => (
+              <SelectItem key={m.key} value={m.key} className="font-mono">{m.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={fixerId} onValueChange={setFixerId}>
+          <SelectTrigger className="w-56 rounded-none font-mono" data-testid="select-chart-fixer">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" className="font-mono">All fixers</SelectItem>
+            {fixers.map((f) => (
+              <SelectItem key={f.userId} value={f.userId} className="font-mono">
+                {f.globalName || f.username}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="h-72 w-full" data-testid="chart-fixer-activity">
+        <ResponsiveContainer width="100%" height="100%">
+          {selected ? (
+            <BarChart data={singleData} margin={{ top: 4, right: 8, left: -16, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+              <Tooltip
+                cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
+                contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", fontFamily: "monospace", fontSize: 12 }}
+                formatter={(v: number) => [v, metricLabel]}
+                labelFormatter={(l: string) => `Week ending ${l}`}
+              />
+              <Bar dataKey="value" fill={colorById.get(selected.userId)} />
+            </BarChart>
+          ) : (
+            <BarChart data={allData} margin={{ top: 4, right: 8, left: -16, bottom: 24 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} height={60} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+              <Tooltip
+                cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
+                contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", fontFamily: "monospace", fontSize: 12 }}
+                formatter={(v: number) => [v, metricLabel]}
+              />
+              <Bar dataKey="value" onClick={(d: { payload?: { userId?: string } }) => {
+                if (d.payload?.userId) setFixerId(d.payload.userId);
+              }}>
+                {allData.map((d) => (
+                  <Cell key={d.userId} fill={d.color} cursor="pointer" />
+                ))}
+              </Bar>
+            </BarChart>
+          )}
+        </ResponsiveContainer>
+      </div>
+      <p className="text-muted-foreground font-mono text-xs mt-2">
+        {selected
+          ? `${selected.globalName || selected.username} — ${metricLabel.toLowerCase()} per week in the selected window.`
+          : "One bar per fixer for the selected action and window. Click a bar to drill into that fixer's week-by-week activity."}
+      </p>
+    </div>
+  );
+}
+
 export default function FixerActivityTab() {
   const [days, setDays] = useState<number>(90);
   const { data, isLoading, error } = useAdminFixerActivity({ days });
@@ -93,6 +253,8 @@ export default function FixerActivityTab() {
         ) : !data || data.fixers.length === 0 ? (
           <p className="text-muted-foreground font-mono py-8 text-center">No fixers found.</p>
         ) : (
+          <>
+          <FixerActivityChart fixers={data.fixers} weeks={data.weeks} />
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -162,6 +324,7 @@ export default function FixerActivityTab() {
               </TableBody>
             </Table>
           </div>
+          </>
         )}
       </CardContent>
     </Card>

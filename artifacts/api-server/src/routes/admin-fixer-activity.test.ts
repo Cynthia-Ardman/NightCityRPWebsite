@@ -63,6 +63,14 @@ describe("GET /admin/fixer-activity", () => {
     expect(weekly[weekly.length - 1]).toBe(1);
     expect(weekly[weekly.length - 2]).toBe(1);
 
+    // Per-source weekly buckets power the chart's single-fixer view.
+    const bySource = active.weeklyBySource as Record<string, number[]>;
+    expect(bySource.auditActions).toEqual(weekly);
+    expect(bySource.missionsCreated.reduce((a, b) => a + b, 0)).toBe(1);
+    expect(bySource.reviewVotes.reduce((a, b) => a + b, 0)).toBe(1);
+    expect(bySource.missionsCompleted.reduce((a, b) => a + b, 0)).toBe(0);
+    expect(bySource.missionsCreated.length).toBe(res.body.weeks);
+
     // Idle fixer: 0 in-window counts but the ALL-TIME last action is preserved.
     const idle = byId.get(idleFixer.id) as Record<string, unknown>;
     expect(idle.missionsCreated).toBe(0);

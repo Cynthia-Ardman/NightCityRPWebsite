@@ -5359,6 +5359,11 @@ export interface AdminUser {
   characters?: Character[];
 }
 
+/**
+ * Per-source weekly action counts within the window, oldest week first. Keys: missionsCreated, missionsCompleted, reviewVotes, reviewComments, requestsClosed, eventsCreated, actorPayments, auditActions.
+ */
+export type FixerActivityRowWeeklyBySource = {[key: string]: number[]};
+
 export interface FixerActivityRow {
   userId: string;
   username: string;
@@ -5393,6 +5398,8 @@ export interface FixerActivityRow {
   auditActions: number;
   /** Audit-log action counts per week within the window, oldest week first. */
   weekly: number[];
+  /** Per-source weekly action counts within the window, oldest week first. Keys: missionsCreated, missionsCompleted, reviewVotes, reviewComments, requestsClosed, eventsCreated, actorPayments, auditActions. */
+  weeklyBySource: FixerActivityRowWeeklyBySource;
 }
 
 export interface FixerActivityReport {

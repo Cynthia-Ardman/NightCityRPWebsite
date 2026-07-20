@@ -251,6 +251,7 @@ export * from './eventViewStatus';
 export * from './eventViewTicketPayoutMode';
 export * from './fixerActivityReport';
 export * from './fixerActivityRow';
+export * from './fixerActivityRowWeeklyBySource';
 export * from './fixerMissionsProfile';
 export * from './fixerMissionsProfileFixer';
 export * from './fixerNpc';
