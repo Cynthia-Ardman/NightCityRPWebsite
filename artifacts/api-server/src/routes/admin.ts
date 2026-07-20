@@ -68,6 +68,61 @@ router.get("/admin/analytics", adminOrFixer, async (req, res): Promise<void> => 
   res.json(payload);
 });
 
+// Drill-down for the Players & Characters analytics cards: which characters
+// sit behind one bucket. active60/dormant mirror computeAdminAnalytics' 60-day
+// activity split (wallet movement, mission application, or assignment); the
+// remaining buckets are plain life statuses. Fixer-and-up like the analytics.
+router.get("/admin/analytics/characters", adminOrFixer, async (req, res): Promise<void> => {
+  const bucket = String(req.query.bucket ?? "");
+  const allowed = new Set(["active60", "dormant", "active", "loa", "dead", "retired", "missing"]);
+  if (!allowed.has(bucket)) {
+    res.status(400).json({ error: "invalid bucket" });
+    return;
+  }
+  const cutoff = new Date(Date.now() - 60 * 86_400_000);
+  const activitySplit = bucket === "active60" || bucket === "dormant";
+  const rows = activitySplit
+    ? ((
+        await db.execute(sql`
+          SELECT t.id, t.name, t.life_status, t.owner_name, t.last_activity_at
+          FROM (
+            SELECT c.id, c.name, c.life_status,
+              COALESCE(u.global_name, u.username) AS owner_name,
+              GREATEST(
+                (SELECT MAX(wt.created_at) FROM wallet_transactions wt WHERE wt.character_id = c.id),
+                (SELECT MAX(ma.created_at) FROM mission_applications ma WHERE ma.character_id = c.id),
+                (SELECT MAX(s.created_at) FROM mission_assignments s WHERE s.character_id = c.id)
+              ) AS last_activity_at
+            FROM characters c
+            LEFT JOIN users u ON u.id = c.owner_id
+            WHERE c.kind = 'pc' AND c.archived = false AND c.life_status = 'active'
+          ) t
+          WHERE ${bucket === "active60" ? sql`t.last_activity_at >= ${cutoff}` : sql`(t.last_activity_at IS NULL OR t.last_activity_at < ${cutoff})`}
+          ORDER BY t.last_activity_at DESC NULLS LAST, lower(t.name)
+        `)
+      ).rows as Array<{ id: number; name: string; life_status: string; owner_name: string | null; last_activity_at: Date | string | null }>)
+    : ((
+        await db.execute(sql`
+          SELECT c.id, c.name, c.life_status,
+            COALESCE(u.global_name, u.username) AS owner_name,
+            NULL::timestamptz AS last_activity_at
+          FROM characters c
+          LEFT JOIN users u ON u.id = c.owner_id
+          WHERE c.kind = 'pc' AND c.archived = false AND c.life_status = ${bucket}
+          ORDER BY lower(c.name)
+        `)
+      ).rows as Array<{ id: number; name: string; life_status: string; owner_name: string | null; last_activity_at: Date | string | null }>);
+  res.json(
+    rows.map((r) => ({
+      id: Number(r.id),
+      name: r.name,
+      lifeStatus: r.life_status,
+      ownerName: r.owner_name,
+      lastActivityAt: r.last_activity_at ? new Date(r.last_activity_at).toISOString() : null,
+    })),
+  );
+});
+
 router.get("/admin/users", adminOnly, async (_req, res): Promise<void> => {
   const rows = await db.select().from(users).orderBy(desc(users.lastSeenAt));
   res.json(

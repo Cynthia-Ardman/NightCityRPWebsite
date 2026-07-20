@@ -2591,6 +2591,22 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AdminAnalytics" }
 
+  /admin/analytics/characters:
+    get:
+      operationId: adminGetAnalyticsCharacters
+      tags: [admin]
+      summary: "Drill-down for the Players & Characters analytics cards: the characters behind one bucket."
+      parameters:
+        - { in: query, name: bucket, required: true, description: "active60/dormant split live PCs by 60-day activity; the rest are life statuses.", schema: { type: string, enum: [active60, dormant, active, loa, dead, retired, missing] } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AnalyticsCharacterRow" }
+
   /admin/audit-log:
     get:
       operationId: adminListAuditLog
@@ -11028,6 +11044,16 @@ components:
         vrchat: { $ref: "#/components/schemas/AnalyticsVrchat" }
         excludeAbove: { type: ["integer", "null"], description: "Echo of the wallet-balance exclusion threshold applied, if any." }
         excludedWallets: { type: integer, description: "Number of wallets excluded by the threshold." }
+
+    AnalyticsCharacterRow:
+      type: object
+      required: [id, name, lifeStatus, ownerName]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        lifeStatus: { type: string }
+        ownerName: { type: ["string", "null"], description: "Owner's display name, null for unclaimed characters." }
+        lastActivityAt: { type: ["string", "null"], format: date-time, description: "Latest wallet/mission activity touching the character (active60/dormant buckets only)." }
 
     AnalyticsEconomy:
       type: object

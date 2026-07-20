@@ -7212,6 +7212,22 @@ export interface AdminAnalytics {
   excludedWallets?: number;
 }
 
+export interface AnalyticsCharacterRow {
+  id: number;
+  name: string;
+  lifeStatus: string;
+  /**
+     * Owner's display name, null for unclaimed characters.
+     * @nullable
+     */
+  ownerName: string | null;
+  /**
+     * Latest wallet/mission activity touching the character (active60/dormant buckets only).
+     * @nullable
+     */
+  lastActivityAt?: string | null;
+}
+
 export interface AuditLogRow {
   id: number;
   category: string;
@@ -7785,6 +7801,26 @@ export const AdminGetAnalyticsRange = {
   '3m': '3m',
   '1y': '1y',
   all: 'all',
+} as const;
+
+export type AdminGetAnalyticsCharactersParams = {
+/**
+ * active60/dormant split live PCs by 60-day activity; the rest are life statuses.
+ */
+bucket: AdminGetAnalyticsCharactersBucket;
+};
+
+export type AdminGetAnalyticsCharactersBucket = typeof AdminGetAnalyticsCharactersBucket[keyof typeof AdminGetAnalyticsCharactersBucket];
+
+
+export const AdminGetAnalyticsCharactersBucket = {
+  active60: 'active60',
+  dormant: 'dormant',
+  active: 'active',
+  loa: 'loa',
+  dead: 'dead',
+  retired: 'retired',
+  missing: 'missing',
 } as const;
 
 export type AdminListAuditLogParams = {

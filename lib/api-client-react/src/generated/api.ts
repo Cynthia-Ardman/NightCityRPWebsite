@@ -30,6 +30,7 @@ import type {
   AdminAnalytics,
   AdminCharacterSummary,
   AdminCreateCharacterInput,
+  AdminGetAnalyticsCharactersParams,
   AdminGetAnalyticsParams,
   AdminListAuditLogParams,
   AdminListAuditParams,
@@ -38,6 +39,7 @@ import type {
   AdminSearchDiscordMembersParams,
   AdminSinkInput,
   AdminUser,
+  AnalyticsCharacterRow,
   ApplyToMissionInput,
   ApproveOfferResult,
   ArchiveCharacter,
@@ -11657,6 +11659,90 @@ export function useAdminGetAnalytics<TData = Awaited<ReturnType<typeof adminGetA
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getAdminGetAnalyticsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminGetAnalyticsCharactersUrl = (params: AdminGetAnalyticsCharactersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/analytics/characters?${stringifiedParams}` : `/api/admin/analytics/characters`
+}
+
+/**
+ * @summary Drill-down for the Players & Characters analytics cards: the characters behind one bucket.
+ */
+export const adminGetAnalyticsCharacters = async (params: AdminGetAnalyticsCharactersParams, options?: RequestInit): Promise<AnalyticsCharacterRow[]> => {
+
+  return customFetch<AnalyticsCharacterRow[]>(getAdminGetAnalyticsCharactersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetAnalyticsCharactersQueryKey = (params?: AdminGetAnalyticsCharactersParams,) => {
+    return [
+    `/api/admin/analytics/characters`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminGetAnalyticsCharactersQueryOptions = <TData = Awaited<ReturnType<typeof adminGetAnalyticsCharacters>>, TError = ErrorType<unknown>>(params: AdminGetAnalyticsCharactersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalyticsCharacters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetAnalyticsCharactersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetAnalyticsCharacters>>> = ({ signal }) => adminGetAnalyticsCharacters(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalyticsCharacters>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetAnalyticsCharactersQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetAnalyticsCharacters>>>
+export type AdminGetAnalyticsCharactersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Drill-down for the Players & Characters analytics cards: the characters behind one bucket.
+ */
+
+export function useAdminGetAnalyticsCharacters<TData = Awaited<ReturnType<typeof adminGetAnalyticsCharacters>>, TError = ErrorType<unknown>>(
+ params: AdminGetAnalyticsCharactersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalyticsCharacters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetAnalyticsCharactersQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

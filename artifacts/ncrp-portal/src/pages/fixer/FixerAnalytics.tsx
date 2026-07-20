@@ -1,8 +1,16 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useAdminGetAnalytics, getAdminGetAnalyticsQueryKey, type AdminGetAnalyticsRange } from "@workspace/api-client-react";
+import {
+  useAdminGetAnalytics,
+  getAdminGetAnalyticsQueryKey,
+  type AdminGetAnalyticsRange,
+  useAdminGetAnalyticsCharacters,
+  getAdminGetAnalyticsCharactersQueryKey,
+  type AdminGetAnalyticsCharactersBucket,
+} from "@workspace/api-client-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Activity, Coins, Briefcase, ClipboardList, Users, Globe } from "lucide-react";
 import VrchatPlayerSearch from "@/components/fixer/VrchatPlayerSearch";
 import {
@@ -69,11 +77,60 @@ const tooltipStyle = {
   fontSize: "0.75rem",
 } as const;
 
+const BUCKET_TITLES: Record<AdminGetAnalyticsCharactersBucket, string> = {
+  active60: "ACTIVE (60d)",
+  dormant: "DORMANT",
+  active: "ACTIVE",
+  loa: "LOA",
+  dead: "DEAD",
+  retired: "RETIRED",
+  missing: "MISSING",
+};
+
+function CharacterBucketDialog({ bucket, onClose }: { bucket: AdminGetAnalyticsCharactersBucket | null; onClose: () => void }) {
+  const params = { bucket: (bucket ?? "active60") as AdminGetAnalyticsCharactersBucket };
+  const { data, isLoading } = useAdminGetAnalyticsCharacters(params, {
+    query: { enabled: bucket !== null, queryKey: getAdminGetAnalyticsCharactersQueryKey(params) },
+  });
+  return (
+    <Dialog open={bucket !== null} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg rounded-none border-border bg-card font-mono">
+        <DialogHeader>
+          <DialogTitle className="font-display tracking-widest text-base">
+            {bucket ? BUCKET_TITLES[bucket] : ""} {data ? `— ${data.length}` : ""}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="max-h-[60vh] overflow-y-auto divide-y divide-border/50 text-sm" data-testid="list-bucket-characters">
+          {isLoading && <div className="py-6 text-center text-muted-foreground text-xs">LOADING…</div>}
+          {!isLoading && (data?.length ?? 0) === 0 && (
+            <div className="py-6 text-center text-muted-foreground text-xs">No characters in this bucket.</div>
+          )}
+          {data?.map((c) => (
+            <Link
+              key={c.id}
+              href={`/characters/${c.id}`}
+              className="flex items-center justify-between gap-3 px-1 py-2 hover:bg-accent/40"
+              data-testid={`link-bucket-char-${c.id}`}
+            >
+              <span className="truncate text-foreground">{c.name}</span>
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {c.ownerName ?? "unclaimed"}
+                {c.lastActivityAt && ` · ${new Date(c.lastActivityAt).toLocaleDateString()}`}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function FixerAnalytics() {
   const { data: user, isLoading: userLoading } = useEffectiveMe();
   const [range, setRange] = useState<RangeKey>("3m");
   const [excludeInput, setExcludeInput] = useState("");
   const [excludeAbove, setExcludeAbove] = useState<number | null>(null);
+  const [charBucket, setCharBucket] = useState<AdminGetAnalyticsCharactersBucket | null>(null);
   const isStaff = !!user && (user.isFixer || user.isAdmin);
   const params = { range: range as AdminGetAnalyticsRange, ...(excludeAbove !== null ? { excludeAbove } : {}) };
   const { data, isLoading } = useAdminGetAnalytics(params, {
@@ -440,21 +497,38 @@ export default function FixerAnalytics() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono text-sm">
-                <div className="border border-border p-3">
+                <button
+                  type="button"
+                  onClick={() => setCharBucket("active60")}
+                  className="border border-border p-3 text-left hover:border-nc-cyan/60 hover:bg-accent/30 transition-colors cursor-pointer"
+                  data-testid="button-bucket-active60"
+                >
                   <div className="text-xs text-muted-foreground">ACTIVE (60d)</div>
                   <div className="text-2xl text-nc-cyan" data-testid="stat-active-chars">{data.players.activeRecent}</div>
-                </div>
-                <div className="border border-border p-3">
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCharBucket("dormant")}
+                  className="border border-border p-3 text-left hover:border-nc-magenta/60 hover:bg-accent/30 transition-colors cursor-pointer"
+                  data-testid="button-bucket-dormant"
+                >
                   <div className="text-xs text-muted-foreground">DORMANT</div>
                   <div className="text-2xl text-nc-magenta" data-testid="stat-dormant-chars">{data.players.dormant}</div>
-                </div>
+                </button>
                 {lifeEntries.map(([status, n]) => (
-                  <div key={status} className="border border-border p-3">
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => setCharBucket(status as AdminGetAnalyticsCharactersBucket)}
+                    className="border border-border p-3 text-left hover:border-foreground/40 hover:bg-accent/30 transition-colors cursor-pointer"
+                    data-testid={`button-bucket-${status}`}
+                  >
                     <div className="text-xs text-muted-foreground uppercase">{status}</div>
                     <div className="text-2xl text-foreground">{n}</div>
-                  </div>
+                  </button>
                 ))}
               </div>
+              <CharacterBucketDialog bucket={charBucket} onClose={() => setCharBucket(null)} />
               <p className="font-mono text-xs text-muted-foreground">
                 Active = live PCs with wallet or mission activity in the last 60 days; dormant = live PCs with none.
               </p>

@@ -6854,6 +6854,23 @@ export const AdminGetAnalyticsResponse = zod.object({
 
 
 /**
+ * @summary Drill-down for the Players & Characters analytics cards: the characters behind one bucket.
+ */
+export const AdminGetAnalyticsCharactersQueryParams = zod.object({
+  "bucket": zod.enum(['active60', 'dormant', 'active', 'loa', 'dead', 'retired', 'missing']).describe('active60\/dormant split live PCs by 60-day activity; the rest are life statuses.')
+})
+
+export const AdminGetAnalyticsCharactersResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "lifeStatus": zod.string(),
+  "ownerName": zod.string().nullable().describe('Owner\'s display name, null for unclaimed characters.'),
+  "lastActivityAt": zod.coerce.date().nullish().describe('Latest wallet\/mission activity touching the character (active60\/dormant buckets only).')
+})
+export const AdminGetAnalyticsCharactersResponse = zod.array(AdminGetAnalyticsCharactersResponseItem)
+
+
+/**
  * @summary Unified staff-facing audit log.
  */
 export const adminListAuditLogQueryLimitDefault = 200;
