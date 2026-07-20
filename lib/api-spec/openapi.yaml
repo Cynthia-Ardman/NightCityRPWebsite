@@ -3704,6 +3704,21 @@ paths:
                 items: { $ref: "#/components/schemas/DiceRollResult" }
 
   # ---------------- ADMIN ----------------
+  /admin/fixer-activity:
+    get:
+      operationId: adminFixerActivity
+      tags: [admin]
+      parameters:
+        - in: query
+          name: days
+          required: false
+          schema: { type: integer, minimum: 7, maximum: 365, default: 90 }
+      responses:
+        "200":
+          description: Per-fixer activity report over the requested window
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FixerActivityReport" }
   /admin/users:
     get:
       operationId: adminListUsers
@@ -9936,6 +9951,47 @@ components:
         characters:
           type: array
           items: { $ref: "#/components/schemas/Character" }
+
+    FixerActivityRow:
+      type: object
+      required:
+        [userId, username, roles, isTrialFixer, missionsCreated, missionsCompleted,
+         reviewVotes, reviewComments, requestsClosed, eventsCreated, actorPayments,
+         auditActions, weekly]
+      properties:
+        userId: { type: string }
+        username: { type: string }
+        globalName: { type: ["string", "null"] }
+        avatarUrl: { type: ["string", "null"] }
+        roles:
+          type: array
+          items: { type: string }
+        isTrialFixer: { type: boolean }
+        lastSeenAt: { type: ["string", "null"], format: date-time, description: "Last website visit (any page)." }
+        lastFixerActionAt: { type: ["string", "null"], format: date-time, description: "Most recent fixer-attributable action across all tracked sources (all time, not window-limited)." }
+        missionsCreated: { type: integer, description: "Missions created in the window (missions.fixerId)." }
+        missionsCompleted: { type: integer, description: "Missions this user marked completed in the window." }
+        reviewVotes: { type: integer }
+        reviewComments: { type: integer }
+        requestsClosed: { type: integer, description: "Review tickets (custom requests) this user closed in the window." }
+        eventsCreated: { type: integer }
+        actorPayments: { type: integer, description: "Manual NPC/actor payouts issued in the window." }
+        auditActions: { type: integer, description: "All staff actions recorded in the audit log in the window." }
+        weekly:
+          type: array
+          items: { type: integer }
+          description: "Audit-log action counts per week within the window, oldest week first."
+
+    FixerActivityReport:
+      type: object
+      required: [days, weeks, generatedAt, fixers]
+      properties:
+        days: { type: integer }
+        weeks: { type: integer }
+        generatedAt: { type: string, format: date-time }
+        fixers:
+          type: array
+          items: { $ref: "#/components/schemas/FixerActivityRow" }
 
     DiscordMemberOption:
       type: object

@@ -30,6 +30,7 @@ import type {
   AdminAnalytics,
   AdminCharacterSummary,
   AdminCreateCharacterInput,
+  AdminFixerActivityParams,
   AdminGetAnalyticsCharactersParams,
   AdminGetAnalyticsParams,
   AdminListAuditLogParams,
@@ -142,6 +143,7 @@ import type {
   EventToMissionConvertInput,
   EventUpdateInput,
   EventView,
+  FixerActivityReport,
   FixerMissionsProfile,
   FixerNpc,
   FixerNpcInput,
@@ -16577,6 +16579,84 @@ export function useGetDiceHistory<TData = Awaited<ReturnType<typeof getDiceHisto
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetDiceHistoryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminFixerActivityUrl = (params?: AdminFixerActivityParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/fixer-activity?${stringifiedParams}` : `/api/admin/fixer-activity`
+}
+
+export const adminFixerActivity = async (params?: AdminFixerActivityParams, options?: RequestInit): Promise<FixerActivityReport> => {
+
+  return customFetch<FixerActivityReport>(getAdminFixerActivityUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminFixerActivityQueryKey = (params?: AdminFixerActivityParams,) => {
+    return [
+    `/api/admin/fixer-activity`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminFixerActivityQueryOptions = <TData = Awaited<ReturnType<typeof adminFixerActivity>>, TError = ErrorType<unknown>>(params?: AdminFixerActivityParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminFixerActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminFixerActivityQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminFixerActivity>>> = ({ signal }) => adminFixerActivity(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminFixerActivity>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminFixerActivityQueryResult = NonNullable<Awaited<ReturnType<typeof adminFixerActivity>>>
+export type AdminFixerActivityQueryError = ErrorType<unknown>
+
+
+
+export function useAdminFixerActivity<TData = Awaited<ReturnType<typeof adminFixerActivity>>, TError = ErrorType<unknown>>(
+ params?: AdminFixerActivityParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminFixerActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminFixerActivityQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

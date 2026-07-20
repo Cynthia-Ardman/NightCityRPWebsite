@@ -5359,6 +5359,49 @@ export interface AdminUser {
   characters?: Character[];
 }
 
+export interface FixerActivityRow {
+  userId: string;
+  username: string;
+  /** @nullable */
+  globalName?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+  roles: string[];
+  isTrialFixer: boolean;
+  /**
+     * Last website visit (any page).
+     * @nullable
+     */
+  lastSeenAt?: string | null;
+  /**
+     * Most recent fixer-attributable action across all tracked sources (all time, not window-limited).
+     * @nullable
+     */
+  lastFixerActionAt?: string | null;
+  /** Missions created in the window (missions.fixerId). */
+  missionsCreated: number;
+  /** Missions this user marked completed in the window. */
+  missionsCompleted: number;
+  reviewVotes: number;
+  reviewComments: number;
+  /** Review tickets (custom requests) this user closed in the window. */
+  requestsClosed: number;
+  eventsCreated: number;
+  /** Manual NPC/actor payouts issued in the window. */
+  actorPayments: number;
+  /** All staff actions recorded in the audit log in the window. */
+  auditActions: number;
+  /** Audit-log action counts per week within the window, oldest week first. */
+  weekly: number[];
+}
+
+export interface FixerActivityReport {
+  days: number;
+  weeks: number;
+  generatedAt: string;
+  fixers: FixerActivityRow[];
+}
+
 export interface DiscordMemberOption {
   id: string;
   username: string;
@@ -7925,6 +7968,14 @@ export type GetCharacterPendingEdit200 = {
   id: number;
   submittedAt: string;
   submittedBy: string;
+};
+
+export type AdminFixerActivityParams = {
+/**
+ * @minimum 7
+ * @maximum 365
+ */
+days?: number;
 };
 
 export type AdminSearchDiscordMembersParams = {

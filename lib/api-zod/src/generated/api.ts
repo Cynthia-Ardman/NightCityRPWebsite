@@ -9196,6 +9196,42 @@ export const GetDiceHistoryResponseItem = zod.object({
 export const GetDiceHistoryResponse = zod.array(GetDiceHistoryResponseItem)
 
 
+export const adminFixerActivityQueryDaysDefault = 90;
+export const adminFixerActivityQueryDaysMin = 7;
+export const adminFixerActivityQueryDaysMax = 365;
+
+
+
+export const AdminFixerActivityQueryParams = zod.object({
+  "days": zod.coerce.number().min(adminFixerActivityQueryDaysMin).max(adminFixerActivityQueryDaysMax).default(adminFixerActivityQueryDaysDefault)
+})
+
+export const AdminFixerActivityResponse = zod.object({
+  "days": zod.number(),
+  "weeks": zod.number(),
+  "generatedAt": zod.coerce.date(),
+  "fixers": zod.array(zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "globalName": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "roles": zod.array(zod.string()),
+  "isTrialFixer": zod.boolean(),
+  "lastSeenAt": zod.coerce.date().nullish().describe('Last website visit (any page).'),
+  "lastFixerActionAt": zod.coerce.date().nullish().describe('Most recent fixer-attributable action across all tracked sources (all time, not window-limited).'),
+  "missionsCreated": zod.number().describe('Missions created in the window (missions.fixerId).'),
+  "missionsCompleted": zod.number().describe('Missions this user marked completed in the window.'),
+  "reviewVotes": zod.number(),
+  "reviewComments": zod.number(),
+  "requestsClosed": zod.number().describe('Review tickets (custom requests) this user closed in the window.'),
+  "eventsCreated": zod.number(),
+  "actorPayments": zod.number().describe('Manual NPC\/actor payouts issued in the window.'),
+  "auditActions": zod.number().describe('All staff actions recorded in the audit log in the window.'),
+  "weekly": zod.array(zod.number()).describe('Audit-log action counts per week within the window, oldest week first.')
+}))
+})
+
+
 export const AdminListUsersResponseItem = zod.object({
   "id": zod.string(),
   "discordId": zod.string(),

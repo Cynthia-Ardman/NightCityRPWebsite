@@ -12,9 +12,10 @@ import {
   botCyberwareWeeklyRuns, botLastPayment, botPaymentLabels, botRentRuns,
   botStoreInventory, botTicketIndex, botMissionLog, botBusinessOpenLog,
   botPlayerInventory,
+  reviewVotes, reviewComments, missionActorPayments, missions,
 } from "@workspace/db";
 import { isNull, or, ilike, count, inArray } from "drizzle-orm";
-import type { PgTable } from "drizzle-orm/pg-core";
+import type { PgTable, AnyPgColumn } from "drizzle-orm/pg-core";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, searchGuildMembers, searchGuildChannels, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, addGuildMemberRole, grantDeadCharacterRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, RIPPERDOC_ROLE_ID, RIPPERDOC_ROLE_MARKER, applyRoleIdGrants, externalWritesAllowed, type ThreadAttachment } from "../lib/discord";
 import { resolveOrProvisionUser } from "../lib/userProvision";
@@ -57,6 +58,138 @@ const adminOrFixer = requireAnyRole(["ADMIN", "FIXER"]);
 // a character to ANYONE in the guild; if the target has no `users` row yet we
 // mint one keyed on their Discord id, which their first login then adopts.
 const resolveOrProvisionOwner = resolveOrProvisionUser;
+
+// Fixer activity report (admin-only): every FIXER / TRIAL_FIXER with counts of
+// fixer-attributable actions inside the requested window plus an all-time
+// "last fixer action" timestamp, so admins can spot fixers who have gone idle.
+// All aggregation happens in SQL — one grouped query per activity source.
+router.get("/admin/fixer-activity", adminOnly, async (req, res): Promise<void> => {
+  const days = Math.min(365, Math.max(7, parseInt(String(req.query.days ?? "90"), 10) || 90));
+  const since = new Date(Date.now() - days * 86_400_000);
+  const weeks = Math.ceil(days / 7);
+
+  const fixers = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      globalName: users.globalName,
+      avatarUrl: users.avatarUrl,
+      roles: users.roles,
+      lastSeenAt: users.lastSeenAt,
+    })
+    .from(users)
+    .where(sql`'FIXER' = ANY(${users.roles}) OR 'TRIAL_FIXER' = ANY(${users.roles})`);
+  if (fixers.length === 0) {
+    res.json({ days, weeks, generatedAt: new Date().toISOString(), fixers: [] });
+    return;
+  }
+  const ids = fixers.map((f) => f.id);
+
+  // Each source: window count + ALL-TIME latest action per user, in one pass.
+  type Agg = { uid: string | null; cnt: number; last: Date | null };
+  const aggregate = async (
+    table: PgTable,
+    uidCol: AnyPgColumn,
+    tsCol: AnyPgColumn,
+  ): Promise<Agg[]> => {
+    const rows = await db
+      .select({
+        uid: sql<string | null>`${uidCol}`,
+        cnt: sql<number>`count(*) filter (where ${tsCol} >= ${since})::int`,
+        last: sql<Date | null>`max(${tsCol})`,
+      })
+      .from(table)
+      .where(inArray(uidCol, ids))
+      .groupBy(uidCol);
+    return rows as Agg[];
+  };
+
+  const [
+    created, completed, votes, comments, closed, eventsCreated, payments, audits, weeklyRows,
+  ] = await Promise.all([
+    aggregate(missions, missions.fixerId, missions.createdAt),
+    aggregate(missions, missions.completedBy, missions.completedAt),
+    aggregate(reviewVotes, reviewVotes.voterId, reviewVotes.votedAt),
+    aggregate(reviewComments, reviewComments.authorId, reviewComments.createdAt),
+    aggregate(customRequests, customRequests.closedBy, customRequests.closedAt),
+    aggregate(events, events.createdById, events.createdAt),
+    aggregate(missionActorPayments, missionActorPayments.fixerId, missionActorPayments.createdAt),
+    aggregate(auditLog, auditLog.actorId, auditLog.createdAt),
+    // Weekly audit-action buckets for the sparkline: 0 = the most recent week.
+    db
+      .select({
+        uid: sql<string | null>`${auditLog.actorId}`,
+        wk: sql<number>`floor(extract(epoch from (now() - ${auditLog.createdAt})) / 604800)::int`,
+        cnt: sql<number>`count(*)::int`,
+      })
+      .from(auditLog)
+      .where(and(inArray(sql`${auditLog.actorId}`, ids), gte(auditLog.createdAt, since)))
+      .groupBy(sql`${auditLog.actorId}`, sql`2`),
+  ]);
+
+  const byUid = (rows: Agg[]) => {
+    const m = new Map<string, Agg>();
+    for (const r of rows) if (r.uid) m.set(r.uid, r);
+    return m;
+  };
+  const mCreated = byUid(created);
+  const mCompleted = byUid(completed);
+  const mVotes = byUid(votes);
+  const mComments = byUid(comments);
+  const mClosed = byUid(closed);
+  const mEvents = byUid(eventsCreated);
+  const mPayments = byUid(payments);
+  const mAudits = byUid(audits);
+  const weeklyByUid = new Map<string, number[]>();
+  for (const r of weeklyRows) {
+    if (!r.uid || r.wk == null || r.wk < 0 || r.wk >= weeks) continue;
+    const arr = weeklyByUid.get(r.uid) ?? new Array(weeks).fill(0);
+    // wk 0 = most recent week → store oldest-first.
+    arr[weeks - 1 - r.wk] = r.cnt;
+    weeklyByUid.set(r.uid, arr);
+  }
+
+  const asTime = (d: Date | string | null | undefined): number | null => {
+    if (!d) return null;
+    const t = new Date(d).getTime();
+    return Number.isNaN(t) ? null : t;
+  };
+
+  const report = fixers.map((f) => {
+    const sources = [mCreated, mCompleted, mVotes, mComments, mClosed, mEvents, mPayments, mAudits];
+    let lastMs: number | null = null;
+    for (const m of sources) {
+      const t = asTime(m.get(f.id)?.last ?? null);
+      if (t !== null && (lastMs === null || t > lastMs)) lastMs = t;
+    }
+    return {
+      userId: f.id,
+      username: f.username,
+      globalName: f.globalName,
+      avatarUrl: f.avatarUrl,
+      roles: f.roles,
+      isTrialFixer: f.roles.includes("TRIAL_FIXER") && !f.roles.includes("FIXER"),
+      lastSeenAt: f.lastSeenAt ? new Date(f.lastSeenAt).toISOString() : null,
+      lastFixerActionAt: lastMs !== null ? new Date(lastMs).toISOString() : null,
+      missionsCreated: mCreated.get(f.id)?.cnt ?? 0,
+      missionsCompleted: mCompleted.get(f.id)?.cnt ?? 0,
+      reviewVotes: mVotes.get(f.id)?.cnt ?? 0,
+      reviewComments: mComments.get(f.id)?.cnt ?? 0,
+      requestsClosed: mClosed.get(f.id)?.cnt ?? 0,
+      eventsCreated: mEvents.get(f.id)?.cnt ?? 0,
+      actorPayments: mPayments.get(f.id)?.cnt ?? 0,
+      auditActions: mAudits.get(f.id)?.cnt ?? 0,
+      weekly: weeklyByUid.get(f.id) ?? new Array(weeks).fill(0),
+    };
+  });
+  // Least-recently-active first — that is the whole point of the report.
+  report.sort((a, b) => {
+    const ta = a.lastFixerActionAt ? new Date(a.lastFixerActionAt).getTime() : 0;
+    const tb = b.lastFixerActionAt ? new Date(b.lastFixerActionAt).getTime() : 0;
+    return ta - tb;
+  });
+  res.json({ days, weeks, generatedAt: new Date().toISOString(), fixers: report });
+});
 
 // Staff analytics: server-health aggregates (economy, missions, review-queue
 // aging, player activity). Fixer-and-up — this powers the Analytics page in
