@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { useState, type ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -103,7 +104,7 @@ export function ReviewQueueCard({
           <div className="flex items-center gap-2 shrink-0">
             {date != null && (
               <span className="text-xs font-mono text-muted-foreground">
-                {new Date(date).toLocaleDateString()}
+                {formatDate(date)}
               </span>
             )}
           </div>

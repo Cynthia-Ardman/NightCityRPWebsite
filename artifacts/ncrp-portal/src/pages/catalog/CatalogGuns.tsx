@@ -329,7 +329,7 @@ export default function CatalogGuns() {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={canSeePrice ? 8 : 7} className="text-center p-8 text-muted-foreground">
-                    No results.
+                    No guns found.
                   </td>
                 </tr>
               )}

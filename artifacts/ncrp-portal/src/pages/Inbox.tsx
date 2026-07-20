@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -219,7 +220,7 @@ export default function Inbox() {
                     </div>
                     <div className="font-mono text-sm text-foreground/90 break-words">{f.reason}</div>
                     <div className="font-mono text-xs text-muted-foreground mt-1">
-                      Issued {f.createdAt ? new Date(f.createdAt).toLocaleDateString() : "—"}
+                      Issued {f.createdAt ? formatDate(f.createdAt) : "—"}
                       {f.officerName ? ` by ${f.officerName}` : ""}
                     </div>
                   </div>
@@ -251,7 +252,7 @@ export default function Inbox() {
                       {f.characterName ?? `Character #${f.characterId}`} · {f.reason}
                     </span>
                     <span className="text-nc-green whitespace-nowrap">
-                      €${f.amount.toLocaleString()} · PAID {f.paidAt ? new Date(f.paidAt).toLocaleDateString() : ""}
+                      €${f.amount.toLocaleString()} · PAID {f.paidAt ? formatDate(f.paidAt) : ""}
                     </span>
                   </div>
                 ))}
@@ -445,7 +446,7 @@ export default function Inbox() {
                   {r.type === "employee_invite" ? " · employment" : " · mission"}
                 </span>
                 <span className="flex items-center gap-2 whitespace-nowrap">
-                  {r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString() : ""}
+                  {r.reviewedAt ? formatDate(r.reviewedAt) : ""}
                   <RequestStatusBadge status={r.status} />
                 </span>
               </div>
@@ -499,9 +500,9 @@ export default function Inbox() {
                       </td>
                       <td className="p-3 text-muted-foreground whitespace-nowrap">
                         {o.decidedAt
-                          ? new Date(o.decidedAt).toLocaleDateString()
+                          ? formatDate(o.decidedAt)
                           : o.createdAt
-                            ? new Date(o.createdAt).toLocaleDateString()
+                            ? formatDate(o.createdAt)
                             : "—"}
                       </td>
                       <td className="p-3"><OfferStatusBadge status={o.status} /></td>

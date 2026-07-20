@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -701,7 +702,7 @@ function MyApplicationCard({ a }: { a: MissionApplicationListItem }) {
 
         {reviewed && (
           <div className="text-xs text-muted-foreground/80 uppercase tracking-widest">
-            Reviewed {reviewed.toLocaleDateString()}{" "}
+            Reviewed {formatDate(reviewed)}{" "}
             {reviewed.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
           </div>
         )}

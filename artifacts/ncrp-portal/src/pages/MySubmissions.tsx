@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { Fragment, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -432,10 +433,10 @@ export default function MySubmissions() {
         </td>
         <td className="p-3 text-muted-foreground whitespace-nowrap">{r.characterName}</td>
         <td className="p-3 text-muted-foreground whitespace-nowrap">
-          {new Date(r.createdAt).toLocaleDateString()}
+          {formatDate(r.createdAt)}
         </td>
         <td className="p-3 text-muted-foreground whitespace-nowrap">
-          {r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString() : "—"}
+          {r.reviewedAt ? formatDate(r.reviewedAt) : "—"}
         </td>
         <td className="p-3" onClick={(e) => e.stopPropagation()}>
           <RequestStatusBadge

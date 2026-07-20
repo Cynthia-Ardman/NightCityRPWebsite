@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -487,7 +488,7 @@ function MissionDetailView({ data: rawData, when }: { data: MissionDetailModel; 
           <CalendarDays className="w-4 h-4 shrink-0" />
           {when ? (
             <span>
-              {when.toLocaleDateString()} {when.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+              {formatDate(when)} {when.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
               {data.durationMinutes ? ` · ${data.durationMinutes}m` : ""}
             </span>
           ) : (
@@ -1612,7 +1613,7 @@ function PlayerActingLookup() {
                       <div className="min-w-0">
                         <div className="text-foreground truncate">{r.name ?? "Untitled act"}</div>
                         <div className="text-xs text-muted-foreground">
-                          {new Date(r.actedAt).toLocaleDateString()}
+                          {formatDate(r.actedAt)}
                         </div>
                       </div>
                       <span className="flex items-center gap-2 shrink-0">

@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { Link } from "wouter";
 import { useListMyGuidebookEdits, type GuidebookPendingEdit, type GuidebookPageUpdate } from "@workspace/api-client-react";
 import { useAuthMe } from "@/hooks/useAuthMe";
@@ -93,10 +94,10 @@ export default function MyGuidebookSubmissions() {
                         ) : null}
                       </td>
                       <td className="p-3 text-muted-foreground whitespace-nowrap">
-                        {new Date(e.createdAt).toLocaleDateString()}
+                        {formatDate(e.createdAt)}
                       </td>
                       <td className="p-3 text-muted-foreground whitespace-nowrap">
-                        {e.decidedAt ? new Date(e.decidedAt).toLocaleDateString() : "—"}
+                        {e.decidedAt ? formatDate(e.decidedAt) : "—"}
                       </td>
                       <td className="p-3">
                         <RequestStatusBadge status={e.status} />

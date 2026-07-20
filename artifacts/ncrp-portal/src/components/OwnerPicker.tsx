@@ -99,7 +99,7 @@ export default function OwnerPicker({ value, onChange, testIdPrefix = "owner" }:
             </div>
           )}
           {enabled && !isFetching && !isError && (results ?? []).length === 0 && (
-            <div className="px-2 py-2 font-mono text-xs text-muted-foreground">No members found</div>
+            <div className="px-2 py-2 font-mono text-xs text-muted-foreground">No members found.</div>
           )}
           {enabled &&
             (results ?? []).map((m) => {

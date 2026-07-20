@@ -45,7 +45,7 @@ import {
   type PendingSheetSummary,
   type MissionSummary,
 } from "@workspace/api-client-react";
-import { formatEddies } from "@/lib/format";
+import { formatEddies, formatDate } from "@/lib/format";
 import SelectOrCustom from "@/components/SelectOrCustom";
 import MultiImageUpload from "@/components/MultiImageUpload";
 import {
@@ -1130,7 +1130,7 @@ function MissionApprovalSection({
                     <Crosshair className="w-3 h-3 mr-1" /> MISSION
                   </Badge>
                   <span className="text-xs font-mono text-muted-foreground">
-                    {when ? when.toLocaleDateString() : "No date"}
+                    {when ? formatDate(when) : "No date"}
                   </span>
                 </div>
                 <CardTitle className="text-lg font-display truncate mt-2">{m.title}</CardTitle>
@@ -1755,7 +1755,7 @@ function GuidebookEditCard({ edit }: { edit: GuidebookPendingEdit }) {
           <Badge variant="outline" className="rounded-none border-nc-cyan text-nc-cyan font-mono text-[10px]">
             <BookMarked className="w-3 h-3 mr-1" /> GUIDEBOOK {edit.kind.toUpperCase()}
           </Badge>
-          <span className="text-xs font-mono text-muted-foreground">{new Date(edit.createdAt).toLocaleDateString()}</span>
+          <span className="text-xs font-mono text-muted-foreground">{formatDate(edit.createdAt)}</span>
         </div>
         <CardTitle className="text-lg font-display truncate mt-2">
           {(diff.title as string) || edit.pageTitle || "New guidebook page"}
@@ -2127,7 +2127,7 @@ function TerminalCard({
           <Badge variant="outline" className="rounded-none border-nc-cyan text-nc-cyan font-mono text-[10px]">
             <Icon className="w-3 h-3 mr-1" /> {item.badgeLabel}
           </Badge>
-          <span className="text-xs font-mono text-muted-foreground">{new Date(item.date).toLocaleDateString()}</span>
+          <span className="text-xs font-mono text-muted-foreground">{formatDate(item.date)}</span>
         </div>
         <CardTitle className="text-lg font-display truncate mt-2">{item.title}</CardTitle>
         <CardDescription className="font-mono text-xs">{item.subtitle}</CardDescription>

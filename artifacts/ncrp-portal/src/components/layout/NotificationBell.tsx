@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -23,7 +24,7 @@ function timeAgo(iso: string): string {
   if (hr < 24) return `${hr}h ago`;
   const d = Math.floor(hr / 24);
   if (d < 30) return `${d}d ago`;
-  return new Date(iso).toLocaleDateString();
+  return formatDate(iso);
 }
 
 /**

@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { useState } from "react";
 import { Link } from "wouter";
 import {
@@ -22,7 +23,7 @@ import { Shield, FileText, AlertTriangle, Search, Users, Star, UserSearch } from
 function fmtDate(iso?: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
-  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
+  return formatDate(d);
 }
 
 const TAB_TRIGGER_CLASS =

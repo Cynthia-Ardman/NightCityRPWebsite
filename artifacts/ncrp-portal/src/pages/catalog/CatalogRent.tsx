@@ -678,7 +678,7 @@ function PropertyHistoryDialog({
             <History className="w-5 h-5" /> {listing.name}
           </DialogTitle>
           <DialogDescription className="font-mono text-xs">
-            {[listing.district, tierLabel(listing.tier), `${listing.monthlyRent.toLocaleString()} €$/mo`]
+            {[listing.district, tierLabel(listing.tier), `€$${listing.monthlyRent.toLocaleString()}/mo`]
               .filter(Boolean)
               .join(" • ")}
           </DialogDescription>

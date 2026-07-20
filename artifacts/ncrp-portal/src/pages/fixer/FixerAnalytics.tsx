@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { useState } from "react";
 import { Link } from "wouter";
 import {
@@ -115,7 +116,7 @@ function CharacterBucketDialog({ bucket, onClose }: { bucket: AdminGetAnalyticsC
               <span className="truncate text-foreground">{c.name}</span>
               <span className="text-xs text-muted-foreground whitespace-nowrap">
                 {c.ownerName ?? "unclaimed"}
-                {c.lastActivityAt && ` · ${new Date(c.lastActivityAt).toLocaleDateString()}`}
+                {c.lastActivityAt && ` · ${formatDate(c.lastActivityAt)}`}
               </span>
             </Link>
           ))}

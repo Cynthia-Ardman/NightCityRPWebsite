@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -172,7 +173,7 @@ export default function VenueRequestSection({
               <div className="min-w-0">
                 <div className="font-mono text-sm text-foreground truncate">{r.title}</div>
                 <div className="font-mono text-[11px] text-muted-foreground">
-                  {r.characterName} · {new Date(r.createdAt).toLocaleDateString()}
+                  {r.characterName} · {formatDate(r.createdAt)}
                   {r.reviewerNote ? ` · "${r.reviewerNote}"` : ""}
                 </div>
               </div>

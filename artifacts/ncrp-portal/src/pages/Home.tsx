@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useListMyStores, useListMyRipperdocs, useGetUpcomingBills, useListMyMissions, useListMissions, useListEvents, getListMissionsQueryKey, getListEventsQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, getCharacterStatus, updateCharacterStatus, getGetCharacterStatusQueryKey, useGetIncomeStatus, useRunIncomeWork, useRunIncomeSlut, getGetIncomeStatusQueryKey, type MissionSummary, type EventView, type IncomeCommandResult } from "@workspace/api-client-react";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
@@ -592,7 +593,7 @@ function relTime(iso: string): string {
   if (h < 24) return `${h}h ago`;
   const d = Math.round(h / 24);
   if (d < 30) return `${d}d ago`;
-  return new Date(iso).toLocaleDateString();
+  return formatDate(iso);
 }
 
 function iconForLog(row: SystemLogRow) {

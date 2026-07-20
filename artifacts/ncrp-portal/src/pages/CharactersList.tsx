@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { Link } from "wouter";
 import { useState } from "react";
 import { useListMyCharacters, useListMySheets, type Character } from "@workspace/api-client-react";
@@ -45,7 +46,7 @@ export default function CharactersList() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="flex justify-between items-center border-t border-border/50 pt-3 text-xs font-mono">
-                    <span className="text-muted-foreground">Created {new Date(s.createdAt).toLocaleDateString()}</span>
+                    <span className="text-muted-foreground">Created {formatDate(s.createdAt)}</span>
                     {s.status === "draft" ? (
                       <Badge variant="outline" className="rounded-none border-nc-yellow text-nc-yellow">
                         <FileText className="w-3 h-3 mr-1" /> DRAFT
@@ -80,7 +81,7 @@ export default function CharactersList() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="flex justify-between items-center border-t border-border/50 pt-3 text-xs font-mono">
-                    <span className="text-muted-foreground">Submitted {new Date(s.createdAt).toLocaleDateString()}</span>
+                    <span className="text-muted-foreground">Submitted {formatDate(s.createdAt)}</span>
                     <Badge variant="outline" className="rounded-none border-nc-yellow text-nc-yellow">
                       <Clock className="w-3 h-3 mr-1" /> PENDING
                     </Badge>

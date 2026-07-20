@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { Fragment, useState } from "react";
 import { Link } from "wouter";
 import { useGetActorReport, useGetActorHistory, useGetAttendanceReport } from "@workspace/api-client-react";
@@ -15,7 +16,7 @@ import { BarChart3, Users, ChevronDown, ChevronRight } from "lucide-react";
 function fmtDate(d: string | null | undefined): string {
   if (!d) return "—";
   const parsed = new Date(d);
-  return Number.isNaN(parsed.getTime()) ? "—" : parsed.toLocaleDateString();
+  return formatDate(parsed);
 }
 
 export default function FixerReports() {

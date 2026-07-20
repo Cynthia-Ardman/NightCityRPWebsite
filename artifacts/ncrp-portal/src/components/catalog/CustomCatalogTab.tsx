@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { useListCustomCatalogItems } from "@workspace/api-client-react";
@@ -55,7 +56,7 @@ export default function CustomCatalogTab({
                 {r.description ?? "—"}
               </td>
               <td className="p-3 text-right text-muted-foreground whitespace-nowrap">
-                {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "—"}
+                {r.createdAt ? formatDate(r.createdAt) : "—"}
               </td>
             </tr>
           ))}

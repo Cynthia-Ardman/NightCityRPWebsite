@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -39,7 +40,7 @@ function apiErrorMessage(err: unknown, fallback: string): string {
 function fmtDate(iso?: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
-  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
+  return formatDate(d);
 }
 
 export function warrantStatusClass(status: string): string {

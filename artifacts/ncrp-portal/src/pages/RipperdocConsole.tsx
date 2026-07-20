@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -578,7 +579,7 @@ export default function RipperdocConsole() {
                         <div className="min-w-0">
                           <div className="text-xs font-mono text-foreground truncate">{p.memo || p.kind}</div>
                           <div className="text-[11px] font-mono text-muted-foreground">
-                            {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "—"}
+                            {p.createdAt ? formatDate(p.createdAt) : "—"}
                           </div>
                         </div>
                         <span className={`text-xs font-mono shrink-0 ${p.amount < 0 ? "text-destructive" : "text-nc-green"}`}>
@@ -682,7 +683,7 @@ export default function RipperdocConsole() {
                           {b.venueName ?? (b.venueKind === "ripperdoc" ? "Unknown clinic" : "Unknown store")}
                           {" · "}
                           <span className="uppercase">{b.offerType}</span>
-                          {b.paidAt ? ` · ${new Date(b.paidAt).toLocaleDateString()}` : ""}
+                          {b.paidAt ? ` · ${formatDate(b.paidAt)}` : ""}
                         </div>
                         {b.memo && (
                           <div className="text-[11px] font-mono text-muted-foreground/70 truncate">{b.memo}</div>

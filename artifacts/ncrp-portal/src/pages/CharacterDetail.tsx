@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import {
   useGetCharacter,
   useListCharacterUpdates,
@@ -405,7 +406,7 @@ function MissionsTab({ characterId, staffView = false }: { characterId: number; 
                   >
                     <span className="text-foreground truncate order-1 md:order-none md:col-span-6" title={m.title}>{m.title}</span>
                     <span className="text-muted-foreground text-xs order-2 md:order-first md:col-span-3">
-                      {new Date(when).toLocaleDateString()}
+                      {formatDate(when)}
                     </span>
                     <span className="order-3 md:order-none flex flex-wrap items-center justify-between gap-2 md:contents">
                       <span className="text-xs uppercase md:col-span-1">
@@ -508,7 +509,7 @@ function CheckupStreakCard({ characterId }: { characterId: number }) {
             </>
           ) : (
             <>
-              Last checkup <span className="text-foreground">{last.toLocaleDateString()}</span>
+              Last checkup <span className="text-foreground">{formatDate(last)}</span>
               {" · "}
               <span className={danger ? "text-destructive font-bold" : "text-nc-yellow"}>
                 week {weeksSince}
@@ -583,7 +584,7 @@ function CategoryPaymentHistory({
                 >
                   <div className="flex-1 min-w-0">
                     <div className="text-muted-foreground text-xs whitespace-nowrap">
-                      {new Date(t.createdAt).toLocaleDateString()}
+                      {formatDate(t.createdAt)}
                     </div>
                     {t.memo ? (
                       <div className="text-foreground/90 break-words [overflow-wrap:anywhere]">
@@ -1648,7 +1649,7 @@ function HousingCard({ characterId, characterName }: { characterId: number; char
                       {paid ? (
                         <span className={`ml-3 ${l.delinquent ? "text-destructive" : ""}`}>
                           {l.delinquent ? "DELINQUENT — last paid through " : "Paid through "}
-                          {paid.toLocaleDateString()}
+                          {formatDate(paid)}
                         </span>
                       ) : null}
                     </div>
@@ -1658,7 +1659,7 @@ function HousingCard({ characterId, characterName }: { characterId: number; char
                         data-testid={`text-eviction-${l.id}`}
                       >
                         {(l.daysUntilEviction ?? 0) > 0
-                          ? `EVICTION IN ${l.daysUntilEviction} DAY${l.daysUntilEviction === 1 ? "" : "S"} — RENT FAILED ${new Date(l.delinquentSince!).toLocaleDateString()}`
+                          ? `EVICTION IN ${l.daysUntilEviction} DAY${l.daysUntilEviction === 1 ? "" : "S"} — RENT FAILED ${formatDate(l.delinquentSince!)}`
                           : "EVICTION PENDING ON NEXT SWEEP — RENT UNPAID"}
                       </div>
                     )}

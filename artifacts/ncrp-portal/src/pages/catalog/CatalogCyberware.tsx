@@ -228,7 +228,7 @@ export default function CatalogCyberware() {
                   {canSeePrice && <td className="p-3 text-right text-nc-yellow whitespace-nowrap">{c.price.toLocaleString()} €$</td>}
                 </tr>
               ))}
-              {filtered.length === 0 && <tr><td colSpan={canSeePrice ? 5 : 4} className="text-center p-8 text-muted-foreground">No results.</td></tr>}
+              {filtered.length === 0 && <tr><td colSpan={canSeePrice ? 5 : 4} className="text-center p-8 text-muted-foreground">No cyberware found.</td></tr>}
             </tbody>
           </table>
         </Card>

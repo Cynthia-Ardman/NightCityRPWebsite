@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/format";
 import { useMemo } from "react";
 import { type SaleOffer } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -108,9 +109,9 @@ export default function VenueOffersPanel({ offers }: { offers: SaleOffer[] }) {
                     </td>
                     <td className="p-3 text-muted-foreground whitespace-nowrap">
                       {o.decidedAt
-                        ? new Date(o.decidedAt).toLocaleDateString()
+                        ? formatDate(o.decidedAt)
                         : o.createdAt
-                          ? new Date(o.createdAt).toLocaleDateString()
+                          ? formatDate(o.createdAt)
                           : "—"}
                     </td>
                     <td className="p-3"><OfferStatusBadge status={o.status} /></td>

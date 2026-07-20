@@ -2697,20 +2697,20 @@ function MergeAccountCard() {
               <div className="border border-nc-cyan/50 bg-nc-cyan/5 p-2 space-y-1">
                 <div className="text-nc-cyan font-bold tracking-widest">KEEP · {String(preview.keep.username ?? "?")}</div>
                 <div className="text-muted-foreground">id: {String(preview.keep.id)}</div>
-                <div>balance: €{Number(preview.keep.walletBalance ?? 0).toLocaleString()}</div>
+                <div>balance: €${Number(preview.keep.walletBalance ?? 0).toLocaleString()}</div>
                 <div className="text-muted-foreground">live UB: {preview.liveUbBalance.keep == null ? "—" : `€${preview.liveUbBalance.keep.toLocaleString()}`}</div>
               </div>
               <div className="border border-destructive/50 bg-destructive/5 p-2 space-y-1">
                 <div className="text-destructive font-bold tracking-widest">DROP · {String(preview.drop.username ?? "?")}</div>
                 <div className="text-muted-foreground">id: {String(preview.drop.id)}</div>
-                <div>balance: €{Number(preview.drop.walletBalance ?? 0).toLocaleString()}</div>
+                <div>balance: €${Number(preview.drop.walletBalance ?? 0).toLocaleString()}</div>
                 <div className="text-muted-foreground">live UB: {preview.liveUbBalance.drop == null ? "—" : `€${preview.liveUbBalance.drop.toLocaleString()}`}</div>
               </div>
             </div>
             <div className="space-y-1">
               <div>
                 Eddies to transfer:{" "}
-                <span className="text-nc-cyan font-bold">€{preview.wouldTransferEddies.toLocaleString()}</span>{" "}
+                <span className="text-nc-cyan font-bold">€${preview.wouldTransferEddies.toLocaleString()}</span>{" "}
                 <span className={preview.economyMode === "enabled" ? "text-nc-cyan" : "text-destructive"}>
                   (economy: {preview.economyMode}{preview.economyMode !== "enabled" ? " — transfer will NOT run" : ""})
                 </span>
