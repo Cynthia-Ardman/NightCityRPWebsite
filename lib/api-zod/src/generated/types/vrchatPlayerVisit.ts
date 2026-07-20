@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * One row per INSTANCE (session) the player attended. Rejoins of the same instance are combined: durationMs sums all their stints and joinCount reports how many separate joins were merged.
+ */
 export interface VrchatPlayerVisit {
   id: number;
   sessionId: number;
@@ -14,6 +17,8 @@ export interface VrchatPlayerVisit {
   /** @nullable */
   leftAt?: Date | null;
   durationMs: number;
+  /** Number of separate joins to this instance merged into the row. */
+  joinCount: number;
   worldName: string;
   /** @nullable */
   accessType?: string | null;

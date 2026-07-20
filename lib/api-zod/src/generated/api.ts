@@ -8138,8 +8138,9 @@ export const GetFixerPlayerActivityResponse = zod.object({
   "worldName": zod.string(),
   "joinedAt": zod.coerce.date(),
   "leftAt": zod.coerce.date().nullish(),
-  "durationMs": zod.number()
-})).describe('Most recent visits, newest first (capped).')
+  "durationMs": zod.number(),
+  "joinCount": zod.number()
+})).describe('Most recent instances attended, newest first (capped). One row per instance; rejoins are merged (durationMs summed, joinCount = number of separate joins).')
 }).nullish().describe('VRChat instance attendance from imported VRCX gamelogs. Identity is resolved via the self-service #vrchat-username link (matchKind \"linked\") or an unambiguous display-name match (matchKind \"name\"). Null when no VRChat identity could be resolved.')
 })
 
@@ -8182,10 +8183,11 @@ export const ListFixerVrchatPlayerVisitsResponseItem = zod.object({
   "joinedAt": zod.coerce.date(),
   "leftAt": zod.coerce.date().nullish(),
   "durationMs": zod.number(),
+  "joinCount": zod.number().describe('Number of separate joins to this instance merged into the row.'),
   "worldName": zod.string(),
   "accessType": zod.string().nullish(),
   "sessionDate": zod.coerce.date()
-})
+}).describe('One row per INSTANCE (session) the player attended. Rejoins of the same instance are combined: durationMs sums all their stints and joinCount reports how many separate joins were merged.')
 export const ListFixerVrchatPlayerVisitsResponse = zod.array(ListFixerVrchatPlayerVisitsResponseItem)
 
 

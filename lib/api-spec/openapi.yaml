@@ -8082,16 +8082,20 @@ components:
             totalHours: { type: number }
             visits:
               type: array
-              description: Most recent visits, newest first (capped).
+              description: >-
+                Most recent instances attended, newest first (capped). One row
+                per instance; rejoins are merged (durationMs summed, joinCount
+                = number of separate joins).
               items:
                 type: object
-                required: [id, worldName, joinedAt, durationMs]
+                required: [id, worldName, joinedAt, durationMs, joinCount]
                 properties:
                   id: { type: integer }
                   worldName: { type: string }
                   joinedAt: { type: string, format: date-time }
                   leftAt: { type: [string, "null"], format: date-time }
                   durationMs: { type: integer }
+                  joinCount: { type: integer }
 
     VrchatPlayerSearchResult:
       type: object
@@ -8114,7 +8118,11 @@ components:
 
     VrchatPlayerVisit:
       type: object
-      required: [id, sessionId, displayName, joinedAt, durationMs, worldName, sessionDate]
+      description: >-
+        One row per INSTANCE (session) the player attended. Rejoins of the same
+        instance are combined: durationMs sums all their stints and joinCount
+        reports how many separate joins were merged.
+      required: [id, sessionId, displayName, joinedAt, durationMs, worldName, sessionDate, joinCount]
       properties:
         id: { type: integer }
         sessionId: { type: integer }
@@ -8122,6 +8130,7 @@ components:
         joinedAt: { type: string, format: date-time }
         leftAt: { type: [string, "null"], format: date-time }
         durationMs: { type: integer }
+        joinCount: { type: integer, description: "Number of separate joins to this instance merged into the row." }
         worldName: { type: string }
         accessType: { type: [string, "null"] }
         sessionDate: { type: string, format: date-time }

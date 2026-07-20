@@ -2397,7 +2397,7 @@ export type PlayerActivityProfileVrchatAttendance = {
   matchKind: 'linked' | 'name';
   totalVisits: number;
   totalHours: number;
-  /** Most recent visits, newest first (capped). */
+  /** Most recent instances attended, newest first (capped). One row per instance; rejoins are merged (durationMs summed, joinCount = number of separate joins). */
   visits: ({
   id: number;
   worldName: string;
@@ -2405,6 +2405,7 @@ export type PlayerActivityProfileVrchatAttendance = {
   /** @nullable */
   leftAt?: string | null;
   durationMs: number;
+  joinCount: number;
 })[];
 } | null;
 
@@ -2461,6 +2462,9 @@ export interface VrchatPlayerSearchResult {
   portalUser?: VrchatPlayerSearchResultPortalUser;
 }
 
+/**
+ * One row per INSTANCE (session) the player attended. Rejoins of the same instance are combined: durationMs sums all their stints and joinCount reports how many separate joins were merged.
+ */
 export interface VrchatPlayerVisit {
   id: number;
   sessionId: number;
@@ -2469,6 +2473,8 @@ export interface VrchatPlayerVisit {
   /** @nullable */
   leftAt?: string | null;
   durationMs: number;
+  /** Number of separate joins to this instance merged into the row. */
+  joinCount: number;
   worldName: string;
   /** @nullable */
   accessType?: string | null;

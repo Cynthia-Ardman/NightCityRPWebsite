@@ -507,18 +507,23 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
       }
     }
     if (!vrchatUserId) return null;
+    // One row per INSTANCE: a player who leaves and rejoins the same instance
+    // produced multiple visit rows in the import — merge them (sum duration,
+    // count the joins) so the history reads as instances attended.
     const visitRows = await db
       .select({
-        id: vrchatInstanceVisits.id,
-        joinedAt: vrchatInstanceVisits.joinedAt,
-        leftAt: vrchatInstanceVisits.leftAt,
-        durationMs: vrchatInstanceVisits.durationMs,
+        id: sql<number>`MIN(${vrchatInstanceVisits.id})::int`,
+        joinedAt: sql<string>`MIN(${vrchatInstanceVisits.joinedAt})`,
+        leftAt: sql<string | null>`CASE WHEN BOOL_OR(${vrchatInstanceVisits.leftAt} IS NULL) THEN NULL ELSE MAX(${vrchatInstanceVisits.leftAt}) END`,
+        durationMs: sql<number>`COALESCE(SUM(${vrchatInstanceVisits.durationMs}), 0)::bigint`,
+        joinCount: sql<number>`COUNT(*)::int`,
         worldName: vrchatInstanceSessions.worldName,
       })
       .from(vrchatInstanceVisits)
       .innerJoin(vrchatInstanceSessions, eq(vrchatInstanceSessions.id, vrchatInstanceVisits.sessionId))
       .where(eq(vrchatInstanceVisits.vrchatUserId, vrchatUserId))
-      .orderBy(desc(vrchatInstanceVisits.joinedAt))
+      .groupBy(vrchatInstanceVisits.sessionId, vrchatInstanceSessions.worldName)
+      .orderBy(sql`MAX(${vrchatInstanceVisits.joinedAt}) DESC`)
       .limit(LIMIT);
     if (visitRows.length === 0 && matchKind === "linked") {
       // Linked but never seen in imported history — still show the identity.
@@ -527,7 +532,7 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
     if (visitRows.length === 0) return null;
     const [agg] = await db
       .select({
-        totalVisits: sql<number>`COUNT(*)::int`,
+        totalVisits: sql<number>`COUNT(DISTINCT ${vrchatInstanceVisits.sessionId})::int`,
         totalMs: sql<number>`COALESCE(SUM(${vrchatInstanceVisits.durationMs}), 0)::bigint`,
       })
       .from(vrchatInstanceVisits)
@@ -541,9 +546,10 @@ router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXE
       visits: visitRows.map((v) => ({
         id: v.id,
         worldName: v.worldName,
-        joinedAt: v.joinedAt.toISOString(),
-        leftAt: v.leftAt ? v.leftAt.toISOString() : null,
-        durationMs: v.durationMs,
+        joinedAt: new Date(v.joinedAt).toISOString(),
+        leftAt: v.leftAt ? new Date(v.leftAt).toISOString() : null,
+        durationMs: Number(v.durationMs),
+        joinCount: v.joinCount,
       })),
     };
   })();
@@ -770,7 +776,7 @@ router.get("/fixer/vrchat/players", requireAuth, requireAnyRole(["FIXER", "ADMIN
       vrchatUserId: vrchatInstanceVisits.vrchatUserId,
       // Latest display name wins (players rename).
       displayName: sql<string>`(array_agg(${vrchatInstanceVisits.displayName} ORDER BY ${vrchatInstanceVisits.joinedAt} DESC))[1]`,
-      visitCount: sql<number>`COUNT(*)::int`,
+      visitCount: sql<number>`COUNT(DISTINCT ${vrchatInstanceVisits.sessionId})::int`,
       totalMs: sql<number>`COALESCE(SUM(${vrchatInstanceVisits.durationMs}), 0)::bigint`,
       firstSeenAt: sql<string>`MIN(${vrchatInstanceVisits.joinedAt})`,
       lastSeenAt: sql<string>`MAX(${vrchatInstanceVisits.joinedAt})`,
@@ -800,36 +806,44 @@ router.get("/fixer/vrchat/players", requireAuth, requireAnyRole(["FIXER", "ADMIN
   );
 });
 
-// GET /fixer/vrchat/players/:vrchatUserId/visits — every imported instance
-// visit for one VRChat player, newest first, with world/session context.
+// GET /fixer/vrchat/players/:vrchatUserId/visits — instances attended by one
+// VRChat player, newest first, with world/session context. One row per
+// instance: leave/rejoin churn is merged (duration summed, joins counted).
 router.get("/fixer/vrchat/players/:vrchatUserId/visits", requireAuth, requireAnyRole(["FIXER", "ADMIN"]), async (req, res): Promise<void> => {
   const vrchatUserId = String(req.params.vrchatUserId);
   const rows = await db
     .select({
-      id: vrchatInstanceVisits.id,
+      id: sql<number>`MIN(${vrchatInstanceVisits.id})::int`,
       sessionId: vrchatInstanceVisits.sessionId,
-      displayName: vrchatInstanceVisits.displayName,
-      joinedAt: vrchatInstanceVisits.joinedAt,
-      leftAt: vrchatInstanceVisits.leftAt,
-      durationMs: vrchatInstanceVisits.durationMs,
+      displayName: sql<string>`(array_agg(${vrchatInstanceVisits.displayName} ORDER BY ${vrchatInstanceVisits.joinedAt} DESC))[1]`,
+      joinedAt: sql<string>`MIN(${vrchatInstanceVisits.joinedAt})`,
+      leftAt: sql<string | null>`CASE WHEN BOOL_OR(${vrchatInstanceVisits.leftAt} IS NULL) THEN NULL ELSE MAX(${vrchatInstanceVisits.leftAt}) END`,
+      durationMs: sql<number>`COALESCE(SUM(${vrchatInstanceVisits.durationMs}), 0)::bigint`,
+      joinCount: sql<number>`COUNT(*)::int`,
       worldName: vrchatInstanceSessions.worldName,
-      location: vrchatInstanceSessions.location,
       accessType: vrchatInstanceSessions.accessType,
       sessionFirstSeenAt: vrchatInstanceSessions.firstSeenAt,
     })
     .from(vrchatInstanceVisits)
     .innerJoin(vrchatInstanceSessions, eq(vrchatInstanceSessions.id, vrchatInstanceVisits.sessionId))
     .where(eq(vrchatInstanceVisits.vrchatUserId, vrchatUserId))
-    .orderBy(desc(vrchatInstanceVisits.joinedAt))
+    .groupBy(
+      vrchatInstanceVisits.sessionId,
+      vrchatInstanceSessions.worldName,
+      vrchatInstanceSessions.accessType,
+      vrchatInstanceSessions.firstSeenAt,
+    )
+    .orderBy(sql`MAX(${vrchatInstanceVisits.joinedAt}) DESC`)
     .limit(500);
   res.json(
     rows.map((r) => ({
       id: r.id,
       sessionId: r.sessionId,
       displayName: r.displayName,
-      joinedAt: r.joinedAt.toISOString(),
-      leftAt: r.leftAt ? r.leftAt.toISOString() : null,
-      durationMs: r.durationMs,
+      joinedAt: new Date(r.joinedAt).toISOString(),
+      leftAt: r.leftAt ? new Date(r.leftAt).toISOString() : null,
+      durationMs: Number(r.durationMs),
+      joinCount: r.joinCount,
       worldName: r.worldName,
       accessType: r.accessType,
       sessionDate: r.sessionFirstSeenAt.toISOString(),

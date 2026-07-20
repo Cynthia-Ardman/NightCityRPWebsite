@@ -17,7 +17,7 @@ export type PlayerActivityProfileVrchatAttendance = {
   matchKind: 'linked' | 'name';
   totalVisits: number;
   totalHours: number;
-  /** Most recent visits, newest first (capped). */
+  /** Most recent instances attended, newest first (capped). One row per instance; rejoins are merged (durationMs summed, joinCount = number of separate joins). */
   visits: ({
   id: number;
   worldName: string;
@@ -25,5 +25,6 @@ export type PlayerActivityProfileVrchatAttendance = {
   /** @nullable */
   leftAt?: Date | null;
   durationMs: number;
+  joinCount: number;
 })[];
 } | null;

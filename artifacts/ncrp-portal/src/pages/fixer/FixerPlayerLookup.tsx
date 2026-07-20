@@ -520,6 +520,7 @@ export default function FixerPlayerLookup() {
                         <Row key={v.id} testId={`row-vr-visit-${v.id}`} when={fmt(v.joinedAt)}>
                           <span className="text-foreground">{v.worldName}</span>
                           <span className="text-nc-cyan"> · {Math.round(v.durationMs / 60_000)}m</span>
+                          {v.joinCount > 1 && <span className="text-muted-foreground"> · {v.joinCount} joins</span>}
                           {!v.leftAt && <span className="text-muted-foreground"> · open at import</span>}
                         </Row>
                       ))}

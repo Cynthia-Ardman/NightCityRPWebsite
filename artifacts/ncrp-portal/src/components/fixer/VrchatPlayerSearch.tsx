@@ -48,6 +48,7 @@ function VisitList({ vrchatUserId }: { vrchatUserId: string }) {
           <span className="truncate text-foreground">{v.worldName}</span>
           <span className="text-muted-foreground whitespace-nowrap">
             {fmtDate(v.joinedAt)} {fmtTime(v.joinedAt)} · <span className="text-nc-cyan">{fmtDuration(v.durationMs)}</span>
+            {v.joinCount > 1 && <span> · {v.joinCount} joins</span>}
           </span>
         </div>
       ))}
