@@ -3,6 +3,7 @@ import { db, users, type User } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { hasRole, ROLE_NAMES } from "../lib/discord";
 import { isLoginRestricted, isLockdownExempt } from "../lib/siteAccess";
+import { recordHit } from "../lib/siteActivity";
 
 declare global {
   namespace Express {
@@ -23,6 +24,7 @@ export async function loadUser(req: Request, _res: Response, next: NextFunction)
   const [u] = await db.select().from(users).where(eq(users.id, userId));
   if (u) {
     req.user = u;
+    recordHit(u.id);
     const seen = u.lastSeenAt ? new Date(u.lastSeenAt).getTime() : 0;
     if (Date.now() - seen > LAST_SEEN_TOUCH_MS) {
       const now = new Date();

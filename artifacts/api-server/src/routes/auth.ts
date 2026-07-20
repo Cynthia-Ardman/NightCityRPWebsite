@@ -120,6 +120,7 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
         loginCount: 1,
       });
     }
+    void recordLogin(id);
     // Back-fill ownership for any imported characters whose legacy Discord
     // *username* (the globally-unique handle, not the mutable display
     // name) matches this user. We deliberately do NOT match on

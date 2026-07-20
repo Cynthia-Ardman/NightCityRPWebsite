@@ -638,6 +638,21 @@ export const auditLog = pgTable("audit_log", {
 }));
 export type AuditLogRow = typeof auditLog.$inferSelect;
 
+// Per-user per-day website activity counters for the analytics dashboard.
+// `hits` = authenticated API requests (batched in-memory by the auth
+// middleware and flushed periodically); `logins` = completed OAuth logins.
+// One row per (day, user); counters only ever increment.
+export const siteActivityDaily = pgTable("site_activity_daily", {
+  day: date("day").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  hits: integer("hits").notNull().default(0),
+  logins: integer("logins").notNull().default(0),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.day, t.userId] }),
+  dayIdx: index("site_activity_daily_day_idx").on(t.day),
+}));
+export type SiteActivityDailyRow = typeof siteActivityDaily.$inferSelect;
+
 export const activityEvents = pgTable("activity_events", {
   id: serial("id").primaryKey(),
   kind: text("kind").notNull(),
