@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { flushSiteActivity } from "./lib/siteActivity";
 
 const rawPort = process.env["PORT"];
 
@@ -23,3 +24,11 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
 });
+
+// Best-effort flush of pending site-activity counters on graceful shutdown so
+// deploy restarts don't drop the final (≤30s) batch of hit counts.
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.once(signal, () => {
+    void flushSiteActivity().finally(() => process.exit(0));
+  });
+}

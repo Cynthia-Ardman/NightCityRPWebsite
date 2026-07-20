@@ -54,6 +54,8 @@ export * from './analyticsPlayersLifeStatus';
 export * from './analyticsPlayersSheetsPerMonthItem';
 export * from './analyticsReviewQueue';
 export * from './analyticsReviewQueueAgeBuckets';
+export * from './analyticsSite';
+export * from './analyticsSiteWeeklyItem';
 export * from './analyticsVrchat';
 export * from './analyticsVrchatTopWorldsItem';
 export * from './analyticsVrchatWeeklyItem';

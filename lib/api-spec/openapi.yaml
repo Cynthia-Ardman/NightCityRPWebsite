@@ -11094,7 +11094,7 @@ components:
 
     AdminAnalytics:
       type: object
-      required: [range, since, economy, missions, reviews, players, vrchat]
+      required: [range, since, economy, missions, reviews, players, vrchat, site]
       properties:
         range: { type: string, enum: [4w, 3m, 1y, all] }
         since: { type: string, format: date-time }
@@ -11105,8 +11105,32 @@ components:
           items: { $ref: "#/components/schemas/AnalyticsReviewQueue" }
         players: { $ref: "#/components/schemas/AnalyticsPlayers" }
         vrchat: { $ref: "#/components/schemas/AnalyticsVrchat" }
+        site: { $ref: "#/components/schemas/AnalyticsSite" }
         excludeAbove: { type: ["integer", "null"], description: "Echo of the wallet-balance exclusion threshold applied, if any." }
         excludedWallets: { type: integer, description: "Number of wallets excluded by the threshold." }
+
+    AnalyticsSite:
+      type: object
+      description: "Website activity trends. Page hits / logins / active users are recorded from trackingSince onward; character series have full history."
+      required: [weekly, totalActiveUsers, totalLogins, totalCharactersCreated, totalCharacterEdits, trackingSince]
+      properties:
+        weekly:
+          type: array
+          items:
+            type: object
+            required: [weekStart, activeUsers, pageHits, logins, charactersCreated, characterEdits]
+            properties:
+              weekStart: { type: string, format: date-time }
+              activeUsers: { type: integer, description: "Distinct signed-in users active that week." }
+              pageHits: { type: integer, description: "Authenticated API requests that week (proxy for page activity)." }
+              logins: { type: integer, description: "Completed Discord OAuth logins that week." }
+              charactersCreated: { type: integer, description: "PC character rows created that week." }
+              characterEdits: { type: integer, description: "Character edit submissions that week." }
+        totalActiveUsers: { type: integer, description: "Distinct users active within the window." }
+        totalLogins: { type: integer }
+        totalCharactersCreated: { type: integer }
+        totalCharacterEdits: { type: integer }
+        trackingSince: { type: ["string", "null"], description: "First day (YYYY-MM-DD) with hit/login tracking data; null until any is recorded." }
 
     AnalyticsCharacterRow:
       type: object

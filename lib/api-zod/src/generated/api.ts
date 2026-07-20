@@ -6853,6 +6853,21 @@ export const AdminGetAnalyticsResponse = zod.object({
   "peakUserCount": zod.number()
 }))
 }),
+  "site": zod.object({
+  "weekly": zod.array(zod.object({
+  "weekStart": zod.coerce.date(),
+  "activeUsers": zod.number().describe('Distinct signed-in users active that week.'),
+  "pageHits": zod.number().describe('Authenticated API requests that week (proxy for page activity).'),
+  "logins": zod.number().describe('Completed Discord OAuth logins that week.'),
+  "charactersCreated": zod.number().describe('PC character rows created that week.'),
+  "characterEdits": zod.number().describe('Character edit submissions that week.')
+})),
+  "totalActiveUsers": zod.number().describe('Distinct users active within the window.'),
+  "totalLogins": zod.number(),
+  "totalCharactersCreated": zod.number(),
+  "totalCharacterEdits": zod.number(),
+  "trackingSince": zod.string().nullable().describe('First day (YYYY-MM-DD) with hit\/login tracking data; null until any is recorded.')
+}).describe('Website activity trends. Page hits \/ logins \/ active users are recorded from trackingSince onward; character series have full history.'),
   "excludeAbove": zod.number().nullish().describe('Echo of the wallet-balance exclusion threshold applied, if any.'),
   "excludedWallets": zod.number().optional().describe('Number of wallets excluded by the threshold.')
 })

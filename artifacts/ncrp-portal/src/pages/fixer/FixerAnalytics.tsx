@@ -198,6 +198,16 @@ export default function FixerAnalytics() {
     hours: w.hours,
   }));
 
+  const siteRows = (data?.site.weekly ?? []).map((w) => ({
+    week: fmtWeek(w.weekStart),
+    activeUsers: w.activeUsers,
+    logins: w.logins,
+    pageHits: w.pageHits,
+    created: w.charactersCreated,
+    edits: w.characterEdits,
+  }));
+  const trackingSince = data?.site.trackingSince ?? null;
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -271,6 +281,81 @@ export default function FixerAnalytics() {
         <div className="font-mono text-nc-cyan animate-pulse py-12 text-center">Crunching server data...</div>
       ) : (
         <>
+          {/* -------------------------- WEBSITE ACTIVITY -------------------------- */}
+          <Card className="rounded-none border-border bg-card/50">
+            <CardHeader>
+              <CardTitle className="font-display tracking-widest flex items-center gap-2">
+                <Globe className="w-4 h-4 text-nc-cyan" /> WEBSITE ACTIVITY / WEEK
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono text-xs">
+                <div className="border border-border p-3">
+                  <div className="text-muted-foreground">ACTIVE USERS</div>
+                  <div className="text-2xl text-nc-cyan" data-testid="stat-site-active-users">{data.site.totalActiveUsers}</div>
+                </div>
+                <div className="border border-border p-3">
+                  <div className="text-muted-foreground">LOGINS</div>
+                  <div className="text-2xl text-nc-magenta" data-testid="stat-site-logins">{data.site.totalLogins}</div>
+                </div>
+                <div className="border border-border p-3">
+                  <div className="text-muted-foreground">CHARACTERS CREATED</div>
+                  <div className="text-2xl text-nc-yellow" data-testid="stat-site-chars-created">{data.site.totalCharactersCreated}</div>
+                </div>
+                <div className="border border-border p-3">
+                  <div className="text-muted-foreground">CHARACTER EDITS</div>
+                  <div className="text-2xl text-nc-cyan" data-testid="stat-site-char-edits">{data.site.totalCharacterEdits}</div>
+                </div>
+              </div>
+
+              {siteRows.length === 0 ? (
+                <p className="font-mono text-muted-foreground italic">No website activity recorded in this range yet.</p>
+              ) : (
+                <>
+                  <div>
+                    <p className="font-mono text-xs text-muted-foreground mb-1">VISITORS &amp; LOGINS</p>
+                    <div className="h-64" data-testid="chart-site-users">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={siteRows}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 20%)" />
+                          <XAxis dataKey="week" tick={{ fontSize: 11, fontFamily: "monospace" }} />
+                          <YAxis tick={{ fontSize: 11, fontFamily: "monospace" }} allowDecimals={false} />
+                          <YAxis yAxisId="hits" orientation="right" tick={{ fontSize: 11, fontFamily: "monospace" }} tickFormatter={(v: number) => v.toLocaleString()} />
+                          <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => [v.toLocaleString(), name]} />
+                          <Legend />
+                          <Line type="monotone" dataKey="activeUsers" name="active users" stroke="#00f0ff" strokeWidth={2} dot={false} />
+                          <Line type="monotone" dataKey="logins" name="logins" stroke="#ff2ec4" strokeWidth={2} dot={false} />
+                          <Line yAxisId="hits" type="monotone" dataKey="pageHits" name="page activity (right)" stroke="#f5d90a" strokeWidth={1.5} dot={false} strokeDasharray="4 3" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-mono text-xs text-muted-foreground mb-1">CHARACTERS CREATED &amp; EDIT SUBMISSIONS</p>
+                    <div className="h-64" data-testid="chart-site-characters">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={siteRows}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 20%)" />
+                          <XAxis dataKey="week" tick={{ fontSize: 11, fontFamily: "monospace" }} />
+                          <YAxis tick={{ fontSize: 11, fontFamily: "monospace" }} allowDecimals={false} />
+                          <Tooltip contentStyle={tooltipStyle} />
+                          <Legend />
+                          <Bar dataKey="created" name="characters created" fill="#f5d90a" />
+                          <Bar dataKey="edits" name="edit submissions" fill="#7dff6a" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </>
+              )}
+              <p className="font-mono text-xs text-muted-foreground">
+                {trackingSince
+                  ? `Visitor / login / page-activity tracking started ${formatDate(trackingSince)} — earlier weeks show zero for those series. Character series cover full history.`
+                  : "Visitor / login / page-activity tracking just went live — data accrues from today onward. Character series cover full history."}
+              </p>
+            </CardContent>
+          </Card>
+
           {/* ------------------------------ ECONOMY ------------------------------ */}
           <Card className="rounded-none border-border bg-card/50">
             <CardHeader>

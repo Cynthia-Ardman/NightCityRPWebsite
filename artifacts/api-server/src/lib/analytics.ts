@@ -76,6 +76,24 @@ interface VrchatStats {
   topWorlds: VrchatWorldStat[];
 }
 
+interface SiteWeek {
+  weekStart: string;
+  activeUsers: number;
+  pageHits: number;
+  logins: number;
+  charactersCreated: number;
+  characterEdits: number;
+}
+
+interface SiteStats {
+  weekly: SiteWeek[];
+  totalActiveUsers: number;
+  totalLogins: number;
+  totalCharactersCreated: number;
+  totalCharacterEdits: number;
+  trackingSince: string | null;
+}
+
 export interface AdminAnalytics {
   range: AnalyticsRange;
   since: string;
@@ -97,6 +115,7 @@ export interface AdminAnalytics {
     sheetsPerMonth: Array<{ month: string; count: number }>;
   };
   vrchat: VrchatStats;
+  site: SiteStats;
 }
 
 function bucketAges(dates: Date[], now: Date): { buckets: AgeBuckets; oldestDays: number | null } {
@@ -383,6 +402,80 @@ export async function computeAdminAnalytics(
     GROUP BY 1 ORDER BY 1
   `);
 
+  // ---- Website activity -------------------------------------------------------
+  // Weekly series measuring whether portal usage is trending up or down.
+  // Hits/logins/active-users come from site_activity_daily, which only exists
+  // from the day tracking shipped (trackingSince tells the UI where the series
+  // genuinely starts). Characters created and character edits come from their
+  // own tables, so those series have full history.
+  const [siteWeeklyRes, siteTotalsRes, charWeeklyRes, editWeeklyRes] = await Promise.all([
+    db.execute(sql`
+      SELECT date_trunc('week', day::timestamptz) AS week,
+             COUNT(DISTINCT user_id)::int AS active_users,
+             COALESCE(SUM(hits), 0)::bigint AS hits,
+             COALESCE(SUM(logins), 0)::int AS logins
+      FROM site_activity_daily
+      WHERE day >= ${since.toISOString().slice(0, 10)}
+      GROUP BY 1 ORDER BY 1
+    `),
+    db.execute(sql`
+      SELECT COUNT(DISTINCT user_id) FILTER (WHERE day >= ${since.toISOString().slice(0, 10)})::int AS active_users,
+             COALESCE(SUM(logins) FILTER (WHERE day >= ${since.toISOString().slice(0, 10)}), 0)::int AS logins,
+             MIN(day)::text AS first_day
+      FROM site_activity_daily
+    `),
+    db.execute(sql`
+      SELECT date_trunc('week', created_at) AS week, COUNT(*)::int AS n
+      FROM characters
+      WHERE kind = 'pc' AND created_at >= ${since}
+      GROUP BY 1 ORDER BY 1
+    `),
+    db.execute(sql`
+      SELECT date_trunc('week', submitted_at) AS week, COUNT(*)::int AS n
+      FROM pending_character_edits
+      WHERE submitted_at >= ${since}
+      GROUP BY 1 ORDER BY 1
+    `),
+  ]);
+  const siteByWeek = new Map<string, SiteWeek>();
+  const siteWeek = (weekStart: string): SiteWeek => {
+    let w = siteByWeek.get(weekStart);
+    if (!w) {
+      w = { weekStart, activeUsers: 0, pageHits: 0, logins: 0, charactersCreated: 0, characterEdits: 0 };
+      siteByWeek.set(weekStart, w);
+    }
+    return w;
+  };
+  for (const r of siteWeeklyRes.rows as Array<{ week: Date | string; active_users: number; hits: string; logins: number }>) {
+    const w = siteWeek(new Date(r.week as string).toISOString());
+    w.activeUsers = Number(r.active_users) || 0;
+    w.pageHits = Number(r.hits) || 0;
+    w.logins = Number(r.logins) || 0;
+  }
+  let totalCharactersCreated = 0;
+  for (const r of charWeeklyRes.rows as Array<{ week: Date | string; n: number }>) {
+    const n = Number(r.n) || 0;
+    siteWeek(new Date(r.week as string).toISOString()).charactersCreated = n;
+    totalCharactersCreated += n;
+  }
+  let totalCharacterEdits = 0;
+  for (const r of editWeeklyRes.rows as Array<{ week: Date | string; n: number }>) {
+    const n = Number(r.n) || 0;
+    siteWeek(new Date(r.week as string).toISOString()).characterEdits = n;
+    totalCharacterEdits += n;
+  }
+  const siteTotals = siteTotalsRes.rows[0] as
+    | { active_users: number; logins: number; first_day: string | null }
+    | undefined;
+  const site: SiteStats = {
+    weekly: [...siteByWeek.values()].sort((a, b) => a.weekStart.localeCompare(b.weekStart)),
+    totalActiveUsers: Number(siteTotals?.active_users) || 0,
+    totalLogins: Number(siteTotals?.logins) || 0,
+    totalCharactersCreated,
+    totalCharacterEdits,
+    trackingSince: siteTotals?.first_day ?? null,
+  };
+
   // ---- VRChat instance sessions ---------------------------------------------
   // Session history written by the group-instance poller (plus VRCX-imported
   // rows). Durations use COALESCE(closed_at, last_seen_at) so still-open
@@ -466,5 +559,6 @@ export async function computeAdminAnalytics(
       })),
     },
     vrchat,
+    site,
   };
 }

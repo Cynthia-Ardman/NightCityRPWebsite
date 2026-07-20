@@ -25,6 +25,7 @@ import {
 import { requireAuth } from "../middlewares/auth";
 import { isLoginRestricted, isLockdownExempt } from "../lib/siteAccess";
 import { recordAudit } from "../lib/audit";
+import { recordLogin } from "../lib/siteActivity";
 
 const router: IRouter = Router();
 

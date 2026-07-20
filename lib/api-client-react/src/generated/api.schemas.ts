@@ -7247,6 +7247,37 @@ export interface AnalyticsVrchat {
   topWorlds: AnalyticsVrchatTopWorldsItem[];
 }
 
+export type AnalyticsSiteWeeklyItem = {
+  weekStart: string;
+  /** Distinct signed-in users active that week. */
+  activeUsers: number;
+  /** Authenticated API requests that week (proxy for page activity). */
+  pageHits: number;
+  /** Completed Discord OAuth logins that week. */
+  logins: number;
+  /** PC character rows created that week. */
+  charactersCreated: number;
+  /** Character edit submissions that week. */
+  characterEdits: number;
+};
+
+/**
+ * Website activity trends. Page hits / logins / active users are recorded from trackingSince onward; character series have full history.
+ */
+export interface AnalyticsSite {
+  weekly: AnalyticsSiteWeeklyItem[];
+  /** Distinct users active within the window. */
+  totalActiveUsers: number;
+  totalLogins: number;
+  totalCharactersCreated: number;
+  totalCharacterEdits: number;
+  /**
+     * First day (YYYY-MM-DD) with hit/login tracking data; null until any is recorded.
+     * @nullable
+     */
+  trackingSince: string | null;
+}
+
 export interface AdminAnalytics {
   range: AdminAnalyticsRange;
   since: string;
@@ -7255,6 +7286,7 @@ export interface AdminAnalytics {
   reviews: AnalyticsReviewQueue[];
   players: AnalyticsPlayers;
   vrchat: AnalyticsVrchat;
+  site: AnalyticsSite;
   /**
      * Echo of the wallet-balance exclusion threshold applied, if any.
      * @nullable
