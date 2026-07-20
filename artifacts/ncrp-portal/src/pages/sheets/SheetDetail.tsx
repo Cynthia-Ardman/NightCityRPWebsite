@@ -379,7 +379,7 @@ export default function SheetDetail() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-1">
-          {cw.length === 0 ? <p className="text-muted-foreground font-mono text-sm">None — fully organic.</p> :
+          {cw.length === 0 ? <p className="text-muted-foreground font-mono text-sm">None.</p> :
             cw.map((c, i) => (
               <div key={i} className="grid grid-cols-4 gap-2 border-b border-border/30 py-1 text-sm font-mono" data-testid={`row-cyberware-${i}`}>
                 <span className="text-nc-cyan break-words [overflow-wrap:anywhere]">{c.slot}</span>

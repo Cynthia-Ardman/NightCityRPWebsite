@@ -194,6 +194,11 @@ export default function EditCharacterDialog({
   const [ncpd, setNcpd] = useState<boolean>(
     ((character.sheetData ?? {}) as Record<string, unknown>).ncpd === true,
   );
+  // Organic flag — NO implants at all (not even baseline ones). Self-declared,
+  // no programmatic effect. Lives in sheetData alongside ripperDoc/fbc/ncpd.
+  const [organic, setOrganic] = useState<boolean>(
+    ((character.sheetData ?? {}) as Record<string, unknown>).organic === true,
+  );
   const [updateNote, setUpdateNote] = useState<string>("");
   // Admin-only destructive delete lives at the bottom of this dialog. The
   // delete button stays disabled until the admin types the literal word DELETE.
@@ -277,6 +282,7 @@ export default function EditCharacterDialog({
     setRipperDoc(((character.sheetData ?? {}) as Record<string, unknown>).ripperDoc === true);
     setFbc(((character.sheetData ?? {}) as Record<string, unknown>).fbc === true);
     setNcpd(((character.sheetData ?? {}) as Record<string, unknown>).ncpd === true);
+    setOrganic(((character.sheetData ?? {}) as Record<string, unknown>).organic === true);
     setUpdateNote("");
     setDeleteConfirm("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -398,6 +404,7 @@ export default function EditCharacterDialog({
           ripperDoc,
           fbc,
           ncpd,
+          organic,
           // Identity fields mirror the new-character form. Send undefined (which
           // JSON.stringify drops, so the whole-replace clears the key) when
           // empty — this both removes a cleared value and avoids stamping empty
@@ -724,6 +731,25 @@ export default function EditCharacterDialog({
                         </label>
                         <p className="text-[10px] text-muted-foreground mt-1">
                           Medical-grade only, no advantages. Self-declared, not enforced.
+                        </p>
+                      </div>
+
+                      <div>
+                        <Label className="text-xs">ORGANIC</Label>
+                        <label className="flex h-10 items-center gap-3 border border-input bg-background px-3">
+                          <input
+                            type="checkbox"
+                            checked={organic}
+                            onChange={(e) => setOrganic(e.target.checked)}
+                            className="accent-nc-cyan"
+                            data-testid="checkbox-edit-organic"
+                          />
+                          <span className="text-xs font-mono uppercase tracking-widest text-nc-cyan">
+                            {organic ? "Yes" : "No"}
+                          </span>
+                        </label>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          No implants at all — can't connect to the net, use smart-linked guns, etc. Self-declared.
                         </p>
                       </div>
 

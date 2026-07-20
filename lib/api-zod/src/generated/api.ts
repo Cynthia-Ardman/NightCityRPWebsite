@@ -132,7 +132,8 @@ export const ListMyCharactersResponseItem = zod.object({
   "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
-  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).'),
+  "organic": zod.boolean().optional().describe('Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect.')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -201,7 +202,8 @@ export const GetCharacterResponse = zod.object({
   "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
-  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).'),
+  "organic": zod.boolean().optional().describe('Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect.')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -266,7 +268,8 @@ export const UpdateCharacterBody = zod.object({
   "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
-  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).'),
+  "organic": zod.boolean().optional().describe('Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect.')
 }).optional(),
   "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional(),
   "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal('corporate'),zod.literal(null)]).nullish(),
@@ -301,7 +304,8 @@ export const UpdateCharacterResponse = zod.object({
   "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
-  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).'),
+  "organic": zod.boolean().optional().describe('Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect.')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -707,7 +711,8 @@ export const SetCharacterLifestyleResponse = zod.object({
   "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
-  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).'),
+  "organic": zod.boolean().optional().describe('Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect.')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -9230,7 +9235,8 @@ export const AdminListUsersResponseItem = zod.object({
   "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
-  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).'),
+  "organic": zod.boolean().optional().describe('Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect.')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -9303,7 +9309,8 @@ export const AdminGetUserResponse = zod.object({
   "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
-  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).'),
+  "organic": zod.boolean().optional().describe('Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect.')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -9392,7 +9399,8 @@ export const AdminSyncUserRolesResponse = zod.object({
   "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
-  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).'),
+  "organic": zod.boolean().optional().describe('Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect.')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -9556,7 +9564,8 @@ export const AdminAssignCharacterOwnerResponse = zod.object({
   "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
-  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).'),
+  "organic": zod.boolean().optional().describe('Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect.')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -9614,7 +9623,8 @@ export const AdminClearCharacterOwnerResponse = zod.object({
   "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
-  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).'),
+  "organic": zod.boolean().optional().describe('Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect.')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -9824,7 +9834,8 @@ export const GetPublicCharacterResponse = zod.object({
   "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
-  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).'),
+  "organic": zod.boolean().optional().describe('Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect.')
 })]).optional(),
   "importedFromThreadId": zod.string().nullish(),
   "importedFromChannelName": zod.string().nullish(),
@@ -9973,7 +9984,8 @@ export const UpdateArchiveCharacterBody = zod.object({
   "sections": zod.record(zod.string(), zod.string()),
   "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
   "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
-  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).')
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).'),
+  "organic": zod.boolean().optional().describe('Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect.')
 }).optional()
 })
 

@@ -344,6 +344,7 @@ describe("EditCharacterDialog", () => {
       skills: "",
       ripperDoc: false,
       fbc: false,
+      organic: false,
       ncpd: false,
       // Identity fields (empty in this fixture) ride along as undefined, which
       // JSON.stringify drops so the whole-replace never stamps empty keys.

@@ -23,5 +23,7 @@ export interface SheetData {
   fbc?: boolean;
   /** Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role). */
   ncpd?: boolean;
+  /** Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect. */
+  organic?: boolean;
   [key: string]: unknown;
  }

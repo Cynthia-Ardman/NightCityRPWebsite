@@ -7442,6 +7442,7 @@ components:
         ripperDoc: { type: boolean, description: "When true, grants the RipperDoc Discord role to the character's owner on save." }
         fbc: { type: boolean, description: "Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware)." }
         ncpd: { type: boolean, description: "Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role)." }
+        organic: { type: boolean, description: "Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect." }
 
     PublicCharacterSummary:
       type: object
@@ -7569,6 +7570,7 @@ components:
             ripperDoc: { type: boolean, description: "When true, grants the RipperDoc Discord role to the character's owner on save." }
             fbc: { type: boolean, description: "Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware)." }
             ncpd: { type: boolean, description: "Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role)." }
+            organic: { type: boolean, description: "Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect." }
 
     ArchiveEditResult:
       type: object

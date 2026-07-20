@@ -97,6 +97,7 @@ export default function ArchiveEditDialog({
     ripperDoc?: boolean;
     fbc?: boolean;
     ncpd?: boolean;
+    organic?: boolean;
   };
 
   const [name, setName] = useState(character.name);
@@ -123,6 +124,9 @@ export default function ArchiveEditDialog({
   // NCPD officer flag (parity with the other edit dialogs). Self-declared, no
   // programmatic effect; persisted into sheetData and drives the officer roster.
   const [ncpd, setNcpd] = useState<boolean>(sheet.ncpd === true);
+  // Organic flag (parity with the other edit dialogs). NO implants at all;
+  // self-declared, no programmatic effect; persisted into sheetData.
+  const [organic, setOrganic] = useState<boolean>(sheet.organic === true);
   const [commitMessage, setCommitMessage] = useState("");
   // Admin-only destructive delete lives at the bottom of this dialog. The
   // delete button stays disabled until the admin types the literal word DELETE.
@@ -203,7 +207,7 @@ export default function ArchiveEditDialog({
           fixerDiscordId: fixerDiscordId.trim() ? fixerDiscordId.trim() : null,
           playerDiscordId: playerDiscordId.trim() ? playerDiscordId.trim() : null,
           tags,
-          sheetData: { preamble, sections: rowsToSections(rows), ripperDoc, fbc, ncpd },
+          sheetData: { preamble, sections: rowsToSections(rows), ripperDoc, fbc, ncpd, organic },
         },
       },
       {
@@ -336,6 +340,25 @@ export default function ArchiveEditDialog({
               </label>
               <p className="text-[10px] text-muted-foreground mt-1">
                 Medical-grade only, no advantages. Self-declared, not enforced.
+              </p>
+            </div>
+
+            <div>
+              <Label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Organic</Label>
+              <label className="flex h-10 items-center gap-3 border border-input bg-background px-3">
+                <input
+                  type="checkbox"
+                  checked={organic}
+                  onChange={(e) => setOrganic(e.target.checked)}
+                  className="accent-nc-cyan"
+                  data-testid="checkbox-edit-organic"
+                />
+                <span className="text-xs font-mono uppercase tracking-widest text-nc-cyan">
+                  {organic ? "Yes" : "No"}
+                </span>
+              </label>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                No implants at all — can't connect to the net, use smart-linked guns, etc. Self-declared.
               </p>
             </div>
 

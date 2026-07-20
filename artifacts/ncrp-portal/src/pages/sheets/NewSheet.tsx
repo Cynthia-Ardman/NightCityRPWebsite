@@ -222,6 +222,10 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   // holding the NCPD Discord role only says the PLAYER is a cop, this says
   // which of their characters is.
   const [ncpd, setNcpd] = useState<boolean>(!!init.ncpd);
+  // Fully organic: NO implants at all — not even the baseline ones everyone
+  // else is assumed to have. Can't connect to the net, can't use smart-linked
+  // guns, etc. Self-declared like FBC; no programmatic enforcement.
+  const [organic, setOrganic] = useState<boolean>(!!init.organic);
 
   // Non-fixers may only create PCs — force PC if a stale NPC value slips in.
   // Wait for auth to resolve first so a fixer's NPC draft is never downgraded
@@ -292,6 +296,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     ripperDoc,
     fbc,
     ncpd,
+    organic,
   });
 
   const createMut = useSubmitSheet();
@@ -396,7 +401,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     () => JSON.stringify({ fullName: fullName.trim() || "(untitled draft)", payload: buildPayload() }),
     // We want this to recompute whenever any field changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, hooks, knownAffiliation, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls, ripperDoc, fbc, ncpd],
+    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, hooks, knownAffiliation, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls, ripperDoc, fbc, ncpd, organic],
   );
 
   useEffect(() => {
@@ -683,6 +688,23 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
               </span>
             </span>
           </label>
+          <label className="flex items-start gap-3 cursor-pointer" data-testid="checkbox-organic-label">
+            <input
+              type="checkbox"
+              data-testid="checkbox-organic"
+              className="mt-1 h-4 w-4 accent-nc-cyan"
+              checked={organic}
+              onChange={(e) => setOrganic(e.target.checked)}
+            />
+            <span className="font-mono text-xs leading-relaxed">
+              <span className="text-nc-cyan tracking-widest">ORGANIC</span>
+              <span className="block text-muted-foreground">
+                This character has NO implants at all — not even the basic ones everyone
+                else is assumed to have. They can't connect to the net, can't use
+                smart-linked guns, and so on.
+              </span>
+            </span>
+          </label>
           <label className="flex items-start gap-3 cursor-pointer" data-testid="checkbox-ncpd-label">
             <input
               type="checkbox"
@@ -860,12 +882,12 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         <CardContent className="space-y-3">
           <p className="text-xs font-mono text-muted-foreground">
             Optional. Pick a slot, then choose an install from the NCRP catalog — CWP is set automatically.
-            Fully organic characters can leave this empty.
+            Characters without cyberware can leave this empty (basic implants are assumed — see the Organic checkbox under Identity for truly implant-free characters).
             {sheetType === "PC"
               ? " Total CWP is capped at 6 at character creation."
               : " NPCs are not CWP-capped."}
           </p>
-          {chrome.length === 0 && <p className="text-muted-foreground font-mono text-sm">No cyberware — fully organic.</p>}
+          {chrome.length === 0 && <p className="text-muted-foreground font-mono text-sm">No cyberware.</p>}
           {chrome.map((cw, i) => {
             const isCustom = rowIsCustom(cw);
             const installs = (catalog ?? []).filter((c) => c.slot === cw.slot);
