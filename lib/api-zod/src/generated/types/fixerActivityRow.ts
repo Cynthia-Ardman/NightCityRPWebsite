@@ -32,8 +32,6 @@ export interface FixerActivityRow {
   missionsCompleted: number;
   reviewVotes: number;
   reviewComments: number;
-  /** Review tickets (custom requests) this user closed in the window. */
-  requestsClosed: number;
   eventsCreated: number;
   /** Manual NPC/actor payouts issued in the window. */
   actorPayments: number;
@@ -41,6 +39,6 @@ export interface FixerActivityRow {
   auditActions: number;
   /** Audit-log action counts per week within the window, oldest week first. */
   weekly: number[];
-  /** Per-source weekly action counts within the window, oldest week first. Keys: missionsCreated, missionsCompleted, reviewVotes, reviewComments, requestsClosed, eventsCreated, actorPayments, auditActions. */
+  /** Per-source weekly action counts within the window, oldest week first. Keys: missionsCreated, missionsCompleted, reviewVotes, reviewComments, eventsCreated, actorPayments, auditActions. */
   weeklyBySource: FixerActivityRowWeeklyBySource;
 }

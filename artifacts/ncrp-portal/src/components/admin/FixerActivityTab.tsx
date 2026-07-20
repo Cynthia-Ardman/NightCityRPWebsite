@@ -55,7 +55,7 @@ function Sparkline({ weekly }: { weekly: number[] }) {
 function totalActivity(f: FixerActivityRow): number {
   return (
     f.missionsCreated + f.missionsCompleted + f.reviewVotes + f.reviewComments +
-    f.requestsClosed + f.eventsCreated + f.actorPayments
+    f.eventsCreated + f.actorPayments
   );
 }
 
@@ -67,7 +67,6 @@ const METRICS = [
   { key: "missionsCompleted", label: "Missions completed" },
   { key: "reviewVotes", label: "Review votes" },
   { key: "reviewComments", label: "Comments" },
-  { key: "requestsClosed", label: "Tickets closed" },
   { key: "eventsCreated", label: "Events created" },
   { key: "actorPayments", label: "NPC payouts" },
   { key: "auditActions", label: "All staff actions" },
@@ -76,7 +75,7 @@ type MetricKey = (typeof METRICS)[number]["key"];
 
 const OVERALL_KEYS = [
   "missionsCreated", "missionsCompleted", "reviewVotes", "reviewComments",
-  "requestsClosed", "eventsCreated", "actorPayments",
+  "eventsCreated", "actorPayments",
 ] as const;
 
 function fixerColor(i: number): string {
@@ -266,7 +265,6 @@ export default function FixerActivityTab() {
                   <TableHead className="text-right">Missions completed</TableHead>
                   <TableHead className="text-right">Review votes</TableHead>
                   <TableHead className="text-right">Comments</TableHead>
-                  <TableHead className="text-right">Tickets closed</TableHead>
                   <TableHead className="text-right">Events</TableHead>
                   <TableHead className="text-right">NPC payouts</TableHead>
                   <TableHead className="text-right">All staff actions</TableHead>
@@ -313,7 +311,6 @@ export default function FixerActivityTab() {
                       <TableCell className="text-right font-mono">{f.missionsCompleted}</TableCell>
                       <TableCell className="text-right font-mono">{f.reviewVotes}</TableCell>
                       <TableCell className="text-right font-mono">{f.reviewComments}</TableCell>
-                      <TableCell className="text-right font-mono">{f.requestsClosed}</TableCell>
                       <TableCell className="text-right font-mono">{f.eventsCreated}</TableCell>
                       <TableCell className="text-right font-mono">{f.actorPayments}</TableCell>
                       <TableCell className="text-right font-mono">{f.auditActions}</TableCell>

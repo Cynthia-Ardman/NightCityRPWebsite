@@ -127,14 +127,16 @@ router.get("/admin/fixer-activity", adminOnly, async (req, res): Promise<void> =
     return { agg: rows as Agg[], weekly };
   };
 
+  // NOTE: closing review tickets is deliberately NOT counted — that is an
+  // admin-only duty on this server, so it would unfairly pad admin rows and
+  // can never be held against fixers.
   const [
-    created, completed, votes, comments, closed, eventsCreated, payments, audits,
+    created, completed, votes, comments, eventsCreated, payments, audits,
   ] = await Promise.all([
     aggregate(missions, missions.fixerId, missions.createdAt),
     aggregate(missions, missions.completedBy, missions.completedAt),
     aggregate(reviewVotes, reviewVotes.voterId, reviewVotes.votedAt),
     aggregate(reviewComments, reviewComments.authorId, reviewComments.createdAt),
-    aggregate(customRequests, customRequests.closedBy, customRequests.closedAt),
     aggregate(events, events.createdById, events.createdAt),
     aggregate(missionActorPayments, missionActorPayments.fixerId, missionActorPayments.createdAt),
     aggregate(auditLog, auditLog.actorId, auditLog.createdAt),
@@ -149,7 +151,6 @@ router.get("/admin/fixer-activity", adminOnly, async (req, res): Promise<void> =
   const mCompleted = byUid(completed.agg);
   const mVotes = byUid(votes.agg);
   const mComments = byUid(comments.agg);
-  const mClosed = byUid(closed.agg);
   const mEvents = byUid(eventsCreated.agg);
   const mPayments = byUid(payments.agg);
   const mAudits = byUid(audits.agg);
@@ -159,7 +160,6 @@ router.get("/admin/fixer-activity", adminOnly, async (req, res): Promise<void> =
     ["missionsCompleted", completed],
     ["reviewVotes", votes],
     ["reviewComments", comments],
-    ["requestsClosed", closed],
     ["eventsCreated", eventsCreated],
     ["actorPayments", payments],
     ["auditActions", audits],
@@ -172,7 +172,7 @@ router.get("/admin/fixer-activity", adminOnly, async (req, res): Promise<void> =
   };
 
   const report = fixers.map((f) => {
-    const sources = [mCreated, mCompleted, mVotes, mComments, mClosed, mEvents, mPayments, mAudits];
+    const sources = [mCreated, mCompleted, mVotes, mComments, mEvents, mPayments, mAudits];
     let lastMs: number | null = null;
     for (const m of sources) {
       const t = asTime(m.get(f.id)?.last ?? null);
@@ -191,7 +191,6 @@ router.get("/admin/fixer-activity", adminOnly, async (req, res): Promise<void> =
       missionsCompleted: mCompleted.get(f.id)?.cnt ?? 0,
       reviewVotes: mVotes.get(f.id)?.cnt ?? 0,
       reviewComments: mComments.get(f.id)?.cnt ?? 0,
-      requestsClosed: mClosed.get(f.id)?.cnt ?? 0,
       eventsCreated: mEvents.get(f.id)?.cnt ?? 0,
       actorPayments: mPayments.get(f.id)?.cnt ?? 0,
       auditActions: mAudits.get(f.id)?.cnt ?? 0,

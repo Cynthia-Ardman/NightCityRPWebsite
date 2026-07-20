@@ -7,6 +7,6 @@
  */
 
 /**
- * Per-source weekly action counts within the window, oldest week first. Keys: missionsCreated, missionsCompleted, reviewVotes, reviewComments, requestsClosed, eventsCreated, actorPayments, auditActions.
+ * Per-source weekly action counts within the window, oldest week first. Keys: missionsCreated, missionsCompleted, reviewVotes, reviewComments, eventsCreated, actorPayments, auditActions.
  */
 export type FixerActivityRowWeeklyBySource = {[key: string]: number[]};

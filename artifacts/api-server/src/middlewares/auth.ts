@@ -12,11 +12,24 @@ declare global {
   }
 }
 
+// lastSeenAt is otherwise only stamped at OAuth login, but sessions last for
+// weeks — touch it on any authenticated request, throttled to once per hour,
+// fire-and-forget so it never slows or fails a request.
+const LAST_SEEN_TOUCH_MS = 60 * 60 * 1000;
+
 export async function loadUser(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const userId = req.session?.userId;
   if (!userId) return next();
   const [u] = await db.select().from(users).where(eq(users.id, userId));
-  if (u) req.user = u;
+  if (u) {
+    req.user = u;
+    const seen = u.lastSeenAt ? new Date(u.lastSeenAt).getTime() : 0;
+    if (Date.now() - seen > LAST_SEEN_TOUCH_MS) {
+      const now = new Date();
+      u.lastSeenAt = now;
+      void db.update(users).set({ lastSeenAt: now }).where(eq(users.id, userId)).catch(() => {});
+    }
+  }
   next();
 }
 

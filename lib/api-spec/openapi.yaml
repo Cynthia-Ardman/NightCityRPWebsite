@@ -9956,7 +9956,7 @@ components:
       type: object
       required:
         [userId, username, roles, isTrialFixer, missionsCreated, missionsCompleted,
-         reviewVotes, reviewComments, requestsClosed, eventsCreated, actorPayments,
+         reviewVotes, reviewComments, eventsCreated, actorPayments,
          auditActions, weekly, weeklyBySource]
       properties:
         userId: { type: string }
@@ -9973,7 +9973,6 @@ components:
         missionsCompleted: { type: integer, description: "Missions this user marked completed in the window." }
         reviewVotes: { type: integer }
         reviewComments: { type: integer }
-        requestsClosed: { type: integer, description: "Review tickets (custom requests) this user closed in the window." }
         eventsCreated: { type: integer }
         actorPayments: { type: integer, description: "Manual NPC/actor payouts issued in the window." }
         auditActions: { type: integer, description: "All staff actions recorded in the audit log in the window." }
@@ -9983,7 +9982,7 @@ components:
           description: "Audit-log action counts per week within the window, oldest week first."
         weeklyBySource:
           type: object
-          description: "Per-source weekly action counts within the window, oldest week first. Keys: missionsCreated, missionsCompleted, reviewVotes, reviewComments, requestsClosed, eventsCreated, actorPayments, auditActions."
+          description: "Per-source weekly action counts within the window, oldest week first. Keys: missionsCreated, missionsCompleted, reviewVotes, reviewComments, eventsCreated, actorPayments, auditActions."
           additionalProperties:
             type: array
             items: { type: integer }
