@@ -923,6 +923,10 @@ export const missions = pgTable("missions", {
   fixerId: text("fixer_id").references(() => users.id, { onDelete: "set null" }),
   // Mission start (UTC). Null while the fixer is still drafting/selecting.
   startAt: timestamp("start_at", { withTimezone: true }),
+  // Optional earlier gather time for NPC actors (UTC). When set, NPC-facing
+  // surfaces (homepage banner for signed-up NPCs, Discord "Actors Needed"
+  // event/announcement) use this instead of the player start time.
+  npcStartAt: timestamp("npc_start_at", { withTimezone: true }),
   durationMinutes: integer("duration_minutes").notNull().default(120),
   // Number of attendee/player slots.
   slots: integer("slots").notNull().default(0),

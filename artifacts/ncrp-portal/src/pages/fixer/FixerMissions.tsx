@@ -193,6 +193,7 @@ type FormValues = {
   imageUrl: string;
   startAt: string;
   endAt: string;
+  npcStartAt: string;
   status: MissionCreateInputStatus;
   worldLink: string;
   jobType: MissionCreateInputJobType | "";
@@ -214,6 +215,7 @@ const EMPTY: FormValues = {
   imageUrl: "",
   startAt: "",
   endAt: "",
+  npcStartAt: "",
   status: "open",
   worldLink: "",
   jobType: "",
@@ -247,6 +249,7 @@ function EditMissionForm({ missionId, onSaved }: { missionId: number; onSaved: (
     imageUrl: data.imageUrl ?? "",
     startAt: toLocalInputValue(data.startAt),
     endAt: endLocalInputValue(data.startAt, data.durationMinutes),
+    npcStartAt: toLocalInputValue(data.npcStartAt),
     status: data.status,
     worldLink: data.worldLink ?? "",
     jobType: data.jobType ?? "",
@@ -387,6 +390,13 @@ function MissionForm({
       description: v.description || undefined,
       imageUrl: v.imageUrl || undefined,
       startAt: v.startAt ? new Date(v.startAt).toISOString() : undefined,
+      // Optional NPC gather time. Edits must be able to CLEAR it, so send an
+      // explicit null in edit mode; create just omits the field when empty.
+      npcStartAt: v.npcStartAt
+        ? new Date(v.npcStartAt).toISOString()
+        : missionId != null
+          ? null
+          : undefined,
       durationMinutes: computedDuration,
       status: v.status,
       worldLink: v.worldLink || undefined,
@@ -541,6 +551,21 @@ function MissionForm({
             {v.startAt && v.endAt && new Date(v.endAt) <= new Date(v.startAt) && (
               <p className="text-destructive text-[10px] mt-1" data-testid="text-end-before-start">
                 End must be after start.
+              </p>
+            )}
+          </div>
+          <div className="md:col-span-4">
+            <Label className="text-xs">NPC GATHER (optional, before start)</Label>
+            <Input
+              type="datetime-local"
+              value={v.npcStartAt}
+              onChange={(e) => set("npcStartAt", e.target.value)}
+              className="rounded-none"
+              data-testid="input-mission-npc-start"
+            />
+            {v.npcStartAt && v.startAt && new Date(v.npcStartAt) >= new Date(v.startAt) && (
+              <p className="text-nc-yellow text-[10px] mt-1" data-testid="text-npc-after-start">
+                Usually the NPC gather time is before the mission start.
               </p>
             )}
           </div>

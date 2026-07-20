@@ -10192,6 +10192,7 @@ components:
         status: { type: string, enum: [open, pending, completed, completed_players_paid, completed_paid, cancelled] }
         workflowState: { type: string, enum: [draft, proposal, approved, posted] }
         startAt: { type: ["string", "null"], format: date-time }
+        npcStartAt: { type: ["string", "null"], format: date-time, description: "Optional earlier gather time for NPC actors; NPC-facing surfaces show this instead of startAt." }
         durationMinutes: { type: integer }
         location: { type: ["string", "null"] }
         descriptionPreview: { type: ["string", "null"] }
@@ -10286,6 +10287,7 @@ components:
         status: { type: string, enum: [open, pending, completed, completed_players_paid, completed_paid, cancelled] }
         workflowState: { type: string, enum: [draft, proposal, approved, posted] }
         startAt: { type: ["string", "null"], format: date-time }
+        npcStartAt: { type: ["string", "null"], format: date-time, description: "Optional earlier gather time for NPC actors; NPC-facing surfaces show this instead of startAt." }
         durationMinutes: { type: integer }
         location: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
@@ -10751,6 +10753,7 @@ components:
         description: { type: string }
         imageUrl: { type: string }
         startAt: { type: string, format: date-time }
+        npcStartAt: { type: ["string", "null"], format: date-time, description: "Optional earlier gather time for NPC actors." }
         durationMinutes: { type: integer, minimum: 1, default: 120 }
         slots: { type: integer, minimum: 0, default: 0 }
         status: { type: string, enum: [open, pending, completed, completed_players_paid, completed_paid, cancelled] }
@@ -10776,6 +10779,7 @@ components:
         description: { type: ["string", "null"] }
         imageUrl: { type: ["string", "null"] }
         startAt: { type: ["string", "null"], format: date-time }
+        npcStartAt: { type: ["string", "null"], format: date-time, description: "Optional earlier gather time for NPC actors." }
         durationMinutes: { type: integer, minimum: 1 }
         slots: { type: integer, minimum: 0 }
         status: { type: string, enum: [open, pending, completed, completed_players_paid, completed_paid, cancelled] }

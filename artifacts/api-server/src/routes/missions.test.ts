@@ -1160,6 +1160,64 @@ describe("Discord scheduled-event sync", () => {
     // ...and nobody gets a DM about it.
     expect(mockDM).not.toHaveBeenCalled();
   });
+
+  it("uses the earlier NPC gather time as the scheduled-event start (end stays mission start + duration)", async () => {
+    await setLiveMode(true);
+    const manager = await createUser({ roles: ["admin"] });
+    const start = new Date(Date.now() + 86_400_000);
+    const npcStart = new Date(start.getTime() - 30 * 60_000);
+    const res = await createPostedMission(manager.id, {
+      startAt: start.toISOString(),
+      npcStartAt: npcStart.toISOString(),
+    });
+    expect(res.status).toBe(200);
+    expect(mockCreateEvent).toHaveBeenCalledTimes(1);
+    const input = mockCreateEvent.mock.calls[0][0];
+    expect(input.startAt.getTime()).toBe(npcStart.getTime());
+    // End is anchored on the MISSION start, not the gather time.
+    expect(input.endAt.getTime()).toBeGreaterThan(start.getTime());
+  });
+
+  it("ignores an NPC gather time that is not earlier than the mission start", async () => {
+    await setLiveMode(true);
+    const manager = await createUser({ roles: ["admin"] });
+    const start = new Date(Date.now() + 86_400_000);
+    const npcStart = new Date(start.getTime() + 30 * 60_000);
+    const res = await createPostedMission(manager.id, {
+      startAt: start.toISOString(),
+      npcStartAt: npcStart.toISOString(),
+    });
+    expect(res.status).toBe(200);
+    const input = mockCreateEvent.mock.calls[0][0];
+    expect(input.startAt.getTime()).toBe(start.getTime());
+  });
+
+  it("changing only the NPC gather time resets npcAnnouncedAt and posts a thread change line", async () => {
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await seedMission({
+      workflowState: "posted",
+      status: "open",
+      startAt: new Date(Date.now() + 86_400_000),
+      fixerId: admin.id,
+      discordThreadId: "thread-npc",
+      npcAnnouncedAt: new Date(),
+    });
+    mockPost.mockClear();
+
+    const gather = new Date(Date.now() + 86_400_000 - 45 * 60_000).toISOString();
+    const patched = await request(app)
+      .patch(`/api/missions/${m.id}`)
+      .set("x-test-user", admin.id)
+      .send({ npcStartAt: gather });
+    expect(patched.status).toBe(200);
+    expect(patched.body.npcStartAt).toBe(new Date(gather).toISOString());
+
+    const [row] = await db.select().from(missions).where(eq(missions.id, m.id));
+    expect(row.npcAnnouncedAt).toBeNull();
+    const threadCalls = mockPost.mock.calls.filter((c) => c[0] === "thread-npc");
+    expect(threadCalls).toHaveLength(1);
+    expect(String(threadCalls[0][1])).toContain("NPC gather time");
+  });
 });
 
 // ===========================================================================

@@ -5825,6 +5825,11 @@ export interface MissionSummary {
   workflowState: MissionSummaryWorkflowState;
   /** @nullable */
   startAt?: string | null;
+  /**
+     * Optional earlier gather time for NPC actors; NPC-facing surfaces show this instead of startAt.
+     * @nullable
+     */
+  npcStartAt?: string | null;
   durationMinutes: number;
   /** @nullable */
   location?: string | null;
@@ -6025,6 +6030,11 @@ export interface MissionDetail {
   workflowState: MissionDetailWorkflowState;
   /** @nullable */
   startAt?: string | null;
+  /**
+     * Optional earlier gather time for NPC actors; NPC-facing surfaces show this instead of startAt.
+     * @nullable
+     */
+  npcStartAt?: string | null;
   durationMinutes: number;
   /** @nullable */
   location?: string | null;
@@ -6732,6 +6742,11 @@ export interface MissionCreateInput {
   description?: string;
   imageUrl?: string;
   startAt?: string;
+  /**
+     * Optional earlier gather time for NPC actors.
+     * @nullable
+     */
+  npcStartAt?: string | null;
   /** @minimum 1 */
   durationMinutes?: number;
   /** @minimum 0 */
@@ -6800,6 +6815,11 @@ export interface MissionUpdateInput {
   imageUrl?: string | null;
   /** @nullable */
   startAt?: string | null;
+  /**
+     * Optional earlier gather time for NPC actors.
+     * @nullable
+     */
+  npcStartAt?: string | null;
   /** @minimum 1 */
   durationMinutes?: number;
   /** @minimum 0 */

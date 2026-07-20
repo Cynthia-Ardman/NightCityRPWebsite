@@ -26,6 +26,11 @@ export interface MissionUpdateInput {
   imageUrl?: string | null;
   /** @nullable */
   startAt?: Date | null;
+  /**
+     * Optional earlier gather time for NPC actors.
+     * @nullable
+     */
+  npcStartAt?: Date | null;
   /** @minimum 1 */
   durationMinutes?: number;
   /** @minimum 0 */

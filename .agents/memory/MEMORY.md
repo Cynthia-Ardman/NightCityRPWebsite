@@ -155,3 +155,4 @@
 - [Portal bell notifications](portal-bell-notifications.md) — new player-facing events must `void createNotification(...)` at the SAME site as the DM but NOT gated on Test/Live or discordId; api-zod star-export body-name ambiguity trap.
 - [Text-scale px immunity](text-scale-px-immunity.md) — the text-size setting scales rem only; any `text-[Npx]` literal is immune AND tiny; new micro-text must use rem arbitrary values.
 - VRChat auth/identity: [identity resolution](vrchat-identity-resolution.md) linked attribution only when exactly ONE user claims the id, ambiguous never name-matches; [401 verify-before-expire](vrchat-group-instances.md) confirm via /auth/user before wiping session.
+- [Mission NPC gather time](mission-npc-start-time.md) — npcStartAt: NPC surfaces use coalesce(npc,start), Discord event starts at gather only if earlier, changes reset npcAnnouncedAt.

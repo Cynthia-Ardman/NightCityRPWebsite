@@ -22,6 +22,11 @@ export interface MissionCreateInput {
   description?: string;
   imageUrl?: string;
   startAt?: Date;
+  /**
+     * Optional earlier gather time for NPC actors.
+     * @nullable
+     */
+  npcStartAt?: Date | null;
   /** @minimum 1 */
   durationMinutes?: number;
   /** @minimum 0 */

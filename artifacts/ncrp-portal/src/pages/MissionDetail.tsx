@@ -490,6 +490,12 @@ function MissionDetailView({ data: rawData, when }: { data: MissionDetailModel; 
             <span>
               {formatDate(when)} {when.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
               {data.durationMinutes ? ` · ${data.durationMinutes}m` : ""}
+              {data.npcStartAt && (
+                <span className="block text-nc-yellow text-xs" data-testid="text-mission-npc-gather">
+                  NPC gather:{" "}
+                  {new Date(data.npcStartAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              )}
             </span>
           ) : (
             <span className="italic">Not scheduled</span>

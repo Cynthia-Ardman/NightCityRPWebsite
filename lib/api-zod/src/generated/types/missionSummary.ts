@@ -21,6 +21,11 @@ export interface MissionSummary {
   workflowState: MissionSummaryWorkflowState;
   /** @nullable */
   startAt?: Date | null;
+  /**
+     * Optional earlier gather time for NPC actors; NPC-facing surfaces show this instead of startAt.
+     * @nullable
+     */
+  npcStartAt?: Date | null;
   durationMinutes: number;
   /** @nullable */
   location?: string | null;

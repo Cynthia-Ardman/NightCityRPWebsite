@@ -7,6 +7,7 @@ export interface MissionTodayInput {
   id: number;
   title: string;
   startAt?: string | null;
+  npcStartAt?: string | null;
   status: string;
   workflowState?: string | null;
   mySignup?: { state?: string | null } | null;
@@ -19,6 +20,8 @@ export interface MissionTodayItem {
   id: number;
   title: string;
   start: Date;
+  /** Earlier NPC gather time, when the fixer set one (and it parses). */
+  npcStart: Date | null;
   npcSignupOpen: boolean;
   signedUpAsNpc: boolean;
   /** Viewer is on this mission as a PLAYER (accepted application or rostered character). */
@@ -65,10 +68,12 @@ export function selectTodaysMissions(
     if (Number.isNaN(start.getTime())) continue;
     if (!isSameLocalDay(start, now)) continue;
     if (now.getTime() - start.getTime() > MISSION_BANNER_GRACE_MS) continue;
+    const npcStart = m.npcStartAt ? new Date(m.npcStartAt) : null;
     out.push({
       id: m.id,
       title: m.title,
       start,
+      npcStart: npcStart && !Number.isNaN(npcStart.getTime()) ? npcStart : null,
       npcSignupOpen: m.npcSignupOpen === true,
       signedUpAsNpc: m.mySignup?.state === "signed_up",
       playerOnMission: m.myApplication?.status === "accepted" || m.myCharacterId != null,

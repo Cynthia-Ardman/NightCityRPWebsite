@@ -397,6 +397,11 @@ router.post("/missions", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid start date" });
     return;
   }
+  const npcStartAt = parseDate(b.npcStartAt);
+  if (npcStartAt === undefined && b.npcStartAt !== undefined) {
+    res.status(400).json({ error: "Invalid NPC start date" });
+    return;
+  }
   const status = isMissionStatus(b.status) ? b.status : "open";
   // Job type is required by the spec but only enforced at submit/post time;
   // accept it on create when provided and valid.
@@ -417,6 +422,7 @@ router.post("/missions", requireAuth, async (req, res): Promise<void> => {
       description: typeof b.description === "string" ? b.description : null,
       imageUrl: typeof b.imageUrl === "string" && b.imageUrl ? b.imageUrl : null,
       startAt: startAt ?? null,
+      npcStartAt: npcStartAt ?? null,
       durationMinutes: Number.isFinite(Number(b.durationMinutes)) ? Math.max(1, Math.trunc(Number(b.durationMinutes))) : 120,
       slots: Number.isFinite(Number(b.slots)) ? Math.max(0, Math.trunc(Number(b.slots))) : 0,
       status,
@@ -901,6 +907,14 @@ router.patch("/missions/:id", requireAuth, async (req, res): Promise<void> => {
     }
     set.startAt = d;
   }
+  if (b.npcStartAt !== undefined) {
+    const d = parseDate(b.npcStartAt);
+    if (d === undefined) {
+      res.status(400).json({ error: "Invalid NPC start date" });
+      return;
+    }
+    set.npcStartAt = d;
+  }
   if (b.durationMinutes !== undefined) set.durationMinutes = Math.max(1, Math.trunc(Number(b.durationMinutes) || 120));
   if (b.slots !== undefined) set.slots = Math.max(0, Math.trunc(Number(b.slots) || 0));
   if (b.status !== undefined) {
@@ -930,7 +944,9 @@ router.patch("/missions/:id", requireAuth, async (req, res): Promise<void> => {
   // new start time.
   const rescheduled =
     set.startAt !== undefined && before.startAt?.getTime() !== (set.startAt as Date | null)?.getTime();
-  if (rescheduled) set.npcAnnouncedAt = null;
+  const npcRescheduled =
+    set.npcStartAt !== undefined && before.npcStartAt?.getTime() !== (set.npcStartAt as Date | null)?.getTime();
+  if (rescheduled || npcRescheduled) set.npcAnnouncedAt = null;
 
   if (Object.keys(set).length > 0) {
     await db.update(missions).set(set).where(eq(missions.id, id));
@@ -989,6 +1005,10 @@ router.patch("/missions/:id", requireAuth, async (req, res): Promise<void> => {
   if (rescheduled) {
     const u = after.startAt ? Math.floor(after.startAt.getTime() / 1000) : null;
     changeLines.push(u ? `🗓️ Rescheduled to <t:${u}:F>.` : "🗓️ Start time cleared.");
+  }
+  if (npcRescheduled) {
+    const u = after.npcStartAt ? Math.floor(after.npcStartAt.getTime() / 1000) : null;
+    changeLines.push(u ? `🎭 NPC gather time set to <t:${u}:F>.` : "🎭 NPC gather time cleared.");
   }
   const FIELD_LABELS: Record<string, string> = {
     title: "title",

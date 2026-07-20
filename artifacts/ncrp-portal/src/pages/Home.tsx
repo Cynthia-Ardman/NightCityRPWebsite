@@ -900,10 +900,18 @@ function MissionTodayBanner() {
   // Once the mission's start time arrives, point people at voice comms:
   // fixers/admins get the fixer comms channel, everyone else the player one.
   const isFixer = Boolean(user?.isAdmin || user?.isFixer);
-  const missionLive = shown.start.getTime() <= now.getTime();
+
+  // NPC viewers (signed up as NPC, or being nudged to volunteer) live on the
+  // NPC gather time when the fixer set one — it's earlier than the player
+  // start, and it's when THEY need to show up.
+  const viewerIsNpcSide = shown.signedUpAsNpc || !hasChar;
+  const effectiveStart = viewerIsNpcSide && shown.npcStart ? shown.npcStart : shown.start;
+  const showsNpcTime = effectiveStart !== shown.start;
+
+  const missionLive = effectiveStart.getTime() <= now.getTime();
   const voiceUrl = isFixer ? MISSION_VOICE_FIXER_URL : MISSION_VOICE_PLAYER_URL;
 
-  const timeStr = shown.start.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  const timeStr = effectiveStart.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 
   return (
     <Card
@@ -916,6 +924,7 @@ function MissionTodayBanner() {
           <div className="min-w-0">
             <div className="text-[11px] font-mono tracking-wider text-nc-magenta uppercase">
               Mission today · <span className="font-semibold tabular-nums text-foreground">{timeStr}</span>
+              {showsNpcTime && <span className="text-nc-yellow"> (NPC gather)</span>}
               {extra > 0 && <span className="text-muted-foreground"> · +{extra} more</span>}
             </div>
             <Link href={`/missions/${shown.id}`}>
@@ -998,7 +1007,10 @@ function NpcsNeededCard() {
     const isPlayer = m.myApplication?.status === "accepted" || m.myCharacterId != null;
     const isNpc = m.mySignup?.state === "signed_up";
     if (isPlayer || isNpc) continue;
-    const start = new Date(m.startAt);
+    // NPC volunteers care about the gather time when the fixer set one.
+    const npcStart = m.npcStartAt ? new Date(m.npcStartAt) : null;
+    const start =
+      npcStart && !Number.isNaN(npcStart.getTime()) ? npcStart : new Date(m.startAt);
     if (Number.isNaN(start.getTime()) || start < now || start > horizon) continue;
     items.push({ kind: "mission", id: m.id, title: m.title, start, href: `/missions/${m.id}`, subtype: `Tier ${m.tier}` });
   }

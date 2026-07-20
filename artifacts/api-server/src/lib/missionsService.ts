@@ -235,6 +235,7 @@ function toSummary(
     status: m.status,
     workflowState: m.workflowState,
     startAt: iso(m.startAt),
+    npcStartAt: iso(m.npcStartAt),
     durationMinutes: m.durationMinutes,
     location: m.location,
     descriptionPreview: preview(m.description),
@@ -925,6 +926,7 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
     status: m.status,
     workflowState: m.workflowState,
     startAt: iso(m.startAt),
+    npcStartAt: iso(m.npcStartAt),
     durationMinutes: m.durationMinutes,
     location: m.location,
     description: m.description,
@@ -2361,6 +2363,9 @@ function buildMissionBrief(m: Mission): { content: string; embeds: unknown[] } {
       value: `${startUnix ? `<t:${startUnix}:F>` : "Not scheduled"} · ${m.durationMinutes}m`,
       inline: true,
     },
+    ...(m.npcStartAt
+      ? [{ name: "NPC Gather", value: `<t:${Math.floor(m.npcStartAt.getTime() / 1000)}:F>`, inline: true }]
+      : []),
     { name: "Player Pay", value: `€$${m.playerPay.toLocaleString()}`, inline: true },
     { name: "NPC Pay", value: `€$${m.npcPayAmount.toLocaleString()}`, inline: true },
     {
@@ -2635,18 +2640,21 @@ export async function runMissionNpcAnnouncements(): Promise<{ announced: number 
         ne(missions.status, "cancelled"),
         isNull(missions.npcAnnouncedAt),
         isNotNull(missions.startAt),
-        gt(missions.startAt, now),
-        lte(missions.startAt, horizon),
+        // NPCs may be asked to gather earlier than the player start; announce
+        // ~1h before whichever time NPCs actually need to show up.
+        gt(sql`coalesce(${missions.npcStartAt}, ${missions.startAt})`, now),
+        lte(sql`coalesce(${missions.npcStartAt}, ${missions.startAt})`, horizon),
       ),
     );
   let announced = 0;
   for (const m of due) {
-    const startUnix = m.startAt ? Math.floor(m.startAt.getTime() / 1000) : null;
+    const npcStart = m.npcStartAt ?? m.startAt;
+    const startUnix = npcStart ? Math.floor(npcStart.getTime() / 1000) : null;
     const lines = [
       `**Actors Needed — ${m.title}**`,
       m.jobType ? `Job type: ${jobTypeLabel(m.jobType)}` : null,
       m.location ? `Location: ${m.location}` : null,
-      startUnix ? `Starts: <t:${startUnix}:R>` : null,
+      startUnix ? `${m.npcStartAt ? "NPCs gather" : "Starts"}: <t:${startUnix}:R>` : null,
       m.requestedSkills ? `Requested skills: ${m.requestedSkills}` : null,
       `React or reach out to the fixer if you can NPC for this mission.`,
     ].filter(Boolean);
@@ -2714,8 +2722,12 @@ export async function syncMissionDiscordEvent(
       : { discordEventId: mission.discordEventId, discordSyncError: res.error };
   }
 
-  const startAt = mission.startAt!;
-  const endAt = new Date(startAt.getTime() + Math.max(1, mission.durationMinutes) * 60_000);
+  // The Discord scheduled event is the "Actors Needed" call, so it starts at
+  // the NPC gather time when one is set (never later than the mission start).
+  const missionStart = mission.startAt!;
+  const startAt =
+    mission.npcStartAt && mission.npcStartAt.getTime() < missionStart.getTime() ? mission.npcStartAt : missionStart;
+  const endAt = new Date(missionStart.getTime() + Math.max(1, mission.durationMinutes) * 60_000);
   const input = {
     name: eventTitle(mission.title),
     description: mission.description ?? null,
