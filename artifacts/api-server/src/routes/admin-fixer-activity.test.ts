@@ -8,16 +8,16 @@ const app = buildTestApp();
 
 describe("GET /admin/fixer-activity", () => {
   it("forbids non-admin callers (including fixers)", async () => {
-    const fixer = await createUser({ roles: ["FIXER"] });
+    const fixer = await createUser({ roles: ["fixer"] });
     const res = await request(app).get("/api/admin/fixer-activity").set("x-test-user", fixer.id);
     expect(res.status).toBe(403);
   });
 
   it("lists fixers with per-source counts and last-action timestamps", async () => {
     const admin = await createAdmin();
-    const activeFixer = await createUser({ roles: ["FIXER"], username: "active_fixer" });
-    const idleFixer = await createUser({ roles: ["FIXER"], username: "idle_fixer" });
-    const trial = await createUser({ roles: ["TRIAL_FIXER"], username: "trial_fixer" });
+    const activeFixer = await createUser({ roles: ["fixer"], username: "active_fixer" });
+    const idleFixer = await createUser({ roles: ["fixer"], username: "idle_fixer" });
+    const trial = await createUser({ roles: ["trial-fixer"], username: "trial_fixer" });
     const player = await createUser({ roles: [] });
 
     // Recent activity for the active fixer.

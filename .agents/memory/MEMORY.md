@@ -74,6 +74,7 @@
 - [Character wallet endpoint scope](character-wallet-endpoint-scope.md) — /characters/:id/wallet/transactions also returns account-level (characterId NULL) owner rows — see topic.
 - [Breach Protocol minigame](breach-minigame.md) — exactly-once reward (atomic completedAt-IS-NULL); server anchors timer before any grid reveal, lists redact unstarted grids; /result 200-idempotent.
 - Event recurrence: [Discord rolls start_at forward, backfill open-ended series only](event-recurrence-rollforward.md); [byWeekday is UTC-frame, step the base instant](events-recurrence-listing.md) + merge recurring into 500-cap list.
+- [users.roles = lowercase names](roles-lowercase-names.md) — SQL role filters must use ROLE_NAMES name lists (arrayOverlaps), never the uppercase group key; `'FIXER' = ANY(roles)` matches nothing.
 - [Role-derived access flags](role-derived-flag-sync.md) — Discord-role-derived gate flags (verified18) must be recomputed BOTH directions in the role_sync cron, null-guarded; set-true-on-login alone leaves stale-true authz drift.
 - [Discord event sync](discord-event-sync.md) — poll-based (NO gateway), hash-directed, website-authoritative; [session self-heal](session-discord-selfheal.md) backfill re-pushes future website-only rows missing discord_event_id.
 - Discord write gates: [outbound writes only when REPLIT_DEPLOYMENT=1 or ALLOW_EXTERNAL_WRITES=1](discord-deployment-gated-writes.md); [backfill posts reuse live announce URL base](discord-announce-url-parity.md).

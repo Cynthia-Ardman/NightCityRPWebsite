@@ -14,10 +14,10 @@ import {
   botPlayerInventory,
   reviewVotes, reviewComments, missionActorPayments, missions,
 } from "@workspace/db";
-import { isNull, or, ilike, count, inArray } from "drizzle-orm";
+import { isNull, or, ilike, count, inArray, arrayOverlaps } from "drizzle-orm";
 import type { PgTable, AnyPgColumn } from "drizzle-orm/pg-core";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
-import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, searchGuildMembers, searchGuildChannels, hasRole, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, addGuildMemberRole, grantDeadCharacterRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, RIPPERDOC_ROLE_ID, RIPPERDOC_ROLE_MARKER, applyRoleIdGrants, externalWritesAllowed, type ThreadAttachment } from "../lib/discord";
+import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, searchGuildMembers, searchGuildChannels, hasRole, ROLE_NAMES, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, addGuildMemberRole, grantDeadCharacterRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, RIPPERDOC_ROLE_ID, RIPPERDOC_ROLE_MARKER, applyRoleIdGrants, externalWritesAllowed, type ThreadAttachment } from "../lib/discord";
 import { resolveOrProvisionUser } from "../lib/userProvision";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
@@ -78,7 +78,9 @@ router.get("/admin/fixer-activity", adminOnly, async (req, res): Promise<void> =
       lastSeenAt: users.lastSeenAt,
     })
     .from(users)
-    .where(sql`'FIXER' = ANY(${users.roles}) OR 'TRIAL_FIXER' = ANY(${users.roles})`);
+    // Roles are stored as LOWERCASE Discord role names (see ROLE_NAMES in
+    // lib/discord.ts) — match every name in the FIXER/TRIAL_FIXER groups.
+    .where(arrayOverlaps(users.roles, [...ROLE_NAMES.FIXER, ...ROLE_NAMES.TRIAL_FIXER]));
   if (fixers.length === 0) {
     res.json({ days, weeks, generatedAt: new Date().toISOString(), fixers: [] });
     return;
@@ -168,7 +170,7 @@ router.get("/admin/fixer-activity", adminOnly, async (req, res): Promise<void> =
       globalName: f.globalName,
       avatarUrl: f.avatarUrl,
       roles: f.roles,
-      isTrialFixer: f.roles.includes("TRIAL_FIXER") && !f.roles.includes("FIXER"),
+      isTrialFixer: hasRole(f.roles, "TRIAL_FIXER") && !hasRole(f.roles, "FIXER"),
       lastSeenAt: f.lastSeenAt ? new Date(f.lastSeenAt).toISOString() : null,
       lastFixerActionAt: lastMs !== null ? new Date(lastMs).toISOString() : null,
       missionsCreated: mCreated.get(f.id)?.cnt ?? 0,
