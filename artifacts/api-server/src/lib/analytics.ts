@@ -205,10 +205,26 @@ export async function computeAdminAnalytics(
     running += net;
     return { weekStart: new Date(r.week as string).toISOString(), net, total: running };
   });
-  const supply = supplyAll.filter((p) => new Date(p.weekStart) >= since);
+  // Supply tracking only became meaningful at the first reconcile seed (the
+  // moment existing balances entered tracking). Weeks before that hold only
+  // sparse pre-launch rows near zero; including them flattens the whole chart
+  // against the post-seed scale, so start the series at the seed week.
+  const seedRes = await db.execute(sql`
+    SELECT date_trunc('week', MIN(created_at)) AS week
+    FROM wallet_transactions
+    WHERE kind = 'reconcile_seed' AND ${SETTLED} ${EXCLUDE}
+  `);
+  const seedWeekRaw = (seedRes.rows[0] as { week: Date | string | null } | undefined)?.week;
+  const seedWeek = seedWeekRaw ? new Date(seedWeekRaw as string) : null;
+  const supplySince = seedWeek && seedWeek > since ? seedWeek : since;
+  const supply = supplyAll.filter((p) => new Date(p.weekStart) >= supplySince);
   // Anchor the trend with the pre-range total so the first visible point
-  // doesn't look like the supply started at ~0.
-  if (supply.length < supplyAll.length && supplyAll.length > 0) {
+  // doesn't look like the supply started at ~0 — but only when the cut is the
+  // range window. When the cut is the seed week, the dropped points are the
+  // near-zero pre-tracking rows we deliberately excluded; anchoring on them
+  // would reintroduce the misleading flat start.
+  const anchorIsPostSeed = !seedWeek || since >= seedWeek;
+  if (anchorIsPostSeed && supply.length < supplyAll.length && supplyAll.length > 0) {
     const lastBefore = supplyAll[supplyAll.length - supply.length - 1];
     supply.unshift({ weekStart: lastBefore.weekStart, net: 0, total: lastBefore.total });
   }
