@@ -78,13 +78,11 @@ export function isMissionStatus(s: unknown): s is MissionStatus {
   return typeof s === "string" && (MISSION_STATUSES as readonly string[]).includes(s);
 }
 
-const DESCRIPTION_PREVIEW_LEN = 160;
-
+// Board cards show the full description (no truncation) so nothing is cut
+// off mid-sentence and markdown/color tags are never split in half.
 function preview(s: string | null): string | null {
   if (!s) return s;
-  const t = s.trim();
-  if (t.length <= DESCRIPTION_PREVIEW_LEN) return t;
-  return `${t.slice(0, DESCRIPTION_PREVIEW_LEN - 1).trimEnd()}…`;
+  return s.trim();
 }
 
 function iso(d: Date | null | undefined): string | null {
