@@ -986,6 +986,11 @@ export const missions = pgTable("missions", {
   workflowStateIdx: index("missions_workflow_state_idx").on(t.workflowState),
   fixerIdx: index("missions_fixer_idx").on(t.fixerId),
   startIdx: index("missions_start_idx").on(t.startAt),
+  // At most one mission per Discord thread (importer + thread-mirror
+  // idempotency enforced at the DB level; NULL rows are unconstrained).
+  discordThreadIdx: uniqueIndex("missions_discord_thread_idx")
+    .on(t.discordThreadId)
+    .where(sql`discord_thread_id IS NOT NULL`),
 }));
 export type Mission = typeof missions.$inferSelect;
 
