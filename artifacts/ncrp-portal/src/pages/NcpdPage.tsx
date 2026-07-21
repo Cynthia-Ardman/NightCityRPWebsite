@@ -18,7 +18,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import NcpdRecordPanel, { warrantStatusClass } from "@/components/NcpdRecordPanel";
-import { Shield, FileText, AlertTriangle, Search, Users, Star, UserSearch } from "lucide-react";
+import NcpdCaseBoard from "@/components/NcpdCaseBoard";
+import { Shield, FileText, AlertTriangle, Search, Users, Star, UserSearch, FolderOpen } from "lucide-react";
 
 function fmtDate(iso?: string | null): string {
   if (!iso) return "—";
@@ -66,6 +67,9 @@ export default function NcpdPage() {
           <TabsTrigger value="reports" className={TAB_TRIGGER_CLASS} data-testid="tab-ncpd-reports">
             <FileText className="w-4 h-4 mr-2 hidden sm:inline" /> Reports
           </TabsTrigger>
+          <TabsTrigger value="cases" className={TAB_TRIGGER_CLASS} data-testid="tab-ncpd-cases">
+            <FolderOpen className="w-4 h-4 mr-2 hidden sm:inline" /> Cases
+          </TabsTrigger>
           <TabsTrigger value="lookup" className={TAB_TRIGGER_CLASS} data-testid="tab-ncpd-lookup">
             <Search className="w-4 h-4 mr-2 hidden sm:inline" /> Lookup
           </TabsTrigger>
@@ -79,6 +83,9 @@ export default function NcpdPage() {
           </TabsContent>
           <TabsContent value="reports" className="outline-none focus:ring-0">
             <ReportsFeed />
+          </TabsContent>
+          <TabsContent value="cases" className="outline-none focus:ring-0">
+            <NcpdCaseBoard />
           </TabsContent>
           <TabsContent value="lookup" className="outline-none focus:ring-0">
             <CharacterLookup />

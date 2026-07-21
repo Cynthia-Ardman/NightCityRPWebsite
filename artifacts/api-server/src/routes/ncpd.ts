@@ -9,6 +9,7 @@ import {
   ncpdCharacterNotes,
   ncpdLaws,
   ncpdFines,
+  ncpdCaseFiles,
   stores,
   storeEmployees,
   ripperdocs,
@@ -794,6 +795,148 @@ router.delete("/ncpd/notes/:id", requireAuth, requireNcpd, async (req, res): Pro
     targetType: "character",
     targetId: existing.characterId,
     message: `NCPD note #${id} deleted`,
+    before: existing,
+  });
+  res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// Case files
+// ---------------------------------------------------------------------------
+
+const CASE_STATUSES = ["open", "closed"] as const;
+
+// Case board — open cases first, then newest. Free-form investigations, not
+// tied to a character.
+router.get("/ncpd/cases", requireAuth, requireNcpd, async (req, res): Promise<void> => {
+  const status = str(req.query.status);
+  if (status && !CASE_STATUSES.includes(status as (typeof CASE_STATUSES)[number])) {
+    res.status(400).json({ error: "invalid status" });
+    return;
+  }
+  const rows = await db
+    .select()
+    .from(ncpdCaseFiles)
+    .where(status ? eq(ncpdCaseFiles.status, status) : undefined)
+    .orderBy(sql`case when ${ncpdCaseFiles.status} = 'open' then 0 else 1 end`, desc(ncpdCaseFiles.updatedAt))
+    .limit(200);
+  res.json(rows);
+});
+
+router.get("/ncpd/cases/:id", requireAuth, requireNcpd, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id)) {
+    res.status(400).json({ error: "invalid case id" });
+    return;
+  }
+  const [row] = await db.select().from(ncpdCaseFiles).where(eq(ncpdCaseFiles.id, id));
+  if (!row) {
+    res.status(404).json({ error: "case file not found" });
+    return;
+  }
+  res.json(row);
+});
+
+// Open a case file. Only a title is required — the body starts blank and the
+// officer fills in whatever the investigation needs.
+router.post("/ncpd/cases", requireAuth, requireNcpd, async (req, res): Promise<void> => {
+  const { title, body } = req.body ?? {};
+  const t = str(title);
+  if (!t) {
+    res.status(400).json({ error: "title is required" });
+    return;
+  }
+  const [row] = await db
+    .insert(ncpdCaseFiles)
+    .values({
+      title: t,
+      body: typeof body === "string" ? body : "",
+      openedById: req.user!.id,
+      openedByName: req.user!.username,
+    })
+    .returning();
+  void recordAudit({
+    req,
+    category: "character",
+    action: "ncpd_case_opened",
+    targetType: "ncpd_case",
+    targetId: row.id,
+    message: `NCPD case file "${t}" opened`,
+    after: row,
+  });
+  res.status(201).json(row);
+});
+
+router.patch("/ncpd/cases/:id", requireAuth, requireNcpd, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id)) {
+    res.status(400).json({ error: "invalid case id" });
+    return;
+  }
+  const [existing] = await db.select().from(ncpdCaseFiles).where(eq(ncpdCaseFiles.id, id));
+  if (!existing) {
+    res.status(404).json({ error: "case file not found" });
+    return;
+  }
+  const { title, body, status } = req.body ?? {};
+  const patch: Partial<typeof ncpdCaseFiles.$inferInsert> = {};
+  if (title !== undefined) {
+    const t = str(title);
+    if (!t) {
+      res.status(400).json({ error: "title cannot be empty" });
+      return;
+    }
+    patch.title = t;
+  }
+  // The body is deliberately free-form: empty string is allowed (a blank page
+  // is a valid case file), so only reject non-string values.
+  if (body !== undefined) {
+    if (typeof body !== "string") {
+      res.status(400).json({ error: "body must be a string" });
+      return;
+    }
+    patch.body = body;
+  }
+  if (status !== undefined) {
+    if (!CASE_STATUSES.includes(status as (typeof CASE_STATUSES)[number])) {
+      res.status(400).json({ error: "status must be open or closed" });
+      return;
+    }
+    patch.status = status;
+  }
+  const [row] = await db.update(ncpdCaseFiles).set(patch).where(eq(ncpdCaseFiles.id, id)).returning();
+  void recordAudit({
+    req,
+    category: "character",
+    action: "ncpd_case_updated",
+    targetType: "ncpd_case",
+    targetId: id,
+    message: `NCPD case file #${id} updated${status !== undefined ? ` (status → ${status})` : ""}`,
+    before: existing,
+    after: row,
+  });
+  res.json(row);
+});
+
+router.delete("/ncpd/cases/:id", requireAuth, requireNcpd, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id)) {
+    res.status(400).json({ error: "invalid case id" });
+    return;
+  }
+  const [existing] = await db.select().from(ncpdCaseFiles).where(eq(ncpdCaseFiles.id, id));
+  if (!existing) {
+    res.status(404).json({ error: "case file not found" });
+    return;
+  }
+  await db.delete(ncpdCaseFiles).where(eq(ncpdCaseFiles.id, id));
+  void recordAudit({
+    req,
+    category: "character",
+    action: "ncpd_case_deleted",
+    targetType: "ncpd_case",
+    targetId: id,
+    message: `NCPD case file #${id} ("${existing.title}") deleted`,
     before: existing,
   });
   res.json({ ok: true });

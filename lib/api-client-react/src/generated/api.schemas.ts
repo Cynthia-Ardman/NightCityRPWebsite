@@ -7590,6 +7590,51 @@ export interface NcpdReportUpdate {
   arrestedAt?: string | null;
 }
 
+export type NcpdCaseFileStatus = typeof NcpdCaseFileStatus[keyof typeof NcpdCaseFileStatus];
+
+
+export const NcpdCaseFileStatus = {
+  open: 'open',
+  closed: 'closed',
+} as const;
+
+export interface NcpdCaseFile {
+  id: number;
+  title: string;
+  /** Free-form case body (markdown allowed). May be empty. */
+  body: string;
+  status: NcpdCaseFileStatus;
+  /** @nullable */
+  openedById?: string | null;
+  /** @nullable */
+  openedByName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NcpdCaseFileInput {
+  /** @minLength 1 */
+  title: string;
+  /** Optional starting body — defaults to blank. */
+  body?: string;
+}
+
+export type NcpdCaseFileUpdateStatus = typeof NcpdCaseFileUpdateStatus[keyof typeof NcpdCaseFileUpdateStatus];
+
+
+export const NcpdCaseFileUpdateStatus = {
+  open: 'open',
+  closed: 'closed',
+} as const;
+
+export interface NcpdCaseFileUpdate {
+  /** @minLength 1 */
+  title?: string;
+  /** Free-form body; empty string allowed. */
+  body?: string;
+  status?: NcpdCaseFileUpdateStatus;
+}
+
 export interface NcpdWarrantInput {
   characterId: number;
   /** @minLength 1 */
@@ -8435,6 +8480,18 @@ export const ListNcpdWarrantsStatus = {
   open: 'open',
   served: 'served',
   revoked: 'revoked',
+} as const;
+
+export type ListNcpdCasesParams = {
+status?: ListNcpdCasesStatus;
+};
+
+export type ListNcpdCasesStatus = typeof ListNcpdCasesStatus[keyof typeof ListNcpdCasesStatus];
+
+
+export const ListNcpdCasesStatus = {
+  open: 'open',
+  closed: 'closed',
 } as const;
 
 export type GlobalSearchParams = {

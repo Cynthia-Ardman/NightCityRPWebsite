@@ -585,3 +585,95 @@ describe("Book of Laws", () => {
     expect(cannotDelete.status).toBe(403);
   });
 });
+
+describe("NCPD case files", () => {
+  it("officer can open, read, edit, close, reopen and delete a case file", async () => {
+    const officer = await createOfficer();
+
+    // Open with just a title — the body starts blank.
+    const created = await request(app)
+      .post("/api/ncpd/cases")
+      .set("x-test-user", officer.id)
+      .send({ title: "Watson warehouse arson" });
+    expect(created.status).toBe(201);
+    expect(created.body.title).toBe("Watson warehouse arson");
+    expect(created.body.body).toBe("");
+    expect(created.body.status).toBe("open");
+    expect(created.body.openedById).toBe(officer.id);
+    const id = created.body.id as number;
+
+    // Fill in free-form content (and the empty string stays legal later).
+    const patched = await request(app)
+      .patch(`/api/ncpd/cases/${id}`)
+      .set("x-test-user", officer.id)
+      .send({ body: "## Leads\n- witness saw a red Quadra" });
+    expect(patched.status).toBe(200);
+    expect(patched.body.body).toContain("red Quadra");
+
+    const blanked = await request(app)
+      .patch(`/api/ncpd/cases/${id}`)
+      .set("x-test-user", officer.id)
+      .send({ body: "" });
+    expect(blanked.status).toBe(200);
+    expect(blanked.body.body).toBe("");
+
+    // Close, verify list filtering, reopen.
+    const closed = await request(app)
+      .patch(`/api/ncpd/cases/${id}`)
+      .set("x-test-user", officer.id)
+      .send({ status: "closed" });
+    expect(closed.status).toBe(200);
+    expect(closed.body.status).toBe("closed");
+
+    const openList = await request(app).get("/api/ncpd/cases?status=open").set("x-test-user", officer.id);
+    expect(openList.status).toBe(200);
+    expect(openList.body.some((c: { id: number }) => c.id === id)).toBe(false);
+    const closedList = await request(app).get("/api/ncpd/cases?status=closed").set("x-test-user", officer.id);
+    expect(closedList.body.some((c: { id: number }) => c.id === id)).toBe(true);
+
+    const detail = await request(app).get(`/api/ncpd/cases/${id}`).set("x-test-user", officer.id);
+    expect(detail.status).toBe(200);
+    expect(detail.body.id).toBe(id);
+
+    const deleted = await request(app).delete(`/api/ncpd/cases/${id}`).set("x-test-user", officer.id);
+    expect(deleted.status).toBe(200);
+    const gone = await request(app).get(`/api/ncpd/cases/${id}`).set("x-test-user", officer.id);
+    expect(gone.status).toBe(404);
+  });
+
+  it("validates input and gates access", async () => {
+    const officer = await createOfficer();
+    const player = await createUser();
+
+    const noTitle = await request(app).post("/api/ncpd/cases").set("x-test-user", officer.id).send({ title: "  " });
+    expect(noTitle.status).toBe(400);
+
+    const badStatus = await request(app).get("/api/ncpd/cases?status=bogus").set("x-test-user", officer.id);
+    expect(badStatus.status).toBe(400);
+
+    const forbidden = await request(app).get("/api/ncpd/cases").set("x-test-user", player.id);
+    expect(forbidden.status).toBe(403);
+    const forbiddenPost = await request(app)
+      .post("/api/ncpd/cases")
+      .set("x-test-user", player.id)
+      .send({ title: "nope" });
+    expect(forbiddenPost.status).toBe(403);
+
+    const unauth = await request(app).get("/api/ncpd/cases");
+    expect(unauth.status).toBe(401);
+  });
+});
+
+describe("NCPD case file id validation", () => {
+  it("400s on malformed case ids for get/patch/delete", async () => {
+    const officer = await createOfficer();
+    for (const [method, url] of [
+      ["get", "/api/ncpd/cases/not-a-number"],
+      ["patch", "/api/ncpd/cases/not-a-number"],
+      ["delete", "/api/ncpd/cases/not-a-number"],
+    ] as const) {
+      const res = await request(app)[method](url).set("x-test-user", officer.id).send({ title: "x" });
+      expect(res.status, `${method} ${url}`).toBe(400);
+    }
+  });
+});

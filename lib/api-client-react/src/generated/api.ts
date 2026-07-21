@@ -205,6 +205,7 @@ import type {
   ListMissionHistoryParams,
   ListMissionsParams,
   ListMyCustomRequestsParams,
+  ListNcpdCasesParams,
   ListNcpdWarrantsParams,
   ListNotificationsParams,
   ListPendingEditsParams,
@@ -242,6 +243,9 @@ import type {
   MissionToEventConvertInput,
   MissionUpdateInput,
   MyUnseen,
+  NcpdCaseFile,
+  NcpdCaseFileInput,
+  NcpdCaseFileUpdate,
   NcpdCharacterSummary,
   NcpdFine,
   NcpdFineInput,
@@ -27258,6 +27262,380 @@ export const useDeleteNcpdWarrant = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDeleteNcpdWarrantMutationOptions(options));
+    }
+
+export const getListNcpdCasesUrl = (params?: ListNcpdCasesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/ncpd/cases?${stringifiedParams}` : `/api/ncpd/cases`
+}
+
+/**
+ * @summary Case files board — open cases first, then newest (NCPD/fixer/admin only).
+ */
+export const listNcpdCases = async (params?: ListNcpdCasesParams, options?: RequestInit): Promise<NcpdCaseFile[]> => {
+
+  return customFetch<NcpdCaseFile[]>(getListNcpdCasesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListNcpdCasesQueryKey = (params?: ListNcpdCasesParams,) => {
+    return [
+    `/api/ncpd/cases`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListNcpdCasesQueryOptions = <TData = Awaited<ReturnType<typeof listNcpdCases>>, TError = ErrorType<void>>(params?: ListNcpdCasesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNcpdCases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListNcpdCasesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNcpdCases>>> = ({ signal }) => listNcpdCases(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listNcpdCases>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListNcpdCasesQueryResult = NonNullable<Awaited<ReturnType<typeof listNcpdCases>>>
+export type ListNcpdCasesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Case files board — open cases first, then newest (NCPD/fixer/admin only).
+ */
+
+export function useListNcpdCases<TData = Awaited<ReturnType<typeof listNcpdCases>>, TError = ErrorType<void>>(
+ params?: ListNcpdCasesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNcpdCases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListNcpdCasesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateNcpdCaseUrl = () => {
+
+
+
+
+  return `/api/ncpd/cases`
+}
+
+/**
+ * @summary Open a new case file — only a title is required, the body starts blank (NCPD/fixer/admin only).
+ */
+export const createNcpdCase = async (ncpdCaseFileInput: NcpdCaseFileInput, options?: RequestInit): Promise<NcpdCaseFile> => {
+
+  return customFetch<NcpdCaseFile>(getCreateNcpdCaseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      ncpdCaseFileInput,)
+  }
+);}
+
+
+
+
+export const getCreateNcpdCaseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNcpdCase>>, TError,{data: BodyType<NcpdCaseFileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createNcpdCase>>, TError,{data: BodyType<NcpdCaseFileInput>}, TContext> => {
+
+const mutationKey = ['createNcpdCase'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createNcpdCase>>, {data: BodyType<NcpdCaseFileInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createNcpdCase(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateNcpdCaseMutationResult = NonNullable<Awaited<ReturnType<typeof createNcpdCase>>>
+    export type CreateNcpdCaseMutationBody = BodyType<NcpdCaseFileInput>
+    export type CreateNcpdCaseMutationError = ErrorType<void>
+
+    /**
+ * @summary Open a new case file — only a title is required, the body starts blank (NCPD/fixer/admin only).
+ */
+export const useCreateNcpdCase = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createNcpdCase>>, TError,{data: BodyType<NcpdCaseFileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createNcpdCase>>,
+        TError,
+        {data: BodyType<NcpdCaseFileInput>},
+        TContext
+      > => {
+      return useMutation(getCreateNcpdCaseMutationOptions(options));
+    }
+
+export const getGetNcpdCaseUrl = (id: number,) => {
+
+
+
+
+  return `/api/ncpd/cases/${id}`
+}
+
+/**
+ * @summary A single case file (NCPD/fixer/admin only).
+ */
+export const getNcpdCase = async (id: number, options?: RequestInit): Promise<NcpdCaseFile> => {
+
+  return customFetch<NcpdCaseFile>(getGetNcpdCaseUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNcpdCaseQueryKey = (id: number,) => {
+    return [
+    `/api/ncpd/cases/${id}`
+    ] as const;
+    }
+
+
+export const getGetNcpdCaseQueryOptions = <TData = Awaited<ReturnType<typeof getNcpdCase>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNcpdCase>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNcpdCaseQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNcpdCase>>> = ({ signal }) => getNcpdCase(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNcpdCase>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNcpdCaseQueryResult = NonNullable<Awaited<ReturnType<typeof getNcpdCase>>>
+export type GetNcpdCaseQueryError = ErrorType<void>
+
+
+/**
+ * @summary A single case file (NCPD/fixer/admin only).
+ */
+
+export function useGetNcpdCase<TData = Awaited<ReturnType<typeof getNcpdCase>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNcpdCase>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNcpdCaseQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUpdateNcpdCaseUrl = (id: number,) => {
+
+
+
+
+  return `/api/ncpd/cases/${id}`
+}
+
+/**
+ * @summary Edit a case file (title, free-form body, open/closed status) (NCPD/fixer/admin only).
+ */
+export const updateNcpdCase = async (id: number,
+    ncpdCaseFileUpdate: NcpdCaseFileUpdate, options?: RequestInit): Promise<NcpdCaseFile> => {
+
+  return customFetch<NcpdCaseFile>(getUpdateNcpdCaseUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      ncpdCaseFileUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateNcpdCaseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateNcpdCase>>, TError,{id: number;data: BodyType<NcpdCaseFileUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateNcpdCase>>, TError,{id: number;data: BodyType<NcpdCaseFileUpdate>}, TContext> => {
+
+const mutationKey = ['updateNcpdCase'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateNcpdCase>>, {id: number;data: BodyType<NcpdCaseFileUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateNcpdCase(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateNcpdCaseMutationResult = NonNullable<Awaited<ReturnType<typeof updateNcpdCase>>>
+    export type UpdateNcpdCaseMutationBody = BodyType<NcpdCaseFileUpdate>
+    export type UpdateNcpdCaseMutationError = ErrorType<void>
+
+    /**
+ * @summary Edit a case file (title, free-form body, open/closed status) (NCPD/fixer/admin only).
+ */
+export const useUpdateNcpdCase = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateNcpdCase>>, TError,{id: number;data: BodyType<NcpdCaseFileUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateNcpdCase>>,
+        TError,
+        {id: number;data: BodyType<NcpdCaseFileUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateNcpdCaseMutationOptions(options));
+    }
+
+export const getDeleteNcpdCaseUrl = (id: number,) => {
+
+
+
+
+  return `/api/ncpd/cases/${id}`
+}
+
+/**
+ * @summary Delete a case file (NCPD/fixer/admin only).
+ */
+export const deleteNcpdCase = async (id: number, options?: RequestInit): Promise<OkResult> => {
+
+  return customFetch<OkResult>(getDeleteNcpdCaseUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteNcpdCaseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteNcpdCase>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteNcpdCase>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteNcpdCase'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteNcpdCase>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteNcpdCase(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteNcpdCaseMutationResult = NonNullable<Awaited<ReturnType<typeof deleteNcpdCase>>>
+
+    export type DeleteNcpdCaseMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a case file (NCPD/fixer/admin only).
+ */
+export const useDeleteNcpdCase = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteNcpdCase>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteNcpdCase>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteNcpdCaseMutationOptions(options));
     }
 
 export const getListNcpdLawsUrl = () => {

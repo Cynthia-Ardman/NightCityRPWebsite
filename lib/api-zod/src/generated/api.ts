@@ -13792,6 +13792,97 @@ export const DeleteNcpdWarrantResponse = zod.object({
 
 
 /**
+ * @summary Case files board — open cases first, then newest (NCPD/fixer/admin only).
+ */
+export const ListNcpdCasesQueryParams = zod.object({
+  "status": zod.enum(['open', 'closed']).optional()
+})
+
+export const ListNcpdCasesResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "body": zod.string().describe('Free-form case body (markdown allowed). May be empty.'),
+  "status": zod.enum(['open', 'closed']),
+  "openedById": zod.string().nullish(),
+  "openedByName": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListNcpdCasesResponse = zod.array(ListNcpdCasesResponseItem)
+
+
+/**
+ * @summary Open a new case file — only a title is required, the body starts blank (NCPD/fixer/admin only).
+ */
+
+
+
+export const CreateNcpdCaseBody = zod.object({
+  "title": zod.string().min(1),
+  "body": zod.string().optional().describe('Optional starting body — defaults to blank.')
+})
+
+
+/**
+ * @summary A single case file (NCPD/fixer/admin only).
+ */
+export const GetNcpdCaseParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetNcpdCaseResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "body": zod.string().describe('Free-form case body (markdown allowed). May be empty.'),
+  "status": zod.enum(['open', 'closed']),
+  "openedById": zod.string().nullish(),
+  "openedByName": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Edit a case file (title, free-form body, open/closed status) (NCPD/fixer/admin only).
+ */
+export const UpdateNcpdCaseParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdateNcpdCaseBody = zod.object({
+  "title": zod.string().min(1).optional(),
+  "body": zod.string().optional().describe('Free-form body; empty string allowed.'),
+  "status": zod.enum(['open', 'closed']).optional()
+})
+
+export const UpdateNcpdCaseResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "body": zod.string().describe('Free-form case body (markdown allowed). May be empty.'),
+  "status": zod.enum(['open', 'closed']),
+  "openedById": zod.string().nullish(),
+  "openedByName": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a case file (NCPD/fixer/admin only).
+ */
+export const DeleteNcpdCaseParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteNcpdCaseResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
  * @summary The Book of Laws. Public to every signed-in member; severity/punishment/restricted notes are stripped server-side unless the viewer is NCPD/fixer/admin.
  */
 export const ListNcpdLawsResponseItem = zod.object({

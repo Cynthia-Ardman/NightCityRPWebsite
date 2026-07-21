@@ -6182,6 +6182,106 @@ paths:
         "401": { description: Authentication required }
         "403": { description: NCPD/fixer/admin only }
         "404": { description: Warrant not found }
+  /ncpd/cases:
+    get:
+      operationId: listNcpdCases
+      tags: [ncpd]
+      summary: Case files board — open cases first, then newest (NCPD/fixer/admin only).
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [open, closed] }
+      responses:
+        "200":
+          description: Case files (max 200)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NcpdCaseFile" }
+        "400": { description: Invalid status filter }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+    post:
+      operationId: createNcpdCase
+      tags: [ncpd]
+      summary: Open a new case file — only a title is required, the body starts blank (NCPD/fixer/admin only).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NcpdCaseFileInput" }
+      responses:
+        "201":
+          description: The opened case file
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NcpdCaseFile" }
+        "400": { description: Missing/invalid fields }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+  /ncpd/cases/{id}:
+    get:
+      operationId: getNcpdCase
+      tags: [ncpd]
+      summary: A single case file (NCPD/fixer/admin only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The case file
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NcpdCaseFile" }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+        "404": { description: Case file not found }
+    patch:
+      operationId: updateNcpdCase
+      tags: [ncpd]
+      summary: Edit a case file (title, free-form body, open/closed status) (NCPD/fixer/admin only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NcpdCaseFileUpdate" }
+      responses:
+        "200":
+          description: The updated case file
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NcpdCaseFile" }
+        "400": { description: Invalid fields }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+        "404": { description: Case file not found }
+    delete:
+      operationId: deleteNcpdCase
+      tags: [ncpd]
+      summary: Delete a case file (NCPD/fixer/admin only).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResult" }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
+        "404": { description: Case file not found }
   /ncpd/laws:
     get:
       operationId: listNcpdLaws
@@ -11433,6 +11533,33 @@ components:
         body: { type: string, minLength: 1 }
         charges: { type: ["string", "null"] }
         arrestedAt: { type: ["string", "null"], format: date-time }
+
+    NcpdCaseFile:
+      type: object
+      required: [id, title, body, status, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        body: { type: string, description: "Free-form case body (markdown allowed). May be empty." }
+        status: { type: string, enum: [open, closed] }
+        openedById: { type: ["string", "null"] }
+        openedByName: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    NcpdCaseFileInput:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1 }
+        body: { type: string, description: "Optional starting body — defaults to blank." }
+
+    NcpdCaseFileUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1 }
+        body: { type: string, description: "Free-form body; empty string allowed." }
+        status: { type: string, enum: [open, closed] }
 
     NcpdWarrant:
       type: object

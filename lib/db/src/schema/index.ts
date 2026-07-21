@@ -2540,3 +2540,31 @@ export const ncpdFines = pgTable(
   }),
 );
 export type NcpdFine = typeof ncpdFines.$inferSelect;
+
+// A free-form NCPD case file: officers open one blank and write whatever the
+// investigation needs (markdown body). Deliberately unstructured — not tied to
+// a character; officers link suspects/evidence inline in the body text.
+export const ncpdCaseFiles = pgTable(
+  "ncpd_case_files",
+  {
+    id: serial("id").primaryKey(),
+    title: text("title").notNull(),
+    // Free-form case body (markdown allowed in the portal renderer).
+    body: text("body").notNull().default(""),
+    // open | closed. Open cases surface first on the case board.
+    status: text("status").notNull().default("open"),
+    // Opening officer. Snapshot the display name so the case stays legible
+    // even if the user row is later deleted.
+    openedById: text("opened_by_id").references(() => users.id, { onDelete: "set null" }),
+    openedByName: text("opened_by_name"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => ({
+    statusIdx: index("ncpd_case_files_status_idx").on(t.status),
+  }),
+);
+export type NcpdCaseFile = typeof ncpdCaseFiles.$inferSelect;
