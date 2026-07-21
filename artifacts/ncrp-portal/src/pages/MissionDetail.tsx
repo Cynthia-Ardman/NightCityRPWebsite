@@ -1,5 +1,5 @@
 import { formatDate } from "@/lib/format";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -30,6 +30,12 @@ import {
   getListMissionsQueryKey,
   getListEventsQueryKey,
   useConvertMissionToEvent,
+  useGetCharacter,
+  getGetCharacterQueryKey,
+  useGetCharacterInventory,
+  getGetCharacterInventoryQueryKey,
+  type Character,
+  type InventoryItem,
   type ArchiveUser,
   type MissionDetail as MissionDetailModel,
   type MissionAssignmentView,
@@ -84,6 +90,8 @@ import {
   Unlock,
   Cpu,
   PartyPopper,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   missionStatusClass,
@@ -1487,6 +1495,256 @@ function ApplicationReviewRow({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Squad Intel: at-a-glance character loadouts (cyberware / weapons / gear) plus
+// a short "who is this" summary for everyone the fixer is considering — roster
+// members first, then still-pending applicants. Renders only inside the FIXER
+// tab, and the character/inventory endpoints it hits are owner-or-staff gated
+// server-side.
+
+function SquadIntelPanel({ data }: { data: MissionDetailModel }) {
+  const rosterCharIds = new Set(data.assignments.map((a) => a.characterId).filter((id): id is number => id != null));
+  const roster = data.assignments.filter((a) => a.characterId != null);
+  // Pending applicants not already on the roster with the same character.
+  const pendingApps = data.applications.filter(
+    (a) => a.status === "pending" && a.characterId != null && !rosterCharIds.has(a.characterId),
+  );
+  if (roster.length === 0 && pendingApps.length === 0) return null;
+  return (
+    <Card className="rounded-none border-border bg-card/50" data-testid="panel-squad-intel">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-xs uppercase text-muted-foreground">
+          Squad Intel
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2 font-mono text-sm">
+        <p className="text-muted-foreground text-xs">
+          Expand a character to review their cyberware, weapons, and gear before the run.
+        </p>
+        {roster.map((a) => (
+          <CharacterIntelRow
+            key={`roster-${a.id}`}
+            characterId={a.characterId!}
+            name={a.characterName ?? "(character)"}
+            userName={a.userName ?? null}
+            portraitUrl={a.characterPortraitUrl ?? a.userAvatarUrl ?? null}
+            tag="ROSTER"
+            tagClass="border-green-600/60 text-green-500"
+          />
+        ))}
+        {pendingApps.map((a) => (
+          <CharacterIntelRow
+            key={`app-${a.id}`}
+            characterId={a.characterId!}
+            name={a.characterName ?? "(character)"}
+            userName={a.userName ?? null}
+            portraitUrl={a.characterPortraitUrl ?? a.userAvatarUrl ?? null}
+            tag="APPLICANT"
+            tagClass="border-nc-yellow/60 text-nc-yellow"
+          />
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CharacterIntelRow({
+  characterId,
+  name,
+  userName,
+  portraitUrl,
+  tag,
+  tagClass,
+}: {
+  characterId: number;
+  name: string;
+  userName: string | null;
+  portraitUrl: string | null;
+  tag: string;
+  tagClass: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border border-border/60 bg-background/30" data-testid={`intel-row-${characterId}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-3 p-2 text-left hover:bg-background/60 transition-colors"
+        data-testid={`button-intel-toggle-${characterId}`}
+      >
+        <Avatar className="border border-nc-cyan/30 rounded-none w-8 h-8">
+          <AvatarImage src={portraitUrl ?? undefined} />
+          <AvatarFallback className="bg-background text-nc-cyan rounded-none font-display text-[10px]">
+            {name.substring(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <span className="font-display text-foreground">{name}</span>
+          {userName && <span className="text-xs text-muted-foreground ml-2">({userName})</span>}
+        </div>
+        <Badge variant="outline" className={`rounded-none font-display tracking-widest text-[10px] ${tagClass}`}>
+          {tag}
+        </Badge>
+        {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+      </button>
+      {open && <CharacterIntelBody characterId={characterId} />}
+    </div>
+  );
+}
+
+/** Parse the per-unit CWP cost stamped into cyberware notes ("CWP 3 ..."). */
+function cwpFromNotes(notes: string | null | undefined): number | null {
+  const m = /(?:^|\b)CWP\s+(\d+)/i.exec(notes ?? "");
+  return m ? parseInt(m[1], 10) : null;
+}
+
+const WEAPON_CATEGORIES = new Set(["gun", "weapon", "blade"]);
+
+function CharacterIntelBody({ characterId }: { characterId: number }) {
+  const charQ = useGetCharacter(characterId, {
+    query: { queryKey: getGetCharacterQueryKey(characterId) },
+  });
+  const invQ = useGetCharacterInventory(characterId, {
+    query: { queryKey: getGetCharacterInventoryQueryKey(characterId) },
+  });
+
+  if (charQ.isLoading || invQ.isLoading) {
+    return <div className="p-3 text-xs text-muted-foreground italic border-t border-border/40">Loading dossier…</div>;
+  }
+  if (charQ.isError || invQ.isError) {
+    return (
+      <div className="p-3 text-xs text-destructive border-t border-border/40" data-testid={`intel-error-${characterId}`}>
+        Could not load this character&apos;s dossier.
+      </div>
+    );
+  }
+  const c = charQ.data as Character | undefined;
+  const items = (invQ.data ?? []) as InventoryItem[];
+  if (!c) return null;
+
+  const catOf = (i: InventoryItem) => (i.category ?? "").trim().toLowerCase();
+  const cyberware = items.filter((i) => catOf(i) === "cyberware");
+  const weapons = items.filter((i) => WEAPON_CATEGORIES.has(catOf(i)));
+  const gear = items.filter((i) => catOf(i) !== "cyberware" && !WEAPON_CATEGORIES.has(catOf(i)));
+  const totalCwp = cyberware.reduce((sum, i) => sum + (cwpFromNotes(i.notes) ?? 0) * (i.quantity || 1), 0);
+
+  const sheet = (c.sheetData ?? null) as Record<string, unknown> | null;
+  const sheetStr = (k: string) => {
+    const v = sheet?.[k];
+    return typeof v === "string" && v.trim() ? v.trim() : null;
+  };
+  const affiliation = sheetStr("knownAffiliation");
+  const skills = sheetStr("skills");
+  const psych = sheetStr("psychProfile");
+  // Strip internal [legacy:<uuid>] anchors stamped by the prod importer.
+  const bgClean = (c.background ?? "").replace(/\[legacy:[^\]]+\]/g, "").trim();
+  const summary = psych ?? (bgClean || null);
+  const clamp = (s: string, n: number) => (s.length > n ? `${s.slice(0, n).trimEnd()}…` : s);
+
+  return (
+    <div className="p-3 space-y-3 border-t border-border/40" data-testid={`intel-body-${characterId}`}>
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        {c.archetype && (
+          <Badge variant="outline" className="rounded-none border-nc-cyan/50 text-nc-cyan font-display tracking-widest text-[10px]">
+            {c.archetype}
+          </Badge>
+        )}
+        {c.lifeStatus && c.lifeStatus !== "active" && (
+          <Badge variant="outline" className="rounded-none border-destructive/60 text-destructive font-display tracking-widest text-[10px] uppercase">
+            {c.lifeStatus}
+          </Badge>
+        )}
+        {affiliation && <span className="text-muted-foreground">Affiliation: <span className="text-foreground">{clamp(affiliation, 120)}</span></span>}
+      </div>
+
+      {summary && (
+        <p className="text-xs text-muted-foreground whitespace-pre-wrap" data-testid={`intel-summary-${characterId}`}>
+          {clamp(summary, 400)}
+        </p>
+      )}
+
+      {skills && (
+        <div className="text-xs">
+          <span className="font-display tracking-widest text-[10px] uppercase text-muted-foreground">Skills</span>
+          <p className="text-foreground whitespace-pre-wrap mt-0.5">{clamp(skills, 250)}</p>
+        </div>
+      )}
+
+      <IntelItemList
+        title={`Cyberware (${cyberware.length}${totalCwp > 0 ? ` · ${totalCwp} CWP` : ""})`}
+        items={cyberware}
+        empty="No cyberware on record."
+        accent="text-nc-cyan"
+        renderExtra={(i) => {
+          const cwp = cwpFromNotes(i.notes);
+          return cwp != null ? <span className="text-muted-foreground"> · CWP {cwp}</span> : null;
+        }}
+        testId={`intel-cyberware-${characterId}`}
+      />
+      <IntelItemList
+        title={`Weapons (${weapons.length})`}
+        items={weapons}
+        empty="No weapons on record."
+        accent="text-nc-magenta"
+        renderExtra={(i) =>
+          i.cyberwareReq ? <span className="text-muted-foreground"> · requires {i.cyberwareReq}</span> : null
+        }
+        testId={`intel-weapons-${characterId}`}
+      />
+      <IntelItemList
+        title={`Gear & Other (${gear.length})`}
+        items={gear}
+        empty="No other gear on record."
+        accent="text-nc-yellow"
+        testId={`intel-gear-${characterId}`}
+      />
+
+      <Link
+        href={`/directory/characters/${characterId}`}
+        className="inline-flex items-center gap-1 text-xs text-nc-cyan hover:underline font-display tracking-widest"
+        data-testid={`link-intel-sheet-${characterId}`}
+      >
+        VIEW FULL SHEET <ExternalLink className="w-3 h-3" />
+      </Link>
+    </div>
+  );
+}
+
+function IntelItemList({
+  title,
+  items,
+  empty,
+  accent,
+  renderExtra,
+  testId,
+}: {
+  title: string;
+  items: InventoryItem[];
+  empty: string;
+  accent: string;
+  renderExtra?: (i: InventoryItem) => ReactNode;
+  testId: string;
+}) {
+  return (
+    <div className="text-xs" data-testid={testId}>
+      <span className={`font-display tracking-widest text-[10px] uppercase ${accent}`}>{title}</span>
+      {items.length === 0 ? (
+        <p className="text-muted-foreground italic mt-0.5">{empty}</p>
+      ) : (
+        <ul className="mt-0.5 space-y-0.5">
+          {items.map((i) => (
+            <li key={i.id} className="text-foreground">
+              {i.name}
+              {i.quantity > 1 && <span className="text-muted-foreground"> ×{i.quantity}</span>}
+              {renderExtra?.(i)}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function FixerView({ data }: { data: MissionDetailModel }) {
   // Trial fixers may fully manage their OWN approved missions (roster / post /
   // pay), but the cross-player acting lookup and breach control are
@@ -1521,6 +1779,8 @@ function FixerView({ data }: { data: MissionDetailModel }) {
       <WorkflowPanel data={data} />
 
       <ApplicationsPanel data={data} />
+
+      <SquadIntelPanel data={data} />
 
       {isFullManager && <PlayerActingLookup />}
 

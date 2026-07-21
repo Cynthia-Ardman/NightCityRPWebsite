@@ -19,6 +19,8 @@ const state = vi.hoisted(() => ({
   submit: vi.fn(),
   approve: vi.fn(),
   post: vi.fn(),
+  character: null as Record<string, unknown> | null,
+  inventory: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@/hooks/useAuthMe", () => ({
@@ -82,6 +84,8 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
     // No saved weekly default: the availability picker starts empty so tests
     // must paint slots explicitly (mirrors a first-time applicant).
     useGetDefaultAvailability: () => ({ data: { pattern: [], timezone: null }, isLoading: false, isFetched: true }),
+    useGetCharacter: () => ({ data: state.character, isLoading: false, isError: false }),
+    useGetCharacterInventory: () => ({ data: state.inventory, isLoading: false, isError: false }),
   };
 });
 
@@ -171,6 +175,73 @@ beforeEach(() => {
   state.submit.mockReset();
   state.approve.mockReset();
   state.post.mockReset();
+  state.character = null;
+  state.inventory = [];
+});
+
+describe("MissionDetail — squad intel", () => {
+  it("shows the squad intel panel with a loadout dossier for a roster character", async () => {
+    const user = userEvent.setup();
+    state.me = makeMe({ isFixer: true });
+    state.mission = makeMission({
+      canManage: true,
+      assignments: [
+        { id: 1, userId: "player-9", userName: "chooms", characterId: 42, characterName: "Jackie", paymentStatus: "unpaid" },
+      ] as MissionDetailModel["assignments"],
+    });
+    state.character = {
+      id: 42,
+      name: "Jackie",
+      kind: "pc",
+      archetype: "Solo",
+      lifeStatus: "active",
+      background: "Heywood muscle with a heart of gold [legacy:abc-123] and big dreams.",
+      sheetData: { skills: "Handguns, brawling", knownAffiliation: "Valentinos" },
+    };
+    state.inventory = [
+      { id: 1, name: "Gorilla Arms", category: "cyberware", quantity: 1, notes: "CWP 3 slot: arms", equipped: true },
+      { id: 2, name: "Nova .44", category: "gun", quantity: 2, notes: null, cyberwareReq: "Smart Link" },
+      { id: 3, name: "Rope", category: "gear", quantity: 1, notes: null },
+    ];
+    renderPage();
+
+    await user.click(screen.getByTestId("tab-fixer"));
+    expect(screen.getByTestId("panel-squad-intel")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("button-intel-toggle-42"));
+    const body = await screen.findByTestId("intel-body-42");
+    expect(body).toBeInTheDocument();
+    expect(screen.getByTestId("intel-cyberware-42")).toHaveTextContent("Gorilla Arms");
+    expect(screen.getByTestId("intel-cyberware-42")).toHaveTextContent("CWP 3");
+    expect(screen.getByTestId("intel-weapons-42")).toHaveTextContent("Nova .44");
+    expect(screen.getByTestId("intel-weapons-42")).toHaveTextContent("requires Smart Link");
+    expect(screen.getByTestId("intel-gear-42")).toHaveTextContent("Rope");
+    // Background is shown with importer [legacy:*] anchors scrubbed.
+    expect(screen.getByTestId("intel-summary-42")).toHaveTextContent("Heywood muscle");
+    expect(screen.getByTestId("intel-summary-42").textContent).not.toContain("[legacy:");
+    expect(body).toHaveTextContent("Valentinos");
+  });
+
+  it("lists a pending applicant (not yet on the roster) in squad intel", async () => {
+    const user = userEvent.setup();
+    state.me = makeMe({ isFixer: true });
+    const app = makeApplication({ characterId: 77, characterName: "Rogue", status: "pending" });
+    state.mission = makeMission({ canManage: true, applications: [app] });
+    renderPage();
+    await user.click(screen.getByTestId("tab-fixer"));
+    const row = screen.getByTestId("intel-row-77");
+    expect(row).toHaveTextContent("Rogue");
+    expect(row).toHaveTextContent("APPLICANT");
+  });
+
+  it("does not render squad intel without roster members or pending applicants", async () => {
+    const user = userEvent.setup();
+    state.me = makeMe({ isFixer: true });
+    state.mission = makeMission({ canManage: true });
+    renderPage();
+    await user.click(screen.getByTestId("tab-fixer"));
+    expect(screen.queryByTestId("panel-squad-intel")).toBeNull();
+  });
 });
 
 describe("MissionDetail — applications recency warning", () => {
