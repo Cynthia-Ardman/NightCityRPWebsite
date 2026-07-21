@@ -3924,6 +3924,10 @@ paths:
                   usedCwp: { type: number }
                   createdAt: { type: ["string", "null"], format: date-time }
                   lastCheckupAt: { type: ["string", "null"], format: date-time }
+                  lastCheckupActualAt:
+                    type: ["string", "null"]
+                    format: date-time
+                    description: "Real most-recent checkup visit (newest audit row). May be later than lastCheckupAt while a checkup-reset floor event is active."
                   checkupStreak: { type: integer }
                   installed:
                     type: array
@@ -7423,6 +7427,10 @@ components:
           type: ["string", "null"]
           format: date-time
           description: "Timestamp of the last ripperdoc checkup. Null = never had one."
+        lastCheckupActualAt:
+          type: ["string", "null"]
+          format: date-time
+          description: "Real most-recent checkup visit date (from the audit trail). Only populated on the single-character GET; may be later than lastCheckupAt while a checkup-reset floor event backdates the billing-effective date."
         checkupStreak:
           type: integer
           description: "Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max)."
@@ -10108,6 +10116,10 @@ components:
           required: [lastCheckupAt, weeksUnpaid, household, multiplier, topBand, breakdown]
           properties:
             lastCheckupAt: { type: ["string", "null"], format: date-time }
+            lastCheckupActualAt:
+              type: ["string", "null"]
+              format: date-time
+              description: "Real most-recent checkup visit across the household (audit trail). May be later than lastCheckupAt while a checkup-reset floor event is active."
             weeksUnpaid: { type: integer }
             household: { type: integer, description: "Number of player's PCs with chrome >= 7 (i.e. 'above 6')." }
             multiplier: { type: number }

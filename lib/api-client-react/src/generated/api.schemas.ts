@@ -1491,6 +1491,11 @@ export interface Character {
      * @nullable
      */
   lastCheckupAt?: string | null;
+  /**
+     * Real most-recent checkup visit date (from the audit trail). Only populated on the single-character GET; may be later than lastCheckupAt while a checkup-reset floor event backdates the billing-effective date.
+     * @nullable
+     */
+  lastCheckupActualAt?: string | null;
   /** Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max). */
   checkupStreak?: number;
   /** Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap. */
@@ -5556,6 +5561,11 @@ export type UpcomingBillsCyberwareStatusBreakdownItem = {
 export type UpcomingBillsCyberwareStatus = {
   /** @nullable */
   lastCheckupAt: string | null;
+  /**
+     * Real most-recent checkup visit across the household (audit trail). May be later than lastCheckupAt while a checkup-reset floor event is active.
+     * @nullable
+     */
+  lastCheckupActualAt?: string | null;
   weeksUnpaid: number;
   /** Number of player's PCs with chrome >= 7 (i.e. 'above 6'). */
   household: number;
@@ -8123,6 +8133,11 @@ export type GetCharacterMedical200 = {
   createdAt?: string | null;
   /** @nullable */
   lastCheckupAt?: string | null;
+  /**
+     * Real most-recent checkup visit (newest audit row). May be later than lastCheckupAt while a checkup-reset floor event is active.
+     * @nullable
+     */
+  lastCheckupActualAt?: string | null;
   checkupStreak: number;
   installed: GetCharacterMedical200InstalledItem[];
   checkups: GetCharacterMedical200CheckupsItem[];

@@ -22,6 +22,11 @@ export type GetCharacterMedical200 = {
   createdAt?: Date | null;
   /** @nullable */
   lastCheckupAt?: Date | null;
+  /**
+     * Real most-recent checkup visit (newest audit row). May be later than lastCheckupAt while a checkup-reset floor event is active.
+     * @nullable
+     */
+  lastCheckupActualAt?: Date | null;
   checkupStreak: number;
   installed: GetCharacterMedical200InstalledItem[];
   checkups: GetCharacterMedical200CheckupsItem[];

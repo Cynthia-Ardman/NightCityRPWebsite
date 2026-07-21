@@ -1068,6 +1068,11 @@ router.get("/admin/characters/:id/medical", requireAuth, async (req, res): Promi
     usedCwp,
     createdAt: c.createdAt?.toISOString() ?? null,
     lastCheckupAt: c.lastCheckupAt?.toISOString() ?? null,
+    // Real most-recent VISIT (newest audit checkup row). Diverges from
+    // lastCheckupAt while the checkup-reset-floor event backdates the
+    // billing-effective date; the console shows this one to the doc.
+    lastCheckupActualAt:
+      checkupRows[0]?.createdAt?.toISOString() ?? c.lastCheckupAt?.toISOString() ?? null,
     checkupStreak: c.checkupStreak,
     installed: installedRows.map((it) => ({
       id: it.id,

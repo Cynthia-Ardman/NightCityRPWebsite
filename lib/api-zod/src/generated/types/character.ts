@@ -55,6 +55,11 @@ export interface Character {
      * @nullable
      */
   lastCheckupAt?: Date | null;
+  /**
+     * Real most-recent checkup visit date (from the audit trail). Only populated on the single-character GET; may be later than lastCheckupAt while a checkup-reset floor event backdates the billing-effective date.
+     * @nullable
+     */
+  lastCheckupActualAt?: Date | null;
   /** Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max). */
   checkupStreak?: number;
   /** Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap. */

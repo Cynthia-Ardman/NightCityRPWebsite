@@ -267,6 +267,31 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   }
   const lastCheckupAtIso = lastCheckupAt ? lastCheckupAt.toISOString() : null;
 
+  // Actual most-recent checkup VISIT across the household, from the audit
+  // trail. Under the temporary checkup-reset-floor event, lastCheckupAt is
+  // backdated so billing stays capped at week N — display surfaces show the
+  // real visit date instead so players don't think their checkup was lost.
+  // Billing math above deliberately keeps using the effective date.
+  const allCharIds = myChars.map((c) => c.id);
+  let lastCheckupActualAt: Date | null = lastCheckupAt;
+  if (allCharIds.length > 0) {
+    const [visit] = await db
+      .select({ createdAt: auditLog.createdAt })
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetType, "character"),
+          inArray(auditLog.targetId, allCharIds.map(String)),
+          eq(auditLog.action, "checkup"),
+        ),
+      )
+      .orderBy(desc(auditLog.createdAt))
+      .limit(1);
+    if (visit?.createdAt && (!lastCheckupActualAt || visit.createdAt > lastCheckupActualAt)) {
+      lastCheckupActualAt = visit.createdAt;
+    }
+  }
+
   // Active leases. Per-lease monthly_rent IS billed by the cron (see jobs.ts
   // lease billing) and is summed into the headline "Next Rent" total below.
   const charIds = myChars.map((c) => c.id);
@@ -324,6 +349,7 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
     meds,
     cyberwareStatus: {
       lastCheckupAt: lastCheckupAtIso,
+      lastCheckupActualAt: lastCheckupActualAt ? lastCheckupActualAt.toISOString() : null,
       weeksUnpaid: reportedWeeksUnpaid,
       household,
       multiplier: Number(((household <= 1) ? 1 : (1 + 0.25 * (household - 1))).toFixed(2)),

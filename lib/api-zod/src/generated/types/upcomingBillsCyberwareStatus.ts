@@ -13,6 +13,11 @@ import type { UpcomingBillsCyberwareStatusBreakdownItem } from './upcomingBillsC
 export type UpcomingBillsCyberwareStatus = {
   /** @nullable */
   lastCheckupAt: Date | null;
+  /**
+     * Real most-recent checkup visit across the household (audit trail). May be later than lastCheckupAt while a checkup-reset floor event is active.
+     * @nullable
+     */
+  lastCheckupActualAt?: Date | null;
   weeksUnpaid: number;
   /** Number of player's PCs with chrome >= 7 (i.e. 'above 6'). */
   household: number;

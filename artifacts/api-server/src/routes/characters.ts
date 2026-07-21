@@ -11,6 +11,7 @@ import {
   walletTransactions,
   users,
   activityEvents,
+  auditLog,
   lifestyleTiers,
   housing,
   shopOpens,
@@ -146,7 +147,26 @@ router.get("/characters/:id", requireAuth, async (req, res): Promise<void> => {
     const [t] = await db.select().from(lifestyleTiers).where(eq(lifestyleTiers.id, c.lifestyleTierId));
     lifestyleTier = t ?? null;
   }
-  res.json({ ...c, lifestyleTier });
+  // Actual last checkup VISIT date from the audit trail. Under the temporary
+  // "checkup reset floor" event, characters.lastCheckupAt is backdated so
+  // billing stays capped at week N — showing that date to players reads as
+  // "the system lost my checkup". lastCheckupAt stays the billing-effective
+  // date; this field is display-only truth about when the doc actually saw
+  // them. Falls back to lastCheckupAt for pre-audit/imported checkups.
+  const [lastVisit] = await db
+    .select({ createdAt: auditLog.createdAt })
+    .from(auditLog)
+    .where(
+      and(
+        eq(auditLog.targetType, "character"),
+        eq(auditLog.targetId, String(id)),
+        eq(auditLog.action, "checkup"),
+      ),
+    )
+    .orderBy(desc(auditLog.createdAt))
+    .limit(1);
+  const lastCheckupActualAt = lastVisit?.createdAt ?? c.lastCheckupAt ?? null;
+  res.json({ ...c, lifestyleTier, lastCheckupActualAt });
 });
 
 router.put("/characters/:id/lifestyle", requireAuth, async (req, res): Promise<void> => {
