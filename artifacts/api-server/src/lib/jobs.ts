@@ -12,7 +12,7 @@ import { reconcileDiscordEvents, backfillMainSessions, reconcileVrchatCalendar }
 import { isSystemLive, type LiveSystem } from "./liveMode";
 import { runEconomyReconcile, getEconomyMode, advanceSettledWalletBalance } from "./economy";
 import { pollGroupInstances } from "./vrchatInstances";
-import { vrchatCredsConfigured, vrchatSessionConnected } from "./vrchatClient";
+import { vrchatCredsConfigured, maintainVrchatSession } from "./vrchatClient";
 import {
   DEFAULT_BASELINE_LIVING_COST,
   DEFAULT_XANADU_GOLD_COST,
@@ -1125,11 +1125,14 @@ export function startCron() {
     if (vrchatPollAllowed) {
       cron.schedule("*/2 * * * *", async () => {
         if (!vrchatCredsConfigured()) return;
-        // Skip quietly while the staff session is disconnected/expired — the
-        // poll can only fail (and would spam a warn every 2 minutes) until a
-        // staff member reconnects via the System Admin → VRChat card.
+        // While the session is disconnected/expired, maintainVrchatSession
+        // retries the one-click reconnect (remembered 2FA device — same as a
+        // staff member's Connect click) with an internal cooldown, and alerts
+        // the admins once per disconnected episode if it genuinely needs a
+        // manual reconnect (email code). Skips the poll while still down so
+        // the warn log doesn't spam every 2 minutes.
         try {
-          if (!(await vrchatSessionConnected())) return;
+          if (!(await maintainVrchatSession())) return;
           await pollGroupInstances();
         } catch (err) {
           logger.warn({ err }, "vrchat_instance_poll cron");

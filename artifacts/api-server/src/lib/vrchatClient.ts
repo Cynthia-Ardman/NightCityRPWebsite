@@ -1,7 +1,9 @@
 import crypto from "node:crypto";
-import { db, vrchatSessions } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { db, vrchatSessions, users } from "@workspace/db";
+import { and, eq, arrayOverlaps } from "drizzle-orm";
 import { logger } from "./logger";
+import { ROLE_NAMES, sendDirectMessage } from "./discord";
+import { createNotification } from "./notifications";
 
 // ---------------------------------------------------------------------------
 // Server-side client for the dedicated 24/7 NCRP VRChat "instance browser"
@@ -229,6 +231,10 @@ async function finalizeSession(
     lastError: null,
   });
   logger.info({ vrchatUserId }, "VRChat session established");
+  // A fresh session ends the current "disconnected episode": if the session
+  // drops again later, admins should be alerted again without waiting out the
+  // notify cooldown from the previous episode.
+  lastDisconnectNotifyAt = 0;
   return { vrchatUserId, vrchatDisplayName };
 }
 
@@ -477,6 +483,66 @@ async function tryAutoReconnect(context: string): Promise<boolean> {
   } catch (err) {
     logger.warn({ context, err }, "VRChat auto-reconnect attempt failed");
     return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Session maintenance + admin alerting. The instance-poll cron calls
+// maintainVrchatSession() every cycle: while the session is healthy it is a
+// no-op; when the auth cookie is gone it retries the same one-click reconnect
+// a staff member would perform (remembered 2FA device, no email code), and if
+// that genuinely needs a human it alerts every admin ONCE per disconnected
+// episode (bell notification + Discord DM) instead of failing silently until
+// someone happens to open the System Admin card.
+// ---------------------------------------------------------------------------
+const DISCONNECT_NOTIFY_COOLDOWN_MS = 12 * 60 * 60 * 1000;
+let lastDisconnectNotifyAt = 0;
+
+/** Test-only: reset the disconnect-notify cooldown between test cases. */
+export function __resetDisconnectNotifyCooldownForTests(): void {
+  lastDisconnectNotifyAt = 0;
+}
+
+export async function maintainVrchatSession(): Promise<boolean> {
+  if (!vrchatCredsConfigured()) return false;
+  const cookies = await loadSession();
+  if (cookies.auth) return true;
+  if (await tryAutoReconnect("session_maintenance")) return true;
+  void notifyAdminsVrchatDisconnected();
+  return false;
+}
+
+async function notifyAdminsVrchatDisconnected(): Promise<void> {
+  const nowMs = Date.now();
+  if (nowMs - lastDisconnectNotifyAt < DISCONNECT_NOTIFY_COOLDOWN_MS) return;
+  lastDisconnectNotifyAt = nowMs;
+  try {
+    const [row] = await db
+      .select({ lastError: vrchatSessions.lastError })
+      .from(vrchatSessions)
+      .where(eq(vrchatSessions.id, SESSION_ID));
+    const detail = row?.lastError ? ` Last error: ${row.lastError}` : "";
+    const title = "VRChat session disconnected";
+    const body = `Automatic reconnect could not restore the VRChat session — it needs a manual reconnect in System Admin → VRChat.${detail}`;
+    const admins = await db
+      .select({ id: users.id, discordId: users.discordId })
+      .from(users)
+      .where(arrayOverlaps(users.roles, ROLE_NAMES.ADMIN));
+    for (const a of admins) {
+      void createNotification({ userId: a.id, type: "vrchat_session", title, body, href: "/admin" });
+      if (a.discordId) {
+        // Best-effort; sendDirectMessage is deployment-gated internally.
+        sendDirectMessage(a.discordId, `⚠️ ${title}\n${body}`).catch((err) =>
+          logger.warn({ err }, "VRChat disconnect DM failed"),
+        );
+      }
+    }
+    logger.warn({ admins: admins.length }, "VRChat session disconnected — admins notified");
+  } catch (err) {
+    // Don't burn the cooldown on a transient failure (e.g. DB hiccup) — let
+    // the next cron tick retry the alert instead of going silent for 12h.
+    lastDisconnectNotifyAt = 0;
+    logger.warn({ err }, "VRChat disconnect admin notify failed");
   }
 }
 

@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { db, vrchatSessions } from "@workspace/db";
+import { db, vrchatSessions, users, notifications } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import {
   fetchGroupInstances,
+  maintainVrchatSession,
   SESSION_EXPIRED_MSG,
   __resetAutoReconnectCooldownForTests,
+  __resetDisconnectNotifyCooldownForTests,
 } from "./vrchatClient";
 
 // Unit-level coverage for the session-drop fix: a lone 401 must NOT wipe the
@@ -60,6 +62,7 @@ afterEach(() => {
 beforeEach(async () => {
   await seedSession();
   __resetAutoReconnectCooldownForTests();
+  __resetDisconnectNotifyCooldownForTests();
   // Auto-reconnect requires credentials; default to none so 401 tests hit the
   // manual-reconnect fallback deterministically.
   delete process.env.VRCHAT_USERNAME;
@@ -183,6 +186,111 @@ describe("vrchatClient 401 handling", () => {
     const row = await readSession();
     expect(row?.authCookie).toBeNull();
     expect(row?.twoFactorCookie).toBe("tfa-A");
+  });
+});
+
+describe("maintainVrchatSession", () => {
+  const ADMIN_ID = "vrc-maint-admin";
+
+  beforeEach(async () => {
+    await db
+      .insert(users)
+      .values({ id: ADMIN_ID, discordId: "999000111", username: "admin-tester", roles: ["admin"] })
+      .onConflictDoUpdate({ target: users.id, set: { roles: ["admin"] } });
+    await db.delete(notifications).where(eq(notifications.userId, ADMIN_ID));
+  });
+
+  it("is a no-op (returns true) while the session is healthy", async () => {
+    process.env.VRCHAT_USERNAME = "bot";
+    process.env.VRCHAT_PASSWORD = "pw";
+    const fetchSpy = vi.fn(async () => jsonResponse([])) as typeof fetch;
+    global.fetch = fetchSpy;
+
+    await expect(maintainVrchatSession()).resolves.toBe(true);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("auto-reconnects with the remembered 2FA device when the cookie is gone", async () => {
+    process.env.VRCHAT_USERNAME = "bot";
+    process.env.VRCHAT_PASSWORD = "pw";
+    await db
+      .update(vrchatSessions)
+      .set({ authCookie: null })
+      .where(eq(vrchatSessions.id, SESSION_ID));
+    global.fetch = vi.fn(async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/auth/user")) {
+        const headers = new Headers(init?.headers as Record<string, string> | undefined);
+        if (headers.get("Authorization")?.startsWith("Basic ")) {
+          return jsonResponse(
+            { id: "usr_x", displayName: "Bot", requiresTwoFactorAuth: [] },
+            { setCookies: ["auth=cookie-CRON; Path=/; HttpOnly"] },
+          );
+        }
+        return jsonResponse({ id: "usr_x", displayName: "Bot" });
+      }
+      return jsonResponse({}, { status: 500 });
+    }) as typeof fetch;
+
+    await expect(maintainVrchatSession()).resolves.toBe(true);
+    expect((await readSession())?.authCookie).toBe("cookie-CRON");
+    // Healthy reconnect: no admin notifications.
+    const rows = await db.select().from(notifications).where(eq(notifications.userId, ADMIN_ID));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("notifies admins once per episode when the reconnect genuinely needs a human", async () => {
+    process.env.VRCHAT_USERNAME = "bot";
+    process.env.VRCHAT_PASSWORD = "pw";
+    await db
+      .update(vrchatSessions)
+      .set({ authCookie: null })
+      .where(eq(vrchatSessions.id, SESSION_ID));
+    global.fetch = vi.fn(async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/auth/user")) {
+        const headers = new Headers(init?.headers as Record<string, string> | undefined);
+        if (headers.get("Authorization")?.startsWith("Basic ")) {
+          // Login answered with an email-code challenge → human required.
+          return jsonResponse({ requiresTwoFactorAuth: ["emailOtp"] });
+        }
+        return jsonResponse({}, { status: 401 });
+      }
+      return jsonResponse({}, { status: 500 });
+    }) as typeof fetch;
+
+    await expect(maintainVrchatSession()).resolves.toBe(false);
+    // notify runs fire-and-forget; give it a beat to land.
+    await vi.waitFor(async () => {
+      const rows = await db
+        .select()
+        .from(notifications)
+        .where(eq(notifications.userId, ADMIN_ID));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.type).toBe("vrchat_session");
+    });
+
+    // Second cron tick within the cooldown window: no duplicate notification.
+    __resetAutoReconnectCooldownForTests();
+    await expect(maintainVrchatSession()).resolves.toBe(false);
+    await new Promise((r) => setTimeout(r, 100));
+    const rows = await db.select().from(notifications).where(eq(notifications.userId, ADMIN_ID));
+    expect(rows).toHaveLength(1);
+  });
+
+  it("returns false without notifying when credentials are not configured", async () => {
+    await db
+      .update(vrchatSessions)
+      .set({ authCookie: null })
+      .where(eq(vrchatSessions.id, SESSION_ID));
+    const fetchSpy = vi.fn(async () => jsonResponse([])) as typeof fetch;
+    global.fetch = fetchSpy;
+
+    await expect(maintainVrchatSession()).resolves.toBe(false);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    await new Promise((r) => setTimeout(r, 100));
+    const rows = await db.select().from(notifications).where(eq(notifications.userId, ADMIN_ID));
+    expect(rows).toHaveLength(0);
   });
 });
 

@@ -105,3 +105,14 @@ keep the `/event` suffix, but delete is `DELETE /calendar/{grp}/{cal}` — WITH
 the suffix it returns 405 Method Not Allowed. Also: any calendar write for an
 event whose START has passed 400s ("Calendar Entry must start in the future"),
 so reconcile skips rows with past startAt (not endAt).
+
+## Cron auto-reconnect + admin alerting (2026-07)
+The 2-min instance-poll cron no longer skips silently while disconnected: it
+calls `maintainVrchatSession()` (vrchatClient.ts) — healthy = no-op; missing
+authCookie = tryAutoReconnect("session_maintenance") (same remembered-2FA
+no-code path as staff Connect, 15-min cooldown); on failure it fire-and-forgets
+notifyAdminsVrchatDisconnected(): bell notification (type "vrchat_session",
+href /admin) + deployment-gated Discord DM to every ROLE_NAMES.ADMIN user,
+12h module-level cooldown, reset in finalizeSession (new episode re-alerts)
+and reset on notify failure (transient DB error doesn't mute for 12h).
+Don't add other unattended password-login paths — 429 lockout risk stands.
