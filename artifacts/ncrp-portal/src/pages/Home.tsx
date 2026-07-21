@@ -1865,6 +1865,10 @@ function UpcomingBillsCard() {
 // they're being billed at the current band.
 type CyberwareStatusShape = {
   lastCheckupAt?: string | null;
+  // Real most-recent visit (audit trail); lastCheckupAt is the billing-
+  // effective date, which is backdated while the checkup-reset floor
+  // event is active. Display the real one.
+  lastCheckupActualAt?: string | null;
   weeksUnpaid: number;
   household: number;
   multiplier: number;
@@ -1916,7 +1920,11 @@ function CyberwareStatusPanel({ status }: { status: CyberwareStatusShape }) {
 
         <StatRow
           label="Last Checkup"
-          value={status.lastCheckupAt ? formatPastDate(status.lastCheckupAt) : "never"}
+          value={
+            (status.lastCheckupActualAt ?? status.lastCheckupAt)
+              ? formatPastDate((status.lastCheckupActualAt ?? status.lastCheckupAt)!)
+              : "never"
+          }
           tooltip={
             <>
               <p className="font-semibold text-nc-cyan">How checkups work</p>

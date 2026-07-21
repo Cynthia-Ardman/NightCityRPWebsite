@@ -180,6 +180,33 @@ describe("POST /admin/characters/:id/checkup — temporary reset floor", () => {
     expect(res.status).toBe(200);
     expect(Date.now() - new Date(res.body.lastCheckupAt).getTime()).toBeLessThan(60_000);
   });
+
+  it("medical endpoint reports the ACTUAL visit date even when the floor backdates lastCheckupAt", async () => {
+    await setFloor(4);
+    const admin = await createAdmin();
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id });
+    const fiveWeeksAgo = new Date(Date.now() - 32 * DAY);
+    await db.update(characters).set({ lastCheckupAt: fiveWeeksAgo }).where(eq(characters.id, char.id));
+    // Record a checkup NOW — the floor backdates lastCheckupAt to week 4.
+    const checkupRes = await request(app)
+      .post(`/api/admin/characters/${char.id}/checkup`)
+      .set("x-test-user", admin.id)
+      .send({});
+    expect(checkupRes.status).toBe(200);
+    expect(weeksOf(checkupRes.body.lastCheckupAt)).toBe(4);
+
+    const res = await request(app)
+      .get(`/api/admin/characters/${char.id}/medical`)
+      .set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    // Billing-effective date is backdated (~3 weeks ago)…
+    expect(weeksOf(res.body.lastCheckupAt)).toBe(4);
+    // …but the actual visit date is just now (from the audit trail).
+    expect(res.body.lastCheckupActualAt).toBeTruthy();
+    expect(Date.now() - new Date(res.body.lastCheckupActualAt).getTime()).toBeLessThan(60_000);
+    await clearFloor();
+  });
 });
 
 describe("POST /admin/wallet/adjust", () => {

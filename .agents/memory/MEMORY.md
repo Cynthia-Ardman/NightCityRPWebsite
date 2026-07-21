@@ -21,7 +21,7 @@
 - [Import-time name dedupe](import-name-dedupe.md) — (ownerId, lower(name)) misses nickname-vs-thread-title divergence ("Diesel" vs full name) → dup rows w/ orphaned FKs; needs fuzzy match or merge pass.
 - Testing: [api-server harness](api-server-test-harness.md) *_test DB, x-test-user shim, per-file runs; [Playwright e2e](e2e-playwright-harness.md) Nix chromium + gated test-login; [portal vitest fragile mocks](portal-vitest-fragile-mocks.md).
 - Test traps: [AdminTabs render-guard mock must list every hook in the subtree](admin-tabs-render-guard-mock.md); [meds-charge tests must backdate createdAt](cyberware-checkup-grace-test-trap.md) or pass vacuously.
-- [Checkup createdAt = implicit first checkup](checkup-streak-creation-floor.md) — null lastCheckupAt must NOT mean max meds streak; createdAt is the implicit initial checkup — see topic.
+- [Checkup dates](checkup-streak-creation-floor.md) — createdAt = implicit first checkup (null ≠ max streak); lastCheckupAt is billing-effective ONLY (floor event backdates it) — displays use lastCheckupActualAt.
 - [api-server dev no watcher](api-server-dev-no-watcher.md) — dev workflow is build+start, NO reload; new routes 404 until restart_workflow; curl :8080 expect 401 not 404.
 - Cyberware derivation: [band from inventory_items CWP](cyberware-band-source.md) not characters.cyberwareLevel; [installed-ness from CWP notes tag presence](cyberware-installed-derivation.md), installed transfers blocked.
 - [Legacy bot dual-billing](legacy-bot-dual-billing.md) — old NightCityBot still bills cyberware meds in prod alongside our live cron → double charges + divergent week counts; disable legacy job, don't match its math.

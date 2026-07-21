@@ -326,11 +326,20 @@ export default function RipperdocConsole() {
                       </>
                     )}
                   </div>
-                  <div className="text-xs font-mono text-muted-foreground">
-                    LAST_CHECKUP: {medical?.lastCheckupAt ? new Date(medical.lastCheckupAt).toLocaleString() : "—"}
+                  {/* LAST_CHECKUP shows the REAL most-recent visit (audit trail).
+                      While the checkup-reset-floor event is active, the billing-
+                      effective date (lastCheckupAt) is backdated to cap resets at
+                      week N — showing that here confused docs/players into thinking
+                      a checkup was lost. Billing week below still uses the
+                      effective date, with a note when the two diverge. */}
+                  <div className="text-xs font-mono text-muted-foreground" data-testid="text-last-checkup">
+                    LAST_CHECKUP:{" "}
+                    {(medical?.lastCheckupActualAt ?? medical?.lastCheckupAt)
+                      ? new Date((medical!.lastCheckupActualAt ?? medical!.lastCheckupAt)!).toLocaleString()
+                      : "—"}
                   </div>
                   <div className="text-xs font-mono text-muted-foreground">
-                    WEEKS_SINCE_CHECKUP:{" "}
+                    BILLING_WEEK:{" "}
                     {/* No checkup on record → count from the character's creation
                         date (an implicit initial checkup), matching the billing
                         logic, instead of showing the max streak. */}
@@ -344,6 +353,14 @@ export default function RipperdocConsole() {
                       return medical?.lastCheckupAt ? weeks : `${weeks} (since creation)`;
                     })()}
                   </div>
+                  {medical?.lastCheckupActualAt &&
+                    medical?.lastCheckupAt &&
+                    medical.lastCheckupActualAt !== medical.lastCheckupAt && (
+                      <div className="text-[10px] font-mono text-nc-yellow/80" data-testid="text-checkup-floor-note">
+                        Checkup resets are currently capped — billing counts from{" "}
+                        {new Date(medical.lastCheckupAt).toLocaleDateString()}.
+                      </div>
+                    )}
                   <div className="text-[10px] font-mono text-muted-foreground/70">
                     Band is auto-derived from chrome CWP (0-6 none · 7-9 medium · 10-12 high · 13+ extreme).
                   </div>

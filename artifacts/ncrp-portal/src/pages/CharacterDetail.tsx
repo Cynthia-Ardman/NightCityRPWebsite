@@ -465,7 +465,12 @@ function UpdatesLog({ characterId }: { characterId: number }) {
 function CheckupStreakCard({ characterId }: { characterId: number }) {
   const { data: char } = useGetCharacter(characterId);
   if (!char) return null;
+  // Billing-effective date drives the week count; the ACTUAL visit date
+  // (audit trail) is what we display. They diverge while the checkup-reset
+  // floor event backdates lastCheckupAt to cap resets at week N — showing
+  // the backdated one made players think their checkup wasn't recorded.
   const last = char.lastCheckupAt ? new Date(char.lastCheckupAt) : null;
+  const actual = char.lastCheckupActualAt ? new Date(char.lastCheckupActualAt) : last;
   // A character's creation counts as an implicit initial checkup, so a
   // brand-new PC reads e.g. "week 2" instead of jumping to the max streak.
   const created = char.createdAt ? new Date(char.createdAt) : null;
@@ -509,7 +514,7 @@ function CheckupStreakCard({ characterId }: { characterId: number }) {
             </>
           ) : (
             <>
-              Last checkup <span className="text-foreground">{formatDate(last)}</span>
+              Last checkup <span className="text-foreground">{formatDate(actual ?? last)}</span>
               {" · "}
               <span className={danger ? "text-destructive font-bold" : "text-nc-yellow"}>
                 week {weeksSince}
