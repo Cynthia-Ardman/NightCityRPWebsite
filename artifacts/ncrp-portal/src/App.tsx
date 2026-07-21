@@ -113,6 +113,16 @@ function FixerGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Analytics admits fixers (incl. coordinators) and admins like FixerGuard, plus
+// archivists — the FIXER activity tab inside the page is for leadership
+// (admin / coordinator / archivist) and the page self-gates per tab.
+function AnalyticsGuard({ children }: { children: React.ReactNode }) {
+  const { data: user, isLoading } = useAuthMe();
+  if (isLoading) return null;
+  if (!user || !(user.isFixer || user.isAdmin || user.isArchivist)) return <Redirect to="/" />;
+  return <>{children}</>;
+}
+
 // CyberPsycho admits staff plus anyone holding the per-user admin grant
 // (surfaced as `canCyberpsycho` on /auth/me).
 function CyberpsychoGuard({ children }: { children: React.ReactNode }) {
@@ -315,7 +325,7 @@ function AppRoutes() {
             <FixerOrTrialGuard><FixerMissions /></FixerOrTrialGuard>
           </Route>
           <Route path="/fixer/analytics">
-            <FixerGuard><FixerAnalytics /></FixerGuard>
+            <AnalyticsGuard><FixerAnalytics /></AnalyticsGuard>
           </Route>
           <Route path="/fixer/reports">
             <FixerGuard><FixerReports /></FixerGuard>

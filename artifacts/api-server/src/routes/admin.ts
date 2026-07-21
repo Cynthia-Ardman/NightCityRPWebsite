@@ -59,11 +59,13 @@ const adminOrFixer = requireAnyRole(["ADMIN", "FIXER"]);
 // mint one keyed on their Discord id, which their first login then adopts.
 const resolveOrProvisionOwner = resolveOrProvisionUser;
 
-// Fixer activity report (admin-only): every FIXER / TRIAL_FIXER with counts of
+// Fixer activity report: every FIXER / TRIAL_FIXER with counts of
 // fixer-attributable actions inside the requested window plus an all-time
-// "last fixer action" timestamp, so admins can spot fixers who have gone idle.
+// "last fixer action" timestamp, so leadership can spot fixers who have gone
+// idle. ADMIN / COORDINATOR / ARCHIVIST — rank-and-file fixers do NOT see each
+// other's activity numbers. Powers the FIXER tab on the Analytics page.
 // All aggregation happens in SQL — one grouped query per activity source.
-router.get("/admin/fixer-activity", adminOnly, async (req, res): Promise<void> => {
+router.get("/admin/fixer-activity", requireAnyRole(["ADMIN", "COORDINATOR", "ARCHIVIST"]), async (req, res): Promise<void> => {
   const days = Math.min(365, Math.max(7, parseInt(String(req.query.days ?? "90"), 10) || 90));
   const since = new Date(Date.now() - days * 86_400_000);
   const weeks = Math.ceil(days / 7);

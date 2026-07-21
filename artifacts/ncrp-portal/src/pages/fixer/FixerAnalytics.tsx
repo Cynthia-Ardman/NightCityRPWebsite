@@ -10,6 +10,7 @@ import {
   type AdminGetAnalyticsCharactersBucket,
 } from "@workspace/api-client-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
+import FixerActivityTab from "@/components/admin/FixerActivityTab";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Activity, Coins, Briefcase, ClipboardList, Users, Globe } from "lucide-react";
@@ -132,10 +133,17 @@ export default function FixerAnalytics() {
   const [excludeInput, setExcludeInput] = useState("");
   const [excludeAbove, setExcludeAbove] = useState<number | null>(null);
   const [charBucket, setCharBucket] = useState<AdminGetAnalyticsCharactersBucket | null>(null);
-  const isStaff = !!user && (user.isFixer || user.isAdmin);
+  // Player analytics: any fixer (incl. coordinators) or admin.
+  const canPlayer = !!user && (user.isFixer || user.isAdmin);
+  // Fixer activity report: leadership only — admin / coordinator / archivist.
+  const canFixer = !!user && (user.isAdmin || user.isCoordinator || user.isArchivist);
+  const [tab, setTab] = useState<"player" | "fixer" | null>(null);
+  // Default to the first tab the viewer may see (archivists without the fixer
+  // role only get the FIXER tab).
+  const activeTab = tab ?? (canPlayer ? "player" : "fixer");
   const params = { range: range as AdminGetAnalyticsRange, ...(excludeAbove !== null ? { excludeAbove } : {}) };
   const { data, isLoading } = useAdminGetAnalytics(params, {
-    query: { enabled: isStaff, queryKey: getAdminGetAnalyticsQueryKey(params) },
+    query: { enabled: canPlayer && activeTab === "player", queryKey: getAdminGetAnalyticsQueryKey(params) },
   });
 
   const applyExclude = () => {
@@ -144,10 +152,44 @@ export default function FixerAnalytics() {
   };
 
   if (userLoading) return null;
-  if (!isStaff) {
+  if (!canPlayer && !canFixer) {
     return (
       <div className="max-w-7xl mx-auto py-12 text-center font-mono text-muted-foreground">
         Staff access required.
+      </div>
+    );
+  }
+
+  const tabButton = (key: "player" | "fixer", label: string) => (
+    <button
+      onClick={() => setTab(key)}
+      data-testid={`tab-analytics-${key}`}
+      className={`px-4 py-2 font-display uppercase tracking-widest text-sm border-b-2 transition-colors ${
+        activeTab === key
+          ? "border-nc-cyan text-nc-cyan bg-nc-cyan/10"
+          : "border-transparent text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  if (activeTab === "fixer") {
+    return (
+      <div className="max-w-7xl mx-auto space-y-6 pb-12">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-4xl font-display flex items-center gap-3" data-testid="text-analytics-title">
+            <Activity className="w-7 h-7 text-nc-cyan" /> SERVER ANALYTICS
+          </h1>
+          <Link href="/fixer" className="text-nc-magenta font-mono text-xs hover:underline">
+            ← fixer hub
+          </Link>
+        </div>
+        <div className="flex items-center gap-1 border-b border-border">
+          {canPlayer && tabButton("player", "Players")}
+          {canFixer && tabButton("fixer", "Fixers")}
+        </div>
+        <FixerActivityTab />
       </div>
     );
   }
@@ -233,6 +275,11 @@ export default function FixerAnalytics() {
             ← fixer hub
           </Link>
         </div>
+      </div>
+
+      <div className="flex items-center gap-1 border-b border-border">
+        {canPlayer && tabButton("player", "Players")}
+        {canFixer && tabButton("fixer", "Fixers")}
       </div>
 
       <div className="flex flex-wrap items-center gap-2 font-mono text-xs">

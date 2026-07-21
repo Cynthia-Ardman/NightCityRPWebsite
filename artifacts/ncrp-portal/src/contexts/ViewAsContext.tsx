@@ -35,6 +35,8 @@ function downgrade(me: Me, role: ViewAsRole): Me {
     ...me,
     isAdmin: false,
     isFixer: false,
+    isCoordinator: false,
+    isTrialFixer: false,
     isArchivist: false,
     isCsApprover: false,
     isRipperdoc: false,
