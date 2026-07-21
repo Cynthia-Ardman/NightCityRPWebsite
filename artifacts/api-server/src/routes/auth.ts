@@ -32,7 +32,7 @@ const router: IRouter = Router();
 router.get("/auth/discord/login", (req, res): void => {
   const state = crypto.randomBytes(16).toString("hex");
   req.session.oauthState = state;
-  res.redirect(buildAuthUrl(state));
+  res.redirect(buildAuthUrl(state, req.hostname));
 });
 
 function loginErrorRedirect(reason: string, detail?: string): string {
@@ -50,7 +50,7 @@ router.get("/auth/discord/callback", async (req, res): Promise<void> => {
   }
   req.session.oauthState = undefined;
   try {
-    const token = await exchangeCode(code);
+    const token = await exchangeCode(code, req.hostname);
     const discordUser = await fetchUser(token.access_token);
     const { names: rawRoles, ids: roleIds } = await fetchGuildMemberRolesDetailed(
       token.access_token,

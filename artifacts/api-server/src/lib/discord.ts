@@ -189,13 +189,47 @@ export function applyRoleIdGrants(names: string[], ids: string[]): string[] {
   return out;
 }
 
-export function getRedirectUri(): string {
+// Hosts allowed to serve as the OAuth round-trip origin in production. The
+// Host header is client-controlled, so we only ever echo it back when it is
+// on this explicit allowlist — otherwise an attacker could point the Discord
+// redirect at a domain they control. Each allowed host must ALSO be
+// registered as a redirect URI on the Discord application, or Discord
+// rejects the authorize/token calls for that host.
+function allowedRedirectHosts(): Set<string> {
+  const hosts = new Set<string>();
+  const pinned = process.env.PUBLIC_BASE_URL?.replace(/\/+$/, "");
+  if (pinned) {
+    try {
+      const h = new URL(pinned).hostname.toLowerCase();
+      hosts.add(h);
+      hosts.add(h.startsWith("www.") ? h.slice(4) : `www.${h}`);
+    } catch {
+      // ignore malformed PUBLIC_BASE_URL; pinned fallback below still applies
+    }
+  }
+  for (const d of (process.env.REPLIT_DOMAINS ?? "").split(",")) {
+    const t = d.trim().toLowerCase();
+    if (t) hosts.add(t);
+  }
+  return hosts;
+}
+
+export function getRedirectUri(requestHost?: string): string {
   // Only honor PUBLIC_BASE_URL in actual deployments (REPLIT_DEPLOYMENT=1).
   // In the dev workspace we always use the live workspace domain so Discord
   // OAuth round-trips back to the workflow app the user is testing in,
   // even though PUBLIC_BASE_URL is set as a shared secret for production.
   const isDeployment = process.env.REPLIT_DEPLOYMENT === "1";
   if (isDeployment) {
+    // Keep the OAuth round-trip on the domain the user is actually browsing
+    // (apex, www, or the replit.app domain). The state nonce lives in a
+    // session cookie scoped to that host, so bouncing the callback to a
+    // DIFFERENT host loses the cookie and fails the state check. Only echo
+    // allowlisted hosts; anything else falls back to the pinned base URL.
+    const host = requestHost?.toLowerCase();
+    if (host && allowedRedirectHosts().has(host)) {
+      return `https://${host}/api/auth/discord/callback`;
+    }
     const pinned = process.env.PUBLIC_BASE_URL?.replace(/\/+$/, "");
     if (pinned) return `${pinned}/api/auth/discord/callback`;
   }
@@ -206,10 +240,10 @@ export function getRedirectUri(): string {
   return `https://${domain}/api/auth/discord/callback`;
 }
 
-export function buildAuthUrl(state: string): string {
+export function buildAuthUrl(state: string, requestHost?: string): string {
   const params = new URLSearchParams({
     client_id: DISCORD_CLIENT_ID,
-    redirect_uri: getRedirectUri(),
+    redirect_uri: getRedirectUri(requestHost),
     response_type: "code",
     scope: "identify guilds.members.read",
     state,
@@ -234,7 +268,7 @@ export class DiscordUpstreamError extends Error {
   }
 }
 
-export async function exchangeCode(code: string) {
+export async function exchangeCode(code: string, requestHost?: string) {
   if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET) {
     throw new DiscordConfigError(
       "Discord OAuth is not configured: DISCORD_CLIENT_ID and/or DISCORD_CLIENT_SECRET is missing.",
@@ -245,7 +279,7 @@ export async function exchangeCode(code: string) {
     client_secret: DISCORD_CLIENT_SECRET,
     grant_type: "authorization_code",
     code,
-    redirect_uri: getRedirectUri(),
+    redirect_uri: getRedirectUri(requestHost),
   });
   const res = await fetch(`${API}/oauth2/token`, {
     method: "POST",
@@ -261,7 +295,7 @@ export async function exchangeCode(code: string) {
     }
     if (res.status === 400 && text.includes("invalid_grant")) {
       throw new DiscordConfigError(
-        `Discord rejected the OAuth authorization code (invalid_grant). The redirect URI registered on the Discord application must exactly match ${getRedirectUri()}.`,
+        `Discord rejected the OAuth authorization code (invalid_grant). The redirect URI registered on the Discord application must exactly match ${getRedirectUri(requestHost)}.`,
       );
     }
     throw new DiscordUpstreamError(res.status, `Token exchange failed: ${res.status} ${text}`);
