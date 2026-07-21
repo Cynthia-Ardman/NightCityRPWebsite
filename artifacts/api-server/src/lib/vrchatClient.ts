@@ -4,6 +4,7 @@ import { and, eq, arrayOverlaps } from "drizzle-orm";
 import { logger } from "./logger";
 import { ROLE_NAMES, sendDirectMessage } from "./discord";
 import { createNotification } from "./notifications";
+import { recordAudit } from "./audit";
 
 // ---------------------------------------------------------------------------
 // Server-side client for the dedicated 24/7 NCRP VRChat "instance browser"
@@ -410,6 +411,15 @@ async function markSessionExpired(context: string, staleAuth: string | null): Pr
     return;
   }
   logger.warn({ context }, "VRChat session marked expired");
+  // Surface the disconnect in the staff audit log (fire-and-forget; system actor).
+  void recordAudit({
+    category: "admin",
+    action: "vrchat.session_expired",
+    actorName: "system",
+    targetType: "vrchat_session",
+    targetId: SESSION_ID,
+    message: `VRChat session disconnected (401 on ${context}); manual reconnect may be required.`,
+  });
 }
 
 // A lone 401 from one endpoint is not proof the cookie is dead — VRChat
@@ -476,6 +486,14 @@ async function tryAutoReconnect(context: string): Promise<boolean> {
     const res = await beginManualLogin();
     if (res.status === "connected") {
       logger.info({ context }, "VRChat session auto-reconnected via remembered 2FA device");
+      void recordAudit({
+        category: "admin",
+        action: "vrchat.session_auto_reconnected",
+        actorName: "system",
+        targetType: "vrchat_session",
+        targetId: SESSION_ID,
+        message: `VRChat session auto-reconnected via remembered 2FA device (${context}).`,
+      });
       return true;
     }
     logger.warn({ context }, "VRChat auto-reconnect needs an email code; leaving for manual reconnect");
@@ -538,6 +556,14 @@ async function notifyAdminsVrchatDisconnected(): Promise<void> {
       }
     }
     logger.warn({ admins: admins.length }, "VRChat session disconnected — admins notified");
+    void recordAudit({
+      category: "admin",
+      action: "vrchat.disconnect_alert_sent",
+      actorName: "system",
+      targetType: "vrchat_session",
+      targetId: SESSION_ID,
+      message: `VRChat session disconnected — alerted ${admins.length} admin(s) (bell + DM).${detail}`,
+    });
   } catch (err) {
     // Don't burn the cooldown on a transient failure (e.g. DB hiccup) — let
     // the next cron tick retry the alert instead of going silent for 12h.
