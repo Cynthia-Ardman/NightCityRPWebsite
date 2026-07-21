@@ -1380,10 +1380,27 @@ function ApplicationsPanel({ data }: { data: MissionDetailModel }) {
             {decided.length > 0 && (
               <div className="pt-2 space-y-2 border-t border-border/40">
                 {decided.map((a) => (
-                  <div key={a.id} className="flex items-center gap-2" data-testid={`row-application-${a.id}`}>
+                  <div key={a.id} className="flex items-center gap-2 flex-wrap" data-testid={`row-application-${a.id}`}>
                     <ApplicationStatusBadge status={a.status} />
                     <span className="text-foreground">{a.characterName ?? "(character)"}</span>
                     {a.userName && <span className="text-muted-foreground text-xs">({a.userName})</span>}
+                    {a.status === "accepted" && a.onRoster === false && (
+                      // Desync repair: the application was accepted but its
+                      // roster row is gone (e.g. clobbered by a stale roster
+                      // edit). Accept is idempotent server-side, so re-running
+                      // it recreates the assignment.
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={review.isPending}
+                        onClick={() => review.mutate({ id: data.id, appId: a.id, data: { action: "accept" } })}
+                        className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display tracking-widest text-[11px] h-6 px-2"
+                        data-testid={`button-restore-${a.id}`}
+                      >
+                        RESTORE TO ROSTER
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>

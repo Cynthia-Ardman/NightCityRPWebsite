@@ -35,12 +35,11 @@
 - Mission pay races: [durable uniqueness guard BEFORE the UB call](mission-payout-idempotency.md); [re-check completedAt inside INSERT...SELECT](mission-completion-lock-race.md); [roster remove re-checks paid FOR UPDATE](mission-remove-pay-race.md).
 - [Archivist approver ≠ manager](archivist-approver-not-manager.md) — ARCHIVIST gates approve only; canManage stays isManager; broaden visibility/owned-board for archivists but gate submit/post UI on canManage or it 403s.
 - [Live-mode dual gate](live-mode-dual-gate.md) — Test/Live = master AND per-system (default OFF); runJob gates housing/cyberware/evictions; tests wanting real effects must set BOTH flags.
-- [Mission autopay Test→Live trap](mission-autopay-test-live-trap.md) — simulated missions get autoPayProcessedAt and never pay real; runMissionAutoPay live-retry recovers them (gate on ctx.live, exclude no-Discord failures).
-- [Mission pay cancelled guard](mission-pay-cancelled-guard.md) — BOTH pay paths (players AND actors) must refuse cancelled missions; cancel does not set completedAt, so check both states.
+- Mission pay gates: [autopay Test→Live trap](mission-autopay-test-live-trap.md) live-retry recovers simulated autoPayProcessedAt rows; [cancelled guard](mission-pay-cancelled-guard.md) BOTH pay paths refuse cancelled (cancel ≠ completedAt).
 - [Request review approve/reject race](request-review-race.md) — both approve AND reject of a reviewable row must lock (FOR UPDATE) + re-check pending status, or reject clobbers an applied approve.
 - [Batch grouping by timestamp](batch-grouping-timestamp.md) — per-row INSERTs get distinct createdAt/now(); group a logical batch on a single JS timestamp written to every row, never the column default.
-- [Legacy actors are lobby-only](legacy-actor-data.md) — bot_actor_attendance is ~16 generic "Open Chaos Lobby" rows with NULL mission_id; no per-mission actor history exists to backfill.
-- [Deploy expression-index trap](deploy-expression-index-trap.md) — index expressions with space-containing literals (coalesce 'epoch' sentinel) break publish migrations; use two partial indexes.
+- [Legacy actors are lobby-only](legacy-actor-data.md) — bot_actor_attendance is ~16 generic lobby rows, NULL mission_id; no per-mission actor history to backfill.
+- [Deploy expression-index trap](deploy-expression-index-trap.md) — space-containing literals in index expressions break publish migrations; use two partial indexes.
 - [Event actor payout pay-once](event-actor-payout-once.md) — event payouts need a SEPARATE partial unique index on (event_id,user_id); legacy eventId-null standalone path stays unguarded; getEventDetail.paidActorUserIds locks paid NPCs.
 - [Venue sale instant completion](venue-sale-instant-completion.md) — sales charge buyer on operator action via create→completeSaleOffer→delete-if-pending; keep row on needsReconcile; TEST mode returns dryRun 200 leaving pending.
 - Financial/owner decisions: [gate on CURRENT ownerId, not the requestedById snapshotted at creation](financial-decision-current-owner.md); [same rule for owner-action request endpoints](owner-decision-current-ownership.md).
@@ -155,5 +154,6 @@
 - [Portal bell notifications](portal-bell-notifications.md) — new player-facing events must `void createNotification(...)` at the SAME site as the DM but NOT gated on Test/Live or discordId; api-zod star-export body-name ambiguity trap.
 - [Text-scale px immunity](text-scale-px-immunity.md) — the text-size setting scales rem only; any `text-[Npx]` literal is immune AND tiny; new micro-text must use rem arbitrary values.
 - VRChat auth/identity: [identity resolution](vrchat-identity-resolution.md) linked attribution only when exactly ONE user claims the id, ambiguous never name-matches; [401 verify-before-expire](vrchat-group-instances.md) confirm via /auth/user before wiping session.
+- [Mission roster stale-edit clobber](mission-roster-stale-edit.md) — mission PATCH assignments whole-replaces the roster; edit form omits it when untouched, drops flip accepted→withdrawn, onRoster powers RESTORE.
 - [Mission NPC gather time](mission-npc-start-time.md) — npcStartAt: NPC surfaces use coalesce(npc,start), Discord event starts at gather only if earlier, changes reset npcAnnouncedAt.
 - [OAuth redirect host allowlist](oauth-redirect-host-allowlist.md) — Discord OAuth must round-trip on the browsing host (allowlisted echo), never one pinned domain; each host needs a registered Discord redirect URI.

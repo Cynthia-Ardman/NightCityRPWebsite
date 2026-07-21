@@ -1660,6 +1660,63 @@ describe("Mission applications", () => {
     expect(appAfter.status).toBe("accepted");
   });
 
+  // Regression (The Night Watch): a roster edit that whole-replaces assignments
+  // must not leave a dropped player's application stuck at 'accepted' with no
+  // roster row. The edit flips it to 'withdrawn' (mirrors remove-from-roster),
+  // and any lingering accepted-but-off-roster row is repairable: the detail
+  // view exposes onRoster=false and re-accepting is idempotent.
+  it("roster edit that drops an accepted player withdraws the application; re-accept restores", async () => {
+    const playerA = await createUser();
+    const charA = await createCharacter({ ownerId: playerA.id });
+    const playerB = await createUser();
+    const charB = await createCharacter({ ownerId: playerB.id });
+    const admin = await createUser({ roles: ["admin"] });
+    const m = await postedMission();
+
+    const appliedA = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", playerA.id)
+      .send({ characterId: charA.id });
+    const appAId = appliedA.body.myApplication.id as number;
+    await request(app)
+      .post(`/api/missions/${m.id}/applications/${appAId}/review`)
+      .set("x-test-user", admin.id)
+      .send({ action: "accept" });
+
+    // Roster edit that only contains player B whole-replaces the roster,
+    // dropping player A's fresh assignment.
+    const edit = await request(app)
+      .patch(`/api/missions/${m.id}`)
+      .set("x-test-user", admin.id)
+      .send({ assignments: [{ characterId: charB.id }] });
+    expect(edit.status).toBe(200);
+
+    const assigns = await db.select().from(missionAssignments).where(eq(missionAssignments.missionId, m.id));
+    expect(assigns.map((a) => a.userId)).toEqual([playerB.id]);
+    // Player A's application must NOT sit at 'accepted' with no roster row.
+    const [appA] = await db.select().from(missionApplications).where(eq(missionApplications.id, appAId));
+    expect(appA.status).toBe("withdrawn");
+
+    // Ghost-state repair path: force the legacy desync (accepted, no roster
+    // row) and verify the detail view flags it and re-accept restores it.
+    await db
+      .update(missionApplications)
+      .set({ status: "accepted" })
+      .where(eq(missionApplications.id, appAId));
+    const detail = await request(app).get(`/api/missions/${m.id}`).set("x-test-user", admin.id);
+    const viewA = detail.body.applications.find((a: { id: number }) => a.id === appAId);
+    expect(viewA.status).toBe("accepted");
+    expect(viewA.onRoster).toBe(false);
+
+    const reAccept = await request(app)
+      .post(`/api/missions/${m.id}/applications/${appAId}/review`)
+      .set("x-test-user", admin.id)
+      .send({ action: "accept" });
+    expect(reAccept.status).toBe(200);
+    const after = await db.select().from(missionAssignments).where(eq(missionAssignments.missionId, m.id));
+    expect(after.map((a) => a.userId).sort()).toEqual([playerA.id, playerB.id].sort());
+  });
+
   // Regression: a player applied, but instead of "accept application" the fixer
   // added the character via the roster editor. That raises a participation
   // request and an assignment but never touches the application row, leaving

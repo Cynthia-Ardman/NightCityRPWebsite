@@ -390,6 +390,7 @@ async function loadMyApplicationsForMissions(
       availability: normalizeAvailability(r.availability),
       // Self-heal: roster membership implies accepted (see assignedId note).
       status: r.status === "pending" && r.assignedId != null ? "accepted" : r.status,
+      onRoster: r.assignedId != null,
       reviewedBy: r.reviewedBy,
       reviewedAt: iso(r.reviewedAt),
       createdAt: r.createdAt.toISOString(),
@@ -1208,6 +1209,10 @@ async function listApplicationViews(missionId: number, onlyUserId?: string) {
       // Self-heal: a pending application whose character is on the roster is
       // effectively accepted (see assignedId note above).
       status: r.status === "pending" && r.assignedId != null ? "accepted" : r.status,
+      // Roster membership surfaced directly so the fixer UI can detect the
+      // inverse desync (status 'accepted' but no roster row — e.g. the row was
+      // clobbered by a stale roster edit) and offer to restore it.
+      onRoster: r.assignedId != null,
       reviewedBy: r.reviewedBy,
       reviewedAt: iso(r.reviewedAt),
       createdAt: r.createdAt.toISOString(),

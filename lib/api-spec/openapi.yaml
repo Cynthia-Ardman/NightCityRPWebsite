@@ -10369,6 +10369,7 @@ components:
         lastAttendedAt: { type: ["string", "null"], format: date-time }
         daysSinceLastMission: { type: ["integer", "null"] }
         recencyWarning: { type: boolean, description: "True if the character played a mission within the recency window." }
+        onRoster: { type: boolean, description: "True when the applicant's character currently has a roster assignment on this mission. An 'accepted' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it)." }
 
     MissionApplicationOutcome:
       type: object

@@ -266,10 +266,26 @@ async function applyAssignments(
   const existingByUser = new Map(existing.map((a) => [a.userId, a]));
   const desiredUserIds = new Set(desired.map((d) => d.userId));
 
-  // Delete unpaid assignments dropped from the set.
+  // Delete unpaid assignments dropped from the set. Also flip those users'
+  // 'accepted' applications back to 'withdrawn' (mirrors the dedicated
+  // remove-from-roster endpoint) so an application can never sit at 'accepted'
+  // while its roster row is gone — that ghost state made a stale roster edit's
+  // deletions invisible in the applicant list.
   const toDelete = existing.filter((a) => !desiredUserIds.has(a.userId) && a.paymentStatus === "unpaid");
   if (toDelete.length > 0) {
-    await db.delete(missionAssignments).where(inArray(missionAssignments.id, toDelete.map((a) => a.id)));
+    await db.transaction(async (tx) => {
+      await tx.delete(missionAssignments).where(inArray(missionAssignments.id, toDelete.map((a) => a.id)));
+      await tx
+        .update(missionApplications)
+        .set({ status: "withdrawn", updatedAt: new Date() })
+        .where(
+          and(
+            eq(missionApplications.missionId, missionId),
+            inArray(missionApplications.userId, toDelete.map((a) => a.userId)),
+            eq(missionApplications.status, "accepted"),
+          ),
+        );
+    });
   }
 
   // Track assignments that gained a character this call (new row, or an

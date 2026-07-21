@@ -2616,7 +2616,8 @@ export const ListMissionsResponseItem = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application on this mission (null if none); powers the inline apply\/withdraw button.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -2735,7 +2736,8 @@ export const ListMyMissionsResponseItem = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application on this mission (null if none); powers the inline apply\/withdraw button.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -2822,7 +2824,8 @@ export const ListOwnedMissionsResponseItem = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application on this mission (null if none); powers the inline apply\/withdraw button.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -2894,7 +2897,8 @@ export const ListCreatedMissionsResponseItem = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application on this mission (null if none); powers the inline apply\/withdraw button.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -2977,7 +2981,8 @@ export const GetFixerMissionsResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application on this mission (null if none); powers the inline apply\/withdraw button.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -3063,7 +3068,8 @@ export const ListMissionHistoryResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application on this mission (null if none); powers the inline apply\/withdraw button.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -3351,7 +3357,8 @@ export const GetMissionResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 })).describe('Player applications (full list for managers; empty for players).'),
   "myApplication": zod.union([zod.object({
   "id": zod.number(),
@@ -3370,7 +3377,8 @@ export const GetMissionResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -3531,7 +3539,8 @@ export const UpdateMissionResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 })).describe('Player applications (full list for managers; empty for players).'),
   "myApplication": zod.union([zod.object({
   "id": zod.number(),
@@ -3550,7 +3559,8 @@ export const UpdateMissionResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -3778,7 +3788,8 @@ export const PayMissionActorsResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 })).describe('Player applications (full list for managers; empty for players).'),
   "myApplication": zod.union([zod.object({
   "id": zod.number(),
@@ -3797,7 +3808,8 @@ export const PayMissionActorsResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -3920,7 +3932,8 @@ export const CompleteMissionResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 })).describe('Player applications (full list for managers; empty for players).'),
   "myApplication": zod.union([zod.object({
   "id": zod.number(),
@@ -3939,7 +3952,8 @@ export const CompleteMissionResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -4062,7 +4076,8 @@ export const UncompleteMissionResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 })).describe('Player applications (full list for managers; empty for players).'),
   "myApplication": zod.union([zod.object({
   "id": zod.number(),
@@ -4081,7 +4096,8 @@ export const UncompleteMissionResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -4204,7 +4220,8 @@ export const SubmitMissionResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 })).describe('Player applications (full list for managers; empty for players).'),
   "myApplication": zod.union([zod.object({
   "id": zod.number(),
@@ -4223,7 +4240,8 @@ export const SubmitMissionResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -4346,7 +4364,8 @@ export const ApproveMissionResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 })).describe('Player applications (full list for managers; empty for players).'),
   "myApplication": zod.union([zod.object({
   "id": zod.number(),
@@ -4365,7 +4384,8 @@ export const ApproveMissionResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -4488,7 +4508,8 @@ export const PostMissionResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 })).describe('Player applications (full list for managers; empty for players).'),
   "myApplication": zod.union([zod.object({
   "id": zod.number(),
@@ -4507,7 +4528,8 @@ export const PostMissionResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -4630,7 +4652,8 @@ export const RevertMissionToDraftResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 })).describe('Player applications (full list for managers; empty for players).'),
   "myApplication": zod.union([zod.object({
   "id": zod.number(),
@@ -4649,7 +4672,8 @@ export const RevertMissionToDraftResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -4839,7 +4863,8 @@ export const ApplyToMissionResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 })).describe('Player applications (full list for managers; empty for players).'),
   "myApplication": zod.union([zod.object({
   "id": zod.number(),
@@ -4858,7 +4883,8 @@ export const ApplyToMissionResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -4994,7 +5020,8 @@ export const WithdrawApplicationResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 })).describe('Player applications (full list for managers; empty for players).'),
   "myApplication": zod.union([zod.object({
   "id": zod.number(),
@@ -5013,7 +5040,8 @@ export const WithdrawApplicationResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -5141,7 +5169,8 @@ export const ReviewApplicationResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 })).describe('Player applications (full list for managers; empty for players).'),
   "myApplication": zod.union([zod.object({
   "id": zod.number(),
@@ -5160,7 +5189,8 @@ export const ReviewApplicationResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -5284,7 +5314,8 @@ export const RemoveAssignedPlayerResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 })).describe('Player applications (full list for managers; empty for players).'),
   "myApplication": zod.union([zod.object({
   "id": zod.number(),
@@ -5303,7 +5334,8 @@ export const RemoveAssignedPlayerResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -5430,7 +5462,8 @@ export const SignUpAsNpcResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 })).describe('Player applications (full list for managers; empty for players).'),
   "myApplication": zod.union([zod.object({
   "id": zod.number(),
@@ -5449,7 +5482,8 @@ export const SignUpAsNpcResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -5572,7 +5606,8 @@ export const WithdrawNpcSignupResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 })).describe('Player applications (full list for managers; empty for players).'),
   "myApplication": zod.union([zod.object({
   "id": zod.number(),
@@ -5591,7 +5626,8 @@ export const WithdrawNpcSignupResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({
@@ -5719,7 +5755,8 @@ export const ConfirmNpcSignupResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 })).describe('Player applications (full list for managers; empty for players).'),
   "myApplication": zod.union([zod.object({
   "id": zod.number(),
@@ -5738,7 +5775,8 @@ export const ConfirmNpcSignupResponse = zod.object({
   "attendanceCount": zod.number(),
   "lastAttendedAt": zod.coerce.date().nullish(),
   "daysSinceLastMission": zod.number().nullish(),
-  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.')
+  "recencyWarning": zod.boolean().describe('True if the character played a mission within the recency window.'),
+  "onRoster": zod.boolean().optional().describe('True when the applicant\'s character currently has a roster assignment on this mission. An \'accepted\' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it).')
 }),zod.null()]).optional().describe('The caller\'s own application (players only); null for managers or no application.'),
   "npcSignupOpen": zod.boolean().optional().describe('True when this mission is currently accepting NPC sign-ups.'),
   "mySignup": zod.union([zod.object({

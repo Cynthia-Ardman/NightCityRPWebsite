@@ -368,6 +368,15 @@ function MissionForm({
   const removeAssignment = (idx: number) =>
     setV((p) => ({ ...p, assignments: p.assignments.filter((_, i) => i !== idx) }));
 
+  // Stable signature of a roster list, used to detect whether the fixer
+  // actually touched the roster in this form session. Order-insensitive so
+  // reordering (which the form can't do anyway) never counts as a change.
+  const rosterSig = (list: AssignmentDraft[]) =>
+    list
+      .map((a) => `${a.userId ?? ""}:${a.character?.id ?? ""}`)
+      .sort()
+      .join("|");
+
   const buildPayload = () => {
     // Send characterId-only assignments; the server derives the owning player.
     // Keep explicit userId for rows that came from existing assignments.
@@ -406,7 +415,13 @@ function MissionForm({
       notesForPlayers: v.notesForPlayers || undefined,
       fixerNotes: v.fixerNotes || undefined,
       maxPlayers: v.maxPlayers,
-      assignments,
+      // Edit mode: only send the roster when the fixer actually changed it in
+      // THIS form. The form's assignment list is a snapshot from when the edit
+      // opened; blindly resending it would whole-replace the roster and wipe
+      // players accepted (via the applications panel) while the form sat open.
+      ...(missionId != null && initial && rosterSig(v.assignments) === rosterSig(initial.assignments)
+        ? {}
+        : { assignments }),
     };
   };
 
