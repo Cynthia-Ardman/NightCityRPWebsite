@@ -763,7 +763,7 @@ function ApplySection({ data }: { data: MissionDetailModel }) {
           {existing.comment && <p className="text-muted-foreground whitespace-pre-wrap">{existing.comment}</p>}
           {(existing.status === "pending" || existing.status === "accepted") && canEditAvailability && (
             <div className="space-y-2 border-t border-border/50 pt-3">
-              <Label className="text-xs">YOUR AVAILABILITY (optional)</Label>
+              <Label className="text-xs">YOUR AVAILABILITY (required)</Label>
               {existing.status === "accepted" && (
                 <p className="text-[11px] text-muted-foreground">
                   You're on the roster — update your availability any time before the mission and you'll stay accepted.
@@ -782,7 +782,7 @@ function ApplySection({ data }: { data: MissionDetailModel }) {
               <Button
                 type="button"
                 size="sm"
-                disabled={apply.isPending}
+                disabled={apply.isPending || slots.length === 0}
                 onClick={() =>
                   apply.mutate({
                     id: data.id,
@@ -859,8 +859,13 @@ function ApplySection({ data }: { data: MissionDetailModel }) {
           />
         </div>
         <div className="space-y-2">
-          <Label className="text-xs">YOUR AVAILABILITY (optional)</Label>
+          <Label className="text-xs">YOUR AVAILABILITY (required)</Label>
           <AvailabilityGrid mode="edit" value={slots} onChange={setSlots} />
+          {slots.length === 0 && (
+            <p className="text-[11px] text-muted-foreground" data-testid="text-availability-required">
+              Pick at least one time slot so the fixer knows when you can run.
+            </p>
+          )}
           <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
             <Checkbox
               checked={makeDefault}
@@ -873,7 +878,7 @@ function ApplySection({ data }: { data: MissionDetailModel }) {
         </div>
         <Button
           type="button"
-          disabled={apply.isPending || characterId === ""}
+          disabled={apply.isPending || characterId === "" || slots.length === 0}
           onClick={() =>
             apply.mutate(
               {

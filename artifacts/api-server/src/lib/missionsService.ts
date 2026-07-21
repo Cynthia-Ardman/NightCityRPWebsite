@@ -1319,6 +1319,17 @@ export async function applyToMission(opts: {
   }
   const comment = opts.comment?.trim() || null;
   const availability = normalizeAvailability(opts.availability);
+  // New applications (and re-applies after withdraw/reject) must state when the
+  // player can actually run — the fixer schedules around these picks. Edits to
+  // an existing active application go through the same endpoint and keep the
+  // same rule: you can change your slots but not blank them out.
+  if (availability.length === 0) {
+    return {
+      ok: false,
+      error: "Select at least one availability slot so the fixer can schedule the run",
+      httpStatus: 400,
+    };
+  }
   // Preserve an accepted application's roster status when the player is just
   // editing availability; otherwise (new / re-apply) (re)open it as pending.
   const preserveAccepted = existing?.status === "accepted";

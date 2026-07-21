@@ -1083,8 +1083,13 @@ function InlineMissionActions({ m, npcOnly }: { m: MissionSummary; npcOnly?: boo
               data-testid={`input-apply-comment-${m.id}`}
             />
             <div className="space-y-2 pt-1">
-              <Label className="text-xs">YOUR AVAILABILITY (optional)</Label>
+              <Label className="text-xs">YOUR AVAILABILITY (required)</Label>
               <AvailabilityGrid mode="edit" value={slots} onChange={setSlots} />
+              {slots.length === 0 && (
+                <p className="text-[11px] text-muted-foreground" data-testid={`text-availability-required-${m.id}`}>
+                  Pick at least one time slot so the fixer knows when you can run.
+                </p>
+              )}
               <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
                 <Checkbox
                   checked={makeDefault}
@@ -1100,7 +1105,7 @@ function InlineMissionActions({ m, npcOnly }: { m: MissionSummary; npcOnly?: boo
           <DialogFooter>
             <Button
               type="button"
-              disabled={apply.isPending || characterId === ""}
+              disabled={apply.isPending || characterId === "" || slots.length === 0}
               onClick={() =>
                 apply.mutate(
                   {

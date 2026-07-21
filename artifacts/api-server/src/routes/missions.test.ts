@@ -65,6 +65,10 @@ const mockCreateEvent = vi.mocked(createGuildScheduledEvent);
 const mockModifyEvent = vi.mocked(modifyGuildScheduledEvent);
 const mockDeleteEvent = vi.mocked(deleteGuildScheduledEvent);
 
+// New applications must include at least one availability slot; a shared future
+// instant keeps every apply-payload in these tests valid under that rule.
+const AVAIL = [new Date(Date.now() + 7 * 86_400_000).toISOString()];
+
 const bal = (cash: number) => ({ cash, bank: 0, total: cash, source: "unbelievaboat" as const });
 
 // Narrow payMissionActors' union result (it may return null or a completion
@@ -1578,7 +1582,7 @@ describe("Mission applications", () => {
     const applied = await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", player.id)
-      .send({ characterId: char.id, comment: "I'm in" });
+      .send({ characterId: char.id, comment: "I'm in" , availability: AVAIL });
     expect(applied.status).toBe(200);
     // The applicant sees their own application echoed back.
     expect(applied.body.myApplication?.characterId).toBe(char.id);
@@ -1596,7 +1600,7 @@ describe("Mission applications", () => {
     const res = await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", player.id)
-      .send({ characterId: notMine.id });
+      .send({ characterId: notMine.id , availability: AVAIL });
     expect(res.status).toBe(403);
   });
 
@@ -1607,7 +1611,7 @@ describe("Mission applications", () => {
     const res = await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", player.id)
-      .send({ characterId: char.id });
+      .send({ characterId: char.id , availability: AVAIL });
     expect(res.status).toBe(409);
   });
 
@@ -1618,7 +1622,7 @@ describe("Mission applications", () => {
     const res = await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", player.id)
-      .send({ characterId: char.id });
+      .send({ characterId: char.id , availability: AVAIL });
     expect(res.status).toBe(409);
   });
 
@@ -1626,8 +1630,8 @@ describe("Mission applications", () => {
     const player = await createUser();
     const char = await createCharacter({ ownerId: player.id });
     const m = await postedMission();
-    await request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId: char.id, comment: "first" });
-    await request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId: char.id, comment: "second" });
+    await request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId: char.id, comment: "first" , availability: AVAIL });
+    await request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId: char.id, comment: "second" , availability: AVAIL });
 
     const rows = await db.select().from(missionApplications).where(eq(missionApplications.missionId, m.id));
     expect(rows).toHaveLength(1);
@@ -1643,7 +1647,7 @@ describe("Mission applications", () => {
     const applied = await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", player.id)
-      .send({ characterId: char.id });
+      .send({ characterId: char.id , availability: AVAIL });
     const appId = applied.body.myApplication.id as number;
 
     const reviewed = await request(app)
@@ -1676,7 +1680,7 @@ describe("Mission applications", () => {
     const appliedA = await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", playerA.id)
-      .send({ characterId: charA.id });
+      .send({ characterId: charA.id , availability: AVAIL });
     const appAId = appliedA.body.myApplication.id as number;
     await request(app)
       .post(`/api/missions/${m.id}/applications/${appAId}/review`)
@@ -1732,7 +1736,7 @@ describe("Mission applications", () => {
     const applied = await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", player.id)
-      .send({ characterId: char.id });
+      .send({ characterId: char.id , availability: AVAIL });
     const appId = applied.body.myApplication.id as number;
 
     const mineBefore = await request(app).get("/api/missions/my-applications").set("x-test-user", player.id);
@@ -1791,7 +1795,7 @@ describe("Mission applications", () => {
     const applied = await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", player.id)
-      .send({ characterId: char.id });
+      .send({ characterId: char.id , availability: AVAIL });
     const appId = applied.body.myApplication.id as number;
 
     // Fixer adds the character, then removes them again (unpaid → deleted).
@@ -1831,7 +1835,7 @@ describe("Mission applications", () => {
     const applied = await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", player.id)
-      .send({ characterId: char.id });
+      .send({ characterId: char.id , availability: AVAIL });
     const appId = applied.body.myApplication.id as number;
     await request(app).post(`/api/missions/${m.id}/applications/${appId}/review`).set("x-test-user", admin.id).send({ action: "reject" });
 
@@ -1846,7 +1850,7 @@ describe("Mission applications", () => {
     const applied = await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", player.id)
-      .send({ characterId: char.id });
+      .send({ characterId: char.id , availability: AVAIL });
     const appId = applied.body.myApplication.id as number;
     const res = await request(app).delete(`/api/missions/${m.id}/applications/${appId}`).set("x-test-user", player.id);
     expect(res.status).toBe(200);
@@ -1867,7 +1871,7 @@ describe("Mission applications", () => {
     const charB = await createCharacter({ ownerId: player.id });
     const m = await postedMission();
     const apply = (characterId: number) =>
-      request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId });
+      request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId , availability: AVAIL });
     const detail = () => request(app).get(`/api/missions/${m.id}`).set("x-test-user", player.id);
 
     // Player applies with A, then with B (B is the newer row).
@@ -1910,7 +1914,7 @@ describe("Mission applications", () => {
     const applied = await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", player.id)
-      .send({ characterId: char.id });
+      .send({ characterId: char.id , availability: AVAIL });
     const appId = applied.body.myApplication.id as number;
     const res = await request(app)
       .post(`/api/missions/${m.id}/applications/${appId}/review`)
@@ -1928,7 +1932,7 @@ describe("Mission applications", () => {
     const applied = await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", player.id)
-      .send({ characterId: char.id });
+      .send({ characterId: char.id , availability: AVAIL });
     const appId = applied.body.myApplication.id as number;
 
     // fixerB is a manager but NOT this mission's fixer → no applicant pool and
@@ -1960,7 +1964,7 @@ describe("Mission applications", () => {
     const applied = await request(app)
       .post(`/api/missions/${m1.id}/applications`)
       .set("x-test-user", player.id)
-      .send({ characterId: char.id });
+      .send({ characterId: char.id , availability: AVAIL });
     const appId = applied.body.myApplication.id as number;
 
     // Pairing m2's id with m1's application must not mutate the record.
@@ -1997,7 +2001,7 @@ describe("Mission applications", () => {
       const r = await request(app)
         .post(`/api/missions/${mId}/applications`)
         .set("x-test-user", player.id)
-        .send({ characterId: charId });
+        .send({ characterId: charId , availability: AVAIL });
       return r.body.myApplication.id as number;
     }
 
@@ -2040,7 +2044,7 @@ describe("Mission applications", () => {
     const applied = await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", other.id)
-      .send({ characterId: char.id });
+      .send({ characterId: char.id , availability: AVAIL });
     const appId = applied.body.myApplication.id as number;
     await request(app)
       .post(`/api/missions/${m.id}/applications/${appId}/review`)
@@ -2062,7 +2066,7 @@ describe("Mission applications", () => {
     const applied = await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", player.id)
-      .send({ characterId: char.id });
+      .send({ characterId: char.id , availability: AVAIL });
     const appId = applied.body.myApplication.id as number;
     await request(app)
       .post(`/api/missions/${m.id}/applications/${appId}/review`)
@@ -2135,7 +2139,7 @@ describe("Mission application availability", () => {
     expect(asAdmin.body.applications[0].availability).toEqual([A, B]);
   });
 
-  it("drops invalid instants and an absent availability field defaults to empty", async () => {
+  it("drops invalid instants but keeps valid ones", async () => {
     const player = await createUser();
     const char = await createCharacter({ ownerId: player.id });
     const m = await postedMission();
@@ -2147,6 +2151,53 @@ describe("Mission application availability", () => {
     expect(withJunk.status).toBe(200);
     const [row] = await db.select().from(missionApplications).where(eq(missionApplications.missionId, m.id));
     expect(row.availability).toEqual([A]);
+  });
+
+  it("rejects an application with no usable availability slots", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await postedMission();
+
+    // Absent field, empty array, and all-junk array are all refused.
+    for (const availability of [undefined, [], ["not-a-date"]]) {
+      const res = await request(app)
+        .post(`/api/missions/${m.id}/applications`)
+        .set("x-test-user", player.id)
+        .send({ characterId: char.id, ...(availability === undefined ? {} : { availability }) });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/availability/i);
+    }
+    const rows = await db.select().from(missionApplications).where(eq(missionApplications.missionId, m.id));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("an active applicant can change slots but cannot blank them out", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const m = await postedMission();
+
+    await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id, availability: [A] });
+
+    // Blanking out is refused; the stored slots are untouched.
+    const blank = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id, availability: [] });
+    expect(blank.status).toBe(400);
+    let [row] = await db.select().from(missionApplications).where(eq(missionApplications.missionId, m.id));
+    expect(row.availability).toEqual([A]);
+
+    // A non-empty edit still succeeds.
+    const edit = await request(app)
+      .post(`/api/missions/${m.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id, availability: [B] });
+    expect(edit.status).toBe(200);
+    [row] = await db.select().from(missionApplications).where(eq(missionApplications.missionId, m.id));
+    expect(row.availability).toEqual([B]);
   });
 
   it("re-applying refreshes the availability slots", async () => {
@@ -2233,7 +2284,7 @@ describe("Application recency warning", () => {
     });
 
     const m = await seedMission({ workflowState: "posted", status: "open" });
-    await request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId: char.id });
+    await request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId: char.id , availability: AVAIL });
 
     const asAdmin = await request(app).get(`/api/missions/${m.id}`).set("x-test-user", admin.id);
     const appView = asAdmin.body.applications[0];
@@ -2254,7 +2305,7 @@ describe("Application recency warning", () => {
     });
 
     const m = await seedMission({ workflowState: "posted", status: "open" });
-    await request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId: char.id });
+    await request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId: char.id , availability: AVAIL });
 
     const asAdmin = await request(app).get(`/api/missions/${m.id}`).set("x-test-user", admin.id);
     expect(asAdmin.body.applications[0].recencyWarning).toBe(false);
@@ -2265,7 +2316,7 @@ describe("Application recency warning", () => {
     const char = await createCharacter({ ownerId: player.id });
     const admin = await createUser({ roles: ["admin"] });
     const m = await seedMission({ workflowState: "posted", status: "open" });
-    await request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId: char.id });
+    await request(app).post(`/api/missions/${m.id}/applications`).set("x-test-user", player.id).send({ characterId: char.id , availability: AVAIL });
     const asAdmin = await request(app).get(`/api/missions/${m.id}`).set("x-test-user", admin.id);
     expect(asAdmin.body.applications[0].recencyWarning).toBe(false);
     expect(asAdmin.body.applications[0].daysSinceLastMission).toBeNull();
@@ -2477,7 +2528,7 @@ describe("Mission listing tabs", () => {
     await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", player.id)
-      .send({ characterId: char.id, comment: "pick me" });
+      .send({ characterId: char.id, comment: "pick me" , availability: AVAIL });
 
     const res = await request(app).get("/api/missions/my-applications").set("x-test-user", player.id);
     expect(res.status).toBe(200);
@@ -2496,7 +2547,7 @@ describe("Mission listing tabs", () => {
     await request(app)
       .post(`/api/missions/${m.id}/applications`)
       .set("x-test-user", player.id)
-      .send({ characterId: char.id });
+      .send({ characterId: char.id , availability: AVAIL });
 
     const res = await request(app).get("/api/missions/my-applications").set("x-test-user", intruder.id);
     expect(res.status).toBe(200);

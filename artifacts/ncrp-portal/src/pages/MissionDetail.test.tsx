@@ -79,6 +79,9 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => {
     usePayMissionPlayers: () => ({ mutate: vi.fn(), isPending: false, error: null }),
     usePayMissionActors: () => ({ mutate: vi.fn(), isPending: false, error: null }),
     useGetMissionConfig: () => ({ data: { live: true } }),
+    // No saved weekly default: the availability picker starts empty so tests
+    // must paint slots explicitly (mirrors a first-time applicant).
+    useGetDefaultAvailability: () => ({ data: { pattern: [], timezone: null }, isLoading: false, isFetched: true }),
   };
 });
 
@@ -136,6 +139,16 @@ function makeMission(overrides: Partial<MissionDetailModel> = {}): MissionDetail
     createdAt: new Date("2026-04-01").toISOString(),
     ...overrides,
   } as MissionDetailModel;
+}
+
+// Availability is required to apply: paint the first 30-minute cell in the
+// edit grid, mirroring a real pointer drag-select.
+function paintFirstAvailabilityCell() {
+  const grid = screen.getByTestId("availability-grid-edit");
+  const cell = grid.querySelector("button[data-iso]");
+  if (!cell) throw new Error("no availability cell found");
+  fireEvent.pointerDown(cell);
+  fireEvent.pointerUp(grid);
 }
 
 function renderPage() {
@@ -221,6 +234,7 @@ describe("MissionDetail — apply flow", () => {
     fireEvent.change(screen.getByTestId("input-apply-comment"), {
       target: { value: "Solo, ready to run" },
     });
+    paintFirstAvailabilityCell();
     fireEvent.click(screen.getByTestId("button-apply-submit"));
 
     expect(state.apply).toHaveBeenCalledTimes(1);
@@ -228,6 +242,7 @@ describe("MissionDetail — apply flow", () => {
     expect(payload.id).toBe(7);
     expect(payload.data.characterId).toBe(11);
     expect(payload.data.comment).toBe("Solo, ready to run");
+    expect(payload.data.availability).toHaveLength(1);
   });
 
   it("keeps Apply disabled until a character is chosen", () => {
@@ -236,9 +251,28 @@ describe("MissionDetail — apply flow", () => {
     state.mission = makeMission({ workflowState: "posted", status: "open", myApplication: null });
     renderPage();
 
+    paintFirstAvailabilityCell();
     fireEvent.click(screen.getByTestId("button-apply-submit"));
     expect(screen.getByTestId("button-apply-submit")).toBeDisabled();
     expect(state.apply).not.toHaveBeenCalled();
+  });
+
+  it("keeps Apply disabled until at least one availability slot is painted", () => {
+    state.me = makeMe();
+    state.myCharacters = [{ id: 11, name: "V" }];
+    state.mission = makeMission({ workflowState: "posted", status: "open", myApplication: null });
+    renderPage();
+
+    fireEvent.change(screen.getByTestId("select-apply-character"), { target: { value: "11" } });
+    expect(screen.getByTestId("button-apply-submit")).toBeDisabled();
+    expect(screen.getByTestId("text-availability-required")).toBeInTheDocument();
+
+    paintFirstAvailabilityCell();
+    expect(screen.getByTestId("button-apply-submit")).not.toBeDisabled();
+    expect(screen.queryByTestId("text-availability-required")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("button-apply-submit"));
+    expect(state.apply).toHaveBeenCalledTimes(1);
   });
 
   it("prevents a duplicate apply by showing the existing application instead of the form", () => {
