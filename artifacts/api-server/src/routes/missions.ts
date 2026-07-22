@@ -640,6 +640,22 @@ router.get("/missions/acting/:userId", requireAuth, async (req, res): Promise<vo
   res.json(await listActingForUser(userId));
 });
 
+// Fixer/admin per-applicant application lookup — every application a specific
+// player has submitted (all states), so a fixer reviewing an applicant can see
+// what else they've applied to and how those turned out.
+router.get("/missions/applicants/:userId/applications", requireAuth, async (req, res): Promise<void> => {
+  if (!isManager(req)) {
+    res.status(403).json({ error: "Fixer or admin role required" });
+    return;
+  }
+  const userId = String(req.params.userId);
+  if (!userId) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json(await listMyApplications(userId));
+});
+
 // Fail-safe Discord scheduling-conflict check for the create/reschedule form.
 router.get("/missions/conflicts", requireAuth, async (req, res): Promise<void> => {
   if (!canAuthorMissions(req)) {

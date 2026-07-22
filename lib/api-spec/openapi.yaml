@@ -1723,6 +1723,21 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/MissionApplicationListItem" }
+  /missions/applicants/{userId}/applications:
+    get:
+      operationId: listApplicantApplications
+      tags: [missions]
+      summary: "Every application a specific player has submitted (all states), fixer/admin per-applicant lookup, newest first."
+      parameters:
+        - { in: path, name: userId, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MissionApplicationListItem" }
   /missions/acting:
     get:
       operationId: listMyActing
@@ -10481,6 +10496,8 @@ components:
         lastAttendedAt: { type: ["string", "null"], format: date-time }
         daysSinceLastMission: { type: ["integer", "null"] }
         recencyWarning: { type: boolean, description: "True if the character played a mission within the recency window." }
+        upcomingAcceptedMissionId: { type: ["integer", "null"], description: "Id of another open/pending mission this applicant is already accepted to (soonest-starting), or null. Fixer applicant lists only; null on the caller's own application." }
+        upcomingAcceptedMissionTitle: { type: ["string", "null"], description: "Title of the mission referenced by upcomingAcceptedMissionId." }
         onRoster: { type: boolean, description: "True when the applicant's character currently has a roster assignment on this mission. An 'accepted' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it)." }
 
     MissionApplicationOutcome:

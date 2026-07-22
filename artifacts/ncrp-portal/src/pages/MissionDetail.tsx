@@ -23,6 +23,9 @@ import {
   useConfirmNpcSignup,
   useListActingForUser,
   getListActingForUserQueryKey,
+  useListApplicantApplications,
+  getListApplicantApplicationsQueryKey,
+  type MissionApplicationListItem,
   useListMyCharacters,
   useListBreachPuzzles,
   getListBreachPuzzlesQueryKey,
@@ -1055,6 +1058,79 @@ function ApplicationStatusBadge({ status }: { status: string }) {
   );
 }
 
+/**
+ * Fixer-only per-applicant lookup: click an applicant to see every mission
+ * they've applied to and how each application stands (pending / accepted /
+ * rejected / withdrawn). Fetches only while the dialog is open.
+ */
+function ApplicantApplicationsDialog({
+  userId,
+  displayName,
+  open,
+  onOpenChange,
+}: {
+  userId: string;
+  displayName: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const apps = useListApplicantApplications(userId, {
+    query: { enabled: open, queryKey: getListApplicantApplicationsQueryKey(userId) },
+  });
+  const rows: MissionApplicationListItem[] = apps.data ?? [];
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="rounded-none border-nc-cyan/40 max-w-lg max-h-[80vh] overflow-y-auto" data-testid="dialog-applicant-applications">
+        <DialogHeader>
+          <DialogTitle className="font-display tracking-widest text-nc-cyan uppercase">
+            Applications — {displayName}
+          </DialogTitle>
+          <DialogDescription className="font-mono text-xs">
+            Every mission this player has applied to, newest first.
+          </DialogDescription>
+        </DialogHeader>
+        {apps.isLoading ? (
+          <p className="font-mono text-sm text-muted-foreground">Loading…</p>
+        ) : apps.isError ? (
+          <p className="font-mono text-sm text-destructive">Failed to load applications.</p>
+        ) : rows.length === 0 ? (
+          <p className="font-mono text-sm text-muted-foreground italic" data-testid="text-applicant-apps-empty">
+            No applications on record.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {rows.map((r) => (
+              <div
+                key={r.id}
+                className="border border-border bg-background/40 p-2 flex items-start gap-2 flex-wrap"
+                data-testid={`row-applicant-app-${r.id}`}
+              >
+                <ApplicationStatusBadge status={r.status} />
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <Link
+                    href={`/missions/${r.missionId}`}
+                    className="font-display text-sm text-foreground hover:text-nc-cyan transition-colors break-words"
+                    onClick={() => onOpenChange(false)}
+                  >
+                    {r.missionTitle}
+                  </Link>
+                  <div className="text-[11px] text-muted-foreground font-mono">
+                    {r.characterName && <span>as {r.characterName} · </span>}
+                    <span className={missionStatusClass(r.missionStatus)}>
+                      Mission: {missionStatusLabel(r.missionStatus)}
+                    </span>
+                    {r.missionStartAt && <span> · {formatDate(new Date(r.missionStartAt))}</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AssignmentRow({
   a,
   missionId,
@@ -1395,7 +1471,7 @@ function ApplicationsPanel({ data }: { data: MissionDetailModel }) {
                 {decided.map((a) => (
                   <div key={a.id} className="flex items-center gap-2 flex-wrap" data-testid={`row-application-${a.id}`}>
                     <ApplicationStatusBadge status={a.status} />
-                    <span className="text-foreground">{a.characterName ?? "(character)"}</span>
+                    <DecidedApplicantName a={a} />
                     {a.userName && <span className="text-muted-foreground text-xs">({a.userName})</span>}
                     {a.status === "accepted" && a.onRoster === false && (
                       // Desync repair: the application was accepted but its
@@ -1426,6 +1502,30 @@ function ApplicationsPanel({ data }: { data: MissionDetailModel }) {
   );
 }
 
+// Decided-applicant name: click to open the same per-applicant application
+// history dialog fixers get on pending rows.
+function DecidedApplicantName({ a }: { a: MissionApplicationView }) {
+  const [historyOpen, setHistoryOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setHistoryOpen(true)}
+        className="text-foreground hover:text-nc-cyan underline decoration-dotted underline-offset-2 transition-colors"
+        data-testid={`button-applicant-history-${a.id}`}
+      >
+        {a.characterName ?? "(character)"}
+      </button>
+      <ApplicantApplicationsDialog
+        userId={a.userId}
+        displayName={a.userName ?? a.characterName ?? "Player"}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+      />
+    </>
+  );
+}
+
 function ApplicationReviewRow({
   a,
   missionId,
@@ -1437,6 +1537,7 @@ function ApplicationReviewRow({
   onAction: (action: "accept" | "reject") => void;
   busy: boolean;
 }) {
+  const [historyOpen, setHistoryOpen] = useState(false);
   return (
     <div className="border border-border bg-background/40 p-3 space-y-2" data-testid={`row-application-${a.id}`}>
       <div className="flex items-start gap-3">
@@ -1465,6 +1566,34 @@ function ApplicationReviewRow({
                 : "Recently played a mission"}
             </div>
           )}
+          {a.upcomingAcceptedMissionId != null && (
+            <div className="text-[11px] text-nc-cyan flex items-center gap-1 mt-1" data-testid={`upcoming-accepted-${a.id}`}>
+              <CalendarDays className="w-3 h-3 shrink-0" />
+              <span>
+                Accepted to upcoming mission:{" "}
+                <Link
+                  href={`/missions/${a.upcomingAcceptedMissionId}`}
+                  className="underline hover:text-foreground transition-colors"
+                >
+                  {a.upcomingAcceptedMissionTitle ?? `#${a.upcomingAcceptedMissionId}`}
+                </Link>
+              </span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="text-[11px] text-muted-foreground underline hover:text-nc-cyan transition-colors mt-1 block"
+            data-testid={`button-applicant-history-${a.id}`}
+          >
+            View all applications
+          </button>
+          <ApplicantApplicationsDialog
+            userId={a.userId}
+            displayName={a.userName ?? a.characterName ?? "Player"}
+            open={historyOpen}
+            onOpenChange={setHistoryOpen}
+          />
         </div>
       </div>
       {a.comment && <p className="text-muted-foreground whitespace-pre-wrap text-xs pl-1">{a.comment}</p>}

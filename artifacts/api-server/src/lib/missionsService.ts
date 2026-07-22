@@ -398,6 +398,9 @@ async function loadMyApplicationsForMissions(
       lastAttendedAt: iso(last),
       daysSinceLastMission: daysSince,
       recencyWarning: daysSince != null && daysSince < RECENCY_WARNING_DAYS,
+      // Fixer-only note; irrelevant for the caller's own card.
+      upcomingAcceptedMissionId: null as number | null,
+      upcomingAcceptedMissionTitle: null as string | null,
     };
     const list = byMission.get(r.missionId);
     if (list) list.push(view);
@@ -1146,6 +1149,70 @@ async function loadRecencyByCharacter(
 }
 
 /**
+ * Per-user "already booked" lookup: for each user, the soonest OTHER mission
+ * (still open/pending, i.e. not yet run) where they are accepted — either via
+ * an accepted application row or an actual roster assignment. Powers the
+ * non-blocking "Accepted to an upcoming mission" note fixers see during
+ * application review (mirrors the recency warning).
+ */
+async function loadUpcomingAcceptanceByUser(
+  userIds: string[],
+  excludeMissionId: number,
+): Promise<Map<string, { missionId: number; missionTitle: string; missionStartAt: Date | null }>> {
+  const out = new Map<string, { missionId: number; missionTitle: string; missionStartAt: Date | null }>();
+  const ids = [...new Set(userIds)];
+  if (ids.length === 0) return out;
+  const upcomingStatuses = ["open", "pending"];
+
+  // Roster assignments on upcoming missions.
+  const assigned = await db
+    .select({
+      userId: missionAssignments.userId,
+      missionId: missions.id,
+      missionTitle: missions.title,
+      missionStartAt: missions.startAt,
+    })
+    .from(missionAssignments)
+    .innerJoin(missions, eq(missions.id, missionAssignments.missionId))
+    .where(
+      and(
+        inArray(missionAssignments.userId, ids),
+        ne(missionAssignments.missionId, excludeMissionId),
+        inArray(missions.status, upcomingStatuses),
+      ),
+    );
+  // Accepted applications on upcoming missions (covers accept-before-roster
+  // edge cases; usually redundant with the assignment row).
+  const accepted = await db
+    .select({
+      userId: missionApplications.userId,
+      missionId: missions.id,
+      missionTitle: missions.title,
+      missionStartAt: missions.startAt,
+    })
+    .from(missionApplications)
+    .innerJoin(missions, eq(missions.id, missionApplications.missionId))
+    .where(
+      and(
+        inArray(missionApplications.userId, ids),
+        ne(missionApplications.missionId, excludeMissionId),
+        eq(missionApplications.status, "accepted"),
+        inArray(missions.status, upcomingStatuses),
+      ),
+    );
+  // Keep the soonest-starting mission per user (null start sorts last).
+  for (const r of [...assigned, ...accepted]) {
+    const cur = out.get(r.userId);
+    const rTime = r.missionStartAt?.getTime() ?? Number.POSITIVE_INFINITY;
+    const curTime = cur ? (cur.missionStartAt?.getTime() ?? Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+    if (!cur || rTime < curTime) {
+      out.set(r.userId, { missionId: r.missionId, missionTitle: r.missionTitle, missionStartAt: r.missionStartAt });
+    }
+  }
+  return out;
+}
+
+/**
  * Build application view rows for a mission. When `onlyUserId` is given, returns
  * just that player's application (for the player's own view).
  */
@@ -1187,15 +1254,26 @@ async function listApplicationViews(missionId: number, onlyUserId?: string) {
     .where(and(...filters))
     .orderBy(missionApplications.createdAt);
 
-  const recency = await loadRecencyByCharacter(
-    rows.map((r) => r.characterId),
-    missionId,
-  );
+  const [recency, upcoming] = await Promise.all([
+    loadRecencyByCharacter(
+      rows.map((r) => r.characterId),
+      missionId,
+    ),
+    // Fixer-only enrichment: skip when building the caller's own card
+    // (onlyUserId) — the note is for reviewers, not the applicant.
+    onlyUserId
+      ? Promise.resolve(new Map<string, { missionId: number; missionTitle: string; missionStartAt: Date | null }>())
+      : loadUpcomingAcceptanceByUser(
+          rows.map((r) => r.userId),
+          missionId,
+        ),
+  ]);
   const now = Date.now();
   return rows.map((r) => {
     const rec = recency.get(r.characterId);
     const last = rec?.lastAttendedAt ?? null;
     const daysSince = last ? Math.floor((now - last.getTime()) / 86_400_000) : null;
+    const up = upcoming.get(r.userId) ?? null;
     return {
       id: r.id,
       userId: r.userId,
@@ -1220,6 +1298,10 @@ async function listApplicationViews(missionId: number, onlyUserId?: string) {
       lastAttendedAt: iso(last),
       daysSinceLastMission: daysSince,
       recencyWarning: daysSince != null && daysSince < RECENCY_WARNING_DAYS,
+      // "Already booked" note: the applicant is accepted on another mission
+      // that hasn't run yet (open/pending). Non-blocking, like recencyWarning.
+      upcomingAcceptedMissionId: up?.missionId ?? null,
+      upcomingAcceptedMissionTitle: up?.missionTitle ?? null,
     };
   });
 }

@@ -7939,6 +7939,83 @@ export function useListMyApplications<TData = Awaited<ReturnType<typeof listMyAp
 
 
 
+export const getListApplicantApplicationsUrl = (userId: string,) => {
+
+
+
+
+  return `/api/missions/applicants/${userId}/applications`
+}
+
+/**
+ * @summary Every application a specific player has submitted (all states), fixer/admin per-applicant lookup, newest first.
+ */
+export const listApplicantApplications = async (userId: string, options?: RequestInit): Promise<MissionApplicationListItem[]> => {
+
+  return customFetch<MissionApplicationListItem[]>(getListApplicantApplicationsUrl(userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListApplicantApplicationsQueryKey = (userId: string,) => {
+    return [
+    `/api/missions/applicants/${userId}/applications`
+    ] as const;
+    }
+
+
+export const getListApplicantApplicationsQueryOptions = <TData = Awaited<ReturnType<typeof listApplicantApplications>>, TError = ErrorType<unknown>>(userId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listApplicantApplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListApplicantApplicationsQueryKey(userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listApplicantApplications>>> = ({ signal }) => listApplicantApplications(userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(userId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listApplicantApplications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListApplicantApplicationsQueryResult = NonNullable<Awaited<ReturnType<typeof listApplicantApplications>>>
+export type ListApplicantApplicationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Every application a specific player has submitted (all states), fixer/admin per-applicant lookup, newest first.
+ */
+
+export function useListApplicantApplications<TData = Awaited<ReturnType<typeof listApplicantApplications>>, TError = ErrorType<unknown>>(
+ userId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listApplicantApplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListApplicantApplicationsQueryOptions(userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getListMyActingUrl = () => {
 
 

@@ -1639,6 +1639,85 @@ describe("Mission applications", () => {
     expect(rows[0].status).toBe("pending");
   });
 
+  it("applicant lists flag players already accepted to another upcoming mission", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const admin = await createUser({ roles: ["admin"] });
+    const upcoming = await postedMission();
+    const other = await postedMission();
+
+    // Accept the player onto the first (still-open) mission.
+    const appliedUpcoming = await request(app)
+      .post(`/api/missions/${upcoming.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id, availability: AVAIL });
+    await request(app)
+      .post(`/api/missions/${upcoming.id}/applications/${appliedUpcoming.body.myApplication.id}/review`)
+      .set("x-test-user", admin.id)
+      .send({ action: "accept" });
+
+    // Apply to a second mission — the fixer view flags the existing booking.
+    await request(app)
+      .post(`/api/missions/${other.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id, availability: AVAIL });
+    const detail = await request(app).get(`/api/missions/${other.id}`).set("x-test-user", admin.id);
+    const view = detail.body.applications.find((a: { userId: string }) => a.userId === player.id);
+    expect(view.upcomingAcceptedMissionId).toBe(upcoming.id);
+    expect(view.upcomingAcceptedMissionTitle).toBe(upcoming.title);
+
+    // The upcoming mission's own applicant row does NOT self-flag.
+    const detailUpcoming = await request(app).get(`/api/missions/${upcoming.id}`).set("x-test-user", admin.id);
+    const selfView = detailUpcoming.body.applications.find((a: { userId: string }) => a.userId === player.id);
+    expect(selfView.upcomingAcceptedMissionId).toBeNull();
+
+    // The player's OWN card never carries the fixer-only note.
+    const asPlayer = await request(app).get(`/api/missions/${other.id}`).set("x-test-user", player.id);
+    expect(asPlayer.body.myApplication.upcomingAcceptedMissionId).toBeNull();
+    expect(asPlayer.body.myApplication.upcomingAcceptedMissionTitle).toBeNull();
+
+    // Once the booked mission completes it is no longer "upcoming".
+    await db.update(missions).set({ status: "completed" }).where(eq(missions.id, upcoming.id));
+    const detail2 = await request(app).get(`/api/missions/${other.id}`).set("x-test-user", admin.id);
+    const view2 = detail2.body.applications.find((a: { userId: string }) => a.userId === player.id);
+    expect(view2.upcomingAcceptedMissionId).toBeNull();
+  });
+
+  it("fixer per-applicant application lookup returns all states; player-role callers get 403", async () => {
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const admin = await createUser({ roles: ["admin"] });
+    const m1 = await postedMission();
+    const m2 = await postedMission();
+
+    const a1 = await request(app)
+      .post(`/api/missions/${m1.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id, availability: AVAIL });
+    await request(app)
+      .post(`/api/missions/${m1.id}/applications/${a1.body.myApplication.id}/review`)
+      .set("x-test-user", admin.id)
+      .send({ action: "accept" });
+    await request(app)
+      .post(`/api/missions/${m2.id}/applications`)
+      .set("x-test-user", player.id)
+      .send({ characterId: char.id, availability: AVAIL });
+
+    const res = await request(app)
+      .get(`/api/missions/applicants/${player.id}/applications`)
+      .set("x-test-user", admin.id);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    const byMission = new Map(res.body.map((r: { missionId: number; status: string }) => [r.missionId, r.status]));
+    expect(byMission.get(m1.id)).toBe("accepted");
+    expect(byMission.get(m2.id)).toBe("pending");
+
+    const forbidden = await request(app)
+      .get(`/api/missions/applicants/${player.id}/applications`)
+      .set("x-test-user", player.id);
+    expect(forbidden.status).toBe(403);
+  });
+
   it("accepting an application assigns the player+character to the mission", async () => {
     const player = await createUser();
     const char = await createCharacter({ ownerId: player.id });

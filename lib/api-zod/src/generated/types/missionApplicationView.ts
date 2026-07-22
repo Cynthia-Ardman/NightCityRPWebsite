@@ -36,6 +36,16 @@ export interface MissionApplicationView {
   daysSinceLastMission?: number | null;
   /** True if the character played a mission within the recency window. */
   recencyWarning: boolean;
+  /**
+     * Id of another open/pending mission this applicant is already accepted to (soonest-starting), or null. Fixer applicant lists only; null on the caller's own application.
+     * @nullable
+     */
+  upcomingAcceptedMissionId?: number | null;
+  /**
+     * Title of the mission referenced by upcomingAcceptedMissionId.
+     * @nullable
+     */
+  upcomingAcceptedMissionTitle?: string | null;
   /** True when the applicant's character currently has a roster assignment on this mission. An 'accepted' application with onRoster=false means the roster row was removed after acceptance (fixers can re-accept to restore it). */
   onRoster?: boolean;
 }
