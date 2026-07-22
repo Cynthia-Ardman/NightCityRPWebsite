@@ -1727,7 +1727,7 @@ paths:
     get:
       operationId: listApplicantApplications
       tags: [missions]
-      summary: "Every application a specific player has submitted (all states), fixer/admin per-applicant lookup, newest first."
+      summary: "Applications a specific player has submitted to UPCOMING missions (posted, not cancelled, not completed), all application states, fixer/admin per-applicant lookup, newest first."
       parameters:
         - { in: path, name: userId, required: true, schema: { type: string } }
       responses:

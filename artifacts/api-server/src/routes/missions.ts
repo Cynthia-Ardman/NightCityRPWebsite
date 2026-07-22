@@ -653,7 +653,9 @@ router.get("/missions/applicants/:userId/applications", requireAuth, async (req,
     res.status(404).json({ error: "Not found" });
     return;
   }
-  res.json(await listMyApplications(userId));
+  // Fixer lookup only cares about live commitments — completed/cancelled
+  // missions are noise here.
+  res.json(await listMyApplications(userId, { upcomingOnly: true }));
 });
 
 // Fail-safe Discord scheduling-conflict check for the create/reschedule form.

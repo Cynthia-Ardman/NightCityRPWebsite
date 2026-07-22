@@ -568,8 +568,18 @@ export async function listMissionHistory(
  * newest first. Only ever the caller's own rows — players never see anyone
  * else's applications.
  */
-export async function listMyApplications(userId: string) {
+export async function listMyApplications(userId: string, opts: { upcomingOnly?: boolean } = {}) {
   const fixerUser = alias(users, "fixer_user");
+  // Upcoming = posted, not cancelled, not completed (completedAt is the real
+  // completion signal — status stays 'open' on finished missions).
+  const missionFilter = opts.upcomingOnly
+    ? and(
+        eq(missionApplications.userId, userId),
+        eq(missions.workflowState, "posted"),
+        ne(missions.status, "cancelled"),
+        isNull(missions.completedAt),
+      )
+    : eq(missionApplications.userId, userId);
   const rows = await db
     .select({
       id: missionApplications.id,
@@ -605,7 +615,7 @@ export async function listMyApplications(userId: string) {
         eq(missionAssignments.characterId, missionApplications.characterId),
       ),
     )
-    .where(eq(missionApplications.userId, userId))
+    .where(missionFilter)
     .orderBy(desc(missionApplications.createdAt));
   return rows.map((r) => ({
     id: r.id,
@@ -1162,7 +1172,14 @@ async function loadUpcomingAcceptanceByUser(
   const out = new Map<string, { missionId: number; missionTitle: string; missionStartAt: Date | null }>();
   const ids = [...new Set(userIds)];
   if (ids.length === 0) return out;
-  const upcomingStatuses = ["open", "pending"];
+  // "Upcoming" mirrors the mission-detail definition: posted, not cancelled,
+  // and NOT completed. Completion is tracked via completedAt (status stays
+  // 'open'), so a status-only filter would keep flagging finished missions.
+  const upcomingMission = and(
+    eq(missions.workflowState, "posted"),
+    ne(missions.status, "cancelled"),
+    isNull(missions.completedAt),
+  );
 
   // Roster assignments on upcoming missions.
   const assigned = await db
@@ -1178,7 +1195,7 @@ async function loadUpcomingAcceptanceByUser(
       and(
         inArray(missionAssignments.userId, ids),
         ne(missionAssignments.missionId, excludeMissionId),
-        inArray(missions.status, upcomingStatuses),
+        upcomingMission,
       ),
     );
   // Accepted applications on upcoming missions (covers accept-before-roster
@@ -1197,7 +1214,7 @@ async function loadUpcomingAcceptanceByUser(
         inArray(missionApplications.userId, ids),
         ne(missionApplications.missionId, excludeMissionId),
         eq(missionApplications.status, "accepted"),
-        inArray(missions.status, upcomingStatuses),
+        upcomingMission,
       ),
     );
   // Keep the soonest-starting mission per user (null start sorts last).

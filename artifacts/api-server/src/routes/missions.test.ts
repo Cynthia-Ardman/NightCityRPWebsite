@@ -1676,8 +1676,9 @@ describe("Mission applications", () => {
     expect(asPlayer.body.myApplication.upcomingAcceptedMissionId).toBeNull();
     expect(asPlayer.body.myApplication.upcomingAcceptedMissionTitle).toBeNull();
 
-    // Once the booked mission completes it is no longer "upcoming".
-    await db.update(missions).set({ status: "completed" }).where(eq(missions.id, upcoming.id));
+    // Once the booked mission completes (completedAt set; status stays 'open')
+    // it is no longer "upcoming".
+    await db.update(missions).set({ completedAt: new Date() }).where(eq(missions.id, upcoming.id));
     const detail2 = await request(app).get(`/api/missions/${other.id}`).set("x-test-user", admin.id);
     const view2 = detail2.body.applications.find((a: { userId: string }) => a.userId === player.id);
     expect(view2.upcomingAcceptedMissionId).toBeNull();
@@ -1711,6 +1712,15 @@ describe("Mission applications", () => {
     const byMission = new Map(res.body.map((r: { missionId: number; status: string }) => [r.missionId, r.status]));
     expect(byMission.get(m1.id)).toBe("accepted");
     expect(byMission.get(m2.id)).toBe("pending");
+
+    // Completed missions drop out of the lookup (upcoming-only): completedAt
+    // is the completion signal, status stays 'open'.
+    await db.update(missions).set({ completedAt: new Date() }).where(eq(missions.id, m1.id));
+    const afterComplete = await request(app)
+      .get(`/api/missions/applicants/${player.id}/applications`)
+      .set("x-test-user", admin.id);
+    expect(afterComplete.body).toHaveLength(1);
+    expect(afterComplete.body[0].missionId).toBe(m2.id);
 
     const forbidden = await request(app)
       .get(`/api/missions/applicants/${player.id}/applications`)

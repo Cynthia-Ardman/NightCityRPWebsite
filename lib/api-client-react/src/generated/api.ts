@@ -7948,7 +7948,7 @@ export const getListApplicantApplicationsUrl = (userId: string,) => {
 }
 
 /**
- * @summary Every application a specific player has submitted (all states), fixer/admin per-applicant lookup, newest first.
+ * @summary Applications a specific player has submitted to UPCOMING missions (posted, not cancelled, not completed), all application states, fixer/admin per-applicant lookup, newest first.
  */
 export const listApplicantApplications = async (userId: string, options?: RequestInit): Promise<MissionApplicationListItem[]> => {
 
@@ -7995,7 +7995,7 @@ export type ListApplicantApplicationsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Every application a specific player has submitted (all states), fixer/admin per-applicant lookup, newest first.
+ * @summary Applications a specific player has submitted to UPCOMING missions (posted, not cancelled, not completed), all application states, fixer/admin per-applicant lookup, newest first.
  */
 
 export function useListApplicantApplications<TData = Awaited<ReturnType<typeof listApplicantApplications>>, TError = ErrorType<unknown>>(
