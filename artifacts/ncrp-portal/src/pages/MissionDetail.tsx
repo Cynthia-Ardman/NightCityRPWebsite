@@ -1086,7 +1086,7 @@ function ApplicantApplicationsDialog({
             Applications — {displayName}
           </DialogTitle>
           <DialogDescription className="font-mono text-xs">
-            Upcoming missions this player has applied to, newest first.
+            Pending applications to upcoming missions, newest first.
           </DialogDescription>
         </DialogHeader>
         {apps.isLoading ? (
@@ -1095,7 +1095,7 @@ function ApplicantApplicationsDialog({
           <p className="font-mono text-sm text-destructive">Failed to load applications.</p>
         ) : rows.length === 0 ? (
           <p className="font-mono text-sm text-muted-foreground italic" data-testid="text-applicant-apps-empty">
-            No applications to upcoming missions.
+            No pending applications to upcoming missions.
           </p>
         ) : (
           <div className="space-y-2">
@@ -1586,7 +1586,7 @@ function ApplicationReviewRow({
             className="text-[11px] text-muted-foreground underline hover:text-nc-cyan transition-colors mt-1 block"
             data-testid={`button-applicant-history-${a.id}`}
           >
-            View upcoming applications
+            View pending applications
           </button>
           <ApplicantApplicationsDialog
             userId={a.userId}

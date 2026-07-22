@@ -267,17 +267,19 @@ async function applyAssignments(
   const desiredUserIds = new Set(desired.map((d) => d.userId));
 
   // Delete unpaid assignments dropped from the set. Also flip those users'
-  // 'accepted' applications back to 'withdrawn' (mirrors the dedicated
+  // 'accepted' applications to 'rejected' (mirrors the dedicated
   // remove-from-roster endpoint) so an application can never sit at 'accepted'
   // while its roster row is gone — that ghost state made a stale roster edit's
-  // deletions invisible in the applicant list.
+  // deletions invisible in the applicant list. 'rejected' (not 'withdrawn')
+  // because this is a FIXER decision — 'withdrawn' is reserved for the player
+  // pulling their own application. Re-applying is allowed from either state.
   const toDelete = existing.filter((a) => !desiredUserIds.has(a.userId) && a.paymentStatus === "unpaid");
   if (toDelete.length > 0) {
     await db.transaction(async (tx) => {
       await tx.delete(missionAssignments).where(inArray(missionAssignments.id, toDelete.map((a) => a.id)));
       await tx
         .update(missionApplications)
-        .set({ status: "withdrawn", updatedAt: new Date() })
+        .set({ status: "rejected", updatedAt: new Date() })
         .where(
           and(
             eq(missionApplications.missionId, missionId),
@@ -640,9 +642,9 @@ router.get("/missions/acting/:userId", requireAuth, async (req, res): Promise<vo
   res.json(await listActingForUser(userId));
 });
 
-// Fixer/admin per-applicant application lookup — every application a specific
-// player has submitted (all states), so a fixer reviewing an applicant can see
-// what else they've applied to and how those turned out.
+// Fixer/admin per-applicant application lookup — the specific player's PENDING
+// applications on UPCOMING missions, so a fixer reviewing an applicant can see
+// what else they're currently waiting on.
 router.get("/missions/applicants/:userId/applications", requireAuth, async (req, res): Promise<void> => {
   if (!isManager(req)) {
     res.status(403).json({ error: "Fixer or admin role required" });
@@ -653,9 +655,11 @@ router.get("/missions/applicants/:userId/applications", requireAuth, async (req,
     res.status(404).json({ error: "Not found" });
     return;
   }
-  // Fixer lookup only cares about live commitments — completed/cancelled
-  // missions are noise here.
-  res.json(await listMyApplications(userId, { upcomingOnly: true }));
+  // Fixer lookup only cares about live, still-undecided interest: pending
+  // applications on upcoming missions. Accepted-elsewhere already surfaces via
+  // the applicant-card note; rejected/withdrawn history is noise here.
+  const apps = await listMyApplications(userId, { upcomingOnly: true });
+  res.json(apps.filter((a) => a.status === "pending"));
 });
 
 // Fail-safe Discord scheduling-conflict check for the create/reschedule form.

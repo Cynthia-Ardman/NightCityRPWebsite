@@ -1684,7 +1684,7 @@ describe("Mission applications", () => {
     expect(view2.upcomingAcceptedMissionId).toBeNull();
   });
 
-  it("fixer per-applicant application lookup returns all states; player-role callers get 403", async () => {
+  it("fixer per-applicant application lookup returns pending-on-upcoming only; player-role callers get 403", async () => {
     const player = await createUser();
     const char = await createCharacter({ ownerId: player.id });
     const admin = await createUser({ roles: ["admin"] });
@@ -1704,23 +1704,23 @@ describe("Mission applications", () => {
       .set("x-test-user", player.id)
       .send({ characterId: char.id, availability: AVAIL });
 
+    // Pending-only: the accepted m1 application is excluded (accepted-elsewhere
+    // surfaces via the applicant-card note instead), only m2's pending row shows.
     const res = await request(app)
       .get(`/api/missions/applicants/${player.id}/applications`)
       .set("x-test-user", admin.id);
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(2);
-    const byMission = new Map(res.body.map((r: { missionId: number; status: string }) => [r.missionId, r.status]));
-    expect(byMission.get(m1.id)).toBe("accepted");
-    expect(byMission.get(m2.id)).toBe("pending");
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].missionId).toBe(m2.id);
+    expect(res.body[0].status).toBe("pending");
 
     // Completed missions drop out of the lookup (upcoming-only): completedAt
     // is the completion signal, status stays 'open'.
-    await db.update(missions).set({ completedAt: new Date() }).where(eq(missions.id, m1.id));
+    await db.update(missions).set({ completedAt: new Date() }).where(eq(missions.id, m2.id));
     const afterComplete = await request(app)
       .get(`/api/missions/applicants/${player.id}/applications`)
       .set("x-test-user", admin.id);
-    expect(afterComplete.body).toHaveLength(1);
-    expect(afterComplete.body[0].missionId).toBe(m2.id);
+    expect(afterComplete.body).toHaveLength(0);
 
     const forbidden = await request(app)
       .get(`/api/missions/applicants/${player.id}/applications`)
@@ -1755,10 +1755,11 @@ describe("Mission applications", () => {
 
   // Regression (The Night Watch): a roster edit that whole-replaces assignments
   // must not leave a dropped player's application stuck at 'accepted' with no
-  // roster row. The edit flips it to 'withdrawn' (mirrors remove-from-roster),
+  // roster row. The edit flips it to 'rejected' (mirrors remove-from-roster;
+  // fixer decision — 'withdrawn' is reserved for player-initiated pulls),
   // and any lingering accepted-but-off-roster row is repairable: the detail
   // view exposes onRoster=false and re-accepting is idempotent.
-  it("roster edit that drops an accepted player withdraws the application; re-accept restores", async () => {
+  it("roster edit that drops an accepted player rejects the application; re-accept restores", async () => {
     const playerA = await createUser();
     const charA = await createCharacter({ ownerId: playerA.id });
     const playerB = await createUser();
@@ -1788,7 +1789,7 @@ describe("Mission applications", () => {
     expect(assigns.map((a) => a.userId)).toEqual([playerB.id]);
     // Player A's application must NOT sit at 'accepted' with no roster row.
     const [appA] = await db.select().from(missionApplications).where(eq(missionApplications.id, appAId));
-    expect(appA.status).toBe("withdrawn");
+    expect(appA.status).toBe("rejected");
 
     // Ghost-state repair path: force the legacy desync (accepted, no roster
     // row) and verify the detail view flags it and re-accept restores it.
@@ -2688,7 +2689,9 @@ describe("Remove assigned player", () => {
       .select()
       .from(missionApplications)
       .where(eq(missionApplications.userId, player.id));
-    expect(app2.status).toBe("withdrawn");
+    // Fixer removal marks the application rejected (player self-withdraw is
+    // the only path that produces 'withdrawn').
+    expect(app2.status).toBe("rejected");
   });
 
   it("reverts attendance for a player who attended but was not paid (failed)", async () => {

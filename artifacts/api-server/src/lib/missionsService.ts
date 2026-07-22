@@ -1652,7 +1652,8 @@ export async function reviewApplication(opts: {
  * Fixer removes an accepted player from a mission. Deleting the assignment row
  * also reverts that player's attendance (attendanceCreditedAt lives on the row,
  * so attendance counts drop back automatically) and any accepted application is
- * flipped back to 'withdrawn' so the slot is freed and they can re-apply.
+ * flipped to 'rejected' — a fixer decision, unlike player-initiated 'withdrawn'
+ * — freeing the slot; the player can still re-apply.
  *
  * GUARD: a player who has already been *paid* (or is mid-payout) cannot be
  * removed — deleting a paid assignment would orphan a real eddies payout. The
@@ -1726,10 +1727,11 @@ export async function removeAssignedPlayer(opts: {
     // Deleting the assignment reverts both the mission attachment and the
     // credited attendance (attendanceCreditedAt is a column on this row).
     await tx.delete(missionAssignments).where(eq(missionAssignments.id, assignment.id));
-    // Free the application slot so the player can re-apply later.
+    // Free the application slot so the player can re-apply later. 'rejected'
+    // because removal is a fixer decision ('withdrawn' = player pulled out).
     await tx
       .update(missionApplications)
-      .set({ status: "withdrawn", updatedAt: new Date() })
+      .set({ status: "rejected", updatedAt: new Date() })
       .where(
         and(
           eq(missionApplications.missionId, opts.missionId),

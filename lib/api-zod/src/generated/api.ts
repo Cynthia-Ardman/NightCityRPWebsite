@@ -3131,7 +3131,7 @@ export const ListMyApplicationsResponse = zod.array(ListMyApplicationsResponseIt
 
 
 /**
- * @summary Applications a specific player has submitted to UPCOMING missions (posted, not cancelled, not completed), all application states, fixer/admin per-applicant lookup, newest first.
+ * @summary PENDING applications a specific player has submitted to UPCOMING missions (posted, not cancelled, not completed), fixer/admin per-applicant lookup, newest first.
  */
 export const ListApplicantApplicationsParams = zod.object({
   "userId": zod.coerce.string()
