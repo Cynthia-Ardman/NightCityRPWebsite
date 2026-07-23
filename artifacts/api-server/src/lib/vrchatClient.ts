@@ -471,17 +471,56 @@ async function captureRotatedCookies(res: Response, prior: SessionCookies): Prom
 // we fall back to marking the session expired for a manual reconnect (the
 // code email is already on its way, so the staff click is one paste away).
 const AUTO_RECONNECT_COOLDOWN_MS = 15 * 60 * 1000;
-let lastAutoReconnectAt = 0;
 
 /** Test-only: clear the auto-reconnect cooldown between test cases. */
-export function __resetAutoReconnectCooldownForTests(): void {
-  lastAutoReconnectAt = 0;
+export async function __resetAutoReconnectCooldownForTests(): Promise<void> {
+  await db
+    .update(vrchatSessions)
+    .set({ lastAutoReconnectAt: null })
+    .where(eq(vrchatSessions.id, SESSION_ID));
 }
 
-async function tryAutoReconnect(context: string): Promise<boolean> {
-  const nowMs = Date.now();
-  if (nowMs - lastAutoReconnectAt < AUTO_RECONNECT_COOLDOWN_MS) return false;
-  lastAutoReconnectAt = nowMs;
+async function tryAutoReconnect(context: string, staleAuth: string | null = null): Promise<boolean> {
+  // Claim the reconnect attempt via a conditional UPDATE on the PERSISTED
+  // cooldown stamp, so multiple server instances can't each fire their own
+  // login. A login stampede from one datacenter IP makes VRChat invalidate
+  // the freshly minted sessions, turning a single expiry into a 20-minute
+  // expire→reconnect→expire loop (observed 2026-07-23). Only the claim
+  // winner logs in; everyone else waits for the shared cooldown.
+  const now = new Date();
+  const claimed = await db
+    .update(vrchatSessions)
+    .set({ lastAutoReconnectAt: now })
+    .where(
+      and(
+        eq(vrchatSessions.id, SESSION_ID),
+        or(
+          isNull(vrchatSessions.lastAutoReconnectAt),
+          sql`${vrchatSessions.lastAutoReconnectAt} < ${new Date(now.getTime() - AUTO_RECONNECT_COOLDOWN_MS)}`,
+        ),
+      ),
+    )
+    .returning({ id: vrchatSessions.id });
+  if (claimed.length === 0) return false;
+  // Another instance may have already restored the session between our 401
+  // and this claim — if a cookie DIFFERENT from the one that just failed
+  // exists, treat it as reconnected and release the claim so a real future
+  // expiry isn't delayed by our no-op. (The failed cookie still being stored
+  // means nobody has reconnected yet — proceed with the login.)
+  const fresh = await loadSession();
+  if (fresh.auth && fresh.auth !== staleAuth) {
+    await db
+      .update(vrchatSessions)
+      .set({ lastAutoReconnectAt: null })
+      .where(
+        and(
+          eq(vrchatSessions.id, SESSION_ID),
+          eq(vrchatSessions.lastAutoReconnectAt, now),
+        ),
+      )
+      .catch(() => {});
+    return true;
+  }
   try {
     const res = await beginManualLogin();
     if (res.status === "connected") {
@@ -621,7 +660,7 @@ async function notifyAdminsVrchatDisconnected(): Promise<void> {
 // Shared 401 handling for apiGet/apiSend: verify before discarding.
 async function handleUnauthorized(cookies: SessionCookies, context: string): Promise<never> {
   if (await confirmCookieDead(cookies)) {
-    if (await tryAutoReconnect(context)) {
+    if (await tryAutoReconnect(context, cookies.auth)) {
       throw new Error(`VRChat ${context} hit an expired cookie — session auto-reconnected, will retry next cycle.`);
     }
     await markSessionExpired(context, cookies.auth);

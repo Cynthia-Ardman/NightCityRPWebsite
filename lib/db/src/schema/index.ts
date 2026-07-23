@@ -2276,6 +2276,12 @@ export const vrchatSessions = pgTable("vrchat_sessions", {
   // so overlapping server instances can't each fire their own alert; the alert
   // is claimed via a conditional UPDATE on this column.
   lastDisconnectNotifyAt: timestamp("last_disconnect_notify_at", { withTimezone: true }),
+  // Last unattended auto-reconnect (login) attempt. Persisted (not in-process)
+  // so multiple server instances can't each fire their own login within the
+  // cooldown — a login stampede from one IP makes VRChat invalidate the fresh
+  // sessions, turning one expiry into an expire/reconnect loop. Claimed via a
+  // conditional UPDATE on this column; only the winner performs the login.
+  lastAutoReconnectAt: timestamp("last_auto_reconnect_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()

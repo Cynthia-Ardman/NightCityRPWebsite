@@ -124,3 +124,13 @@ that self-heals never pages anyone). The alert itself is claimed via
 conditional UPDATE on `last_disconnect_notify_at` (NULL or >12h old); notify
 failure releases only ITS OWN claim (exact-timestamp match), never a
 concurrent claimer's. finalizeSession clears both columns to end the episode.
+
+**Auto-reconnect cooldown is ALSO DB-claimed** (`last_auto_reconnect_at`,
+conditional UPDATE, 15-min window). Root cause of the 2026-07-23 outage loop:
+each prod instance had its own in-memory cooldown → concurrent password
+logins from one datacenter IP → VRChat invalidated the fresh sessions within
+seconds → expire→reconnect→expire churn for 20 min. Only the claim winner
+logs in; after claiming, if the stored authCookie differs from the cookie
+that 401'd, another instance already reconnected — release own claim
+(exact-timestamp match) and report restored. ANY in-process cooldown/dedupe
+state in this module is a bug: prod is multi-instance.

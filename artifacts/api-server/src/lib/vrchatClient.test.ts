@@ -73,7 +73,7 @@ afterEach(() => {
 
 beforeEach(async () => {
   await seedSession();
-  __resetAutoReconnectCooldownForTests();
+  await __resetAutoReconnectCooldownForTests();
   // Auto-reconnect requires credentials; default to none so 401 tests hit the
   // manual-reconnect fallback deterministically.
   delete process.env.VRCHAT_USERNAME;
@@ -142,7 +142,9 @@ describe("vrchatClient 401 handling", () => {
       return jsonResponse({}, { status: 500 });
     }) as typeof fetch;
 
-    await expect(fetchGroupInstances("grp_test")).rejects.toThrow(SESSION_EXPIRED_MSG);
+    // The concurrent reconnect is detected before expiring anything: the call
+    // reports the session as already restored rather than demanding a human.
+    await expect(fetchGroupInstances("grp_test")).rejects.toThrow(/auto-reconnected/);
 
     const row = await readSession();
     expect(row?.authCookie).toBe("cookie-FRESH"); // NOT nulled by the stale 401
@@ -253,6 +255,39 @@ describe("maintainVrchatSession", () => {
     expect(rows).toHaveLength(0);
   });
 
+  it("only one login attempt per cooldown window, even across concurrent ticks (no stampede)", async () => {
+    process.env.VRCHAT_USERNAME = "bot";
+    process.env.VRCHAT_PASSWORD = "pw";
+    await db
+      .update(vrchatSessions)
+      .set({ authCookie: null })
+      .where(eq(vrchatSessions.id, SESSION_ID));
+    let loginAttempts = 0;
+    global.fetch = vi.fn(async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/auth/user")) {
+        const headers = new Headers(init?.headers as Record<string, string> | undefined);
+        if (headers.get("Authorization")?.startsWith("Basic ")) {
+          loginAttempts += 1;
+          // Login fails (e.g. VRChat demands an email code) so the session
+          // stays down and later ticks WOULD retry if the cooldown let them.
+          return jsonResponse({ requiresTwoFactorAuth: ["emailOtp"] });
+        }
+        return jsonResponse({}, { status: 401 });
+      }
+      return jsonResponse({}, { status: 500 });
+    }) as typeof fetch;
+
+    // Two "instances" tick concurrently, plus one more right after: only the
+    // claim winner may log in — the persisted cooldown blocks the rest.
+    await Promise.all([maintainVrchatSession(), maintainVrchatSession()]);
+    await expect(maintainVrchatSession()).resolves.toBe(false);
+    expect(loginAttempts).toBe(1);
+
+    const row = await readSession();
+    expect(row?.lastAutoReconnectAt).not.toBeNull();
+  });
+
   it("notifies admins once per episode, but only after the grace window has elapsed", async () => {
     process.env.VRCHAT_USERNAME = "bot";
     process.env.VRCHAT_PASSWORD = "pw";
@@ -286,7 +321,7 @@ describe("maintainVrchatSession", () => {
       .update(vrchatSessions)
       .set({ disconnectedSince: new Date(Date.now() - 25 * 60 * 1000) })
       .where(eq(vrchatSessions.id, SESSION_ID));
-    __resetAutoReconnectCooldownForTests();
+    await __resetAutoReconnectCooldownForTests();
     await expect(maintainVrchatSession()).resolves.toBe(false);
     // notify runs fire-and-forget; give it a beat to land.
     await vi.waitFor(async () => {
@@ -299,7 +334,7 @@ describe("maintainVrchatSession", () => {
     });
 
     // Another tick within the cooldown window: no duplicate notification.
-    __resetAutoReconnectCooldownForTests();
+    await __resetAutoReconnectCooldownForTests();
     await expect(maintainVrchatSession()).resolves.toBe(false);
     await new Promise((r) => setTimeout(r, 100));
     rows = await db.select().from(notifications).where(eq(notifications.userId, ADMIN_ID));
