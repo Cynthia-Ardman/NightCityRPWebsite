@@ -477,7 +477,7 @@ export default function SheetDetail() {
             />
             {sheet.canOverride && (
               <>
-                <Button onClick={() => override.mutate({ id: sheetId, data: { decision: "approve" } })} disabled={override.isPending} className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display" data-testid="button-override"><ShieldCheck className="w-4 h-4 mr-1" /> ADMIN OVERRIDE — APPROVE NOW</Button>
+                <Button onClick={() => override.mutate({ id: sheetId, data: { decision: "approve" } })} disabled={override.isPending} className="rounded-none bg-nc-orange text-background hover:bg-nc-orange/80 font-display" data-testid="button-override"><ShieldCheck className="w-4 h-4 mr-1" /> ADMIN OVERRIDE — APPROVE NOW</Button>
                 <Button onClick={() => override.mutate({ id: sheetId, data: { decision: "deny" } })} disabled={override.isPending} variant="outline" className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display" data-testid="button-override-deny"><X className="w-4 h-4 mr-1" /> ADMIN OVERRIDE — DENY NOW</Button>
               </>
             )}

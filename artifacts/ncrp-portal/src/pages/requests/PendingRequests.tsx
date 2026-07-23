@@ -389,7 +389,7 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
                     <>
                       <Button
                         variant="outline"
-                        className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                        className="rounded-none border-nc-orange text-nc-orange hover:bg-nc-orange/10 font-display text-xs tracking-widest"
                         disabled={overrideMut.isPending}
                         onClick={() => overrideMut.mutate({ id: r.id, data: { decision: "approve" } })}
                         data-testid={`button-override-approve-misc-${r.id}`}
@@ -1385,7 +1385,7 @@ function NewCharactersTab() {
                     {isAdmin && (
                       <Button
                         variant="outline"
-                        className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                        className="rounded-none border-nc-orange text-nc-orange hover:bg-nc-orange/10 font-display text-xs tracking-widest"
                         disabled={busy}
                         onClick={() => override.mutate({ id: sheet.id, data: { decision: "approve" } })}
                         data-testid={`button-override-sheet-${sheet.id}`}
@@ -1599,7 +1599,7 @@ function LoreEditCard({ edit, unseen }: { edit: LorePendingEdit; unseen: boolean
                 <>
                   <Button
                     variant="outline"
-                    className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                    className="rounded-none border-nc-orange text-nc-orange hover:bg-nc-orange/10 font-display text-xs tracking-widest"
                     disabled={overrideMut.isPending}
                     onClick={() => overrideMut.mutate({ id: edit.id, data: { decision: "approve" } })}
                     data-testid={`button-override-approve-lore-${edit.id}`}

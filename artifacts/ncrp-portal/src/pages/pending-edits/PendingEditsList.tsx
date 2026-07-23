@@ -251,7 +251,7 @@ function EditReviewCard({
                   {isAdmin && (
                     <Button
                       variant="outline"
-                      className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display text-xs tracking-widest"
+                      className="rounded-none border-nc-orange text-nc-orange hover:bg-nc-orange/10 font-display text-xs tracking-widest"
                       disabled={busy}
                       onClick={() => override.mutate({ id: e.id, data: { decision: "approve" } })}
                       data-testid={`button-override-edit-${e.id}`}

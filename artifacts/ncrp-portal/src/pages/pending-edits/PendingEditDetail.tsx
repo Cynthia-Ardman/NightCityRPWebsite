@@ -415,7 +415,7 @@ export default function PendingEditDetail() {
                 <Button
                   onClick={() => override.mutate({ id: editId, data: { decision: "approve" } })}
                   disabled={override.isPending}
-                  className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display"
+                  className="rounded-none bg-nc-orange text-background hover:bg-nc-orange/80 font-display"
                   data-testid="button-override"
                 >
                   <ShieldCheck className="w-4 h-4 mr-1" /> ADMIN OVERRIDE — APPROVE NOW
