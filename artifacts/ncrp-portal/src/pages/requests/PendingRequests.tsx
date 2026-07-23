@@ -60,6 +60,7 @@ import { CYBERWARE_SLOTS } from "@/lib/cyberwareOptions";
 import { ReviewSortDropdown, sortReviewItems, decidedFirst, type ReviewSortMode } from "./reviewSort";
 import { useReviewTicketActions, LifecycleActions } from "@/components/review/ReviewLifecycleUI";
 import { ReviewQueueCard } from "@/components/review/ReviewQueueCard";
+import { OverrideButton } from "@/components/review/OverrideButton";
 import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 import DiffValue from "@/components/DiffValue";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -386,26 +387,12 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
                     </>
                   )}
                   {isAdmin && (
-                    <>
-                      <Button
-                        variant="outline"
-                        className="rounded-none border-nc-orange text-nc-orange hover:bg-nc-orange/10 font-display text-xs tracking-widest"
-                        disabled={overrideMut.isPending}
-                        onClick={() => overrideMut.mutate({ id: r.id, data: { decision: "approve" } })}
-                        data-testid={`button-override-approve-misc-${r.id}`}
-                      >
-                        OVERRIDE APPROVE
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
-                        disabled={overrideMut.isPending}
-                        onClick={() => overrideMut.mutate({ id: r.id, data: { decision: "deny" } })}
-                        data-testid={`button-override-deny-misc-${r.id}`}
-                      >
-                        OVERRIDE DENY
-                      </Button>
-                    </>
+                    <OverrideButton
+                      disabled={overrideMut.isPending}
+                      onDecide={(decision) => overrideMut.mutate({ id: r.id, data: { decision } })}
+                      testIdSuffix={`misc-${r.id}`}
+                      subjectLabel="this request"
+                    />
                   )}
                 </>
               )}
@@ -1383,15 +1370,12 @@ function NewCharactersTab() {
                       </>
                     )}
                     {isAdmin && (
-                      <Button
-                        variant="outline"
-                        className="rounded-none border-nc-orange text-nc-orange hover:bg-nc-orange/10 font-display text-xs tracking-widest"
+                      <OverrideButton
                         disabled={busy}
-                        onClick={() => override.mutate({ id: sheet.id, data: { decision: "approve" } })}
-                        data-testid={`button-override-sheet-${sheet.id}`}
-                      >
-                        OVERRIDE
-                      </Button>
+                        onDecide={(decision) => override.mutate({ id: sheet.id, data: { decision } })}
+                        testIdSuffix={`sheet-${sheet.id}`}
+                        subjectLabel="this character sheet"
+                      />
                     )}
                   </>
                 )}
@@ -1596,26 +1580,12 @@ function LoreEditCard({ edit, unseen }: { edit: LorePendingEdit; unseen: boolean
                 </>
               )}
               {edit.canOverride && (
-                <>
-                  <Button
-                    variant="outline"
-                    className="rounded-none border-nc-orange text-nc-orange hover:bg-nc-orange/10 font-display text-xs tracking-widest"
-                    disabled={overrideMut.isPending}
-                    onClick={() => overrideMut.mutate({ id: edit.id, data: { decision: "approve" } })}
-                    data-testid={`button-override-approve-lore-${edit.id}`}
-                  >
-                    OVERRIDE APPROVE
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="rounded-none border-destructive text-destructive hover:bg-destructive/10 font-display text-xs tracking-widest"
-                    disabled={overrideMut.isPending}
-                    onClick={() => overrideMut.mutate({ id: edit.id, data: { decision: "deny" } })}
-                    data-testid={`button-override-deny-lore-${edit.id}`}
-                  >
-                    OVERRIDE DENY
-                  </Button>
-                </>
+                <OverrideButton
+                  disabled={overrideMut.isPending}
+                  onDecide={(decision) => overrideMut.mutate({ id: edit.id, data: { decision } })}
+                  testIdSuffix={`lore-${edit.id}`}
+                  subjectLabel="this lore edit"
+                />
               )}
             </>
           )}

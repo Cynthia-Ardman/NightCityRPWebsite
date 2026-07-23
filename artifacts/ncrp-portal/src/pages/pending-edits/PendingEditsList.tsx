@@ -23,6 +23,7 @@ import { useMarkReviewSeenInstant } from "@/hooks/useReviewSeen";
 import { type LifecycleBucket } from "@/lib/reviewLifecycle";
 import { UnseenDot, useReviewTicketActions, LifecycleActions, BucketSection } from "@/components/review/ReviewLifecycleUI";
 import { ReviewQueueCard } from "@/components/review/ReviewQueueCard";
+import { OverrideButton } from "@/components/review/OverrideButton";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
 import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 import { ReviewSortDropdown, sortReviewItems, decidedFirst, type ReviewSortMode } from "../requests/reviewSort";
@@ -249,15 +250,12 @@ function EditReviewCard({
                     </>
                   )}
                   {isAdmin && (
-                    <Button
-                      variant="outline"
-                      className="rounded-none border-nc-orange text-nc-orange hover:bg-nc-orange/10 font-display text-xs tracking-widest"
+                    <OverrideButton
                       disabled={busy}
-                      onClick={() => override.mutate({ id: e.id, data: { decision: "approve" } })}
-                      data-testid={`button-override-edit-${e.id}`}
-                    >
-                      OVERRIDE
-                    </Button>
+                      onDecide={(decision) => override.mutate({ id: e.id, data: { decision } })}
+                      testIdSuffix={`edit-${e.id}`}
+                      subjectLabel="this character edit"
+                    />
                   )}
                 </>
               )}
