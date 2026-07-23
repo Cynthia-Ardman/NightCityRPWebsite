@@ -1,7 +1,7 @@
 import { formatDate } from "@/lib/format";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import {
   useListMyCustomRequests,
   useListMyHousingRequests,
@@ -379,6 +379,31 @@ export default function MySubmissions() {
     out.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return out;
   }, [custom, housing, sheets, edits, me]);
+
+  // Deep link from Discord DMs: /submissions?focus=<subjectType>-<id> lands
+  // the player on this page with the matching row's discussion auto-expanded
+  // and scrolled into view, so they can read + reply in one click. Runs once
+  // per page load, after the row's list has actually loaded.
+  const search = useSearch();
+  const focusHandled = useRef(false);
+  useEffect(() => {
+    if (focusHandled.current) return;
+    const focus = new URLSearchParams(search).get("focus");
+    if (!focus) { focusHandled.current = true; return; }
+    const m = /^(request|sheet|edit)-(\d+)$/.exec(focus);
+    if (!m) { focusHandled.current = true; return; }
+    // Row keys: custom requests use `custom-<id>`; sheets/edits match the type.
+    const key = m[1] === "request" ? `custom-${m[2]}` : `${m[1]}-${m[2]}`;
+    if (!rows.some((r) => r.key === key)) return; // list still loading — retry on next rows change
+    focusHandled.current = true;
+    setCategory("All");
+    setDiscussing(key);
+    setTimeout(() => {
+      document
+        .querySelector(`[data-testid="row-my-request-${key}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+  }, [rows, search]);
 
   const visible = category === "All" ? rows : rows.filter((r) => r.category === category);
   // The player view collapses to two sections: Active (needs action) and
