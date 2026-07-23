@@ -5,7 +5,8 @@ import {
   type DiscordThreadMessage,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Hash, ChevronDown, ChevronUp } from "lucide-react";
+import { Hash } from "lucide-react";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import DiscordThreadPanel from "@/components/DiscordThreadPanel";
 import { useMarkReviewSeenInstant } from "@/hooks/useReviewSeen";
 
@@ -49,17 +50,15 @@ function newestHumanMs(messages: DiscordThreadMessage[]): number {
   return max;
 }
 
-// Expandable wrapper around the read-only DiscordThreadPanel. Renders a button
-// that toggles the cs-approver thread mirror open INLINE below the button row
-// (matching the "PLAYER COMMUNICATION" expand-below pattern). The panel itself
-// carries the "OPEN IN DISCORD" link for replying. STAFF ONLY: gate the mount
-// like the inline panel (the server endpoint is reviewer-gated regardless).
+// Button + right-side slide-over around the read-only DiscordThreadPanel.
+// Clicking the button opens the cs-approver thread mirror in a full-height
+// sheet (Esc / overlay click / the sticky X all close it), so long threads
+// never stretch the card grid or trap the close button off-screen. The panel
+// itself carries the "OPEN IN DISCORD" link for replying. STAFF ONLY: gate
+// the mount like before (the server endpoint is reviewer-gated regardless).
 //
-// The panel — and its 15s polling query — only mounts while expanded, so a
-// queue full of these buttons never fires one poll per card.
-//
-// Layout contract: callers place this inside a `flex flex-wrap` button row; the
-// expanded panel uses `basis-full` to wrap onto its own full-width line.
+// The panel — and its 15s polling query — only mounts while the sheet is
+// open, so a queue full of these buttons never fires one poll per card.
 //
 // `watchUnread` opts a button in to a lightweight background poll of the thread
 // so it can flash gold when a Discord reply has arrived since the reviewer last
@@ -92,8 +91,14 @@ export default function DiscordThreadDrawer({
   // Discord glow below. Missions have no review unread state, so they no-op.
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
-    if (next && isReviewSubject(subjectType)) markSeen(subjectType, subjectId);
   };
+
+  // State-driven (not event-driven) so ANY path that opens the sheet marks the
+  // subject seen, not just clicks routed through handleOpenChange.
+  useEffect(() => {
+    if (open && isReviewSubject(subjectType)) markSeen(subjectType, subjectId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, subjectType, subjectId]);
 
   // Background poll (shares the panel's query key, so when the drawer is open
   // there is still only one in-flight request). Disabled unless opted in.
@@ -176,14 +181,26 @@ export default function DiscordThreadDrawer({
             {unreadCount}
           </span>
         )}
-        {!iconOnly &&
-          (open ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />)}
       </Button>
-      {open && (
-        <div className="w-full basis-full" data-testid={`discord-thread-inline-${subjectType}-${subjectId}`}>
-          <DiscordThreadPanel subjectType={subjectType} subjectId={subjectId} />
-        </div>
-      )}
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetContent
+          side="right"
+          className="w-full sm:w-[85vw] sm:max-w-[640px] lg:max-w-[45vw] p-0 gap-0 flex flex-col border-l border-nc-magenta/60"
+          data-testid={`discord-thread-inline-${subjectType}-${subjectId}`}
+        >
+          <SheetHeader className="px-4 py-3 border-b border-border shrink-0 text-left space-y-1">
+            <SheetTitle className="font-display text-sm tracking-widest text-nc-magenta flex items-center gap-2">
+              <Hash className="w-4 h-4" /> {buttonLabel}
+            </SheetTitle>
+            <SheetDescription className="font-mono text-[10px] uppercase tracking-wider">
+              CS-approver thread mirror
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 min-h-0">
+            <DiscordThreadPanel subjectType={subjectType} subjectId={subjectId} layout="drawer" />
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

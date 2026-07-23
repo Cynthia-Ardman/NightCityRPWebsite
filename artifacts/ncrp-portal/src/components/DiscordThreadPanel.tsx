@@ -19,9 +19,14 @@ type SubjectType = "edit" | "request" | "sheet" | "mission";
 export default function DiscordThreadPanel({
   subjectType,
   subjectId,
+  layout = "card",
 }: {
   subjectType: SubjectType;
   subjectId: number;
+  // "card" renders the standalone bordered card (detail pages);
+  // "drawer" renders a full-height flex column for the slide-over panel —
+  // toolbar pinned on top, messages scrolling independently below.
+  layout?: "card" | "drawer";
 }) {
   const { data, isLoading } = useGetReviewDiscordThread(subjectType, subjectId, {
     query: {
@@ -35,38 +40,26 @@ export default function DiscordThreadPanel({
   const messages = (data?.messages ?? []) as DiscordThreadMessage[];
   const webUrl = data?.webUrl ?? null;
 
-  return (
-    <Card className="rounded-none border-nc-magenta/60 bg-card/40" data-testid={`discord-thread-${subjectType}-${subjectId}`}>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="font-display text-sm tracking-widest text-nc-magenta flex items-center gap-2">
-            <Hash className="w-4 h-4" /> CS-APPROVER THREAD
-          </CardTitle>
-          {webUrl ? (
-            <Button
-              asChild
-              size="sm"
-              variant="outline"
-              className="rounded-none border-nc-magenta/60 text-nc-magenta hover:bg-nc-magenta/10 font-mono text-[10px] h-7"
-            >
-              <a
-                href={webUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => handleDiscordLinkClick(e, webUrl)}
-                data-testid="button-open-discord-thread"
-              >
-                <ExternalLink className="w-3 h-3 mr-1" /> OPEN IN DISCORD
-              </a>
-            </Button>
-          ) : null}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="font-mono text-[10px] text-muted-foreground/70 uppercase tracking-wider">
-          Read-only mirror — reply in Discord.
-        </p>
-        {isLoading ? (
+  const openInDiscord = webUrl ? (
+    <Button
+      asChild
+      size="sm"
+      variant="outline"
+      className="rounded-none border-nc-magenta/60 text-nc-magenta hover:bg-nc-magenta/10 font-mono text-[10px] h-7"
+    >
+      <a
+        href={webUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => handleDiscordLinkClick(e, webUrl)}
+        data-testid="button-open-discord-thread"
+      >
+        <ExternalLink className="w-3 h-3 mr-1" /> OPEN IN DISCORD
+      </a>
+    </Button>
+  ) : null;
+
+  const body = isLoading ? (
           <div className="font-mono text-xs text-muted-foreground animate-pulse">LOADING THREAD...</div>
         ) : !data?.linked ? (
           <div className="font-mono text-xs text-muted-foreground italic" data-testid="discord-thread-unlinked">
@@ -103,7 +96,40 @@ export default function DiscordThreadPanel({
               </div>
             ))}
           </div>
-        )}
+        );
+
+  if (layout === "drawer") {
+    return (
+      <div
+        className="flex flex-col h-full min-h-0"
+        data-testid={`discord-thread-${subjectType}-${subjectId}`}
+      >
+        <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-border/40 shrink-0">
+          <p className="font-mono text-[10px] text-muted-foreground/70 uppercase tracking-wider">
+            Read-only mirror — reply in Discord.
+          </p>
+          {openInDiscord}
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">{body}</div>
+      </div>
+    );
+  }
+
+  return (
+    <Card className="rounded-none border-nc-magenta/60 bg-card/40" data-testid={`discord-thread-${subjectType}-${subjectId}`}>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="font-display text-sm tracking-widest text-nc-magenta flex items-center gap-2">
+            <Hash className="w-4 h-4" /> CS-APPROVER THREAD
+          </CardTitle>
+          {openInDiscord}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="font-mono text-[10px] text-muted-foreground/70 uppercase tracking-wider">
+          Read-only mirror — reply in Discord.
+        </p>
+        {body}
       </CardContent>
     </Card>
   );

@@ -31,10 +31,15 @@ export default function ReviewCommentThread({
   subjectType,
   subjectId,
   markSeenOnMount = true,
+  layout = "card",
 }: {
   subjectType: SubjectType;
   subjectId: number;
   markSeenOnMount?: boolean;
+  // "card" renders the standalone bordered card (detail pages);
+  // "drawer" renders a full-height flex column for the slide-over panel —
+  // messages scroll independently, the composer stays pinned at the bottom.
+  layout?: "card" | "drawer";
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -81,15 +86,7 @@ export default function ReviewCommentThread({
   const trimmed = body.trim();
   const list = (comments ?? []) as ReviewComment[];
 
-  return (
-    <Card className="rounded-none border-nc-cyan/60 bg-card/40" data-testid={`review-thread-${subjectType}-${subjectId}`}>
-      <CardHeader className="pb-2">
-        <CardTitle className="font-display text-sm tracking-widest text-nc-cyan flex items-center gap-2">
-          <MessageSquare className="w-4 h-4" /> DISCUSSION
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {isLoading ? (
+  const messagesNode = isLoading ? (
           <div className="font-mono text-xs text-muted-foreground animate-pulse">LOADING THREAD...</div>
         ) : list.length === 0 ? (
           <div className="font-mono text-xs text-muted-foreground italic" data-testid="review-thread-empty">
@@ -126,27 +123,52 @@ export default function ReviewCommentThread({
               </div>
             ))}
           </div>
-        )}
+        );
 
-        <div className="space-y-2 border-t border-border/40 pt-3">
-          <MentionTextarea
-            value={body}
-            onChange={setBody}
-            enableMentions={canMention}
-            placeholder={canMention ? "Write a message…  @ to mention, # for a channel" : "Write a message..."}
-            rows={2}
-            maxLength={4000}
-            testId="input-review-comment"
-          />
-          <Button
-            onClick={() => post.mutate({ subjectType, id: subjectId, data: { body: trimmed } })}
-            disabled={post.isPending || trimmed.length === 0}
-            className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
-            data-testid="button-post-review-comment"
-          >
-            <Send className="w-4 h-4 mr-1" /> {post.isPending ? "SENDING..." : "SEND"}
-          </Button>
-        </div>
+  const composerNode = (
+    <>
+      <MentionTextarea
+        value={body}
+        onChange={setBody}
+        enableMentions={canMention}
+        placeholder={canMention ? "Write a message…  @ to mention, # for a channel" : "Write a message..."}
+        rows={2}
+        maxLength={4000}
+        testId="input-review-comment"
+      />
+      <Button
+        onClick={() => post.mutate({ subjectType, id: subjectId, data: { body: trimmed } })}
+        disabled={post.isPending || trimmed.length === 0}
+        className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
+        data-testid="button-post-review-comment"
+      >
+        <Send className="w-4 h-4 mr-1" /> {post.isPending ? "SENDING..." : "SEND"}
+      </Button>
+    </>
+  );
+
+  if (layout === "drawer") {
+    return (
+      <div
+        className="flex flex-col h-full min-h-0"
+        data-testid={`review-thread-${subjectType}-${subjectId}`}
+      >
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">{messagesNode}</div>
+        <div className="space-y-2 border-t border-border px-4 py-3 shrink-0">{composerNode}</div>
+      </div>
+    );
+  }
+
+  return (
+    <Card className="rounded-none border-nc-cyan/60 bg-card/40" data-testid={`review-thread-${subjectType}-${subjectId}`}>
+      <CardHeader className="pb-2">
+        <CardTitle className="font-display text-sm tracking-widest text-nc-cyan flex items-center gap-2">
+          <MessageSquare className="w-4 h-4" /> DISCUSSION
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {messagesNode}
+        <div className="space-y-2 border-t border-border/40 pt-3">{composerNode}</div>
       </CardContent>
     </Card>
   );

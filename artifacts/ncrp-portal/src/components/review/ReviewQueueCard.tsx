@@ -3,7 +3,8 @@ import { useState, type ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronUp, MessageSquare, type LucideIcon } from "lucide-react";
+import { MessageSquare, type LucideIcon } from "lucide-react";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { UnseenDot } from "@/components/review/ReviewLifecycleUI";
 import { ReviewerRoster, type RosterReviewer, type RosterVote } from "@/components/review/ReviewerRoster";
 import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewCommentThread";
@@ -131,7 +132,7 @@ export function ReviewQueueCard({
                 <Button
                   variant="outline"
                   className="w-full rounded-none border-nc-cyan text-nc-cyan hover:bg-nc-cyan/10 font-display text-xs tracking-widest"
-                  onClick={() => setExpanded((v) => !v)}
+                  onClick={() => setExpanded(true)}
                   data-testid={`button-view-respond-${subjectType}-${id}`}
                 >
                   <MessageSquare className="w-3 h-3 mr-1" />
@@ -144,22 +145,35 @@ export function ReviewQueueCard({
                       {discussionUnread}
                     </span>
                   )}
-                  {expanded ? (
-                    <ChevronUp className="w-3 h-3 ml-1" />
-                  ) : (
-                    <ChevronDown className="w-3 h-3 ml-1" />
-                  )}
                 </Button>
-                {expanded && (
-                  <div className="space-y-3">
-                    <AwaitingVoteBanner show={awaitingVote} />
-                    <ReviewCommentThread
-                      subjectType={subjectType}
-                      subjectId={id}
-                      markSeenOnMount={markSeenOnMount}
-                    />
-                  </div>
-                )}
+                <Sheet open={expanded} onOpenChange={setExpanded}>
+                  <SheetContent
+                    side="right"
+                    className="w-full sm:w-[85vw] sm:max-w-[640px] lg:max-w-[45vw] p-0 gap-0 flex flex-col border-l border-nc-cyan/60"
+                  >
+                    <SheetHeader className="px-4 py-3 border-b border-border shrink-0 text-left space-y-1">
+                      <SheetTitle className="font-display text-sm tracking-widest text-nc-cyan flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4" /> PLAYER COMMUNICATION
+                      </SheetTitle>
+                      <SheetDescription className="font-mono text-[10px] uppercase tracking-wider truncate">
+                        {typeof title === "string" ? title : `${badgeLabel} #${id}`}
+                      </SheetDescription>
+                    </SheetHeader>
+                    {awaitingVote && (
+                      <div className="px-4 pt-3 shrink-0">
+                        <AwaitingVoteBanner show={awaitingVote} />
+                      </div>
+                    )}
+                    <div className="flex-1 min-h-0">
+                      <ReviewCommentThread
+                        subjectType={subjectType}
+                        subjectId={id}
+                        markSeenOnMount={markSeenOnMount}
+                        layout="drawer"
+                      />
+                    </div>
+                  </SheetContent>
+                </Sheet>
               </>
             )}
           </div>
