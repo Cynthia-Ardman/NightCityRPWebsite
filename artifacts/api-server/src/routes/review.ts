@@ -58,6 +58,22 @@ function parseThreadSubjectType(v: unknown): ThreadSubjectType | null {
   return THREAD_SUBJECT_TYPES.includes(v as ThreadSubjectType) ? (v as ThreadSubjectType) : null;
 }
 
+// Absolute portal deep-link for the SUBMITTER of a review subject, used in the
+// "a reviewer commented" DM so the player can jump straight to the ticket and
+// reply. Base-URL rule mirrors announceRequest (PUBLIC_BASE_URL, then the
+// first REPLIT_DOMAINS entry) — keep the two in lockstep. Returns null when no
+// public base is configured: a relative path is useless (non-clickable) in a
+// Discord DM.
+function submitterLink(type: SubjectType, id: number): string | null {
+  // Requests, sheets and character edits all surface on the player's
+  // My Submissions page, which reads ?focus=<type>-<id> to auto-expand the
+  // matching row's discussion. Lore proposals have no player thread page, so
+  // point at the player's own lore list instead.
+  const path = type === "lore" ? "/directory/lore/mine" : `/submissions?focus=${type}-${id}`;
+  const base = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  return base ? `https://${base}${path}` : null;
+}
+
 type ResolvedSubject = {
   submitterId: string;
   status: string;
@@ -190,7 +206,12 @@ router.post("/review/:type/:id/comments", requireAuth, async (req, res): Promise
       try {
         const [u] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, subject.submitterId));
         if (u?.discordId) {
-          await sendDirectMessage(u.discordId, `${req.user!.username} commented on ${subject.label}:\n${body.slice(0, 1500)}`);
+          const link = submitterLink(parsed.type, parsed.id);
+          await sendDirectMessage(
+            u.discordId,
+            `${req.user!.username} commented on ${subject.label}:\n${body.slice(0, 1500)}` +
+              (link ? `\n\nView & reply: ${link}` : ""),
+          );
         }
       } catch {
         /* DM delivery is best-effort */
