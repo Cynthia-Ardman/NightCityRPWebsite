@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { db, vrchatSessions, users } from "@workspace/db";
-import { and, eq, arrayOverlaps } from "drizzle-orm";
+import { and, eq, or, isNull, sql, arrayOverlaps } from "drizzle-orm";
 import { logger } from "./logger";
 import { ROLE_NAMES, sendDirectMessage } from "./discord";
 import { createNotification } from "./notifications";
@@ -232,10 +232,10 @@ async function finalizeSession(
     lastError: null,
   });
   logger.info({ vrchatUserId }, "VRChat session established");
-  // A fresh session ends the current "disconnected episode": if the session
-  // drops again later, admins should be alerted again without waiting out the
-  // notify cooldown from the previous episode.
-  lastDisconnectNotifyAt = 0;
+  // A fresh session ends the current "disconnected episode": clear the episode
+  // marker and the notify stamp so a FUTURE disconnect starts a fresh grace
+  // window and can alert again without waiting out the previous cooldown.
+  await persistSession({ disconnectedSince: null, lastDisconnectNotifyAt: null });
   return { vrchatUserId, vrchatDisplayName };
 }
 
@@ -514,34 +514,65 @@ async function tryAutoReconnect(context: string): Promise<boolean> {
 // someone happens to open the System Admin card.
 // ---------------------------------------------------------------------------
 const DISCONNECT_NOTIFY_COOLDOWN_MS = 12 * 60 * 60 * 1000;
-let lastDisconnectNotifyAt = 0;
-
-/** Test-only: reset the disconnect-notify cooldown between test cases. */
-export function __resetDisconnectNotifyCooldownForTests(): void {
-  lastDisconnectNotifyAt = 0;
-}
+// Grace window before paging admins: the session must have been down this long
+// before an alert goes out. With the 15-minute auto-reconnect cooldown this
+// guarantees at least TWO unattended reconnect attempts happen first, so a
+// transient VRChat-side blip that self-heals within minutes never pages anyone.
+const DISCONNECT_ALERT_GRACE_MS = 20 * 60 * 1000;
 
 export async function maintainVrchatSession(): Promise<boolean> {
   if (!vrchatCredsConfigured()) return false;
   const cookies = await loadSession();
   if (cookies.auth) return true;
+  // Mark the start of the disconnected episode (first tick that sees it down).
+  // Conditional so later ticks / concurrent instances never move the start.
+  await db
+    .update(vrchatSessions)
+    .set({ disconnectedSince: new Date() })
+    .where(and(eq(vrchatSessions.id, SESSION_ID), isNull(vrchatSessions.disconnectedSince)));
   if (await tryAutoReconnect("session_maintenance")) return true;
   void notifyAdminsVrchatDisconnected();
   return false;
 }
 
 async function notifyAdminsVrchatDisconnected(): Promise<void> {
-  const nowMs = Date.now();
-  if (nowMs - lastDisconnectNotifyAt < DISCONNECT_NOTIFY_COOLDOWN_MS) return;
-  lastDisconnectNotifyAt = nowMs;
+  // Our claim's exact stamp (as stored in the DB), so the failure path can
+  // release ONLY this invocation's claim and never a concurrent one's.
+  let claimStamp: Date | null = null;
   try {
+    const now = new Date();
     const [row] = await db
-      .select({ lastError: vrchatSessions.lastError })
+      .select({
+        lastError: vrchatSessions.lastError,
+        disconnectedSince: vrchatSessions.disconnectedSince,
+      })
       .from(vrchatSessions)
       .where(eq(vrchatSessions.id, SESSION_ID));
+    // Still inside the grace window — keep retrying quietly, don't page anyone.
+    const since = row?.disconnectedSince;
+    if (!since || now.getTime() - since.getTime() < DISCONNECT_ALERT_GRACE_MS) return;
+    // Claim the alert with a conditional UPDATE on the persisted notify stamp,
+    // so overlapping cron ticks or multiple server instances can't each fire
+    // their own copy of the alert (only one claimer wins per 12h window).
+    const claimed = await db
+      .update(vrchatSessions)
+      .set({ lastDisconnectNotifyAt: now })
+      .where(
+        and(
+          eq(vrchatSessions.id, SESSION_ID),
+          or(
+            isNull(vrchatSessions.lastDisconnectNotifyAt),
+            sql`${vrchatSessions.lastDisconnectNotifyAt} < ${new Date(now.getTime() - DISCONNECT_NOTIFY_COOLDOWN_MS)}`,
+          ),
+        ),
+      )
+      .returning({ lastDisconnectNotifyAt: vrchatSessions.lastDisconnectNotifyAt });
+    if (claimed.length === 0) return; // already alerted this episode/window
+    claimStamp = claimed[0]?.lastDisconnectNotifyAt ?? now;
+    const downMinutes = Math.round((now.getTime() - since.getTime()) / 60_000);
     const detail = row?.lastError ? ` Last error: ${row.lastError}` : "";
     const title = "VRChat session disconnected";
-    const body = `Automatic reconnect could not restore the VRChat session — it needs a manual reconnect in System Admin → VRChat.${detail}`;
+    const body = `The VRChat session has been down for ~${downMinutes} minutes and automatic reconnect attempts could not restore it — it needs a manual reconnect in System Admin → VRChat.${detail}`;
     const admins = await db
       .select({ id: users.id, discordId: users.discordId })
       .from(users)
@@ -565,10 +596,25 @@ async function notifyAdminsVrchatDisconnected(): Promise<void> {
       message: `VRChat session disconnected — alerted ${admins.length} admin(s) (bell + DM).${detail}`,
     });
   } catch (err) {
-    // Don't burn the cooldown on a transient failure (e.g. DB hiccup) — let
-    // the next cron tick retry the alert instead of going silent for 12h.
-    lastDisconnectNotifyAt = 0;
+    // Don't burn the cooldown on a transient failure (e.g. DB hiccup) — release
+    // the claim so the next cron tick retries the alert instead of going silent
+    // for 12h. Best-effort: if this too fails, the 12h window eventually clears.
     logger.warn({ err }, "VRChat disconnect admin notify failed");
+    // Release ONLY our own claim (exact timestamp match) — a concurrent
+    // invocation's valid claim must never be cleared by our failure, or the
+    // dedupe guarantee breaks and duplicate alerts come back.
+    if (claimStamp) {
+      await db
+        .update(vrchatSessions)
+        .set({ lastDisconnectNotifyAt: null })
+        .where(
+          and(
+            eq(vrchatSessions.id, SESSION_ID),
+            eq(vrchatSessions.lastDisconnectNotifyAt, claimStamp),
+          ),
+        )
+        .catch(() => {});
+    }
   }
 }
 

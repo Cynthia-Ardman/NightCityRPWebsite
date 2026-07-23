@@ -106,13 +106,21 @@ the suffix it returns 405 Method Not Allowed. Also: any calendar write for an
 event whose START has passed 400s ("Calendar Entry must start in the future"),
 so reconcile skips rows with past startAt (not endAt).
 
-## Cron auto-reconnect + admin alerting (2026-07)
+## Cron auto-reconnect + admin alerting (2026-07, hardened 2026-07-22)
 The 2-min instance-poll cron no longer skips silently while disconnected: it
 calls `maintainVrchatSession()` (vrchatClient.ts) — healthy = no-op; missing
 authCookie = tryAutoReconnect("session_maintenance") (same remembered-2FA
 no-code path as staff Connect, 15-min cooldown); on failure it fire-and-forgets
 notifyAdminsVrchatDisconnected(): bell notification (type "vrchat_session",
-href /admin) + deployment-gated Discord DM to every ROLE_NAMES.ADMIN user,
-12h module-level cooldown, reset in finalizeSession (new episode re-alerts)
-and reset on notify failure (transient DB error doesn't mute for 12h).
+href /admin) + deployment-gated Discord DM to every ROLE_NAMES.ADMIN user.
 Don't add other unattended password-login paths — 429 lockout risk stands.
+
+**Alert state is DB-persisted, not in-process** (in-process cooldowns fired
+3 duplicate alerts in 16s — multiple server instances each have their own
+module state). `vrchat_sessions.disconnected_since` (set via conditional
+UPDATE only-if-NULL) marks the episode; alerts are suppressed until a 20-min
+grace window elapses (guarantees ≥2 auto-reconnect attempts first, so a blip
+that self-heals never pages anyone). The alert itself is claimed via
+conditional UPDATE on `last_disconnect_notify_at` (NULL or >12h old); notify
+failure releases only ITS OWN claim (exact-timestamp match), never a
+concurrent claimer's. finalizeSession clears both columns to end the episode.

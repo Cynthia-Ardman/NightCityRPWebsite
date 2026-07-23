@@ -6,7 +6,6 @@ import {
   maintainVrchatSession,
   SESSION_EXPIRED_MSG,
   __resetAutoReconnectCooldownForTests,
-  __resetDisconnectNotifyCooldownForTests,
 } from "./vrchatClient";
 
 // Unit-level coverage for the session-drop fix: a lone 401 must NOT wipe the
@@ -19,10 +18,23 @@ const SESSION_ID = 1;
 async function seedSession(auth = "cookie-A", twoFactor = "tfa-A"): Promise<void> {
   await db
     .insert(vrchatSessions)
-    .values({ id: SESSION_ID, authCookie: auth, twoFactorCookie: twoFactor, lastError: null })
+    .values({
+      id: SESSION_ID,
+      authCookie: auth,
+      twoFactorCookie: twoFactor,
+      lastError: null,
+      disconnectedSince: null,
+      lastDisconnectNotifyAt: null,
+    })
     .onConflictDoUpdate({
       target: vrchatSessions.id,
-      set: { authCookie: auth, twoFactorCookie: twoFactor, lastError: null },
+      set: {
+        authCookie: auth,
+        twoFactorCookie: twoFactor,
+        lastError: null,
+        disconnectedSince: null,
+        lastDisconnectNotifyAt: null,
+      },
     });
 }
 
@@ -62,7 +74,6 @@ afterEach(() => {
 beforeEach(async () => {
   await seedSession();
   __resetAutoReconnectCooldownForTests();
-  __resetDisconnectNotifyCooldownForTests();
   // Auto-reconnect requires credentials; default to none so 401 tests hit the
   // manual-reconnect fallback deterministically.
   delete process.env.VRCHAT_USERNAME;
@@ -233,13 +244,16 @@ describe("maintainVrchatSession", () => {
     }) as typeof fetch;
 
     await expect(maintainVrchatSession()).resolves.toBe(true);
-    expect((await readSession())?.authCookie).toBe("cookie-CRON");
+    const row = await readSession();
+    expect(row?.authCookie).toBe("cookie-CRON");
+    // Successful reconnect ends the disconnected episode.
+    expect(row?.disconnectedSince).toBeNull();
     // Healthy reconnect: no admin notifications.
     const rows = await db.select().from(notifications).where(eq(notifications.userId, ADMIN_ID));
     expect(rows).toHaveLength(0);
   });
 
-  it("notifies admins once per episode when the reconnect genuinely needs a human", async () => {
+  it("notifies admins once per episode, but only after the grace window has elapsed", async () => {
     process.env.VRCHAT_USERNAME = "bot";
     process.env.VRCHAT_PASSWORD = "pw";
     await db
@@ -259,22 +273,36 @@ describe("maintainVrchatSession", () => {
       return jsonResponse({}, { status: 500 });
     }) as typeof fetch;
 
+    // First tick: episode starts, still inside the grace window → NO alert yet.
+    await expect(maintainVrchatSession()).resolves.toBe(false);
+    await new Promise((r) => setTimeout(r, 100));
+    let rows = await db.select().from(notifications).where(eq(notifications.userId, ADMIN_ID));
+    expect(rows).toHaveLength(0);
+    const afterFirst = await readSession();
+    expect(afterFirst?.disconnectedSince).not.toBeNull();
+
+    // Backdate the episode start past the grace window: the next tick alerts.
+    await db
+      .update(vrchatSessions)
+      .set({ disconnectedSince: new Date(Date.now() - 25 * 60 * 1000) })
+      .where(eq(vrchatSessions.id, SESSION_ID));
+    __resetAutoReconnectCooldownForTests();
     await expect(maintainVrchatSession()).resolves.toBe(false);
     // notify runs fire-and-forget; give it a beat to land.
     await vi.waitFor(async () => {
-      const rows = await db
+      const got = await db
         .select()
         .from(notifications)
         .where(eq(notifications.userId, ADMIN_ID));
-      expect(rows).toHaveLength(1);
-      expect(rows[0]?.type).toBe("vrchat_session");
+      expect(got).toHaveLength(1);
+      expect(got[0]?.type).toBe("vrchat_session");
     });
 
-    // Second cron tick within the cooldown window: no duplicate notification.
+    // Another tick within the cooldown window: no duplicate notification.
     __resetAutoReconnectCooldownForTests();
     await expect(maintainVrchatSession()).resolves.toBe(false);
     await new Promise((r) => setTimeout(r, 100));
-    const rows = await db.select().from(notifications).where(eq(notifications.userId, ADMIN_ID));
+    rows = await db.select().from(notifications).where(eq(notifications.userId, ADMIN_ID));
     expect(rows).toHaveLength(1);
   });
 

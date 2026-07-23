@@ -2266,6 +2266,16 @@ export const vrchatSessions = pgTable("vrchat_sessions", {
   lastAuthAt: timestamp("last_auth_at", { withTimezone: true }),
   // Last login/auth/poll error surfaced to staff (cleared on success).
   lastError: text("last_error"),
+  // Start of the current disconnected episode (auth cookie gone). Set by the
+  // maintenance cron when it first sees the session down; cleared on any
+  // successful (re)connect. Drives the alert grace window: admins are only
+  // paged if the session has stayed down past the grace period, after the
+  // automatic reconnect has had at least two attempts.
+  disconnectedSince: timestamp("disconnected_since", { withTimezone: true }),
+  // Last time admins were alerted about a disconnect. Persisted (not in-process)
+  // so overlapping server instances can't each fire their own alert; the alert
+  // is claimed via a conditional UPDATE on this column.
+  lastDisconnectNotifyAt: timestamp("last_disconnect_notify_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
