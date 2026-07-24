@@ -1812,7 +1812,14 @@ function UpcomingBillsCard() {
                           <div className="truncate text-foreground">{l.address}</div>
                           <div className="text-xs text-muted-foreground truncate">{l.characterName}</div>
                         </div>
-                        <div className="text-nc-yellow whitespace-nowrap">€${l.monthlyRent.toLocaleString()}/mo</div>
+                        {l.pausedForLoa ? (
+                          <div className="text-right whitespace-nowrap">
+                            <div className="text-muted-foreground line-through">€${l.monthlyRent.toLocaleString()}/mo</div>
+                            <div className="text-xs text-nc-cyan">PAUSED · LOA</div>
+                          </div>
+                        ) : (
+                          <div className="text-nc-yellow whitespace-nowrap">€${l.monthlyRent.toLocaleString()}/mo</div>
+                        )}
                       </div>
                     </Link>
                   ))}

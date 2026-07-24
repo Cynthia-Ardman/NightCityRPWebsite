@@ -10445,7 +10445,9 @@ export const GetUpcomingBillsResponse = zod.object({
   "characterName": zod.string(),
   "address": zod.string(),
   "monthlyRent": zod.number(),
-  "paidThrough": zod.coerce.date().nullish()
+  "paidThrough": zod.coerce.date().nullish(),
+  "kind": zod.string().optional(),
+  "pausedForLoa": zod.boolean().optional()
 })),
   "totals": zod.object({
   "nextRent": zod.number(),

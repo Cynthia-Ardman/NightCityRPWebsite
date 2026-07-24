@@ -10262,6 +10262,8 @@ components:
               address: { type: string }
               monthlyRent: { type: integer }
               paidThrough: { type: ["string", "null"], format: date-time }
+              kind: { type: string }
+              pausedForLoa: { type: boolean }
         totals:
           type: object
           required: [nextRent, nextMedsWeekly, monthlyEstimate]

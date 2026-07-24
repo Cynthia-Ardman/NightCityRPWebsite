@@ -5584,6 +5584,8 @@ export type UpcomingBillsLeasesItem = {
   monthlyRent: number;
   /** @nullable */
   paidThrough?: string | null;
+  kind?: string;
+  pausedForLoa?: boolean;
 };
 
 export type UpcomingBillsTotals = {

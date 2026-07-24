@@ -127,7 +127,21 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   // Switching a character to one of those statuses immediately removes them
   // from the household multiplier AND the meds projection below. Rent, trauma
   // and baseline fees keep using the full `billable` set above.
-  const cyberBillable = billable.filter(countsForCyberwareBilling);
+  //
+  // LOA has TWO independent flags and the cyberware_humanity cron honors BOTH:
+  // the headline characters.lifeStatus (countsForCyberwareBilling) AND the
+  // self-service character_status.loa toggle a player flips on the website.
+  // The projection must exclude on both too, or a player who self-serves LOA
+  // keeps seeing a "meds due soon" line the cron will never actually charge.
+  const myCharIds = myChars.map((c) => c.id);
+  const statusRows = myCharIds.length
+    ? await db.select().from(characterStatus).where(inArray(characterStatus.characterId, myCharIds))
+    : [];
+  const loaByCharacter = new Map<number, boolean>();
+  for (const s of statusRows) loaByCharacter.set(s.characterId, !!s.loa);
+  const cyberBillable = billable.filter(
+    (c) => countsForCyberwareBilling(c) && loaByCharacter.get(c.id) !== true,
+  );
 
   const now = new Date();
   const rentDueAt = nextMonthlyRunDate(now).toISOString();
@@ -139,18 +153,24 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   const xanaduCost = await readConfigNumber("xanadu_gold_cost", DEFAULT_XANADU_GOLD_COST);
   const traumaCosts = await readTraumaCosts();
 
+  // The monthly_rent cron's personal-fee loop (baseline, trauma, xanadu) skips
+  // any character with the self-service character_status.loa toggle set, so
+  // the projection must too — a player with ALL characters on LOA owes no
+  // baseline either.
+  const personalBillable = billable.filter((c) => loaByCharacter.get(c.id) !== true);
+
   // Baseline living cost = ONE charge per player (not per character),
   // matching the monthly_rent cron's per-owner baseline pass. Players
   // with 0 approved PCs owe nothing here.
   const rent: Array<{ characterId: number; characterName: string; amount: number; dueAt: string }> =
-    billable.length === 0 || baselineCost <= 0
+    personalBillable.length === 0 || baselineCost <= 0
       ? []
-      : [{ characterId: billable[0].id, characterName: "Cost of Living", amount: baselineCost, dueAt: rentDueAt }];
+      : [{ characterId: personalBillable[0].id, characterName: "Cost of Living", amount: baselineCost, dueAt: rentDueAt }];
 
   // Trauma Team + Xanadu Gold are billed PER PC by the monthly_rent cron, so
   // include them here too — previously the projection omitted them entirely and
   // under-reported the player's actual next bill.
-  for (const c of billable) {
+  for (const c of personalBillable) {
     const tier = (c.traumaTeamTier ?? "").toLowerCase();
     const traumaCost = tier ? (traumaCosts[tier] ?? 0) : 0;
     if (tier && traumaCost > 0) {
@@ -303,6 +323,7 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
       address: housing.address,
       monthlyRent: housing.monthlyRent,
       paidThrough: housing.paidThrough,
+      kind: housing.kind,
     })
     .from(housing)
     .innerJoin(characters, eq(characters.id, housing.characterId))
@@ -312,7 +333,14 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
   // the wallet on the 1st: the baseline living cost PLUS every per-lease
   // monthly_rent. Players were confused when a $3,000 apartment didn't
   // show up in the headline total even though it shows up in their bill.
-  const leasesRentTotal = leases.reduce((s, l) => s + (l.monthlyRent ?? 0), 0);
+  // LOA rule (mirrors the monthly_rent cron): RESIDENTIAL leases pause while
+  // the character is on self-service LOA; business leases keep billing because
+  // the venue keeps operating. Exclude paused residential leases from the
+  // headline total so the projection matches what will actually be debited.
+  const leasesRentTotal = leases.reduce((s, l) => {
+    const paused = l.kind !== "business" && loaByCharacter.get(l.characterId) === true;
+    return paused ? s : s + (l.monthlyRent ?? 0);
+  }, 0);
   const nextRentTotal = rent.reduce((s, r) => s + r.amount, 0) + leasesRentTotal;
   const nextMedsTotal = meds.reduce((s, m) => s + m.amount, 0);
   // Rough monthly estimate = next rent + (weekly meds * ~4.33 weeks).
@@ -359,6 +387,9 @@ router.get("/dashboard/upcoming-bills", requireAuth, async (req, res): Promise<v
     leases: leases.map((l) => ({
       ...l,
       paidThrough: l.paidThrough ? l.paidThrough.toISOString() : null,
+      // Surfaced so the UI can label residential leases that won't bill while
+      // the character is on self-service LOA (mirrors the cron's pause rule).
+      pausedForLoa: l.kind !== "business" && loaByCharacter.get(l.characterId) === true,
     })),
     totals: {
       nextRent: nextRentTotal,

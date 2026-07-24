@@ -18,6 +18,12 @@ self-served LOA (loa=true, lifeStatus="missing") kept getting billed meds week a
 week. Fix: meds job now also excludes `character_status.loa===true` from billing AND
 household-multiplier grouping (a paused member must not add +25% to active members).
 
+**Second bite (July 2026):** the dashboard `/dashboard/upcoming-bills` PROJECTION did
+not honor `character_status.loa` while the crons did — player saw meds/rent "due" on
+the dashboard despite being correctly not charged. Any bill *preview/projection* must
+mirror the exact exclusion rules of the cron it forecasts (LOA flags, paused
+residential leases), or players report phantom charges.
+
 **How to apply:** ANY billing-critical or "is this character active" read must consider
 BOTH the headline lifeStatus AND the self-service character_status.loa flag. Checking
 one alone is a silent-overcharge bug. The two flags are independent by design — do not

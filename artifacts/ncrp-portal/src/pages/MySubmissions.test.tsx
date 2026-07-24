@@ -9,6 +9,7 @@ let edits: unknown[] = [];
 
 vi.mock("wouter", () => ({
   useLocation: () => ["/submissions", navigate] as const,
+  useSearch: () => "",
 }));
 
 vi.mock("@/hooks/useAuthMe", () => ({

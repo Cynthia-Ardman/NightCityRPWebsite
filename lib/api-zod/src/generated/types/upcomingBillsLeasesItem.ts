@@ -14,4 +14,6 @@ export type UpcomingBillsLeasesItem = {
   monthlyRent: number;
   /** @nullable */
   paidThrough?: Date | null;
+  kind?: string;
+  pausedForLoa?: boolean;
 };
