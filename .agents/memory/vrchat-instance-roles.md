@@ -26,3 +26,11 @@ Role IDs are opaque (`grol_…`). Resolve them to display names via
 - In practice the in-memory cache returning last-good on failure means a totally
   empty map only happens on a cold-start fetch failure, so clobbering good names
   with empties is a non-issue — no need for per-row "preserve previous" logic.
+
+## Assigning group roles to members (one-off ops)
+`PUT /groups/{grpId}/members/{usrId}/roles/{grolId}` (200 → returns member's roleIds)
+assigns a group role; find the user via `GET /users?search=` and confirm membership via
+`GET /groups/{grpId}/members/{usrId}`. Reuse the LIVE session cookies from
+`vrchat_sessions` on LIVE_PROD_DATABASE_URL (auth + twoFactorAuth) with the portal
+User-Agent — dev DB has no valid session. NCRP roles include "Read Rules"
+(grol_2bc0421b-e189-47c4-8a1d-4f96b52f750b), granted manually to new members on request.
