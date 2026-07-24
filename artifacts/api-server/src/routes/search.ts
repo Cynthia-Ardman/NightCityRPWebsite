@@ -113,8 +113,25 @@ router.get("/search", requireAuth, async (req, res): Promise<void> => {
           and(
             ilike(missions.title, like),
             // Same visibility rule as listMissionSummaries: players only ever
-            // see posted missions; managers see the whole pipeline.
-            ...(manager ? [] : [eq(missions.workflowState, "posted")]),
+            // see posted missions; managers see the whole pipeline. Private
+            // missions are hidden from non-managers unless they authored the
+            // mission or a fixer put them on the roster.
+            // Archivists (approvers) keep the posted-only scope but bypass
+            // the private filter, matching listMissionSummaries.
+            ...(manager
+              ? []
+              : [
+                  eq(missions.workflowState, "posted"),
+                  ...(hasRole(req.user?.roles ?? [], "ARCHIVIST")
+                    ? []
+                    : [
+                        or(
+                          eq(missions.visibility, "public"),
+                          eq(missions.fixerId, req.user!.id),
+                          sql`exists (select 1 from mission_assignments ma where ma.mission_id = ${missions.id} and ma.user_id = ${req.user!.id})`,
+                        )!,
+                      ]),
+                ]),
           ),
         )
         .orderBy(desc(missions.createdAt))

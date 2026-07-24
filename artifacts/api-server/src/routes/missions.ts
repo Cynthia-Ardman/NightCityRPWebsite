@@ -38,6 +38,7 @@ import {
   getActorHistory,
   getAttendanceReport,
   isMissionStatus,
+  isMissionVisibility,
   isJobType,
   submitMissionProposal,
   deleteMission,
@@ -452,6 +453,7 @@ router.post("/missions", requireAuth, async (req, res): Promise<void> => {
       notesForPlayers: typeof b.notesForPlayers === "string" && b.notesForPlayers.trim() ? b.notesForPlayers.trim() : null,
       fixerNotes: typeof b.fixerNotes === "string" && b.fixerNotes.trim() ? b.fixerNotes.trim() : null,
       maxPlayers: Number.isFinite(Number(b.maxPlayers)) ? Math.max(0, Math.trunc(Number(b.maxPlayers))) : 0,
+      visibility: isMissionVisibility(b.visibility) ? b.visibility : "public",
       fixerId: req.user!.id,
     })
     .returning();
@@ -977,6 +979,13 @@ router.patch("/missions/:id", requireAuth, async (req, res): Promise<void> => {
   if (b.notesForPlayers !== undefined) set.notesForPlayers = typeof b.notesForPlayers === "string" && b.notesForPlayers.trim() ? b.notesForPlayers.trim() : null;
   if (b.fixerNotes !== undefined) set.fixerNotes = typeof b.fixerNotes === "string" && b.fixerNotes.trim() ? b.fixerNotes.trim() : null;
   if (b.maxPlayers !== undefined) set.maxPlayers = Math.max(0, Math.trunc(Number(b.maxPlayers) || 0));
+  if (b.visibility !== undefined) {
+    if (!isMissionVisibility(b.visibility)) {
+      res.status(400).json({ error: "Visibility must be public or private" });
+      return;
+    }
+    set.visibility = b.visibility;
+  }
 
   // Reschedule resets the pre-mission NPC announcement so it re-fires for the
   // new start time.

@@ -9,6 +9,7 @@ import type { MissionAssignmentInput } from './missionAssignmentInput';
 import type { MissionCreateInputJobType } from './missionCreateInputJobType';
 import type { MissionCreateInputStatus } from './missionCreateInputStatus';
 import type { MissionCreateInputTier } from './missionCreateInputTier';
+import type { MissionCreateInputVisibility } from './missionCreateInputVisibility';
 
 export interface MissionCreateInput {
   /** @minLength 1 */
@@ -42,5 +43,7 @@ export interface MissionCreateInput {
   fixerNotes?: string;
   /** @minimum 0 */
   maxPlayers?: number;
+  /** private = visible only to fixers/admins, the authoring fixer, and rostered players; never announced on Discord. */
+  visibility?: MissionCreateInputVisibility;
   assignments?: MissionAssignmentInput[];
 }

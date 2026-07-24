@@ -11,6 +11,7 @@ import type { MissionAssignmentView } from './missionAssignmentView';
 import type { MissionDetailJobType } from './missionDetailJobType';
 import type { MissionDetailStatus } from './missionDetailStatus';
 import type { MissionDetailTier } from './missionDetailTier';
+import type { MissionDetailVisibility } from './missionDetailVisibility';
 import type { MissionDetailWorkflowState } from './missionDetailWorkflowState';
 import type { MissionNpcMySignupView } from './missionNpcMySignupView';
 import type { MissionNpcSignupView } from './missionNpcSignupView';
@@ -21,6 +22,8 @@ export interface MissionDetail {
   tier: MissionDetailTier;
   status: MissionDetailStatus;
   workflowState: MissionDetailWorkflowState;
+  /** private = visible only to fixers/admins, the authoring fixer, and rostered players; never announced on Discord. */
+  visibility?: MissionDetailVisibility;
   /** @nullable */
   startAt?: Date | null;
   /**

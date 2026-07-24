@@ -5732,6 +5732,17 @@ export const MissionSummaryWorkflowState = {
 } as const;
 
 /**
+ * private = visible only to fixers/admins, the authoring fixer, and rostered players; never announced on Discord.
+ */
+export type MissionSummaryVisibility = typeof MissionSummaryVisibility[keyof typeof MissionSummaryVisibility];
+
+
+export const MissionSummaryVisibility = {
+  public: 'public',
+  private: 'private',
+} as const;
+
+/**
  * @nullable
  */
 export type MissionSummaryJobType = typeof MissionSummaryJobType[keyof typeof MissionSummaryJobType] | null;
@@ -5845,6 +5856,8 @@ export interface MissionSummary {
   tier: MissionSummaryTier;
   status: MissionSummaryStatus;
   workflowState: MissionSummaryWorkflowState;
+  /** private = visible only to fixers/admins, the authoring fixer, and rostered players; never announced on Discord. */
+  visibility?: MissionSummaryVisibility;
   /** @nullable */
   startAt?: string | null;
   /**
@@ -5989,6 +6002,17 @@ export const MissionDetailWorkflowState = {
 } as const;
 
 /**
+ * private = visible only to fixers/admins, the authoring fixer, and rostered players; never announced on Discord.
+ */
+export type MissionDetailVisibility = typeof MissionDetailVisibility[keyof typeof MissionDetailVisibility];
+
+
+export const MissionDetailVisibility = {
+  public: 'public',
+  private: 'private',
+} as const;
+
+/**
  * @nullable
  */
 export type MissionDetailJobType = typeof MissionDetailJobType[keyof typeof MissionDetailJobType] | null;
@@ -6050,6 +6074,8 @@ export interface MissionDetail {
   tier: MissionDetailTier;
   status: MissionDetailStatus;
   workflowState: MissionDetailWorkflowState;
+  /** private = visible only to fixers/admins, the authoring fixer, and rostered players; never announced on Discord. */
+  visibility?: MissionDetailVisibility;
   /** @nullable */
   startAt?: string | null;
   /**
@@ -6752,6 +6778,17 @@ export const MissionCreateInputJobType = {
   mixed: 'mixed',
 } as const;
 
+/**
+ * private = visible only to fixers/admins, the authoring fixer, and rostered players; never announced on Discord.
+ */
+export type MissionCreateInputVisibility = typeof MissionCreateInputVisibility[keyof typeof MissionCreateInputVisibility];
+
+
+export const MissionCreateInputVisibility = {
+  public: 'public',
+  private: 'private',
+} as const;
+
 export interface MissionCreateInput {
   /** @minLength 1 */
   title: string;
@@ -6784,6 +6821,8 @@ export interface MissionCreateInput {
   fixerNotes?: string;
   /** @minimum 0 */
   maxPlayers?: number;
+  /** private = visible only to fixers/admins, the authoring fixer, and rostered players; never announced on Discord. */
+  visibility?: MissionCreateInputVisibility;
   assignments?: MissionAssignmentInput[];
 }
 
@@ -6819,6 +6858,17 @@ export const MissionUpdateInputJobType = {
   combat: 'combat',
   non_combat: 'non_combat',
   mixed: 'mixed',
+} as const;
+
+/**
+ * private = visible only to fixers/admins, the authoring fixer, and rostered players; never announced on Discord.
+ */
+export type MissionUpdateInputVisibility = typeof MissionUpdateInputVisibility[keyof typeof MissionUpdateInputVisibility];
+
+
+export const MissionUpdateInputVisibility = {
+  public: 'public',
+  private: 'private',
 } as const;
 
 export interface MissionUpdateInput {
@@ -6864,6 +6914,8 @@ export interface MissionUpdateInput {
   fixerNotes?: string | null;
   /** @minimum 0 */
   maxPlayers?: number;
+  /** private = visible only to fixers/admins, the authoring fixer, and rostered players; never announced on Discord. */
+  visibility?: MissionUpdateInputVisibility;
   /** If present, replaces the full assignment set. */
   assignments?: MissionAssignmentInput[];
 }

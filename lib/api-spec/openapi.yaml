@@ -10318,6 +10318,7 @@ components:
         tier: { type: integer, enum: [1, 2, 3, 4] }
         status: { type: string, enum: [open, pending, completed, completed_players_paid, completed_paid, cancelled] }
         workflowState: { type: string, enum: [draft, proposal, approved, posted] }
+        visibility: { type: string, enum: [public, private], description: "private = visible only to fixers/admins, the authoring fixer, and rostered players; never announced on Discord." }
         startAt: { type: ["string", "null"], format: date-time }
         npcStartAt: { type: ["string", "null"], format: date-time, description: "Optional earlier gather time for NPC actors; NPC-facing surfaces show this instead of startAt." }
         durationMinutes: { type: integer }
@@ -10413,6 +10414,7 @@ components:
         tier: { type: integer, enum: [1, 2, 3, 4] }
         status: { type: string, enum: [open, pending, completed, completed_players_paid, completed_paid, cancelled] }
         workflowState: { type: string, enum: [draft, proposal, approved, posted] }
+        visibility: { type: string, enum: [public, private], description: "private = visible only to fixers/admins, the authoring fixer, and rostered players; never announced on Discord." }
         startAt: { type: ["string", "null"], format: date-time }
         npcStartAt: { type: ["string", "null"], format: date-time, description: "Optional earlier gather time for NPC actors; NPC-facing surfaces show this instead of startAt." }
         durationMinutes: { type: integer }
@@ -10894,6 +10896,7 @@ components:
         notesForPlayers: { type: string }
         fixerNotes: { type: string, description: "Fixer-only briefing text (visible only in the Fixer tab)." }
         maxPlayers: { type: integer, minimum: 0, default: 0 }
+        visibility: { type: string, enum: [public, private], default: public, description: "private = visible only to fixers/admins, the authoring fixer, and rostered players; never announced on Discord." }
         assignments:
           type: array
           items: { $ref: "#/components/schemas/MissionAssignmentInput" }
@@ -10920,6 +10923,7 @@ components:
         notesForPlayers: { type: ["string", "null"] }
         fixerNotes: { type: ["string", "null"], description: "Fixer-only briefing text (visible only in the Fixer tab)." }
         maxPlayers: { type: integer, minimum: 0 }
+        visibility: { type: string, enum: [public, private], description: "private = visible only to fixers/admins, the authoring fixer, and rostered players; never announced on Discord." }
         assignments:
           type: array
           description: "If present, replaces the full assignment set."

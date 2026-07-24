@@ -202,6 +202,7 @@ type FormValues = {
   notesForPlayers: string;
   fixerNotes: string;
   maxPlayers: number;
+  visibility: "public" | "private";
   assignments: AssignmentDraft[];
 };
 
@@ -224,6 +225,7 @@ const EMPTY: FormValues = {
   notesForPlayers: "",
   fixerNotes: "",
   maxPlayers: 0,
+  visibility: "public",
   assignments: [],
 };
 
@@ -258,6 +260,7 @@ function EditMissionForm({ missionId, onSaved }: { missionId: number; onSaved: (
     notesForPlayers: data.notesForPlayers ?? "",
     fixerNotes: data.fixerNotes ?? "",
     maxPlayers: data.maxPlayers,
+    visibility: data.visibility === "private" ? "private" : "public",
     assignments: data.assignments.map((a) => ({
       userId: a.userId,
       character: a.characterId ? { id: a.characterId, name: a.characterName ?? "(character)" } : null,
@@ -415,6 +418,7 @@ function MissionForm({
       notesForPlayers: v.notesForPlayers || undefined,
       fixerNotes: v.fixerNotes || undefined,
       maxPlayers: v.maxPlayers,
+      visibility: v.visibility,
       // Edit mode: only send the roster when the fixer actually changed it in
       // THIS form. The form's assignment list is a snapshot from when the edit
       // opened; blindly resending it would whole-replace the roster and wipe
@@ -673,6 +677,23 @@ function MissionForm({
               className="rounded-none"
               data-testid="input-mission-maxplayers"
             />
+          </div>
+          <div className="md:col-span-3">
+            <Label className="text-xs">VISIBILITY</Label>
+            <select
+              value={v.visibility}
+              onChange={(e) => set("visibility", e.target.value === "private" ? "private" : "public")}
+              className="w-full h-10 bg-background border border-border px-2 font-mono text-sm"
+              data-testid="select-mission-visibility"
+            >
+              <option value="public">PUBLIC</option>
+              <option value="private">PRIVATE — staff & roster only</option>
+            </select>
+            {v.visibility === "private" && (
+              <p className="text-[0.65rem] font-mono text-nc-magenta mt-1">
+                Hidden from the board, calendar & search except for fixers, admins and rostered players. Never announced on Discord.
+              </p>
+            )}
           </div>
           <div className="md:col-span-6">
             <Label className="text-xs">CLIENT</Label>

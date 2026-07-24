@@ -11,6 +11,7 @@ import type { MissionSummaryJobType } from './missionSummaryJobType';
 import type { MissionSummaryPlayersItem } from './missionSummaryPlayersItem';
 import type { MissionSummaryStatus } from './missionSummaryStatus';
 import type { MissionSummaryTier } from './missionSummaryTier';
+import type { MissionSummaryVisibility } from './missionSummaryVisibility';
 import type { MissionSummaryWorkflowState } from './missionSummaryWorkflowState';
 
 export interface MissionSummary {
@@ -19,6 +20,8 @@ export interface MissionSummary {
   tier: MissionSummaryTier;
   status: MissionSummaryStatus;
   workflowState: MissionSummaryWorkflowState;
+  /** private = visible only to fixers/admins, the authoring fixer, and rostered players; never announced on Discord. */
+  visibility?: MissionSummaryVisibility;
   /** @nullable */
   startAt?: Date | null;
   /**

@@ -823,6 +823,14 @@ function MissionCard({
               {missionWorkflowLabel(m.workflowState)}
             </span>
           )}
+          {m.visibility === "private" && (
+            <span
+              className="inline-block font-display font-bold tracking-widest text-xs px-2 py-1 border rounded-none uppercase border-nc-magenta text-nc-magenta"
+              data-testid={`visibility-mission-${m.id}`}
+            >
+              Private
+            </span>
+          )}
           <span
             className={`inline-block font-display font-bold tracking-widest text-sm md:text-base px-3 py-1 border rounded-none uppercase ${missionStatusClass(
               m.status,

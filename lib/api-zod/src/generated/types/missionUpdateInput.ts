@@ -9,6 +9,7 @@ import type { MissionAssignmentInput } from './missionAssignmentInput';
 import type { MissionUpdateInputJobType } from './missionUpdateInputJobType';
 import type { MissionUpdateInputStatus } from './missionUpdateInputStatus';
 import type { MissionUpdateInputTier } from './missionUpdateInputTier';
+import type { MissionUpdateInputVisibility } from './missionUpdateInputVisibility';
 
 export interface MissionUpdateInput {
   /** @minLength 1 */
@@ -53,6 +54,8 @@ export interface MissionUpdateInput {
   fixerNotes?: string | null;
   /** @minimum 0 */
   maxPlayers?: number;
+  /** private = visible only to fixers/admins, the authoring fixer, and rostered players; never announced on Discord. */
+  visibility?: MissionUpdateInputVisibility;
   /** If present, replaces the full assignment set. */
   assignments?: MissionAssignmentInput[];
 }

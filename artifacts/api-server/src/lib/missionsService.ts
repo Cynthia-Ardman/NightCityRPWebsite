@@ -46,6 +46,17 @@ export function isWorkflowState(s: unknown): s is WorkflowState {
   return typeof s === "string" && (WORKFLOW_STATES as readonly string[]).includes(s);
 }
 
+// Mission visibility. 'public' missions behave as always. 'private' missions
+// are visible ONLY to managers (fixers/admins), archivists, the authoring
+// fixer, and players a fixer has put on the roster (mission_assignments row) —
+// everywhere: board, calendar, search, dashboards. They also never touch
+// Discord (no scheduled event, forum thread, sign-up or NPC announcements).
+export const MISSION_VISIBILITIES = ["public", "private"] as const;
+export type MissionVisibility = (typeof MISSION_VISIBILITIES)[number];
+export function isMissionVisibility(s: unknown): s is MissionVisibility {
+  return typeof s === "string" && (MISSION_VISIBILITIES as readonly string[]).includes(s);
+}
+
 export const JOB_TYPES = ["combat", "non_combat", "mixed"] as const;
 export type JobType = (typeof JOB_TYPES)[number];
 export function isJobType(s: unknown): s is JobType {
@@ -234,6 +245,7 @@ function toSummary(
     tier: m.tier,
     status: m.status,
     workflowState: m.workflowState,
+    visibility: m.visibility,
     startAt: iso(m.startAt),
     npcStartAt: iso(m.npcStartAt),
     durationMinutes: m.durationMinutes,
@@ -441,6 +453,25 @@ async function loadMySignupsForMissions(
   return out;
 }
 
+/**
+ * SQL condition a NON-manager viewer must satisfy to see a mission at all:
+ * the mission is public, OR they authored it, OR a fixer put them on the
+ * roster (mission_assignments row — any payment state). Managers/archivists
+ * bypass this entirely (the callers skip the filter for them), matching the
+ * existing "staff see the full pipeline" rule.
+ */
+function visibleToViewerFilter(viewerId: string) {
+  const assignedSubquery = db
+    .select({ missionId: missionAssignments.missionId })
+    .from(missionAssignments)
+    .where(eq(missionAssignments.userId, viewerId));
+  return or(
+    eq(missions.visibility, "public"),
+    eq(missions.fixerId, viewerId),
+    inArray(missions.id, assignedSubquery),
+  )!;
+}
+
 export async function listMissionSummaries(opts: {
   viewer: MissionViewer;
   status?: string;
@@ -450,7 +481,13 @@ export async function listMissionSummaries(opts: {
   if (opts.status && isMissionStatus(opts.status)) filters.push(eq(missions.status, opts.status));
   // Visibility: regular players only ever see Posted missions. Managers
   // (fixers/admins) see the full pipeline so they can shepherd drafts.
-  if (!opts.viewer.isManager) filters.push(eq(missions.workflowState, "posted"));
+  // Private missions are additionally hidden from players unless they are on
+  // the roster (or authored the mission). Archivists are approvers: they keep
+  // the players' posted-only board but bypass the private filter.
+  if (!opts.viewer.isManager) {
+    filters.push(eq(missions.workflowState, "posted"));
+    if (!opts.viewer.isArchivist) filters.push(visibleToViewerFilter(opts.viewer.id));
+  }
   const where = filters.length ? and(...filters) : undefined;
   const rows = await loadMissions(where, opts.limit ?? 200);
   const ids = rows.map((r) => r.id);
@@ -502,7 +539,12 @@ export async function getFixerMissionsProfile(fixerId: string, viewer: MissionVi
     .limit(1);
   if (!u) return null;
   const filters = [eq(missions.fixerId, fixerId)];
-  if (!viewer.isManager) filters.push(eq(missions.workflowState, "posted"));
+  if (!viewer.isManager) {
+    filters.push(eq(missions.workflowState, "posted"));
+    // Archivists bypass the private filter (they approve missions), matching
+    // the board list and the detail gate.
+    if (!viewer.isArchivist) filters.push(visibleToViewerFilter(viewer.id));
+  }
   const rows = await loadMissions(and(...filters));
   const byMission = await loadAssignments(rows.map((r) => r.id));
   return {
@@ -830,6 +872,18 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
   if (!canManage && !viewer.isArchivist && !isTrialOwner && m.workflowState !== "posted") return null;
   const ctx = await getMissionContext();
   const assignments = (await loadAssignments([missionId])).get(missionId) ?? [];
+  // Private missions are invisible to everyone except staff (managers /
+  // archivists), the authoring fixer, and rostered players — a 404, not a
+  // stripped-down view, so their existence never leaks.
+  if (
+    m.visibility === "private" &&
+    !canManage &&
+    !viewer.isArchivist &&
+    !isOwnerFixer &&
+    !assignments.some((a) => a.userId === viewer.id)
+  ) {
+    return null;
+  }
 
   // Per-character participation confirmation: when a fixer assigns a player's
   // character we raise a `mission_participation` request the player must accept.
@@ -939,6 +993,7 @@ export async function getMissionDetail(missionId: number, viewer: MissionViewer)
     tier: m.tier,
     status: m.status,
     workflowState: m.workflowState,
+    visibility: m.visibility,
     startAt: iso(m.startAt),
     npcStartAt: iso(m.npcStartAt),
     durationMinutes: m.durationMinutes,
@@ -2311,8 +2366,16 @@ export async function postMission(missionId: number, viewer: MissionViewer, req?
   // Announce the newly opened mission (with a link) to the sign-up channel so
   // players know it's accepting PC applications. Live-gated and fail-safe: a
   // delivery miss never blocks the post action (postToChannel also no-ops
-  // outside deployments). Only announce when the mission is actually open.
-  if (nextStatus === "open") {
+  // outside deployments). Only announce when the mission is actually open —
+  // and never for private missions (they exist only for staff + roster).
+  // Re-read visibility AFTER the posted claim: a concurrent PATCH could flip
+  // the mission private while we were syncing Discord, and the stale pre-claim
+  // row must not leak a public sign-up announcement.
+  const [fresh] = await db
+    .select({ visibility: missions.visibility })
+    .from(missions)
+    .where(eq(missions.id, missionId));
+  if (nextStatus === "open" && (fresh?.visibility ?? m.visibility) !== "private") {
     const url = buildMissionUrl(missionId);
     const content = `**New mission open for sign-ups — ${m.title}**\n${url}`;
     try {
@@ -2530,6 +2593,9 @@ export async function ensureMissionThread(
   channelId: string,
 ): Promise<{ created: boolean; threadId: string | null }> {
   if (!channelId) return { created: false, threadId: m.discordThreadId ?? null };
+  // Private missions never get a public forum thread/brief. (Existing linked
+  // threads are left alone below — no-op — but nothing new is ever created.)
+  if (m.visibility === "private") return { created: false, threadId: m.discordThreadId ?? null };
   if (m.discordThreadId) return { created: false, threadId: m.discordThreadId };
 
   // The mission thread channel (#fixer-job-proposals) is a Discord FORUM
@@ -2682,6 +2748,8 @@ export async function listMissionThreadBackfillTargets(limit = 500): Promise<Mis
     .where(
       and(
         eq(missions.workflowState, "posted"),
+        // Private missions never get a public forum thread.
+        ne(missions.visibility, "private"),
         notInArray(missions.status, HISTORY_STATUSES),
         // Needs a thread, or has one but no snapshot yet (retry partial failures).
         or(isNull(missions.discordThreadId), isNull(missions.discordThreadSnapshotAt)),
@@ -2755,6 +2823,8 @@ export async function runMissionNpcAnnouncements(): Promise<{ announced: number 
       and(
         eq(missions.workflowState, "posted"),
         ne(missions.status, "cancelled"),
+        // Private missions never fire public "actors needed" calls.
+        ne(missions.visibility, "private"),
         isNull(missions.npcAnnouncedAt),
         isNotNull(missions.startAt),
         // NPCs may be asked to gather earlier than the player start; announce
@@ -2825,10 +2895,16 @@ export async function syncMissionDiscordEvent(
     return { discordEventId: mission.discordEventId, discordSyncError: null };
   }
 
-  // Only POSTED missions appear publicly and own a Discord event. Drafts /
-  // proposals / approved missions stay off Discord until the fixer posts them,
-  // even if a start time is already set.
-  const shouldExist = mission.workflowState === "posted" && mission.status !== "cancelled" && !!mission.startAt;
+  // Only POSTED, PUBLIC missions appear publicly and own a Discord event.
+  // Drafts / proposals / approved missions stay off Discord until the fixer
+  // posts them, even if a start time is already set. Private missions never
+  // get a Discord event (and flipping a posted mission to private tears an
+  // existing one down).
+  const shouldExist =
+    mission.workflowState === "posted" &&
+    mission.status !== "cancelled" &&
+    mission.visibility !== "private" &&
+    !!mission.startAt;
 
   // Cancelled or unscheduled: tear down any existing event.
   if (!shouldExist) {

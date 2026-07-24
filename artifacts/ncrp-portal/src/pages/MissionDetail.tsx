@@ -407,6 +407,15 @@ function MissionDetailView({ data: rawData, when }: { data: MissionDetailModel; 
           <Badge variant="outline" className={`rounded-none font-bold tracking-widest uppercase ${missionStatusClass(data.status)}`}>
             {missionStatusLabel(data.status)}
           </Badge>
+          {data.visibility === "private" && (
+            <Badge
+              variant="outline"
+              className="rounded-none font-bold tracking-widest uppercase border-nc-magenta text-nc-magenta inline-flex items-center gap-1"
+              data-testid="badge-private"
+            >
+              <Lock className="w-3 h-3" /> Private
+            </Badge>
+          )}
           {data.completedAt && (
             <Badge
               variant="outline"

@@ -920,6 +920,12 @@ export const missions = pgTable("missions", {
   // posted + open at the same time. New missions default to draft; existing
   // missions are backfilled to posted (they were already live).
   workflowState: text("workflow_state").notNull().default("draft"),
+  // Who can SEE the mission once posted: 'public' (everyone, the default) or
+  // 'private' (only staff fixers/admins, the authoring fixer, and players a
+  // fixer has put on the roster). Private missions are hidden from the board,
+  // calendar, search, and ALL Discord surfaces (no scheduled event, no forum
+  // thread, no sign-up/NPC announcements).
+  visibility: text("visibility").notNull().default("public"),
   fixerId: text("fixer_id").references(() => users.id, { onDelete: "set null" }),
   // Mission start (UTC). Null while the fixer is still drafting/selecting.
   startAt: timestamp("start_at", { withTimezone: true }),
