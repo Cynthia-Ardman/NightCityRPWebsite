@@ -127,7 +127,7 @@ export default function CharacterDetail() {
             <button
               type="button"
               onClick={() => setTagsOpen(true)}
-              className="px-2 py-0.5 border border-dashed border-border text-muted-foreground font-mono text-[0.65rem] uppercase tracking-wider hover:border-nc-magenta/60 hover:text-nc-magenta transition inline-flex items-center gap-1"
+              className="px-2 py-0.5 border border-dashed border-border text-muted-foreground font-sans text-[0.7rem] font-medium uppercase tracking-wider hover:border-nc-magenta/60 hover:text-nc-magenta transition inline-flex items-center gap-1"
               data-testid="button-edit-tags"
             >
               <TagIcon className="w-3 h-3" />
