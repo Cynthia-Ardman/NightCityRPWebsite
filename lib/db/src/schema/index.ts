@@ -1195,6 +1195,11 @@ export const events = pgTable("events", {
   // frequency (0=Y,1=M,2=W,3=D), interval, optional weekday set (0=Mon..6=Sun),
   // and an optional end via count or until.
   recurrenceRule: jsonb("recurrence_rule").$type<EventRecurrenceRule>(),
+  // ISO start instants of occurrences REMOVED from this recurring series —
+  // written when staff edit "just this occurrence" (the occurrence splits into
+  // its own standalone event row and the series skips this date). Client-side
+  // expansion filters these out.
+  excludedOccurrences: jsonb("excluded_occurrences").$type<string[]>().notNull().default([]),
   // VRChat group-calendar mirror (third downstream target beside Discord, gated
   // by the `vrchat_calendar_sync_enabled` kill-switch + deployment write-gate).
   // Only Main Sessions + social events are mirrored; missions never are.

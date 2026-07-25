@@ -10764,6 +10764,10 @@ components:
             - $ref: "#/components/schemas/EventRecurrence"
             - type: "null"
           description: "Recurrence rule (null = single occurrence); expanded onto the calendar client-side."
+        excludedOccurrences:
+          type: array
+          items: { type: string, format: date-time }
+          description: "Occurrence start instants removed from this recurring series (split into standalone events via occurrence-scoped edits). Client expansion skips these dates."
         signups:
           type: array
           description: "Full NPC sign-up roster (managers only, detail view only)."
@@ -10911,6 +10915,14 @@ components:
           type: array
           description: "Replace-set: omitted existing types are removed (archived if tickets were sold)."
           items: { $ref: "#/components/schemas/EventTicketTypeInput" }
+        applyScope:
+          type: string
+          enum: [series, occurrence]
+          description: "For recurring events: 'series' (default) edits the whole series; 'occurrence' splits the given occurrence into a standalone event carrying the edit and excludes it from the series. Responds 201 with the NEW event's detail."
+        occurrenceStartAt:
+          type: string
+          format: date-time
+          description: "Required when applyScope=occurrence: the concrete occurrence start instant being edited."
 
     EventNpcSignupInput:
       type: object

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { EventTicketTypeInput } from './eventTicketTypeInput';
+import type { EventUpdateInputApplyScope } from './eventUpdateInputApplyScope';
 import type { EventUpdateInputEventType } from './eventUpdateInputEventType';
 import type { EventUpdateInputTicketPayoutMode } from './eventUpdateInputTicketPayoutMode';
 
@@ -29,4 +30,8 @@ export interface EventUpdateInput {
   ticketRunnerUserId?: string | null;
   /** Replace-set: omitted existing types are removed (archived if tickets were sold). */
   ticketTypes?: EventTicketTypeInput[];
+  /** For recurring events: 'series' (default) edits the whole series; 'occurrence' splits the given occurrence into a standalone event carrying the edit and excludes it from the series. Responds 201 with the NEW event's detail. */
+  applyScope?: EventUpdateInputApplyScope;
+  /** Required when applyScope=occurrence: the concrete occurrence start instant being edited. */
+  occurrenceStartAt?: Date;
 }

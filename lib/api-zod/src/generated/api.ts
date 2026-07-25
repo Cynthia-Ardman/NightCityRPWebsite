@@ -6022,6 +6022,7 @@ export const ListEventsResponseItem = zod.object({
   "count": zod.number().nullish(),
   "until": zod.coerce.date().nullish()
 }).describe('Normalised recurrence rule (Discord). frequency: 0=yearly, 1=monthly, 2=weekly, 3=daily. byWeekday uses 0=Mon..6=Sun.'),zod.null()]).optional().describe('Recurrence rule (null = single occurrence); expanded onto the calendar client-side.'),
+  "excludedOccurrences": zod.array(zod.coerce.date()).optional().describe('Occurrence start instants removed from this recurring series (split into standalone events via occurrence-scoped edits). Client expansion skips these dates.'),
   "signups": zod.array(zod.object({
   "id": zod.number(),
   "userId": zod.string(),
@@ -6194,6 +6195,7 @@ export const GetEventResponse = zod.object({
   "count": zod.number().nullish(),
   "until": zod.coerce.date().nullish()
 }).describe('Normalised recurrence rule (Discord). frequency: 0=yearly, 1=monthly, 2=weekly, 3=daily. byWeekday uses 0=Mon..6=Sun.'),zod.null()]).optional().describe('Recurrence rule (null = single occurrence); expanded onto the calendar client-side.'),
+  "excludedOccurrences": zod.array(zod.coerce.date()).optional().describe('Occurrence start instants removed from this recurring series (split into standalone events via occurrence-scoped edits). Client expansion skips these dates.'),
   "signups": zod.array(zod.object({
   "id": zod.number(),
   "userId": zod.string(),
@@ -6288,7 +6290,9 @@ export const UpdateEventBody = zod.object({
   "description": zod.string().nullish(),
   "price": zod.number().min(updateEventBodyTicketTypesItemPriceMin),
   "quantity": zod.number().min(updateEventBodyTicketTypesItemQuantityMin).default(updateEventBodyTicketTypesItemQuantityDefault).describe('0 = unlimited.')
-})).optional().describe('Replace-set: omitted existing types are removed (archived if tickets were sold).')
+})).optional().describe('Replace-set: omitted existing types are removed (archived if tickets were sold).'),
+  "applyScope": zod.enum(['series', 'occurrence']).optional().describe('For recurring events: \'series\' (default) edits the whole series; \'occurrence\' splits the given occurrence into a standalone event carrying the edit and excludes it from the series. Responds 201 with the NEW event\'s detail.'),
+  "occurrenceStartAt": zod.coerce.date().optional().describe('Required when applyScope=occurrence: the concrete occurrence start instant being edited.')
 })
 
 export const UpdateEventResponse = zod.object({
@@ -6334,6 +6338,7 @@ export const UpdateEventResponse = zod.object({
   "count": zod.number().nullish(),
   "until": zod.coerce.date().nullish()
 }).describe('Normalised recurrence rule (Discord). frequency: 0=yearly, 1=monthly, 2=weekly, 3=daily. byWeekday uses 0=Mon..6=Sun.'),zod.null()]).optional().describe('Recurrence rule (null = single occurrence); expanded onto the calendar client-side.'),
+  "excludedOccurrences": zod.array(zod.coerce.date()).optional().describe('Occurrence start instants removed from this recurring series (split into standalone events via occurrence-scoped edits). Client expansion skips these dates.'),
   "signups": zod.array(zod.object({
   "id": zod.number(),
   "userId": zod.string(),
@@ -6676,6 +6681,7 @@ export const SignUpAsEventNpcResponse = zod.object({
   "count": zod.number().nullish(),
   "until": zod.coerce.date().nullish()
 }).describe('Normalised recurrence rule (Discord). frequency: 0=yearly, 1=monthly, 2=weekly, 3=daily. byWeekday uses 0=Mon..6=Sun.'),zod.null()]).optional().describe('Recurrence rule (null = single occurrence); expanded onto the calendar client-side.'),
+  "excludedOccurrences": zod.array(zod.coerce.date()).optional().describe('Occurrence start instants removed from this recurring series (split into standalone events via occurrence-scoped edits). Client expansion skips these dates.'),
   "signups": zod.array(zod.object({
   "id": zod.number(),
   "userId": zod.string(),
@@ -6790,6 +6796,7 @@ export const WithdrawEventNpcSignupResponse = zod.object({
   "count": zod.number().nullish(),
   "until": zod.coerce.date().nullish()
 }).describe('Normalised recurrence rule (Discord). frequency: 0=yearly, 1=monthly, 2=weekly, 3=daily. byWeekday uses 0=Mon..6=Sun.'),zod.null()]).optional().describe('Recurrence rule (null = single occurrence); expanded onto the calendar client-side.'),
+  "excludedOccurrences": zod.array(zod.coerce.date()).optional().describe('Occurrence start instants removed from this recurring series (split into standalone events via occurrence-scoped edits). Client expansion skips these dates.'),
   "signups": zod.array(zod.object({
   "id": zod.number(),
   "userId": zod.string(),
@@ -6910,6 +6917,7 @@ export const ConfirmEventNpcSignupResponse = zod.object({
   "count": zod.number().nullish(),
   "until": zod.coerce.date().nullish()
 }).describe('Normalised recurrence rule (Discord). frequency: 0=yearly, 1=monthly, 2=weekly, 3=daily. byWeekday uses 0=Mon..6=Sun.'),zod.null()]).optional().describe('Recurrence rule (null = single occurrence); expanded onto the calendar client-side.'),
+  "excludedOccurrences": zod.array(zod.coerce.date()).optional().describe('Occurrence start instants removed from this recurring series (split into standalone events via occurrence-scoped edits). Client expansion skips these dates.'),
   "signups": zod.array(zod.object({
   "id": zod.number(),
   "userId": zod.string(),

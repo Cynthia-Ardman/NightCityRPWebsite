@@ -740,3 +740,158 @@ describe("recurring events keep NPCs per occurrence", () => {
     expect(view.body.paidActorUserIds).not.toContain(paidLastWeek.id);
   });
 });
+
+describe("PATCH /events/:id applyScope=occurrence splits a recurring occurrence", () => {
+  async function createRecurring(adminId: string) {
+    const res = await createValidEvent(adminId, { needsNpcs: true });
+    expect(res.status).toBe(201);
+    await db
+      .update(events)
+      .set({ recurrenceRule: { frequency: 2, interval: 1, byWeekday: [6], count: null, until: null } })
+      .where(eq(events.id, res.body.id));
+    return res.body as { id: number; startAt: string; endAt: string };
+  }
+
+  it("rejects occurrence scope on a non-recurring event and bad scope values", async () => {
+    const admin = await createAdmin();
+    const res = await createValidEvent(admin.id);
+    expect(res.status).toBe(201);
+
+    const badScope = await request(app)
+      .patch(`/api/events/${res.body.id}`)
+      .set("x-test-user", admin.id)
+      .send({ applyScope: "weird" });
+    expect(badScope.status).toBe(400);
+
+    const noOcc = await request(app)
+      .patch(`/api/events/${res.body.id}`)
+      .set("x-test-user", admin.id)
+      .send({ applyScope: "occurrence" });
+    expect(noOcc.status).toBe(400);
+
+    const notRecurring = await request(app)
+      .patch(`/api/events/${res.body.id}`)
+      .set("x-test-user", admin.id)
+      .send({ applyScope: "occurrence", occurrenceStartAt: res.body.startAt, title: "One-off" });
+    expect(notRecurring.status).toBe(400);
+  });
+
+  it("splits: creates a standalone child, excludes the occurrence, moves that occurrence's signups", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const other = await createUser();
+    const event = await createRecurring(admin.id);
+    const base = new Date(event.startAt);
+    const nextWeek = new Date(base.getTime() + 7 * 24 * 3600_000);
+
+    // One signup on the base occurrence (stays), one on next week's (moves).
+    await request(app)
+      .post(`/api/events/${event.id}/npc-signups`)
+      .set("x-test-user", other.id)
+      .send({})
+      .expect(200);
+    await request(app)
+      .post(`/api/events/${event.id}/npc-signups`)
+      .set("x-test-user", player.id)
+      .send({ occurrenceStartAt: nextWeek.toISOString() })
+      .expect(200);
+
+    const shiftedStart = new Date(nextWeek.getTime() + 3600_000); // +1h edit
+    const res = await request(app)
+      .patch(`/api/events/${event.id}`)
+      .set("x-test-user", admin.id)
+      .send({
+        applyScope: "occurrence",
+        occurrenceStartAt: nextWeek.toISOString(),
+        title: "Special Edition",
+        startAt: shiftedStart.toISOString(),
+        endAt: new Date(shiftedStart.getTime() + 2 * 3600_000).toISOString(),
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.id).not.toBe(event.id);
+    expect(res.body.title).toBe("Special Edition");
+    expect(res.body.startAt).toBe(shiftedStart.toISOString());
+    expect(res.body.recurrence).toBeNull();
+
+    // Parent untouched except the exclusion.
+    const parent = await request(app).get(`/api/events/${event.id}`).set("x-test-user", admin.id);
+    expect(parent.status).toBe(200);
+    expect(parent.body.title).toBe("Heist Night");
+    expect(parent.body.excludedOccurrences).toEqual([nextWeek.toISOString()]);
+
+    // The next-week signup moved onto the child at its new start; base stayed.
+    const moved = await db
+      .select()
+      .from(eventNpcSignups)
+      .where(and(eq(eventNpcSignups.eventId, res.body.id), eq(eventNpcSignups.userId, player.id)));
+    expect(moved).toHaveLength(1);
+    expect(moved[0].occurrenceStartAt?.toISOString()).toBe(shiftedStart.toISOString());
+    const stayed = await db
+      .select()
+      .from(eventNpcSignups)
+      .where(and(eq(eventNpcSignups.eventId, event.id), eq(eventNpcSignups.userId, other.id)));
+    expect(stayed).toHaveLength(1);
+
+    // Splitting the same occurrence again conflicts.
+    const again = await request(app)
+      .patch(`/api/events/${event.id}`)
+      .set("x-test-user", admin.id)
+      .send({ applyScope: "occurrence", occurrenceStartAt: nextWeek.toISOString(), title: "Again" });
+    expect(again.status).toBe(409);
+  });
+
+  it("rejects ticket tier edits in occurrence scope", async () => {
+    const admin = await createAdmin();
+    const event = await createRecurring(admin.id);
+    const nextWeek = new Date(new Date(event.startAt).getTime() + 7 * 24 * 3600_000);
+    const res = await request(app)
+      .patch(`/api/events/${event.id}`)
+      .set("x-test-user", admin.id)
+      .send({
+        applyScope: "occurrence",
+        occurrenceStartAt: nextWeek.toISOString(),
+        ticketTypes: [{ name: "VIP", price: 100, quantity: 0 }],
+      });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("split occurrences are blocked on the parent", () => {
+  it("rejects empty-array ticketTypes in occurrence scope and blocks parent signups for excluded occurrences", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const res = await createValidEvent(admin.id, { needsNpcs: true });
+    expect(res.status).toBe(201);
+    await db
+      .update(events)
+      .set({ recurrenceRule: { frequency: 2, interval: 1, byWeekday: [6], count: null, until: null } })
+      .where(eq(events.id, res.body.id));
+    const nextWeek = new Date(new Date(res.body.startAt).getTime() + 7 * 24 * 3600_000);
+
+    const emptyTiers = await request(app)
+      .patch(`/api/events/${res.body.id}`)
+      .set("x-test-user", admin.id)
+      .send({ applyScope: "occurrence", occurrenceStartAt: nextWeek.toISOString(), ticketTypes: [] });
+    expect(emptyTiers.status).toBe(400);
+
+    const split = await request(app)
+      .patch(`/api/events/${res.body.id}`)
+      .set("x-test-user", admin.id)
+      .send({ applyScope: "occurrence", occurrenceStartAt: nextWeek.toISOString(), title: "Split" });
+    expect(split.status).toBe(201);
+
+    // Stale deep-link signup against the parent's split-out occurrence is refused.
+    const staleSignup = await request(app)
+      .post(`/api/events/${res.body.id}/npc-signups`)
+      .set("x-test-user", player.id)
+      .send({ occurrenceStartAt: nextWeek.toISOString() });
+    expect(staleSignup.status).toBe(409);
+
+    // Detail deep link for the excluded occurrence falls back to the base view.
+    const detail = await request(app)
+      .get(`/api/events/${res.body.id}?occurrenceStartAt=${encodeURIComponent(nextWeek.toISOString())}`)
+      .set("x-test-user", player.id);
+    expect(detail.status).toBe(200);
+    expect(detail.body.startAt).toBe(res.body.startAt);
+  });
+});

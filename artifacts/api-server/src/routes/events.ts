@@ -9,6 +9,7 @@ import {
   getEventDetail,
   createEvent,
   updateEvent,
+  splitEventOccurrence,
   cancelEvent,
   signUpAsEventNpc,
   withdrawEventNpcSignup,
@@ -280,6 +281,40 @@ router.patch("/events/:id", requireAuth, async (req, res): Promise<void> => {
   if (b.ticketRunnerUserId !== undefined) {
     patch.ticketRunnerUserId =
       typeof b.ticketRunnerUserId === "string" && b.ticketRunnerUserId.trim() ? b.ticketRunnerUserId.trim() : null;
+  }
+  // ---- "Just this occurrence" scope: split the occurrence out of the series
+  // instead of editing the parent row. Ticket-tier edits stay series-wide and
+  // are rejected here so a validation surface can't silently no-op.
+  if (b.applyScope !== undefined && b.applyScope !== "series" && b.applyScope !== "occurrence") {
+    res.status(400).json({ error: "applyScope must be 'series' or 'occurrence'" });
+    return;
+  }
+  if (b.applyScope === "occurrence") {
+    const occ = parseDate(b.occurrenceStartAt);
+    if (!occ) {
+      res.status(400).json({ error: "occurrenceStartAt is required for occurrence-scoped edits" });
+      return;
+    }
+    if (b.ticketTypes !== undefined) {
+      res.status(400).json({ error: "Ticket tiers can only be edited on the whole series" });
+      return;
+    }
+    const split = await splitEventOccurrence(id, occ, patch);
+    if (!split.ok || !split.child) {
+      res.status(split.httpStatus ?? 500).json({ error: split.error ?? "Split failed" });
+      return;
+    }
+    await recordAudit({
+      req,
+      category: "mission",
+      action: "event.split_occurrence",
+      targetType: "event",
+      targetId: split.child.id,
+      message: `Edited single occurrence ${occ.toISOString()} of recurring event #${id} → new event #${split.child.id} "${split.child.title}"`,
+      after: { parentEventId: id, occurrenceStartAt: occ.toISOString() },
+    });
+    res.status(201).json(await getEventDetail(split.child.id, viewerOf(req)));
+    return;
   }
   // Replace-set the ticket types BEFORE the event update so a validation error
   // aborts the whole edit.

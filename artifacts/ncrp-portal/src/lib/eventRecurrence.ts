@@ -38,6 +38,23 @@ export function expandOccurrences(
   rule: RecurrenceRule | null | undefined,
   rangeStart: Date,
   rangeEnd: Date,
+  // ISO instants split out of the series via "edit just this occurrence" —
+  // those dates are skipped here (the standalone child event renders instead).
+  exclude?: string[] | null,
+): Date[] {
+  const raw = expandOccurrencesRaw(baseStart, rule, rangeStart, rangeEnd);
+  if (!exclude || exclude.length === 0) return raw;
+  const excluded = new Set(
+    exclude.map((s) => new Date(s).getTime()).filter((t) => !Number.isNaN(t)),
+  );
+  return raw.filter((d) => !excluded.has(d.getTime()));
+}
+
+function expandOccurrencesRaw(
+  baseStart: Date,
+  rule: RecurrenceRule | null | undefined,
+  rangeStart: Date,
+  rangeEnd: Date,
 ): Date[] {
   if (Number.isNaN(baseStart.getTime())) return [];
   if (!rule) {

@@ -161,7 +161,7 @@ export default function DirectoryCalendar() {
         // occurrence (myOccurrences), so a recurring event only badges the
         // occurrence(s) actually signed up for — not every projected one.
         const myOccs = myOccurrenceSet(e.myOccurrences);
-        const occs = expandOccurrences(base, e.recurrence ?? null, rangeStart, rangeEnd);
+        const occs = expandOccurrences(base, e.recurrence ?? null, rangeStart, rangeEnd, e.excludedOccurrences);
         for (const occ of occs) {
           out.push({
             kind: "event",

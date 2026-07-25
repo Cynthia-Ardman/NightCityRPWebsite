@@ -449,7 +449,7 @@ function MyEventsCard() {
     if (myOccs.size === 0) continue;
     const base = new Date(e.startAt);
     if (Number.isNaN(base.getTime())) continue;
-    for (const occ of expandOccurrences(base, e.recurrence ?? null, now, horizon)) {
+    for (const occ of expandOccurrences(base, e.recurrence ?? null, now, horizon, e.excludedOccurrences)) {
       if (!myOccs.has(occ.getTime())) continue;
       items.push({
         kind: "event",
@@ -530,7 +530,7 @@ function TodaysScheduleCard() {
     if (Number.isNaN(base.getTime())) continue;
     // Badge only the occurrence(s) the viewer actually signed up for.
     const myOccs = myOccurrenceSet(e.myOccurrences);
-    for (const occ of expandOccurrences(base, e.recurrence ?? null, dayStart, dayEnd)) {
+    for (const occ of expandOccurrences(base, e.recurrence ?? null, dayStart, dayEnd, e.excludedOccurrences)) {
       items.push({
         kind: "event",
         id: e.id,
@@ -784,7 +784,7 @@ function NpcSessionBanner() {
     const endAt = new Date(e.endAt);
     const durationMs = Number.isNaN(endAt.getTime()) ? 0 : Math.max(0, endAt.getTime() - base.getTime());
     const lookback = new Date(now.getTime() - durationMs);
-    const occ = expandOccurrences(base, e.recurrence ?? null, lookback, horizon)[0];
+    const occ = expandOccurrences(base, e.recurrence ?? null, lookback, horizon, e.excludedOccurrences)[0];
     if (!occ) continue;
     // Signed up for THIS occurrence specifically (signups are per-occurrence
     // on recurring events).
@@ -1024,7 +1024,7 @@ function NpcsNeededCard() {
     if (e.needsNpcs !== true) continue;
     const base = new Date(e.startAt);
     if (Number.isNaN(base.getTime())) continue;
-    const occ = expandOccurrences(base, e.recurrence ?? null, now, horizon)[0];
+    const occ = expandOccurrences(base, e.recurrence ?? null, now, horizon, e.excludedOccurrences)[0];
     if (!occ) continue;
     // Skip only if signed up for THIS occurrence (per-occurrence signups).
     if (myOccurrenceSet(e.myOccurrences).has(occ.getTime())) continue;

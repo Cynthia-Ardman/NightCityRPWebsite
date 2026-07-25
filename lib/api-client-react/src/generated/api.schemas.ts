@@ -6569,6 +6569,8 @@ export interface EventView {
   canManage: boolean;
   /** Recurrence rule (null = single occurrence); expanded onto the calendar client-side. */
   recurrence?: EventRecurrence | null;
+  /** Occurrence start instants removed from this recurring series (split into standalone events via occurrence-scoped edits). Client expansion skips these dates. */
+  excludedOccurrences?: string[];
   /** Full NPC sign-up roster (managers only, detail view only). */
   signups?: EventSignupView[];
   /** userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster. */
@@ -6710,6 +6712,17 @@ export const EventUpdateInputTicketPayoutMode = {
   sink: 'sink',
 } as const;
 
+/**
+ * For recurring events: 'series' (default) edits the whole series; 'occurrence' splits the given occurrence into a standalone event carrying the edit and excludes it from the series. Responds 201 with the NEW event's detail.
+ */
+export type EventUpdateInputApplyScope = typeof EventUpdateInputApplyScope[keyof typeof EventUpdateInputApplyScope];
+
+
+export const EventUpdateInputApplyScope = {
+  series: 'series',
+  occurrence: 'occurrence',
+} as const;
+
 export interface EventUpdateInput {
   /** @minLength 1 */
   title?: string;
@@ -6730,6 +6743,10 @@ export interface EventUpdateInput {
   ticketRunnerUserId?: string | null;
   /** Replace-set: omitted existing types are removed (archived if tickets were sold). */
   ticketTypes?: EventTicketTypeInput[];
+  /** For recurring events: 'series' (default) edits the whole series; 'occurrence' splits the given occurrence into a standalone event carrying the edit and excludes it from the series. Responds 201 with the NEW event's detail. */
+  applyScope?: EventUpdateInputApplyScope;
+  /** Required when applyScope=occurrence: the concrete occurrence start instant being edited. */
+  occurrenceStartAt?: string;
 }
 
 export interface EventNpcSignupInput {

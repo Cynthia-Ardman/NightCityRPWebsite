@@ -58,6 +58,8 @@ export interface EventView {
   canManage: boolean;
   /** Recurrence rule (null = single occurrence); expanded onto the calendar client-side. */
   recurrence?: EventRecurrence | null;
+  /** Occurrence start instants removed from this recurring series (split into standalone events via occurrence-scoped edits). Client expansion skips these dates. */
+  excludedOccurrences?: Date[];
   /** Full NPC sign-up roster (managers only, detail view only). */
   signups?: EventSignupView[];
   /** userIds already paid as an actor for this event (managers, detail only). Locks paid NPCs in the roster. */

@@ -58,6 +58,9 @@ vi.mock("@workspace/api-client-react", () => {
     useGetMyWallet: () => idleQuery({ balance: 0 }),
     useGetCharacterInventory: () => stableEmpty,
     useGetCharacterHousing: () => idleQuery([]),
+    useListTagOptions: () => stableEmpty,
+    getListTagOptionsQueryKey: queryKey,
+    useUpdateCharacterTags: idleMutation,
     useGetCharacterStatus: () => idleQuery({
       loa: false,
       attending: false,

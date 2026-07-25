@@ -74,7 +74,7 @@ function computeRunningEvents(events: EventView[], now: Date): RunningEvent[] {
     const end = new Date(e.endAt);
     if (Number.isNaN(base.getTime()) || Number.isNaN(end.getTime())) continue;
     const durationMs = Math.max(0, end.getTime() - base.getTime());
-    for (const occ of expandOccurrences(base, e.recurrence ?? null, rangeStart, rangeEnd)) {
+    for (const occ of expandOccurrences(base, e.recurrence ?? null, rangeStart, rangeEnd, e.excludedOccurrences)) {
       const occEnd = occ.getTime() + durationMs;
       if (occ.getTime() <= now.getTime() && now.getTime() <= occEnd) {
         out.push({ id: e.id, title: e.title, category: eventCategory(e.eventType) });

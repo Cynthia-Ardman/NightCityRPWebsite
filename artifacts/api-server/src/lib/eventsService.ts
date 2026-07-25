@@ -172,6 +172,10 @@ export interface EventView {
   // Normalised recurrence (null = single occurrence). Expanded onto the
   // calendar client-side so a weekly Discord event shows on every occurrence.
   recurrence: EventRecurrenceRule | null;
+  // ISO occurrence instants removed from a recurring series ("edit just this
+  // occurrence" splits them into standalone events). Client expansion skips
+  // these dates.
+  excludedOccurrences: string[];
   // Only populated on the detail view for managers.
   signups?: EventSignupView[];
   // userIds already paid as an actor for THIS event (managers, detail only).
@@ -779,6 +783,7 @@ function toView(
     myOccurrences,
     canManage: viewer.isManager,
     recurrence: e.recurrenceRule ?? null,
+    excludedOccurrences: e.excludedOccurrences ?? [],
     ...(includeSignups && viewer.isManager ? { signups: occurrenceSignups } : {}),
   };
 }
@@ -873,7 +878,15 @@ export async function getEventDetail(
     .where(eq(events.id, id));
   if (!row) return null;
   const signupsByEvent = await loadSignupViews([id]);
-  const occurrence = row.e.recurrenceRule ? (occurrenceStartAt ?? null) : null;
+  // Occurrences split out of the series live on their own event row; a stale
+  // deep link to the parent for that instant falls back to the base view
+  // rather than rendering a phantom occurrence that no longer exists here.
+  const requestedOcc = row.e.recurrenceRule ? (occurrenceStartAt ?? null) : null;
+  const occurrence =
+    requestedOcc &&
+    (row.e.excludedOccurrences ?? []).some((s) => new Date(s).getTime() === requestedOcc.getTime())
+      ? null
+      : requestedOcc;
   const view = toView(
     { ...row.e, createdByName: userDisplayName({ globalName: row.createdGlobalName, username: row.createdUsername }) },
     viewer,
@@ -1014,6 +1027,126 @@ export async function updateEvent(id: number, patch: Partial<EventInput>): Promi
     logger.warn({ err, eventId: id }, "ticket-holder change notification failed");
   });
   return syncAndApplyVrchat(afterDiscord);
+}
+
+// ---------------------------------------------------------------------------
+// "Edit just this occurrence" of a RECURRING event. The occurrence is SPLIT
+// out of the series: a standalone (non-recurring) event row is created carrying
+// the parent's fields + the staff edit, and the occurrence instant is appended
+// to the parent's excludedOccurrences so client expansion skips that date.
+// NPC signups + actor payments targeting that occurrence are repointed onto the
+// new row so volunteers and pay-once locks follow the occurrence they signed up
+// for. The parent row (and its Discord scheduled event) is NEVER touched.
+// ---------------------------------------------------------------------------
+export interface SplitOccurrenceResult {
+  ok: boolean;
+  error?: string;
+  httpStatus?: number;
+  child?: Event;
+}
+
+export async function splitEventOccurrence(
+  id: number,
+  occurrence: Date,
+  patch: Partial<EventInput>,
+): Promise<SplitOccurrenceResult> {
+  const occIso = occurrence.toISOString();
+  const txResult = await db.transaction(async (tx): Promise<SplitOccurrenceResult> => {
+    // Lock the parent so two concurrent splits of the same occurrence can't
+    // both pass the excluded check and create duplicate children.
+    const [parent] = await tx.select().from(events).where(eq(events.id, id)).for("update");
+    if (!parent) return { ok: false, error: "Event not found", httpStatus: 404 };
+    if (!parent.recurrenceRule) {
+      return { ok: false, error: "Event is not recurring — edit it directly", httpStatus: 400 };
+    }
+    if (parent.status === "cancelled") {
+      return { ok: false, error: "Event is cancelled", httpStatus: 400 };
+    }
+    const excluded = parent.excludedOccurrences ?? [];
+    if (excluded.some((s) => new Date(s).getTime() === occurrence.getTime())) {
+      return { ok: false, error: "This occurrence was already split out of the series", httpStatus: 409 };
+    }
+
+    // The child keeps the occurrence's duration unless the edit supplies times.
+    const durationMs = Math.max(0, parent.endAt.getTime() - parent.startAt.getTime());
+    const childStart = patch.startAt ?? occurrence;
+    const childEnd = patch.endAt ?? new Date(childStart.getTime() + durationMs);
+    if (childEnd.getTime() <= childStart.getTime()) {
+      return { ok: false, error: "End time must be after start time", httpStatus: 400 };
+    }
+
+    const [child] = await tx
+      .insert(events)
+      .values({
+        title: patch.title ?? parent.title,
+        eventType: patch.eventType ?? parent.eventType,
+        location: patch.location !== undefined ? patch.location : parent.location,
+        description: patch.description !== undefined ? patch.description : parent.description,
+        imageUrl: patch.imageUrl !== undefined ? patch.imageUrl : parent.imageUrl,
+        startAt: childStart,
+        endAt: childEnd,
+        status: "scheduled",
+        needsNpcs: patch.needsNpcs !== undefined ? patch.needsNpcs : parent.needsNpcs,
+        npcBlurb:
+          (patch.needsNpcs !== undefined ? patch.needsNpcs : parent.needsNpcs)
+            ? (patch.npcBlurb !== undefined ? patch.npcBlurb : parent.npcBlurb)
+            : null,
+        ticketPayoutMode: patch.ticketPayoutMode ?? parent.ticketPayoutMode,
+        ticketRunnerUserId:
+          patch.ticketRunnerUserId !== undefined ? patch.ticketRunnerUserId : parent.ticketRunnerUserId,
+        createdById: parent.createdById,
+        // Deliberately NOT copied: recurrenceRule (child is a one-off) and all
+        // Discord/VRChat linkage (the child gets its own sync below).
+      })
+      .returning();
+
+    await tx
+      .update(events)
+      .set({ excludedOccurrences: [...excluded, occIso] })
+      .where(eq(events.id, id));
+
+    // Signups for THIS occurrence follow it onto the child. Legacy NULL rows
+    // mean "current startAt", so they move only when splitting that occurrence.
+    const occMatch = or(
+      eq(eventNpcSignups.occurrenceStartAt, occurrence),
+      ...(occurrence.getTime() === parent.startAt.getTime()
+        ? [isNull(eventNpcSignups.occurrenceStartAt)]
+        : []),
+    );
+    await tx
+      .update(eventNpcSignups)
+      .set({ eventId: child.id, occurrenceStartAt: childStart })
+      .where(and(eq(eventNpcSignups.eventId, id), occMatch));
+    // Pay-once locks for this occurrence follow too, so a paid NPC stays locked
+    // on the split-out event.
+    await tx
+      .update(missionActorPayments)
+      .set({ eventId: child.id, occurrenceStartAt: childStart })
+      .where(
+        and(
+          eq(missionActorPayments.eventId, id),
+          eq(missionActorPayments.occurrenceStartAt, occurrence),
+        ),
+      );
+
+    return { ok: true, child };
+  });
+  if (!txResult.ok || !txResult.child) return txResult;
+
+  // Push the child to Discord/VRChat like a staff-created event (best-effort,
+  // outside the tx; the reconcile cron self-heals failures). The parent's
+  // Discord recurring event still shows the original occurrence — Discord has
+  // no per-occurrence exception API — which staff accept as a known limit.
+  try {
+    const ctx = await getMissionContext();
+    const sync = await syncEventDiscordEvent(txResult.child, ctx.live);
+    const afterDiscord = await applyEventSync(txResult.child.id, txResult.child, sync);
+    const final = await syncAndApplyVrchat(afterDiscord);
+    return { ok: true, child: final };
+  } catch (err) {
+    logger.warn({ err, eventId: txResult.child.id }, "splitEventOccurrence: downstream sync failed; reconcile cron will heal");
+    return txResult;
+  }
 }
 
 export async function cancelEvent(id: number): Promise<Event | null> {
@@ -1800,6 +1933,21 @@ export async function signUpAsEventNpc(opts: {
   const occurrenceStartAt = event.recurrenceRule
     ? opts.occurrenceStartAt ?? event.startAt
     : event.startAt;
+  // An occurrence split out of the series ("edit just this occurrence") lives
+  // on its own standalone event row — reject signups against the parent for
+  // that instant so a stale deep link can't diverge from the child.
+  if (
+    event.recurrenceRule &&
+    (event.excludedOccurrences ?? []).some(
+      (s) => new Date(s).getTime() === occurrenceStartAt.getTime(),
+    )
+  ) {
+    return {
+      ok: false,
+      httpStatus: 409,
+      error: "This occurrence was moved to its own event — sign up there instead",
+    };
+  }
   // Self-heal: on a non-recurring event, re-stamp any active rows still
   // pointing at a stale start instant (orphaned by a start-time edit that
   // predates the restamp hook) so the per-occurrence unique index below can

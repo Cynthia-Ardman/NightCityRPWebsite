@@ -15,6 +15,7 @@ import {
   type EventCreateInputEventType,
   type EventCreateInputTicketPayoutMode,
   type EventTicketTypeInput,
+  type EventUpdateInput,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { expandOccurrences, type RecurrenceRule } from "@/lib/eventRecurrence";
 import { PartyPopper, Trash2, Ticket, Plus, X } from "lucide-react";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import SingleImageUpload from "@/components/SingleImageUpload";
@@ -298,17 +308,35 @@ function EditEventForm({ eventId, onSaved }: { eventId: number; onSaved: () => v
         quantity: String(t.quantity),
       })),
   };
-  return <EventForm key={`edit-${eventId}`} eventId={eventId} initial={initial} onSaved={onSaved} />;
+  return (
+    <EventForm
+      key={`edit-${eventId}`}
+      eventId={eventId}
+      initial={initial}
+      onSaved={onSaved}
+      recurrence={(data.recurrence ?? null) as RecurrenceRule | null}
+      baseStartAt={data.startAt}
+      excludedOccurrences={data.excludedOccurrences ?? []}
+    />
+  );
 }
 
 function EventForm({
   eventId,
   initial,
   onSaved,
+  recurrence,
+  baseStartAt,
+  excludedOccurrences,
 }: {
   eventId?: number;
   initial?: FormValues;
   onSaved: () => void;
+  // Edit mode only: the event's recurrence rule + base start. When recurring,
+  // saving prompts "whole series or just one occurrence?".
+  recurrence?: RecurrenceRule | null;
+  baseStartAt?: string;
+  excludedOccurrences?: string[];
 }) {
   const qc = useQueryClient();
   const isCreate = eventId == null;
@@ -353,6 +381,57 @@ function EventForm({
   const create = useCreateEvent({ mutation: { onSuccess: onSaved } });
   const update = useUpdateEvent({ mutation: { onSuccess: onSaved } });
   const cancel = useCancelEvent({ mutation: { onSuccess: onSaved } });
+
+  // Recurring-edit scope prompt: the built payload is parked here while the
+  // fixer picks "whole series" vs "just one occurrence".
+  const [scopeOpen, setScopeOpen] = useState(false);
+  const [scope, setScope] = useState<"series" | "occurrence">("series");
+  const [scopeOcc, setScopeOcc] = useState<string | null>(null);
+  const [pendingPayload, setPendingPayload] = useState<EventUpdateInput | null>(null);
+  // Next occurrences of the series the fixer can target (skips already-split
+  // ones). 120-day horizon, capped at 10 options.
+  const upcomingOccurrences: Date[] = (() => {
+    if (!recurrence || !baseStartAt) return [];
+    const base = new Date(baseStartAt);
+    const now = new Date();
+    const horizon = new Date(now.getTime() + 120 * 86400000);
+    // Include an occurrence that already started earlier today.
+    const windowStart = new Date(now.getTime() - 86400000);
+    return expandOccurrences(base, recurrence, windowStart, horizon, excludedOccurrences).slice(0, 10);
+  })();
+
+  const confirmScope = () => {
+    if (!pendingPayload || eventId == null) return;
+    if (scope === "series") {
+      update.mutate({ id: eventId, data: pendingPayload }, { onSuccess: () => qc.invalidateQueries() });
+      setScopeOpen(false);
+      return;
+    }
+    if (!scopeOcc || !baseStartAt) return;
+    const occ = new Date(scopeOcc);
+    const base = new Date(baseStartAt);
+    // The form shows the SERIES base times; shift the edited times onto the
+    // chosen occurrence by the same delta the fixer applied to the base.
+    const startDelta = new Date(pendingPayload.startAt!).getTime() - base.getTime();
+    const endDelta = new Date(pendingPayload.endAt!).getTime() - base.getTime();
+    // Ticket tiers stay series-wide — the server rejects tier edits in
+    // occurrence scope, so they are stripped from the occurrence payload.
+    const { ticketTypes: _tt, ...rest } = pendingPayload;
+    update.mutate(
+      {
+        id: eventId,
+        data: {
+          ...rest,
+          startAt: new Date(occ.getTime() + startDelta).toISOString(),
+          endAt: new Date(occ.getTime() + endDelta).toISOString(),
+          applyScope: "occurrence",
+          occurrenceStartAt: occ.toISOString(),
+        },
+      },
+      { onSuccess: () => qc.invalidateQueries() },
+    );
+    setScopeOpen(false);
+  };
   const busy = create.isPending || update.isPending || cancel.isPending;
   const errMsg = errOf(create.error) ?? errOf(update.error) ?? errOf(cancel.error);
 
@@ -407,6 +486,15 @@ function EventForm({
       npcBlurb: v.needsNpcs ? v.npcBlurb || null : null,
     };
     if (eventId != null) {
+      // Recurring event: ask whether the edit applies to the whole series or
+      // just one occurrence before sending anything.
+      if (recurrence) {
+        setPendingPayload(payload);
+        setScope("series");
+        setScopeOcc(null);
+        setScopeOpen(true);
+        return;
+      }
       update.mutate({ id: eventId, data: payload }, { onSuccess: () => qc.invalidateQueries() });
     } else {
       create.mutate(
@@ -742,6 +830,94 @@ function EventForm({
           </div>
         </form>
       </CardContent>
+      <Dialog open={scopeOpen} onOpenChange={setScopeOpen}>
+        <DialogContent className="rounded-none font-mono" data-testid="dialog-edit-scope">
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-widest">EDIT RECURRING EVENT</DialogTitle>
+            <DialogDescription>
+              This event repeats. Apply your changes to every occurrence, or just one?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="edit-scope"
+                checked={scope === "series"}
+                onChange={() => setScope("series")}
+                data-testid="radio-scope-series"
+              />
+              <span>All occurrences (edit the whole series)</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="edit-scope"
+                checked={scope === "occurrence"}
+                onChange={() => {
+                  setScope("occurrence");
+                  if (!scopeOcc && upcomingOccurrences.length > 0) {
+                    setScopeOcc(upcomingOccurrences[0].toISOString());
+                  }
+                }}
+                data-testid="radio-scope-occurrence"
+              />
+              <span>Just one occurrence</span>
+            </label>
+            {scope === "occurrence" && (
+              <div className="pl-6 space-y-2">
+                {upcomingOccurrences.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No upcoming occurrences found.</p>
+                ) : (
+                  <select
+                    className="w-full border border-border bg-background px-2 py-1.5 text-sm"
+                    value={scopeOcc ?? ""}
+                    onChange={(e) => setScopeOcc(e.target.value)}
+                    data-testid="select-scope-occurrence"
+                  >
+                    {upcomingOccurrences.map((d) => (
+                      <option key={d.toISOString()} value={d.toISOString()}>
+                        {d.toLocaleString([], {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  That occurrence becomes its own standalone event with your changes; the rest of the
+                  series stays as-is. Ticket tiers always stay on the series.
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none"
+              onClick={() => setScopeOpen(false)}
+              data-testid="button-scope-cancel"
+            >
+              CANCEL
+            </Button>
+            <Button
+              type="button"
+              className="rounded-none"
+              disabled={busy || (scope === "occurrence" && !scopeOcc)}
+              onClick={confirmScope}
+              data-testid="button-scope-confirm"
+            >
+              {update.isPending ? "SAVING..." : "SAVE"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

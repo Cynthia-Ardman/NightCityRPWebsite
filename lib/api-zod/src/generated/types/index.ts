@@ -245,6 +245,7 @@ export * from './eventToMissionConvertInput';
 export * from './eventToMissionConvertInputJobType';
 export * from './eventToMissionConvertInputTier';
 export * from './eventUpdateInput';
+export * from './eventUpdateInputApplyScope';
 export * from './eventUpdateInputEventType';
 export * from './eventUpdateInputTicketPayoutMode';
 export * from './eventView';

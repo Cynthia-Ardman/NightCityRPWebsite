@@ -18,6 +18,8 @@ vi.mock("@workspace/api-client-react", () => ({
   useListCyberware: () => ({ data: [] }),
   useListGuns: () => ({ data: [] }),
   useListGuidebook: () => ({ data: { sections: [] } }),
+  useListTagOptions: () => ({ data: [] }),
+  getListTagOptionsQueryKey: () => ["tag-options"],
   // useAuthMe is a thin wrapper around useGetMe from this same module.
   useGetMe: () => ({ data: { id: 1, isFixer: false, isAdmin: false }, isLoading: false }),
   getGetMeQueryKey: () => ["me"],
