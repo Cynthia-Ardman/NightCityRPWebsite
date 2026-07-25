@@ -7,7 +7,7 @@ import { createNotification } from "../lib/notifications";
 import { logger } from "../lib/logger";
 import { recordAudit } from "../lib/audit";
 import { collectCyberware, buildCyberwareCostMap, entryPoints, validateCyberware } from "../lib/cyberware-cap";
-import { validateSheetFields } from "../lib/sheet-validation";
+import { validateSheetFields, findTechStartingGun } from "../lib/sheet-validation";
 import { areCharacterSubmissionsDisabled } from "../lib/characterSubmissions";
 import { householdEffectiveCheckupDate } from "../lib/jobs";
 import { resolveRegistryTags } from "../lib/characterTags";
@@ -404,6 +404,19 @@ async function validateSheetForSubmission(data: unknown, user: User): Promise<st
   // NPCs are story chrome (gangs, ripperdoc rigs, set-piece characters) and are
   // not balance-constrained, so the 6-CWP creation cap does not apply to them.
   if (d.sheetType === "NPC") return null;
+  // New characters may not start with Tech weapons. Compare each entered gun
+  // name against the catalog's Tech-type entries (normalized match; the entered
+  // field is free text, so unrecognized names still pass to staff review).
+  if (Array.isArray(d.guns) && d.guns.length > 0) {
+    const gunMap = await loadGunCatalogMap();
+    const techNames = Array.from(gunMap.entries())
+      .filter(([, a]) => String(a.category ?? "").trim().toLowerCase() === "tech")
+      .map(([name]) => name);
+    const offender = findTechStartingGun(d.guns, techNames);
+    if (offender) {
+      return `Tech weapons aren't available as starting weapons: ${offender}`;
+    }
+  }
   // Cyberware is optional. If present, total CWP is capped at 6 at creation.
   // For catalog installs the cost is taken from the catalog (the client-sent
   // value is ignored), so the cap can't be bypassed by a crafted payload.

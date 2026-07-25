@@ -225,6 +225,39 @@ describe("sheet submission tag validation", () => {
   });
 });
 
+describe("sheet submission tech-weapon restriction", () => {
+  it("rejects a PC submission whose starting gun is a Tech-category catalog weapon", async () => {
+    const owner = await createUser();
+    await db
+      .insert(catalogGuns)
+      .values({ name: "Tsunami Nekomata", category: "Tech", weaponType: "sniper_rifle" });
+    const res = await request(app)
+      .post("/api/sheets")
+      .set("x-test-user", owner.id)
+      .send({
+        name: "Tech Reject",
+        data: { ...validSheetData("Tech Reject"), guns: ["tsunami  NEKOMATA"] },
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("Tech weapons aren't available as starting weapons");
+  });
+
+  it("allows a PC submission with a non-Tech catalog gun", async () => {
+    const owner = await createUser();
+    await db
+      .insert(catalogGuns)
+      .values({ name: "Militech Lexington A", category: "Power", weaponType: "pistol" });
+    const res = await request(app)
+      .post("/api/sheets")
+      .set("x-test-user", owner.id)
+      .send({
+        name: "Power OK",
+        data: { ...validSheetData("Power OK"), guns: ["Militech Lexington A"] },
+      });
+    expect(res.status).toBe(201);
+  });
+});
+
 describe("sheet request-changes (retired) + resubmit", () => {
   it("request-changes is retired: returns 410 and never parks/blocks the sheet", async () => {
     const owner = await createUser();

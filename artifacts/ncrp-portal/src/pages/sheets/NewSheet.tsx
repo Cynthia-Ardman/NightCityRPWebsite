@@ -138,17 +138,6 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     query: { queryKey: getListTagOptionsQueryKey() },
   });
 
-  // Distinct, sorted gun names from the catalog. Drives the <datalist> on the
-  // Firearms section so players can pick a known weapon or free-type their own.
-  const gunNames = useMemo(() => {
-    const set = new Set<string>();
-    (gunCatalog ?? []).forEach((g) => {
-      const n = (g.name ?? "").trim();
-      if (n) set.add(n);
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [gunCatalog]);
-
   // Resolve the Avatar Restrictions guidebook page so we can link straight to it
   // from the portrait/stats area. Falls back to the rules section if the page
   // can't be found (e.g. it was renamed or not yet imported).
@@ -184,6 +173,21 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     }
     return "PC";
   });
+  // Distinct, sorted gun names from the catalog. Drives the <datalist> on the
+  // Firearms section so players can pick a known weapon or free-type their own.
+  // On PC sheets, Tech weapons are excluded — they aren't available as starting
+  // weapons (the server enforces the same rule at submit time). NPC sheets are
+  // fixer-only story chrome and keep the full catalog.
+  const gunNames = useMemo(() => {
+    const set = new Set<string>();
+    (gunCatalog ?? []).forEach((g) => {
+      if (sheetType === "PC" && (g.category ?? "").trim().toLowerCase() === "tech") return;
+      const n = (g.name ?? "").trim();
+      if (n) set.add(n);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [gunCatalog, sheetType]);
+
   const [fullName, setFullName] = useState<string>(init.fullName ?? initialSheet?.name ?? "");
   const [nickname, setNickname] = useState<string>(init.nickname ?? "");
   const [pronouns, setPronouns] = useState<string>(init.pronouns ?? "");
@@ -901,7 +905,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-xs font-mono text-muted-foreground">
-            Pick a weapon from the NCRP catalog, or type your own if it isn't listed.
+            Pick a weapon from the NCRP catalog, or type your own if it isn't listed.{sheetType === "PC" ? " Tech weapons aren't available as starting weapons." : ""}
           </p>
           <datalist id="gun-catalog-options">
             {gunNames.map((n) => (

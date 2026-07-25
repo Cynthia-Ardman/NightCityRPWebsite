@@ -72,3 +72,31 @@ export function validateSheetFields(data: unknown, roles: string[]): string | nu
 
   return null;
 }
+
+// Normalize a gun name for catalog comparison: lower-case, trim, collapse
+// internal whitespace so "Militech  Widow Maker " matches the catalog entry.
+function normalizeGunName(s: string): string {
+  return s.toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+// New characters may not start with Tech weapons. Given the sheet's `guns`
+// list and the (already-fetched) catalog names of Tech-type guns, return the
+// first offending entry name, or null when the list is clean. Matching is
+// normalized-exact OR containment (an entered "Widow Maker (modded)" still
+// matches the catalog's "Widow Maker") so a decorated entry can't slip past.
+// Free-typed names with no catalog resemblance still pass — staff review
+// remains the backstop for those.
+export function findTechStartingGun(guns: unknown, techGunNames: string[]): string | null {
+  if (!Array.isArray(guns)) return null;
+  const tech = techGunNames.map(normalizeGunName).filter((n) => n.length > 0);
+  if (tech.length === 0) return null;
+  for (const g of guns) {
+    if (typeof g !== "string") continue;
+    const entered = normalizeGunName(g);
+    if (!entered) continue;
+    if (tech.some((t) => entered === t || entered.includes(t))) {
+      return g.trim();
+    }
+  }
+  return null;
+}

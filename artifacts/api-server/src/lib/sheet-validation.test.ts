@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { REQUIRED_SHEET_FIELDS, validateSheetFields } from "./sheet-validation";
+import { REQUIRED_SHEET_FIELDS, validateSheetFields, findTechStartingGun } from "./sheet-validation";
 
 // A minimal sheet that passes every non-cyberware rule. Individual tests clone
 // this and mutate just the field under test, so a failure points at one rule.
@@ -220,5 +220,34 @@ describe("validateSheetFields - portrait & stats images", () => {
         [],
       ),
     ).toBeNull();
+  });
+});
+
+describe("findTechStartingGun", () => {
+  const tech = ["Militech Widow Maker", "Tsunami Nekomata"];
+
+  it("returns null for non-arrays, empty lists, or no tech catalog", () => {
+    expect(findTechStartingGun(undefined, tech)).toBeNull();
+    expect(findTechStartingGun("gun", tech)).toBeNull();
+    expect(findTechStartingGun([], tech)).toBeNull();
+    expect(findTechStartingGun(["Widow Maker"], [])).toBeNull();
+  });
+
+  it("matches normalized-exact tech names (case/whitespace-insensitive)", () => {
+    expect(findTechStartingGun(["  militech   WIDOW maker "], tech)).toBe("militech   WIDOW maker");
+  });
+
+  it("matches decorated entries that contain a tech name", () => {
+    expect(findTechStartingGun(["Tsunami Nekomata (modded scope)"], tech)).toBe(
+      "Tsunami Nekomata (modded scope)",
+    );
+  });
+
+  it("passes non-tech and unrecognized free-typed names", () => {
+    expect(findTechStartingGun(["Militech M-10AF Lexington", "my custom pistol"], tech)).toBeNull();
+  });
+
+  it("skips non-string entries without throwing", () => {
+    expect(findTechStartingGun([42, null, "Militech Widow Maker"], tech)).toBe("Militech Widow Maker");
   });
 });
