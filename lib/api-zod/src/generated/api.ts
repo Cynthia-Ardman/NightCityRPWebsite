@@ -6141,10 +6141,14 @@ export const CheckEventConflictsResponse = zod.object({
 
 
 /**
- * @summary Event detail. Manager-only fields (sign-up roster, sync error) populated for fixers/admins.
+ * @summary Event detail. Manager-only fields (sign-up roster, sync error) populated for fixers/admins. For recurring events, occurrenceStartAt scopes dates and the NPC roster to that occurrence.
  */
 export const GetEventParams = zod.object({
   "id": zod.coerce.number()
+})
+
+export const GetEventQueryParams = zod.object({
+  "occurrenceStartAt": zod.date().optional()
 })
 
 export const GetEventResponse = zod.object({

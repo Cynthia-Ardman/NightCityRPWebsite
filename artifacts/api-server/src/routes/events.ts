@@ -89,7 +89,18 @@ router.get("/events/conflicts", requireAuth, async (req, res): Promise<void> => 
 router.get("/events/:id", requireAuth, async (req, res): Promise<void> => {
   const id = eventIdParam(req, res);
   if (id == null) return;
-  const detail = await getEventDetail(id, viewerOf(req));
+  // Optional occurrence deep link (?occurrenceStartAt=ISO) for recurring
+  // events: scopes date display + NPC roster to that occurrence.
+  let occurrenceStartAt: Date | null = null;
+  const rawOcc = req.query.occurrenceStartAt;
+  if (typeof rawOcc === "string" && rawOcc) {
+    occurrenceStartAt = new Date(rawOcc);
+    if (Number.isNaN(occurrenceStartAt.getTime())) {
+      res.status(400).json({ error: "occurrenceStartAt must be a valid ISO date-time" });
+      return;
+    }
+  }
+  const detail = await getEventDetail(id, viewerOf(req), occurrenceStartAt);
   if (!detail) {
     res.status(404).json({ error: "Event not found" });
     return;

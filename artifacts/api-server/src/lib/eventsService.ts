@@ -707,6 +707,11 @@ function toView(
   viewer: EventViewer,
   signups: EventSignupView[],
   includeSignups: boolean,
+  // Optional concrete occurrence of a RECURRING event (from ?occ= deep links).
+  // When given, the view's startAt/endAt are shifted to that occurrence and
+  // all per-occurrence state (mySignup, roster, count) is scoped to it, so
+  // "the social on the 31st" shows the 31st's roster — not the base row's.
+  occurrence?: Date | null,
 ): EventView {
   // A recurring event can carry one signup per occurrence, so the viewer may
   // have several rows. mySignup keeps its "current occurrence" meaning for the
@@ -714,6 +719,7 @@ function toView(
   // rolls startAt forward to the next occurrence) or a legacy/null-occurrence
   // row. myOccurrences lists every active occurrence for calendar badging.
   const startMs = e.startAt.getTime();
+  const occMs = e.recurrenceRule && occurrence ? occurrence.getTime() : startMs;
   const mine = signups.filter((s) => s.userId === viewer.id);
   // On a NON-recurring event every row is "the event" regardless of its stored
   // occurrence timestamp — a start-time edit may have left stale instants
@@ -721,8 +727,10 @@ function toView(
   // double-sign-up. Prefer the active row when several exist.
   const matchesOccurrence = (s: EventSignupView): boolean => {
     if (!e.recurrenceRule) return true;
-    if (s.occurrenceStartAt == null) return true;
-    return new Date(s.occurrenceStartAt).getTime() === startMs;
+    // Legacy NULL-occurrence rows mean "the event's CURRENT startAt", so they
+    // only count when the viewed occurrence IS the current one.
+    if (s.occurrenceStartAt == null) return occMs === startMs;
+    return new Date(s.occurrenceStartAt).getTime() === occMs;
   };
   const myMatches = mine.filter(matchesOccurrence);
   const mySignup =
@@ -751,8 +759,9 @@ function toView(
     location: e.location,
     description: e.description,
     imageUrl: e.imageUrl,
-    startAt: iso(e.startAt)!,
-    endAt: iso(e.endAt)!,
+    // Shift the displayed window to the viewed occurrence (duration preserved).
+    startAt: iso(new Date(e.startAt.getTime() + (occMs - startMs)))!,
+    endAt: iso(new Date(e.endAt.getTime() + (occMs - startMs)))!,
     status: e.status,
     needsNpcs: eventNeedsNpcs(e),
     npcBlurb: e.npcBlurb,
@@ -848,7 +857,11 @@ async function resolveMentions(text: string | null): Promise<string | null> {
   return text.replace(MENTION_RE, (_full, id: string) => `@${mentionNameCache.get(id) ?? id}`);
 }
 
-export async function getEventDetail(id: number, viewer: EventViewer): Promise<EventView | null> {
+export async function getEventDetail(
+  id: number,
+  viewer: EventViewer,
+  occurrenceStartAt?: Date | null,
+): Promise<EventView | null> {
   const [row] = await db
     .select({
       e: events,
@@ -860,11 +873,13 @@ export async function getEventDetail(id: number, viewer: EventViewer): Promise<E
     .where(eq(events.id, id));
   if (!row) return null;
   const signupsByEvent = await loadSignupViews([id]);
+  const occurrence = row.e.recurrenceRule ? (occurrenceStartAt ?? null) : null;
   const view = toView(
     { ...row.e, createdByName: userDisplayName({ globalName: row.createdGlobalName, username: row.createdUsername }) },
     viewer,
     signupsByEvent.get(id) ?? [],
     true,
+    occurrence,
   );
   view.description = await resolveMentions(view.description);
   if (viewer.isManager) {
@@ -880,7 +895,7 @@ export async function getEventDetail(id: number, viewer: EventViewer): Promise<E
           eq(missionActorPayments.eventId, id),
           eq(missionActorPayments.paymentStatus, "paid"),
           ...(row.e.recurrenceRule
-            ? [eq(missionActorPayments.occurrenceStartAt, row.e.startAt)]
+            ? [eq(missionActorPayments.occurrenceStartAt, occurrence ?? row.e.startAt)]
             : []),
         ),
       );

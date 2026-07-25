@@ -2348,8 +2348,14 @@ paths:
     get:
       operationId: getEvent
       tags: [events]
-      summary: "Event detail. Manager-only fields (sign-up roster, sync error) populated for fixers/admins."
+      summary: "Event detail. Manager-only fields (sign-up roster, sync error) populated for fixers/admins. For recurring events, occurrenceStartAt scopes dates and the NPC roster to that occurrence."
+      parameters:
+        - in: query
+          name: occurrenceStartAt
+          required: false
+          schema: { type: string, format: date-time }
       responses:
+        "400": { description: Invalid occurrenceStartAt. }
         "200":
           description: OK
           content:

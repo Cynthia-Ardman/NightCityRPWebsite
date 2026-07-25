@@ -232,8 +232,8 @@ router.patch("/characters/:id/tags", requireAuth, async (req, res): Promise<void
       targetType: "character",
       targetId: String(id),
       message: `Tags updated for ${c.name}`,
-      before: { tags: before },
-      after: { tags: next },
+      beforeJson: { tags: before },
+      afterJson: { tags: next },
     });
     return next;
   });

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useParams, useLocation } from "wouter";
+import { Link, useParams, useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetEvent,
@@ -325,8 +325,15 @@ function ConvertToMissionDialog({ event }: { event: EventView }) {
 export default function EventDetail() {
   const { id } = useParams();
   const eventId = Number(id);
-  const { data, isLoading, error } = useGetEvent(eventId, {
-    query: { enabled: Number.isInteger(eventId), queryKey: getGetEventQueryKey(eventId) },
+  // Occurrence deep link (?occ=ISO) from calendar/dashboard chips: for a
+  // recurring event this scopes the dates and NPC roster to that occurrence
+  // instead of the base row's current/next one.
+  const search = useSearch();
+  const occRaw = new URLSearchParams(search).get("occ");
+  const occ = occRaw && !Number.isNaN(new Date(occRaw).getTime()) ? new Date(occRaw).toISOString() : null;
+  const params = occ ? { occurrenceStartAt: occ } : undefined;
+  const { data, isLoading, error } = useGetEvent(eventId, params, {
+    query: { enabled: Number.isInteger(eventId), queryKey: getGetEventQueryKey(eventId, params) },
   });
 
   if (isLoading) {

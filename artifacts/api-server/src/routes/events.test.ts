@@ -259,6 +259,109 @@ describe("NPC sign-ups are per-occurrence", () => {
   });
 });
 
+describe("GET /events/:id is occurrence-aware for recurring events", () => {
+  async function createRecurringNpcEvent(adminId: string) {
+    const res = await createValidEvent(adminId, { needsNpcs: true });
+    expect(res.status).toBe(201);
+    const event = res.body as { id: number; startAt: string };
+    await db
+      .update(events)
+      .set({
+        recurrenceRule: { frequency: 2, interval: 1, byWeekday: [6], count: null, until: null },
+      })
+      .where(eq(events.id, event.id));
+    return event;
+  }
+
+  it("rejects an invalid occurrenceStartAt", async () => {
+    const admin = await createAdmin();
+    const event = await createRecurringNpcEvent(admin.id);
+    const res = await request(app)
+      .get(`/api/events/${event.id}?occurrenceStartAt=not-a-date`)
+      .set("x-test-user", admin.id);
+    expect(res.status).toBe(400);
+  });
+
+  it("shifts dates and scopes the roster to the requested occurrence", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const event = await createRecurringNpcEvent(admin.id);
+    const later = future(24 * 7);
+    const laterIso = new Date(later).toISOString();
+
+    // Player signs up for NEXT week's occurrence only.
+    const signup = await request(app)
+      .post(`/api/events/${event.id}/npc-signups`)
+      .set("x-test-user", player.id)
+      .send({ occurrenceStartAt: later });
+    expect(signup.status).toBe(200);
+
+    // Base view (no param): dates unchanged, player NOT on this occurrence.
+    const base = await request(app).get(`/api/events/${event.id}`).set("x-test-user", player.id);
+    expect(base.status).toBe(200);
+    expect(base.body.startAt).toBe(new Date(event.startAt).toISOString());
+    expect(base.body.mySignup).toBeNull();
+    expect(base.body.signupCount).toBe(0);
+
+    // Occurrence view: dates shifted (duration preserved), signup visible.
+    const occ = await request(app)
+      .get(`/api/events/${event.id}?occurrenceStartAt=${encodeURIComponent(laterIso)}`)
+      .set("x-test-user", player.id);
+    expect(occ.status).toBe(200);
+    expect(occ.body.startAt).toBe(laterIso);
+    expect(new Date(occ.body.endAt).getTime() - new Date(occ.body.startAt).getTime()).toBe(
+      new Date(base.body.endAt).getTime() - new Date(base.body.startAt).getTime(),
+    );
+    expect(occ.body.mySignup).not.toBeNull();
+    expect(occ.body.signupCount).toBe(1);
+  });
+
+  it("counts legacy null-occurrence rows only for the current occurrence", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const event = await createRecurringNpcEvent(admin.id);
+
+    await db.insert(eventNpcSignups).values({
+      eventId: event.id,
+      userId: player.id,
+      characterId: null,
+      note: null,
+      state: "signed_up",
+      occurrenceStartAt: null,
+    });
+
+    const currentIso = new Date(event.startAt).toISOString();
+    const current = await request(app)
+      .get(`/api/events/${event.id}?occurrenceStartAt=${encodeURIComponent(currentIso)}`)
+      .set("x-test-user", player.id);
+    expect(current.status).toBe(200);
+    expect(current.body.mySignup).not.toBeNull();
+
+    const laterIso = new Date(future(24 * 7)).toISOString();
+    const later = await request(app)
+      .get(`/api/events/${event.id}?occurrenceStartAt=${encodeURIComponent(laterIso)}`)
+      .set("x-test-user", player.id);
+    expect(later.status).toBe(200);
+    expect(later.body.mySignup).toBeNull();
+    expect(later.body.signupCount).toBe(0);
+  });
+
+  it("ignores the param on non-recurring events", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const res = await createValidEvent(admin.id, { needsNpcs: true });
+    expect(res.status).toBe(201);
+    const event = res.body as { id: number; startAt: string };
+
+    const laterIso = new Date(future(24 * 7)).toISOString();
+    const view = await request(app)
+      .get(`/api/events/${event.id}?occurrenceStartAt=${encodeURIComponent(laterIso)}`)
+      .set("x-test-user", player.id);
+    expect(view.status).toBe(200);
+    expect(view.body.startAt).toBe(new Date(event.startAt).toISOString());
+  });
+});
+
 describe("start-time changes on single events carry NPC sign-ups along", () => {
   async function createNpcEvent(adminId: string) {
     const res = await createValidEvent(adminId, { needsNpcs: true });

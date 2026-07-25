@@ -20,3 +20,5 @@ export { SetTextScalePreferenceBody } from "./generated/api";
 export type { SetTextScalePreferenceBody as SetTextScalePreferenceBodyType } from "./generated/types";
 export { UpdateCharacterTagsBody } from "./generated/api";
 export type { UpdateCharacterTagsBody as UpdateCharacterTagsBodyType } from "./generated/types";
+export { GetEventParams } from "./generated/api";
+export type { GetEventParams as GetEventQueryParamsType } from "./generated/types";

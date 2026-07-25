@@ -456,7 +456,7 @@ function MyEventsCard() {
         id: e.id,
         title: e.title,
         start: occ,
-        href: `/events/${e.id}`,
+        href: e.recurrence ? `/events/${e.id}?occ=${encodeURIComponent(occ.toISOString())}` : `/events/${e.id}`,
         subtype: EVENT_TYPE_LABEL_DASH[e.eventType] ?? "Event",
         myStatus: "npc",
       });
@@ -536,7 +536,7 @@ function TodaysScheduleCard() {
         id: e.id,
         title: e.title,
         start: occ,
-        href: `/events/${e.id}`,
+        href: e.recurrence ? `/events/${e.id}?occ=${encodeURIComponent(occ.toISOString())}` : `/events/${e.id}`,
         subtype: EVENT_TYPE_LABEL_DASH[e.eventType] ?? "Event",
         myStatus: myOccs.has(occ.getTime()) ? "npc" : null,
       });
@@ -773,7 +773,7 @@ function NpcSessionBanner() {
   // a later session just because the viewer already volunteered for the next
   // one; the banner is about the *next* session only. Once the viewer has
   // signed up for that soonest session, we hide the banner entirely.
-  let best: { id: number; title: string; start: Date; signedUp: boolean } | null = null;
+  let best: { id: number; title: string; start: Date; signedUp: boolean; recurring: boolean } | null = null;
   for (const e of (events ?? []) as EventView[]) {
     if (e.eventType !== "session" || e.needsNpcs !== true) continue;
     const base = new Date(e.startAt);
@@ -790,7 +790,7 @@ function NpcSessionBanner() {
     // on recurring events).
     const signedUp = myOccurrenceSet(e.myOccurrences).has(occ.getTime());
     if (!best || occ < best.start) {
-      best = { id: e.id, title: e.title, start: occ, signedUp };
+      best = { id: e.id, title: e.title, start: occ, signedUp, recurring: !!e.recurrence };
     } else if (occ.getTime() === best.start.getTime() && signedUp) {
       // A single session can have duplicate rows (Discord + website). If the
       // viewer signed up on either copy, treat the session as signed up.
@@ -824,7 +824,13 @@ function NpcSessionBanner() {
             <div className="text-[11px] font-mono tracking-wider text-nc-yellow uppercase">
               Main Session needs NPCs · <span className="font-semibold tabular-nums text-foreground">{countdown}</span>
             </div>
-            <Link href={`/events/${session.id}`}>
+            <Link
+              href={
+                session.recurring
+                  ? `/events/${session.id}?occ=${encodeURIComponent(session.start.toISOString())}`
+                  : `/events/${session.id}`
+              }
+            >
               <div
                 className="font-display text-lg md:text-xl text-foreground truncate hover:text-nc-yellow transition-colors"
                 data-testid="text-npc-session-title"
@@ -1022,7 +1028,14 @@ function NpcsNeededCard() {
     if (!occ) continue;
     // Skip only if signed up for THIS occurrence (per-occurrence signups).
     if (myOccurrenceSet(e.myOccurrences).has(occ.getTime())) continue;
-    items.push({ kind: "event", id: e.id, title: e.title, start: occ, href: `/events/${e.id}`, subtype: EVENT_TYPE_LABEL_DASH[e.eventType] ?? "Event" });
+    items.push({
+      kind: "event",
+      id: e.id,
+      title: e.title,
+      start: occ,
+      href: e.recurrence ? `/events/${e.id}?occ=${encodeURIComponent(occ.toISOString())}` : `/events/${e.id}`,
+      subtype: EVENT_TYPE_LABEL_DASH[e.eventType] ?? "Event",
+    });
   }
 
   if (items.length === 0) return null;

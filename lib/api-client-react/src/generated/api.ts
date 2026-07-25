@@ -151,6 +151,7 @@ import type {
   GetActorReportParams,
   GetCharacterMedical200,
   GetCharacterPendingEdit200,
+  GetEventParams,
   GetGunMechanicsOverrides200,
   GetMyBreachPendingCount200,
   GetNotificationsUnreadCount200,
@@ -10629,20 +10630,29 @@ export function useCheckEventConflicts<TData = Awaited<ReturnType<typeof checkEv
 
 
 
-export const getGetEventUrl = (id: number,) => {
+export const getGetEventUrl = (id: number,
+    params?: GetEventParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/events/${id}`
+  return stringifiedParams.length > 0 ? `/api/events/${id}?${stringifiedParams}` : `/api/events/${id}`
 }
 
 /**
- * @summary Event detail. Manager-only fields (sign-up roster, sync error) populated for fixers/admins.
+ * @summary Event detail. Manager-only fields (sign-up roster, sync error) populated for fixers/admins. For recurring events, occurrenceStartAt scopes dates and the NPC roster to that occurrence.
  */
-export const getEvent = async (id: number, options?: RequestInit): Promise<EventView> => {
+export const getEvent = async (id: number,
+    params?: GetEventParams, options?: RequestInit): Promise<EventView> => {
 
-  return customFetch<EventView>(getGetEventUrl(id),
+  return customFetch<EventView>(getGetEventUrl(id,params),
   {
     ...options,
     method: 'GET'
@@ -10655,23 +10665,25 @@ export const getEvent = async (id: number, options?: RequestInit): Promise<Event
 
 
 
-export const getGetEventQueryKey = (id: number,) => {
+export const getGetEventQueryKey = (id: number,
+    params?: GetEventParams,) => {
     return [
-    `/api/events/${id}`
+    `/api/events/${id}`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetEventQueryOptions = <TData = Awaited<ReturnType<typeof getEvent>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEvent>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetEventQueryOptions = <TData = Awaited<ReturnType<typeof getEvent>>, TError = ErrorType<void>>(id: number,
+    params?: GetEventParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEvent>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetEventQueryKey(id);
+  const queryKey =  queryOptions?.queryKey ?? getGetEventQueryKey(id,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEvent>>> = ({ signal }) => getEvent(id, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEvent>>> = ({ signal }) => getEvent(id,params, { signal, ...requestOptions });
 
 
 
@@ -10685,15 +10697,16 @@ export type GetEventQueryError = ErrorType<void>
 
 
 /**
- * @summary Event detail. Manager-only fields (sign-up roster, sync error) populated for fixers/admins.
+ * @summary Event detail. Manager-only fields (sign-up roster, sync error) populated for fixers/admins. For recurring events, occurrenceStartAt scopes dates and the NPC roster to that occurrence.
  */
 
 export function useGetEvent<TData = Awaited<ReturnType<typeof getEvent>>, TError = ErrorType<void>>(
- id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEvent>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ id: number,
+    params?: GetEventParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEvent>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetEventQueryOptions(id,options)
+  const queryOptions = getGetEventQueryOptions(id,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

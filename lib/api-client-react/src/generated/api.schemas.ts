@@ -7991,6 +7991,10 @@ endAt: string;
 excludeEventId?: string;
 };
 
+export type GetEventParams = {
+occurrenceStartAt?: string;
+};
+
 export type CancelEvent200 = {
   ok: boolean;
   ticketRefunds: EventTicketRefundSummary;

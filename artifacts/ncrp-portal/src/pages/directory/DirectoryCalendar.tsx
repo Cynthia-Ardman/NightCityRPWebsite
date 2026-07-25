@@ -168,7 +168,7 @@ export default function DirectoryCalendar() {
             id: e.id,
             title: e.title,
             start: occ,
-            href: `/events/${e.id}`,
+            href: e.recurrence ? `/events/${e.id}?occ=${encodeURIComponent(occ.toISOString())}` : `/events/${e.id}`,
             subtype: EVENT_TYPE_LABEL[e.eventType] ?? "Event",
             eventType: e.eventType,
             myStatus: myOccs.has(occ.getTime()) ? "npc" : null,
