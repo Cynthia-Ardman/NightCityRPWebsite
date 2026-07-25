@@ -1049,6 +1049,11 @@ export const missionActorPayments = pgTable("mission_actor_payments", {
   fixerId: text("fixer_id"),
   fixerName: text("fixer_name"),
   missionDate: timestamp("mission_date", { withTimezone: true }),
+  // For payouts tied to a RECURRING portal event: the concrete occurrence
+  // (startAt instant) the payout covers. Null for non-recurring events,
+  // mission payouts, and all legacy rows. Lets the same NPC be paid once per
+  // occurrence instead of once per event series.
+  occurrenceStartAt: timestamp("occurrence_start_at", { withTimezone: true }),
   amount: integer("amount").notNull().default(0),
   // paid | failed | simulated.
   paymentStatus: text("payment_status").notNull().default("paid"),
@@ -1062,11 +1067,17 @@ export const missionActorPayments = pgTable("mission_actor_payments", {
   onePaidPerActorIdx: uniqueIndex("mission_actor_paid_unique_idx")
     .on(t.missionId, t.userId)
     .where(sql`payment_status = 'paid'`),
-  // Pay-once guard for non-mission EVENT payouts: at most one paid row per
-  // (eventId, userId). Partial so it only applies to event-bound paid rows.
+  // Pay-once guard for non-mission EVENT payouts. Split into two plain partial
+  // indexes (no coalesce() sentinel — see event_npc_signups indexes for why):
+  // non-recurring events / legacy rows dedupe per (eventId, userId); recurring
+  // events dedupe per (eventId, userId, occurrence) so the same NPC can be
+  // paid again for a later occurrence of the same weekly social.
   onePaidPerEventActorIdx: uniqueIndex("mission_actor_event_paid_unique_idx")
     .on(t.eventId, t.userId)
-    .where(sql`payment_status = 'paid' and event_id is not null`),
+    .where(sql`payment_status = 'paid' and event_id is not null and occurrence_start_at is null`),
+  onePaidPerEventActorOccIdx: uniqueIndex("mission_actor_event_occ_paid_unique_idx")
+    .on(t.eventId, t.userId, t.occurrenceStartAt)
+    .where(sql`payment_status = 'paid' and event_id is not null and occurrence_start_at is not null`),
   missionIdx: index("mission_actor_payments_mission_idx").on(t.missionId),
   userIdx: index("mission_actor_payments_user_idx").on(t.userId),
   fixerIdx: index("mission_actor_payments_fixer_idx").on(t.fixerId),

@@ -3,7 +3,7 @@ import request from "supertest";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin } from "../test/testDb";
 import { and, eq } from "drizzle-orm";
-import { db, events, eventNpcSignups } from "@workspace/db";
+import { db, events, eventNpcSignups, missionActorPayments } from "@workspace/db";
 
 const app = buildTestApp();
 
@@ -460,5 +460,180 @@ describe("GET /events/conflicts", () => {
       .get(`/api/events/conflicts?startAt=${encodeURIComponent(future(24))}&endAt=${encodeURIComponent(future(26))}`)
       .set("x-test-user", admin.id);
     expect(ok.status).toBe(200);
+  });
+});
+
+describe("recurring events keep NPCs per occurrence", () => {
+  const RECURRENCE = { frequency: 2, interval: 1, byWeekday: [6], count: null, until: null };
+
+  async function createRecurringNpcEvent(adminId: string) {
+    const res = await createValidEvent(adminId, { needsNpcs: true });
+    expect(res.status).toBe(201);
+    const event = res.body as { id: number; startAt: string };
+    await db.update(events).set({ recurrenceRule: RECURRENCE }).where(eq(events.id, event.id));
+    return event;
+  }
+
+  async function activeRows(eventId: number) {
+    return db
+      .select()
+      .from(eventNpcSignups)
+      .where(and(eq(eventNpcSignups.eventId, eventId), eq(eventNpcSignups.state, "signed_up")));
+  }
+
+  it("a roll-forward (start moves a week ahead) does NOT carry sign-ups to the next occurrence", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const event = await createRecurringNpcEvent(admin.id);
+
+    // Player signs up for the current occurrence; also plant a legacy
+    // NULL-occurrence row for a second volunteer.
+    const other = await createUser();
+    const signup = await request(app)
+      .post(`/api/events/${event.id}/npc-signups`)
+      .set("x-test-user", player.id)
+      .send({});
+    expect(signup.status).toBe(200);
+    await db.insert(eventNpcSignups).values({
+      eventId: event.id,
+      userId: other.id,
+      characterId: null,
+      note: null,
+      state: "signed_up",
+      occurrenceStartAt: null,
+    });
+
+    const oldStart = new Date(event.startAt).toISOString();
+    const newStart = future(24 * 8); // rolls forward past 24h => next occurrence
+    const patch = await request(app)
+      .patch(`/api/events/${event.id}`)
+      .set("x-test-user", admin.id)
+      .send({ startAt: newStart, endAt: future(24 * 8 + 2) });
+    expect(patch.status).toBe(200);
+
+    // Both rows stay active but pinned to the OLD occurrence.
+    const rows = await activeRows(event.id);
+    expect(rows).toHaveLength(2);
+    for (const r of rows) {
+      expect(r.occurrenceStartAt?.toISOString()).toBe(oldStart);
+    }
+
+    // The new occurrence starts with a clean roster.
+    const view = await request(app).get(`/api/events/${event.id}`).set("x-test-user", admin.id);
+    expect(view.status).toBe(200);
+    expect(view.body.signupCount).toBe(0);
+    expect(view.body.signups ?? []).toHaveLength(0);
+    expect(view.body.mySignup).toBeNull();
+
+    // The player can sign up again for the new occurrence.
+    const again = await request(app)
+      .post(`/api/events/${event.id}/npc-signups`)
+      .set("x-test-user", player.id)
+      .send({});
+    expect(again.status).toBe(200);
+    const after = await request(app).get(`/api/events/${event.id}`).set("x-test-user", admin.id);
+    expect(after.body.signupCount).toBe(1);
+  });
+
+  it("a ~23h shift (daily social across a DST boundary) still counts as a roll-forward", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const event = await createRecurringNpcEvent(admin.id);
+
+    const signup = await request(app)
+      .post(`/api/events/${event.id}/npc-signups`)
+      .set("x-test-user", player.id)
+      .send({});
+    expect(signup.status).toBe(200);
+
+    const oldStart = new Date(event.startAt).toISOString();
+    const newStart = future(24 + 23); // +23h from the original future(24)
+    const patch = await request(app)
+      .patch(`/api/events/${event.id}`)
+      .set("x-test-user", admin.id)
+      .send({ startAt: newStart, endAt: future(24 + 25) });
+    expect(patch.status).toBe(200);
+
+    const rows = await activeRows(event.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].occurrenceStartAt?.toISOString()).toBe(oldStart);
+
+    const view = await request(app).get(`/api/events/${event.id}`).set("x-test-user", admin.id);
+    expect(view.body.signupCount).toBe(0);
+  });
+
+  it("a same-day time correction carries sign-ups to the corrected time", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const event = await createRecurringNpcEvent(admin.id);
+
+    const signup = await request(app)
+      .post(`/api/events/${event.id}/npc-signups`)
+      .set("x-test-user", player.id)
+      .send({});
+    expect(signup.status).toBe(200);
+
+    const newStart = future(25); // +1h from the original future(24) => correction
+    const patch = await request(app)
+      .patch(`/api/events/${event.id}`)
+      .set("x-test-user", admin.id)
+      .send({ startAt: newStart, endAt: future(27) });
+    expect(patch.status).toBe(200);
+
+    const rows = await activeRows(event.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].occurrenceStartAt?.toISOString()).toBe(new Date(newStart).toISOString());
+
+    const view = await request(app).get(`/api/events/${event.id}`).set("x-test-user", player.id);
+    expect(view.body.mySignup).not.toBeNull();
+    expect(view.body.signupCount).toBe(1);
+  });
+
+  it("pay-once guard is per occurrence: paid rows for different occurrences coexist, same occurrence conflicts", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const event = await createRecurringNpcEvent(admin.id);
+    const occA = new Date(event.startAt);
+    const occB = new Date(new Date(event.startAt).getTime() + 7 * 24 * 3600_000);
+
+    const base = {
+      eventId: event.id,
+      missionName: "Haywood Social",
+      userId: player.id,
+      amount: 500,
+      paymentStatus: "paid" as const,
+      source: "manual" as const,
+    };
+    await db.insert(missionActorPayments).values({ ...base, occurrenceStartAt: occA });
+    // Same user, LATER occurrence — must be allowed.
+    await db.insert(missionActorPayments).values({ ...base, occurrenceStartAt: occB });
+    // Same occurrence again — unique index must reject.
+    await expect(
+      db.insert(missionActorPayments).values({ ...base, occurrenceStartAt: occA }),
+    ).rejects.toThrow();
+  });
+
+  it("paidActorUserIds only locks actors paid for the CURRENT occurrence", async () => {
+    const admin = await createAdmin();
+    const paidLastWeek = await createUser();
+    const paidThisWeek = await createUser();
+    const event = await createRecurringNpcEvent(admin.id);
+    const current = new Date(event.startAt);
+    const lastWeek = new Date(current.getTime() - 7 * 24 * 3600_000);
+
+    const base = {
+      eventId: event.id,
+      missionName: "Haywood Social",
+      amount: 500,
+      paymentStatus: "paid" as const,
+      source: "manual" as const,
+    };
+    await db.insert(missionActorPayments).values({ ...base, userId: paidLastWeek.id, occurrenceStartAt: lastWeek });
+    await db.insert(missionActorPayments).values({ ...base, userId: paidThisWeek.id, occurrenceStartAt: current });
+
+    const view = await request(app).get(`/api/events/${event.id}`).set("x-test-user", admin.id);
+    expect(view.status).toBe(200);
+    expect(view.body.paidActorUserIds).toContain(paidThisWeek.id);
+    expect(view.body.paidActorUserIds).not.toContain(paidLastWeek.id);
   });
 });

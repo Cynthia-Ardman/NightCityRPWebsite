@@ -727,6 +727,12 @@ function toView(
   const myMatches = mine.filter(matchesOccurrence);
   const mySignup =
     myMatches.find((s) => s.state === "signed_up") ?? myMatches[0] ?? null;
+  // Each occurrence of a recurring event has its OWN NPC roster: the count and
+  // the manager roster only show sign-ups for the event's current occurrence,
+  // so last Friday's volunteers never appear "signed up" for next Friday.
+  const occurrenceSignups = e.recurrenceRule
+    ? signups.filter(matchesOccurrence)
+    : signups;
   const myOccurrences = Array.from(
     new Set(
       mine
@@ -759,12 +765,12 @@ function toView(
     // Active (still-awaiting-confirmation) sign-ups only; the roster now also
     // carries resolved attended/no_show rows for history, which must not inflate
     // the calendar's "needs N NPCs" count.
-    signupCount: signups.filter((s) => s.state === "signed_up").length,
+    signupCount: occurrenceSignups.filter((s) => s.state === "signed_up").length,
     mySignup,
     myOccurrences,
     canManage: viewer.isManager,
     recurrence: e.recurrenceRule ?? null,
-    ...(includeSignups && viewer.isManager ? { signups } : {}),
+    ...(includeSignups && viewer.isManager ? { signups: occurrenceSignups } : {}),
   };
 }
 
@@ -862,10 +868,22 @@ export async function getEventDetail(id: number, viewer: EventViewer): Promise<E
   );
   view.description = await resolveMentions(view.description);
   if (viewer.isManager) {
+    // Paid-lock scope: for a RECURRING event only payments for the CURRENT
+    // occurrence lock the UI — being paid for last Friday must not block
+    // being paid for this Friday. Non-recurring events keep the per-event
+    // scope (legacy rows have a NULL occurrence).
     const paidRows = await db
       .select({ userId: missionActorPayments.userId })
       .from(missionActorPayments)
-      .where(and(eq(missionActorPayments.eventId, id), eq(missionActorPayments.paymentStatus, "paid")));
+      .where(
+        and(
+          eq(missionActorPayments.eventId, id),
+          eq(missionActorPayments.paymentStatus, "paid"),
+          ...(row.e.recurrenceRule
+            ? [eq(missionActorPayments.occurrenceStartAt, row.e.startAt)]
+            : []),
+        ),
+      );
     view.paidActorUserIds = [...new Set(paidRows.map((r) => r.userId))];
   }
   // ---- Tickets ----
@@ -966,7 +984,11 @@ export async function updateEvent(id: number, patch: Partial<EventInput>): Promi
     patch.startAt !== undefined &&
     updated.startAt.getTime() !== before.startAt.getTime()
   ) {
-    await restampNpcSignupsForStartChange(id, updated.startAt, !!updated.recurrenceRule);
+    if (updated.recurrenceRule) {
+      await handleRecurringNpcSignupsOnStartChange(id, before.startAt, updated.startAt);
+    } else {
+      await restampNpcSignupsForStartChange(id, updated.startAt, false);
+    }
   }
   const ctx = await getMissionContext();
   const sync = await syncEventDiscordEvent(updated, ctx.live);
@@ -1496,11 +1518,14 @@ export async function reconcileDiscordEvents(live: boolean): Promise<ReconcileRe
         // are excluded inside the helper — check BOTH sides' recurrence since
         // the backfill above may have just linked one.
         if (c.startAt.getTime() !== row.startAt.getTime()) {
-          await restampNpcSignupsForStartChange(
-            row.id,
-            c.startAt,
-            !!(row.recurrenceRule ?? d.recurrence),
-          );
+          if (row.recurrenceRule ?? d.recurrence) {
+            // Recurring: Discord rolled startAt to the next occurrence (or a
+            // same-occurrence time edit was pulled). Pin/restamp so sign-ups
+            // never carry across occurrences.
+            await handleRecurringNpcSignupsOnStartChange(row.id, row.startAt, c.startAt);
+          } else {
+            await restampNpcSignupsForStartChange(row.id, c.startAt, false);
+          }
         }
       }
     } else {
@@ -1637,6 +1662,92 @@ export async function restampNpcSignupsForStartChange(
     WHERE event_id = ${eventId}
       AND state = 'signed_up'
       AND occurrence_start_at IS DISTINCT FROM ${newIso}::timestamptz
+  `);
+}
+
+// ---------------------------------------------------------------------------
+// RECURRING events: when the stored startAt changes there are two distinct
+// cases, and NPC sign-ups must be handled differently in each:
+//
+//   1. Roll-forward (Discord advances startAt to the NEXT occurrence once the
+//      current one begins, or staff move the series a week+). Sign-ups for the
+//      occurrence that just ran must NOT follow the event to next week — each
+//      occurrence has its own NPCs. Explicitly-stamped rows already stay
+//      pinned; legacy NULL-occurrence rows (which mean "the current startAt")
+//      would silently roll forward, so pin them to the OLD start instant.
+//
+//   2. Same-occurrence time correction (e.g. the social moves 7pm → 8pm on the
+//      same day). Sign-ups should follow the corrected time, exactly like the
+//      non-recurring restamp: re-stamp active rows on the old instant (or
+//      legacy NULL) to the new instant.
+//
+// Heuristic: a change of less than 12h is a time correction; anything larger
+// is a roll-forward. The tightest real roll-forward is a DAILY social, which
+// advances ~24h — but a DST boundary can shrink that to 23h, so the threshold
+// stays well below it. Genuine corrections are minutes to a few hours.
+// ---------------------------------------------------------------------------
+export async function handleRecurringNpcSignupsOnStartChange(
+  eventId: number,
+  oldStartAt: Date,
+  newStartAt: Date,
+): Promise<void> {
+  const deltaMs = Math.abs(newStartAt.getTime() - oldStartAt.getTime());
+  const oldIso = oldStartAt.toISOString();
+  if (deltaMs < 12 * 60 * 60 * 1000) {
+    const newIso = newStartAt.toISOString();
+    // Time correction: move active rows targeting the old occurrence (or
+    // legacy NULL = "current") onto the new instant, unless the user already
+    // holds an active row there (partial unique index would reject it) —
+    // withdraw those duplicates instead.
+    await db.execute(sql`
+      UPDATE event_npc_signups s
+      SET occurrence_start_at = ${newIso}::timestamptz, updated_at = now()
+      WHERE s.event_id = ${eventId}
+        AND s.state = 'signed_up'
+        AND (s.occurrence_start_at IS NULL OR s.occurrence_start_at = ${oldIso}::timestamptz)
+        AND NOT EXISTS (
+          SELECT 1 FROM event_npc_signups o
+          WHERE o.event_id = ${eventId}
+            AND o.user_id = s.user_id
+            AND o.state = 'signed_up'
+            AND o.occurrence_start_at = ${newIso}::timestamptz
+            AND o.id <> s.id
+        )
+    `);
+    await db.execute(sql`
+      UPDATE event_npc_signups
+      SET state = 'withdrawn', updated_at = now()
+      WHERE event_id = ${eventId}
+        AND state = 'signed_up'
+        AND (occurrence_start_at IS NULL OR occurrence_start_at = ${oldIso}::timestamptz)
+    `);
+    return;
+  }
+  // Roll-forward: pin legacy NULL rows to the occurrence they were actually
+  // for (the old startAt) so they don't carry onto the next occurrence. If the
+  // user somehow also holds an explicit row at the old instant, withdraw the
+  // NULL duplicate instead of violating the unique index.
+  await db.execute(sql`
+    UPDATE event_npc_signups s
+    SET occurrence_start_at = ${oldIso}::timestamptz, updated_at = now()
+    WHERE s.event_id = ${eventId}
+      AND s.state = 'signed_up'
+      AND s.occurrence_start_at IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM event_npc_signups o
+        WHERE o.event_id = ${eventId}
+          AND o.user_id = s.user_id
+          AND o.state = 'signed_up'
+          AND o.occurrence_start_at = ${oldIso}::timestamptz
+          AND o.id <> s.id
+      )
+  `);
+  await db.execute(sql`
+    UPDATE event_npc_signups
+    SET state = 'withdrawn', updated_at = now()
+    WHERE event_id = ${eventId}
+      AND state = 'signed_up'
+      AND occurrence_start_at IS NULL
   `);
 }
 
@@ -1798,6 +1909,11 @@ export async function confirmEventNpcSignup(opts: {
       eventType: event.eventType,
       eventDate: event.startAt,
       eventId: event.id,
+      // Pay-once is scoped per occurrence for recurring events. Legacy
+      // NULL-occurrence sign-ups mean "the event's current startAt".
+      occurrenceStartAt: event.recurrenceRule
+        ? signup.occurrenceStartAt ?? event.startAt
+        : null,
       userIds: [signup.userId],
       amount,
     },

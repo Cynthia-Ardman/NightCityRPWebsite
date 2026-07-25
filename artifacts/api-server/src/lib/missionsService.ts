@@ -9,6 +9,7 @@ import {
   missionApplications,
   missionNpcSignups,
   botActorAttendance,
+  events,
   characters,
   customRequests,
   users,
@@ -3447,7 +3448,19 @@ export async function payMissionActors(
  * legitimately acts at many sessions); we only de-dupe within a single request.
  */
 export async function payStandaloneActors(
-  input: { eventName: string; eventType?: string | null; eventDate?: Date | null; eventId?: number | null; userIds: string[]; amount: number },
+  input: {
+    eventName: string;
+    eventType?: string | null;
+    eventDate?: Date | null;
+    eventId?: number | null;
+    // Concrete occurrence (startAt instant) this payout covers, for RECURRING
+    // portal events. When omitted and eventId points at a recurring event,
+    // defaults to the event's current startAt so each weekly occurrence gets
+    // its own pay-once scope. Ignored (forced null) for non-recurring events.
+    occurrenceStartAt?: Date | null;
+    userIds: string[];
+    amount: number;
+  },
   opts: { req?: Request; actorId?: string | null; actorName?: string | null },
 ): Promise<PayActorsResult> {
   const ctx = await getMissionContext();
@@ -3459,6 +3472,20 @@ export async function payStandaloneActors(
   const eventName = input.eventName.trim();
   const eventDate = input.eventDate ?? new Date();
   const amount = input.amount;
+
+  // Resolve the occurrence scope for event-bound payouts: recurring events
+  // dedupe per occurrence (default = the event's current startAt), everything
+  // else stays occurrence-less (per-event dedupe, matching legacy rows).
+  let occurrenceStartAt: Date | null = null;
+  if (input.eventId != null) {
+    const [ev] = await db
+      .select({ recurrenceRule: events.recurrenceRule, startAt: events.startAt })
+      .from(events)
+      .where(eq(events.id, input.eventId));
+    if (ev?.recurrenceRule) {
+      occurrenceStartAt = input.occurrenceStartAt ?? ev.startAt;
+    }
+  }
 
   const userRows = await db
     .select({ id: users.id, discordId: users.discordId, username: users.username })
@@ -3513,6 +3540,7 @@ export async function payStandaloneActors(
       fixerId: payerId,
       fixerName: payerName,
       missionDate: eventDate,
+      occurrenceStartAt,
       amount,
       source: "manual" as const,
       attendanceCreditedAt: now,
@@ -3525,18 +3553,26 @@ export async function payStandaloneActors(
       continue;
     }
 
-    // Event-bound payouts are deduped per (eventId, userId): if this actor was
-    // already paid for this event, onConflictDoNothing skips the insert and we
+    // Event-bound payouts are deduped so the same actor isn't paid twice:
+    // per (eventId, userId, occurrence) for recurring events, per
+    // (eventId, userId) otherwise. onConflictDoNothing skips the insert and we
     // count it as skipped rather than double-paying. Mission/legacy standalone
     // payouts keep their existing no-guard behaviour.
     const insertedRows = input.eventId != null
       ? await db
           .insert(missionActorPayments)
           .values({ ...base, paymentStatus: "paid" })
-          .onConflictDoNothing({
-            target: [missionActorPayments.eventId, missionActorPayments.userId],
-            where: sql`payment_status = 'paid' and event_id is not null`,
-          })
+          .onConflictDoNothing(
+            occurrenceStartAt != null
+              ? {
+                  target: [missionActorPayments.eventId, missionActorPayments.userId, missionActorPayments.occurrenceStartAt],
+                  where: sql`payment_status = 'paid' and event_id is not null and occurrence_start_at is not null`,
+                }
+              : {
+                  target: [missionActorPayments.eventId, missionActorPayments.userId],
+                  where: sql`payment_status = 'paid' and event_id is not null and occurrence_start_at is null`,
+                },
+          )
           .returning({ id: missionActorPayments.id })
       : await db
           .insert(missionActorPayments)

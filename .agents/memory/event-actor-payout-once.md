@@ -6,12 +6,20 @@ description: How non-mission EVENT actor payouts enforce pay-once, separate from
 `mission_actor_payments` is reused for BOTH mission actor pay AND non-mission EVENT
 payouts (missionId null). Event payouts now also carry `eventId`.
 
-**Rule:** pay-once for events is a SEPARATE partial unique index
-`mission_actor_event_paid_unique_idx` on `(event_id, user_id) WHERE payment_status='paid' AND event_id IS NOT NULL` — distinct from the mission index `mission_actor_paid_unique_idx` on (mission_id,user_id). `payStandaloneActors` only applies `onConflictDoNothing` (target+`where:` matching that predicate) when `eventId != null`; the legacy standalone path (eventId null, e.g. ad-hoc Pay Actors page) stays UNGUARDED by design (same actor legitimately plays many sessions).
+**Rule:** pay-once for events is per (event, user, OCCURRENCE), via TWO partial unique
+indexes (occurrence_start_at is nullable, so one index can't cover both):
+- `mission_actor_event_paid_unique_idx` (event_id,user_id) WHERE paid AND event_id NOT NULL AND occurrence_start_at IS NULL (legacy rows)
+- `mission_actor_event_occ_paid_unique_idx` (event_id,user_id,occurrence_start_at) WHERE paid AND event_id NOT NULL AND occurrence_start_at IS NOT NULL
 
-**Why:** an NPC must be payable exactly once per event; a no-show left unchecked must
-stay payable later, and an already-paid NPC must be locked. The shared table + shared
-service meant the obvious single guard would have wrongly blocked legitimate repeat ad-hoc payouts.
+`payStandaloneActors` resolves the occurrence for event-bound payouts (recurring event →
+input.occurrenceStartAt ?? event.startAt; non-recurring → null) and picks the matching
+`onConflictDoNothing` target. The legacy standalone path (eventId null, e.g. ad-hoc Pay
+Actors page) stays UNGUARDED by design (same actor legitimately plays many sessions).
+
+**Why:** a recurring social (e.g. daily Haywood Social) must let the SAME NPC be paid on
+every occurrence but never twice for one occurrence; a no-show left unchecked must
+stay payable later. A single (event,user) guard blocked next week's payout — legacy
+NULL paid rows only dedupe against other NULL rows (harmless, no backfill needed).
 
 **How to apply:** event-bound payouts pass `eventId` through route→service; `getEventDetail`
 returns `paidActorUserIds` (manager-only) so the EventDetail roster locks paid NPCs and only
