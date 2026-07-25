@@ -47,6 +47,11 @@ export interface CharacterSheetData {
      * @nullable
      */
   knownAffiliation?: string | null;
+  /**
+     * Optional archive tags picked from the shared tag-option registry (/directory/tag-options). Seeded into the character's manual tags when the sheet is approved.
+     * @maxItems 30
+     */
+  tags?: string[];
   /** @deprecated */
   attributes?: CharacterSheetDataAttributes;
   /** Free-text narrative description of what the character is good at. */

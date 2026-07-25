@@ -10,6 +10,7 @@ import { collectCyberware, buildCyberwareCostMap, entryPoints, validateCyberware
 import { validateSheetFields } from "../lib/sheet-validation";
 import { areCharacterSubmissionsDisabled } from "../lib/characterSubmissions";
 import { householdEffectiveCheckupDate } from "../lib/jobs";
+import { resolveRegistryTags } from "../lib/characterTags";
 import {
   isReviewer,
   isEligibleReviewer,
@@ -388,6 +389,18 @@ async function validateSheetForSubmission(data: unknown, user: User): Promise<st
   const fieldErr = validateSheetFields(data, user.roles);
   if (fieldErr) return fieldErr;
   const d = data as Record<string, unknown>;
+  // Tags are optional, but when present they must come from the shared
+  // tag-option registry (the same vocabulary the character archive uses).
+  if (d.tags !== undefined) {
+    if (!Array.isArray(d.tags) || !d.tags.every((t) => typeof t === "string")) {
+      return "tags must be a list of tag names";
+    }
+    if (d.tags.length > 30) return "Too many tags (max 30)";
+    const resolved = await resolveRegistryTags(d.tags);
+    if (resolved.unknown.length > 0) {
+      return `Unknown tag(s): ${resolved.unknown.join(", ")}. Tags must come from the shared tag list.`;
+    }
+  }
   // NPCs are story chrome (gangs, ripperdoc rigs, set-piece characters) and are
   // not balance-constrained, so the 6-CWP creation cap does not apply to them.
   if (d.sheetType === "NPC") return null;
@@ -936,6 +949,19 @@ async function materializeCharacterFromSheet(
   // createdAt would otherwise become that max). Null (first PC) = fresh start.
   const inheritedCheckupAt = await householdEffectiveCheckupDate(tx, sheet.ownerId);
 
+  // Seed archive tags picked on the sheet form into manualTags (the column the
+  // Discord importer never touches). Submission already validated them against
+  // the registry; if a tag was renamed/deleted between submit and close we keep
+  // the known ones rather than blocking the close over a stale label.
+  const rawTags = Array.isArray((sheet.data as Record<string, unknown> | null)?.tags)
+    ? ((sheet.data as Record<string, unknown>).tags as unknown[]).filter((t): t is string => typeof t === "string")
+    : [];
+  let manualTags: string[] = [];
+  if (rawTags.length > 0) {
+    // Lenient: keep the still-known tags, drop any that left the registry.
+    manualTags = (await resolveRegistryTags(rawTags)).tags;
+  }
+
   const [c] = await tx
     .insert(characters)
     .values({
@@ -944,6 +970,7 @@ async function materializeCharacterFromSheet(
       approved: true,
       claimed: true,
       lifeStatus: "active",
+      ...(manualTags.length > 0 ? { manualTags } : {}),
       ...(inheritedCheckupAt ? { lastCheckupAt: inheritedCheckupAt } : {}),
     })
     .returning();

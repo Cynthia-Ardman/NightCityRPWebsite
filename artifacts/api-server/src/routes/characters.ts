@@ -25,6 +25,7 @@ import { gte } from "drizzle-orm";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { recordSettledWalletMovement } from "../lib/economy";
+import { mergeTags, splitDesiredTags, resolveRegistryTags } from "../lib/characterTags";
 import { createPendingEdit } from "./pending-edits";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
 import {
@@ -166,7 +167,81 @@ router.get("/characters/:id", requireAuth, async (req, res): Promise<void> => {
     .orderBy(desc(auditLog.createdAt))
     .limit(1);
   const lastCheckupActualAt = lastVisit?.createdAt ?? c.lastCheckupAt ?? null;
-  res.json({ ...c, lifestyleTier, lastCheckupActualAt });
+  // `tags` = the merged display list (Discord-applied ∪ manual), same shape the
+  // public archive serves — the owner page renders and edits this list.
+  res.json({ ...c, lifestyleTier, lastCheckupActualAt, tags: mergeTags(c.appliedTags, c.manualTags) });
+});
+
+// PATCH /characters/:id/tags — owner OR staff (fixer/admin) replaces the
+// character's FULL desired tag list. Tags apply instantly (no review): they're
+// cosmetic archive labels, they don't overlap any field carried in a queued
+// pending-edit diff, and the vocabulary is locked to the staff-managed
+// tag-option registry, so a player can't invent free-form tags. Tags the
+// character already carries stay allowed even if they've since left the
+// registry (e.g. Discord-imported ones), so an unrelated edit never fails.
+const CharacterTagsSchema = z
+  .object({ tags: z.array(z.string().trim().min(1).max(60)).max(30) })
+  .strict();
+
+router.patch("/characters/:id/tags", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const c = await loadOwnedOrStaffChar(req.user!, id);
+  if (!c) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const parsed = CharacterTagsSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid tags", details: parsed.error.issues });
+    return;
+  }
+  const current = mergeTags(c.appliedTags, c.manualTags);
+  const resolved = await resolveRegistryTags(parsed.data.tags, current);
+  if (resolved.unknown.length > 0) {
+    res.status(400).json({ error: `Unknown tag(s): ${resolved.unknown.join(", ")}. Tags must come from the shared tag list.` });
+    return;
+  }
+  // Mutation + audit row land together (traceability rule for direct edits).
+  // The row is locked and re-read inside the tx so a concurrent importer
+  // rewrite of appliedTags can't be clobbered by the pre-tx snapshot.
+  const fwd = req.headers["x-forwarded-for"];
+  const ip = (Array.isArray(fwd) ? fwd[0] : (fwd?.toString().split(",")[0] ?? req.ip)) ?? null;
+  const ua = req.headers["user-agent"]?.toString().slice(0, 500) ?? null;
+  const after = await db.transaction(async (tx) => {
+    const [fresh] = await tx
+      .select({ appliedTags: characters.appliedTags, manualTags: characters.manualTags })
+      .from(characters)
+      .where(eq(characters.id, id))
+      .for("update");
+    if (!fresh) return null;
+    const before = mergeTags(fresh.appliedTags, fresh.manualTags);
+    const { applied, manual } = splitDesiredTags(resolved.tags, fresh.appliedTags);
+    const next = mergeTags(applied, manual);
+    if (JSON.stringify(before) === JSON.stringify(next)) return next;
+    await tx
+      .update(characters)
+      .set({ appliedTags: applied, manualTags: manual })
+      .where(eq(characters.id, id));
+    await tx.insert(auditLog).values({
+      category: "character",
+      action: "tags_edit",
+      actorId: req.user!.id,
+      actorName: req.user!.username,
+      actorIp: ip,
+      actorUa: ua,
+      targetType: "character",
+      targetId: String(id),
+      message: `Tags updated for ${c.name}`,
+      before: { tags: before },
+      after: { tags: next },
+    });
+    return next;
+  });
+  if (after === null) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json({ tags: after });
 });
 
 router.put("/characters/:id/lifestyle", requireAuth, async (req, res): Promise<void> => {

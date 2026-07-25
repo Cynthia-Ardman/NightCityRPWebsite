@@ -213,6 +213,18 @@ async function parkChangesRequested(sheetId: number, note = "needs work") {
     .where(eq(characterSheets.id, sheetId));
 }
 
+describe("sheet submission tag validation", () => {
+  it("rejects a submission whose tags are not in the shared registry", async () => {
+    const owner = await createUser();
+    const res = await request(app)
+      .post("/api/sheets")
+      .set("x-test-user", owner.id)
+      .send({ name: "Tag Reject", data: { ...validSheetData("Tag Reject"), tags: ["not-a-registry-tag"] } });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("not-a-registry-tag");
+  });
+});
+
 describe("sheet request-changes (retired) + resubmit", () => {
   it("request-changes is retired: returns 410 and never parks/blocks the sheet", async () => {
     const owner = await createUser();

@@ -25,6 +25,8 @@ export interface Character {
   archetype?: string | null;
   /** @nullable */
   background?: string | null;
+  /** Merged archive tags (Discord-applied ∪ manually added). Edit via PATCH /characters/{id}/tags. */
+  tags?: string[];
   /** @nullable */
   portraitUrl?: string | null;
   portraitUrls: string[];

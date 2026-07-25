@@ -28,8 +28,9 @@ import { useState, useMemo, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, ShieldAlert, Package, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil, Briefcase, History, Cpu, Lock } from "lucide-react";
+import { Shield, ShieldAlert, Package, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil, Briefcase, History, Cpu, Lock, Tag as TagIcon } from "lucide-react";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
+import EditCharacterTagsDialog from "@/components/EditCharacterTagsDialog";
 import LifeStatusPill from "@/components/LifeStatusPill";
 import CyberwareSection, { isCyberwareHeading } from "@/components/CyberwareSection";
 import StaffCyberwareCard from "@/components/StaffCyberwareCard";
@@ -63,6 +64,7 @@ export default function CharacterDetail() {
   // permanently delete a character (enforced server-side too).
   const canDelete = isAdmin || !!me.data?.isArchivist || !!me.data?.isCoordinator;
   const [editOpen, setEditOpen] = useState(false);
+  const [tagsOpen, setTagsOpen] = useState(false);
   // 204 means no pending edit; the generated hook returns undefined data in
   // that case so we just check truthiness to decide whether to render the
   // "review pending" banner that links to the queued edit.
@@ -111,6 +113,27 @@ export default function CharacterDetail() {
               <LifeStatusPill status={char.lifeStatus ?? "active"} />
             </div>
           </div>
+
+          <div className="flex flex-wrap items-center gap-1 pt-1" data-testid="row-char-tags">
+            {(char.tags ?? []).map((t) => (
+              <span
+                key={t}
+                className="px-2 py-0.5 border border-nc-magenta/50 text-nc-magenta font-mono text-[0.65rem] uppercase tracking-wider"
+                data-testid={`tag-char-${t}`}
+              >
+                {t}
+              </span>
+            ))}
+            <button
+              type="button"
+              onClick={() => setTagsOpen(true)}
+              className="px-2 py-0.5 border border-dashed border-border text-muted-foreground font-mono text-[0.65rem] uppercase tracking-wider hover:border-nc-magenta/60 hover:text-nc-magenta transition inline-flex items-center gap-1"
+              data-testid="button-edit-tags"
+            >
+              <TagIcon className="w-3 h-3" />
+              {(char.tags ?? []).length > 0 ? "EDIT TAGS" : "ADD TAGS"}
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -143,6 +166,13 @@ export default function CharacterDetail() {
       ) : null}
 
       <EditCharacterDialog character={char} open={editOpen} onOpenChange={setEditOpen} canDelete={canDelete} />
+      <EditCharacterTagsDialog
+        characterId={char.id}
+        characterName={char.name}
+        currentTags={char.tags ?? []}
+        open={tagsOpen}
+        onOpenChange={setTagsOpen}
+      />
 
       <CharacterTabsPanel characterId={char.id} />
     </div>

@@ -252,6 +252,45 @@ paths:
       tags: [characters]
       responses:
         "204": { description: Deleted }
+  /characters/{id}/tags:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    patch:
+      operationId: updateCharacterTags
+      tags: [characters]
+      summary: Replace a character's archive tags (owner or fixer/admin)
+      description: |
+        Sets the character's FULL desired tag list. Applies instantly (no
+        review) — tags are cosmetic archive labels. Every tag must exist in
+        the shared tag-option registry (`/directory/tag-options`), except tags
+        the character already carries (e.g. Discord-imported), which stay
+        allowed so an unrelated edit never fails.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tags]
+              properties:
+                tags:
+                  type: array
+                  maxItems: 30
+                  items: { type: string }
+      responses:
+        "200":
+          description: Updated merged tag list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tags]
+                properties:
+                  tags:
+                    type: array
+                    items: { type: string }
+        "400": { description: Invalid or unknown tag names }
+        "404": { description: Not found }
   /characters/{id}/updates:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -7506,6 +7545,10 @@ components:
         kind: { type: string, enum: [pc, npc] }
         archetype: { type: ["string", "null"] }
         background: { type: ["string", "null"] }
+        # Merged archive tags (Discord-applied ∪ manual). Only single-character
+        # GET returns this today, so it must stay OPTIONAL (list endpoints reuse
+        # this schema without it).
+        tags: { type: array, items: { type: string }, description: "Merged archive tags (Discord-applied ∪ manually added). Edit via PATCH /characters/{id}/tags." }
         portraitUrl: { type: ["string", "null"] }
         portraitUrls:
           type: array
@@ -9735,6 +9778,11 @@ components:
         knownAffiliation:
           type: ["string", "null"]
           description: Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.
+        tags:
+          type: array
+          maxItems: 30
+          items: { type: string }
+          description: Optional archive tags picked from the shared tag-option registry (/directory/tag-options). Seeded into the character's manual tags when the sheet is approved.
         attributes:
           type: object
           deprecated: true

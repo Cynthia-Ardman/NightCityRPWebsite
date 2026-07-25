@@ -10,6 +10,8 @@ import {
   useListCyberware,
   useListGuns,
   useListGuidebook,
+  useListTagOptions,
+  getListTagOptionsQueryKey,
   getListMySheetsQueryKey,
   getGetSheetQueryKey,
 } from "@workspace/api-client-react";
@@ -132,6 +134,9 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   const isInReview = initialSheet?.status === "pending";
   const { data: catalog } = useListCyberware();
   const { data: gunCatalog } = useListGuns();
+  const { data: tagOptions } = useListTagOptions({
+    query: { queryKey: getListTagOptionsQueryKey() },
+  });
 
   // Distinct, sorted gun names from the catalog. Drives the <datalist> on the
   // Firearms section so players can pick a known weapon or free-type their own.
@@ -226,6 +231,12 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   // else is assumed to have. Can't connect to the net, can't use smart-linked
   // guns, etc. Self-declared like FBC; no programmatic enforcement.
   const [organic, setOrganic] = useState<boolean>(!!init.organic);
+  // Archive tags picked from the shared tag-option registry — the same
+  // vocabulary the character archive uses, so a tag added there is available
+  // here. Seeded into the character's tags when the sheet is approved.
+  const [sheetTags, setSheetTags] = useState<string[]>(
+    Array.isArray(init.tags) ? init.tags.map(String) : [],
+  );
 
   // Non-fixers may only create PCs — force PC if a stale NPC value slips in.
   // Wait for auth to resolve first so a fixer's NPC draft is never downgraded
@@ -297,6 +308,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     fbc,
     ncpd,
     organic,
+    tags: sheetTags,
   });
 
   const createMut = useSubmitSheet();
@@ -401,7 +413,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     () => JSON.stringify({ fullName: fullName.trim() || "(untitled draft)", payload: buildPayload() }),
     // We want this to recompute whenever any field changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, hooks, knownAffiliation, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls, ripperDoc, fbc, ncpd, organic],
+    [sheetType, fullName, nickname, pronouns, occupation, archetype, age, gender, physicalDescription, appearance, psychProfile, background, hooks, knownAffiliation, notes, skills, chrome, gear, guns, portraitUrls, profileUrl, statsImageUrls, ripperDoc, fbc, ncpd, organic, sheetTags],
   );
 
   useEffect(() => {
@@ -721,6 +733,49 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
               </span>
             </span>
           </label>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-none border-border bg-card/50">
+        <CardHeader><CardTitle className="font-display tracking-widest">ARCHIVE TAGS</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="font-mono text-xs text-muted-foreground">
+            Optional. Pick tags from the shared archive tag list — they'll be applied to your
+            character when the sheet is approved (you can change them later from the character page).
+          </p>
+          {!tagOptions || tagOptions.length === 0 ? (
+            <p className="font-mono text-xs text-muted-foreground italic">No tags defined yet.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1" data-testid="list-sheet-tags">
+              {tagOptions.map((o) => {
+                const active = sheetTags.some((t) => t.toLowerCase() === o.name.toLowerCase());
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    disabled={!active && sheetTags.length >= 30}
+                    onClick={() =>
+                      setSheetTags((cur) =>
+                        active
+                          ? cur.filter((t) => t.toLowerCase() !== o.name.toLowerCase())
+                          : cur.length >= 30
+                            ? cur
+                            : [...cur, o.name],
+                      )
+                    }
+                    className={`px-2 py-1 border font-mono text-[0.65rem] uppercase tracking-wider transition ${
+                      active
+                        ? "border-nc-magenta text-nc-magenta bg-nc-magenta/10"
+                        : "border-border text-muted-foreground hover:border-nc-magenta/40"
+                    } disabled:opacity-40 disabled:cursor-not-allowed`}
+                    data-testid={`option-sheet-tag-${o.id}`}
+                  >
+                    {o.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 

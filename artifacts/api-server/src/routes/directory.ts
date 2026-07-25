@@ -28,6 +28,7 @@ import { sumCwpByCharacter } from "../lib/cyberware";
 import { deriveCyberwareBand } from "../lib/jobs";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
 import { loadReservedListingIds } from "../lib/listingReservations";
+import { normalizeTag, mergeTags, splitDesiredTags } from "../lib/characterTags";
 
 const router: IRouter = Router();
 
@@ -37,43 +38,6 @@ const router: IRouter = Router();
 //   - manualTags   : owned by staff via the archive UI (never touched by import)
 // Display/filter = the case-insensitive union of the two, preserving the first
 // occurrence's casing (applied tags win the casing tie since they list first).
-function normalizeTag(s: string): string {
-  return s.trim().replace(/\s+/g, " ");
-}
-function mergeTags(applied: string[] | null, manual: string[] | null): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const t of [...(applied ?? []), ...(manual ?? [])]) {
-    const norm = normalizeTag(t);
-    if (norm.length === 0) continue;
-    const key = norm.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(norm);
-  }
-  return out;
-}
-// Split a desired merged tag set back into the two storage columns. Tags that
-// already exist on the Discord-synced list stay there (so we don't duplicate
-// them into manualTags); everything else becomes a manual tag. A tag the user
-// removed simply won't appear in `desired`, so it drops from whichever column
-// held it. NOTE: removing a Discord-origin tag here only suppresses it until
-// the next import re-derives appliedTags from the live thread.
-function splitDesiredTags(
-  desired: string[],
-  currentApplied: string[] | null,
-): { applied: string[]; manual: string[] } {
-  const desiredMerged = mergeTags(desired, []);
-  const appliedLower = new Set((currentApplied ?? []).map((t) => normalizeTag(t).toLowerCase()));
-  const applied: string[] = [];
-  const manual: string[] = [];
-  for (const t of desiredMerged) {
-    if (appliedLower.has(t.toLowerCase())) applied.push(t);
-    else manual.push(t);
-  }
-  return { applied, manual };
-}
-
 // ---- CWP / cyberware band helpers -----------------------------------------
 // The card shows a single "band": Organic, or the chrome load (None / Medium /
 // High / Extreme). The chrome load is NOT stored on the character — it is

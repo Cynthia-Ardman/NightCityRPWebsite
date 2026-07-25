@@ -1461,6 +1461,8 @@ export interface Character {
   archetype?: string | null;
   /** @nullable */
   background?: string | null;
+  /** Merged archive tags (Discord-applied ∪ manually added). Edit via PATCH /characters/{id}/tags. */
+  tags?: string[];
   /** @nullable */
   portraitUrl?: string | null;
   portraitUrls: string[];
@@ -4653,6 +4655,11 @@ export interface CharacterSheetData {
      * @nullable
      */
   knownAffiliation?: string | null;
+  /**
+     * Optional archive tags picked from the shared tag-option registry (/directory/tag-options). Seeded into the character's manual tags when the sheet is approved.
+     * @maxItems 30
+     */
+  tags?: string[];
   /** @deprecated */
   attributes?: CharacterSheetDataAttributes;
   /** Free-text narrative description of what the character is good at. */
@@ -7876,6 +7883,15 @@ export type AcceptRules200 = {
 export type UpdateCharacter409 = {
   error?: string;
   pendingEditId?: number;
+};
+
+export type UpdateCharacterTagsBody = {
+  /** @maxItems 30 */
+  tags: string[];
+};
+
+export type UpdateCharacterTags200 = {
+  tags: string[];
 };
 
 export type DeactivateCharacter200 = {

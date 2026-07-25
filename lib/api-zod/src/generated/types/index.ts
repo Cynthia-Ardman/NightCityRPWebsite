@@ -651,6 +651,8 @@ export * from './upcomingBillsMedsItem';
 export * from './upcomingBillsRentItem';
 export * from './upcomingBillsTotals';
 export * from './updateCharacter409';
+export * from './updateCharacterTags200';
+export * from './updateCharacterTagsBody';
 export * from './updateGunMechanicsOverrides200';
 export * from './uploadUrlRequest';
 export * from './uploadUrlResponse';

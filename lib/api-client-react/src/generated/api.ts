@@ -331,6 +331,8 @@ import type {
   TransferInput,
   UpcomingBills,
   UpdateCharacter409,
+  UpdateCharacterTags200,
+  UpdateCharacterTagsBody,
   UpdateGunMechanicsOverrides200,
   UploadUrlRequest,
   UploadUrlResponse,
@@ -1386,6 +1388,84 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getDeleteCharacterMutationOptions(options));
+    }
+
+export const getUpdateCharacterTagsUrl = (id: number,) => {
+
+
+
+
+  return `/api/characters/${id}/tags`
+}
+
+/**
+ * Sets the character's FULL desired tag list. Applies instantly (no
+review) — tags are cosmetic archive labels. Every tag must exist in
+the shared tag-option registry (`/directory/tag-options`), except tags
+the character already carries (e.g. Discord-imported), which stay
+allowed so an unrelated edit never fails.
+
+ * @summary Replace a character's archive tags (owner or fixer/admin)
+ */
+export const updateCharacterTags = async (id: number,
+    updateCharacterTagsBody: UpdateCharacterTagsBody, options?: RequestInit): Promise<UpdateCharacterTags200> => {
+
+  return customFetch<UpdateCharacterTags200>(getUpdateCharacterTagsUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateCharacterTagsBody,)
+  }
+);}
+
+
+
+
+export const getUpdateCharacterTagsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCharacterTags>>, TError,{id: number;data: BodyType<UpdateCharacterTagsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCharacterTags>>, TError,{id: number;data: BodyType<UpdateCharacterTagsBody>}, TContext> => {
+
+const mutationKey = ['updateCharacterTags'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCharacterTags>>, {id: number;data: BodyType<UpdateCharacterTagsBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateCharacterTags(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCharacterTagsMutationResult = NonNullable<Awaited<ReturnType<typeof updateCharacterTags>>>
+    export type UpdateCharacterTagsMutationBody = BodyType<UpdateCharacterTagsBody>
+    export type UpdateCharacterTagsMutationError = ErrorType<void>
+
+    /**
+ * @summary Replace a character's archive tags (owner or fixer/admin)
+ */
+export const useUpdateCharacterTags = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCharacterTags>>, TError,{id: number;data: BodyType<UpdateCharacterTagsBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCharacterTags>>,
+        TError,
+        {id: number;data: BodyType<UpdateCharacterTagsBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateCharacterTagsMutationOptions(options));
     }
 
 export const getListCharacterUpdatesUrl = (id: number,) => {

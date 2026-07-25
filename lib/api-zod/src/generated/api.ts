@@ -118,6 +118,7 @@ export const ListMyCharactersResponseItem = zod.object({
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional().describe('Merged archive tags (Discord-applied ∪ manually added). Edit via PATCH \/characters\/{id}\/tags.'),
   "portraitUrl": zod.string().nullish(),
   "portraitUrls": zod.array(zod.string()),
   "statsImageUrls": zod.array(zod.string()),
@@ -189,6 +190,7 @@ export const GetCharacterResponse = zod.object({
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional().describe('Merged archive tags (Discord-applied ∪ manually added). Edit via PATCH \/characters\/{id}\/tags.'),
   "portraitUrl": zod.string().nullish(),
   "portraitUrls": zod.array(zod.string()),
   "statsImageUrls": zod.array(zod.string()),
@@ -292,6 +294,7 @@ export const UpdateCharacterResponse = zod.object({
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional().describe('Merged archive tags (Discord-applied ∪ manually added). Edit via PATCH \/characters\/{id}\/tags.'),
   "portraitUrl": zod.string().nullish(),
   "portraitUrls": zod.array(zod.string()),
   "statsImageUrls": zod.array(zod.string()),
@@ -340,6 +343,32 @@ export const UpdateCharacterResponse = zod.object({
 
 export const DeleteCharacterParams = zod.object({
   "id": zod.coerce.number()
+})
+
+
+/**
+ * Sets the character's FULL desired tag list. Applies instantly (no
+review) — tags are cosmetic archive labels. Every tag must exist in
+the shared tag-option registry (`/directory/tag-options`), except tags
+the character already carries (e.g. Discord-imported), which stay
+allowed so an unrelated edit never fails.
+
+ * @summary Replace a character's archive tags (owner or fixer/admin)
+ */
+export const UpdateCharacterTagsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateCharacterTagsBodyTagsMax = 30;
+
+
+
+export const UpdateCharacterTagsBody = zod.object({
+  "tags": zod.array(zod.string()).max(updateCharacterTagsBodyTagsMax)
+})
+
+export const UpdateCharacterTagsResponse = zod.object({
+  "tags": zod.array(zod.string())
 })
 
 
@@ -700,6 +729,7 @@ export const SetCharacterLifestyleResponse = zod.object({
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional().describe('Merged archive tags (Discord-applied ∪ manually added). Edit via PATCH \/characters\/{id}\/tags.'),
   "portraitUrl": zod.string().nullish(),
   "portraitUrls": zod.array(zod.string()),
   "statsImageUrls": zod.array(zod.string()),
@@ -8470,6 +8500,8 @@ export const UpdateFixerNpcResponse = zod.object({
 /**
  * @summary My submitted character sheets
  */
+export const listMySheetsResponseDataTagsMax = 30;
+
 export const listMySheetsResponseDataCyberwarePointsSpentMax = 6;
 
 
@@ -8505,6 +8537,7 @@ export const ListMySheetsResponseItem = zod.object({
   "background": zod.string(),
   "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
   "knownAffiliation": zod.string().nullish().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
+  "tags": zod.array(zod.string()).max(listMySheetsResponseDataTagsMax).optional().describe('Optional archive tags picked from the shared tag-option registry (\/directory\/tag-options). Seeded into the character\'s manual tags when the sheet is approved.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -8565,6 +8598,8 @@ export const ListMySheetsResponse = zod.array(ListMySheetsResponseItem)
 
 export const submitSheetBodyNameMax = 64;
 
+export const submitSheetBodyDataTagsMax = 30;
+
 export const submitSheetBodyDataCyberwarePointsSpentMax = 6;
 
 
@@ -8588,6 +8623,7 @@ export const SubmitSheetBody = zod.object({
   "background": zod.string(),
   "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
   "knownAffiliation": zod.string().nullish().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
+  "tags": zod.array(zod.string()).max(submitSheetBodyDataTagsMax).optional().describe('Optional archive tags picked from the shared tag-option registry (\/directory\/tag-options). Seeded into the character\'s manual tags when the sheet is approved.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -8662,6 +8698,8 @@ export const GetSheetParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getSheetResponseDataTagsMax = 30;
+
 export const getSheetResponseDataCyberwarePointsSpentMax = 6;
 
 
@@ -8697,6 +8735,7 @@ export const GetSheetResponse = zod.object({
   "background": zod.string(),
   "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
   "knownAffiliation": zod.string().nullish().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
+  "tags": zod.array(zod.string()).max(getSheetResponseDataTagsMax).optional().describe('Optional archive tags picked from the shared tag-option registry (\/directory\/tag-options). Seeded into the character\'s manual tags when the sheet is approved.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -8763,6 +8802,8 @@ export const UpdateSheetParams = zod.object({
 
 export const updateSheetBodyNameMax = 64;
 
+export const updateSheetBodyDataTagsMax = 30;
+
 export const updateSheetBodyDataCyberwarePointsSpentMax = 6;
 
 
@@ -8785,6 +8826,7 @@ export const UpdateSheetBody = zod.object({
   "background": zod.string(),
   "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
   "knownAffiliation": zod.string().nullish().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
+  "tags": zod.array(zod.string()).max(updateSheetBodyDataTagsMax).optional().describe('Optional archive tags picked from the shared tag-option registry (\/directory\/tag-options). Seeded into the character\'s manual tags when the sheet is approved.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -8812,6 +8854,8 @@ export const UpdateSheetBody = zod.object({
 }).optional().describe('NCRP character sheet payload. `skills` and `gear` are free-text\/narrative\n(no numeric values). `cyberware` is an optional list — organic characters\nmay have none. Each cyberware entry\'s `points` carries the CWP cost\n(derived from the cyberware catalog), and the total CWP across all\ncyberware is capped at 6 at character creation. The legacy\n`attributes`, `cyberwareBySlot`, `cyberwareMisc` and `startingEddies`\nfields are deprecated and only retained for reading older records.\n'),
   "baseUpdatedAt": zod.coerce.date().optional().describe('Optimistic-concurrency token: the updatedAt the client loaded the sheet with. If the sheet has been saved since, the PATCH is rejected with 409 error=stale_draft instead of overwriting the newer content.')
 })
+
+export const updateSheetResponseDataTagsMax = 30;
 
 export const updateSheetResponseDataCyberwarePointsSpentMax = 6;
 
@@ -8848,6 +8892,7 @@ export const UpdateSheetResponse = zod.object({
   "background": zod.string(),
   "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
   "knownAffiliation": zod.string().nullish().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
+  "tags": zod.array(zod.string()).max(updateSheetResponseDataTagsMax).optional().describe('Optional archive tags picked from the shared tag-option registry (\/directory\/tag-options). Seeded into the character\'s manual tags when the sheet is approved.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -8920,6 +8965,8 @@ export const SubmitDraftSheetParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const submitDraftSheetResponseDataTagsMax = 30;
+
 export const submitDraftSheetResponseDataCyberwarePointsSpentMax = 6;
 
 
@@ -8955,6 +9002,7 @@ export const SubmitDraftSheetResponse = zod.object({
   "background": zod.string(),
   "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
   "knownAffiliation": zod.string().nullish().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
+  "tags": zod.array(zod.string()).max(submitDraftSheetResponseDataTagsMax).optional().describe('Optional archive tags picked from the shared tag-option registry (\/directory\/tag-options). Seeded into the character\'s manual tags when the sheet is approved.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -9049,6 +9097,8 @@ export const OverrideSheetBody = zod.object({
   "decision": zod.enum(['approve', 'deny']).optional().describe('Override outcome. Defaults to approve; deny rejects the ticket (no effect applied on close).')
 })
 
+export const overrideSheetResponseDataTagsMax = 30;
+
 export const overrideSheetResponseDataCyberwarePointsSpentMax = 6;
 
 
@@ -9084,6 +9134,7 @@ export const OverrideSheetResponse = zod.object({
   "background": zod.string(),
   "hooks": zod.string().nullish().describe('Optional free-text story hooks — plot threads, rumors, and connections other characters can engage with.'),
   "knownAffiliation": zod.string().nullish().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
+  "tags": zod.array(zod.string()).max(overrideSheetResponseDataTagsMax).optional().describe('Optional archive tags picked from the shared tag-option registry (\/directory\/tag-options). Seeded into the character\'s manual tags when the sheet is approved.'),
   "attributes": zod.record(zod.string(), zod.number()).optional(),
   "skills": zod.string().describe('Free-text narrative description of what the character is good at.'),
   "cyberware": zod.array(zod.object({
@@ -9463,6 +9514,7 @@ export const AdminListUsersResponseItem = zod.object({
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional().describe('Merged archive tags (Discord-applied ∪ manually added). Edit via PATCH \/characters\/{id}\/tags.'),
   "portraitUrl": zod.string().nullish(),
   "portraitUrls": zod.array(zod.string()),
   "statsImageUrls": zod.array(zod.string()),
@@ -9538,6 +9590,7 @@ export const AdminGetUserResponse = zod.object({
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional().describe('Merged archive tags (Discord-applied ∪ manually added). Edit via PATCH \/characters\/{id}\/tags.'),
   "portraitUrl": zod.string().nullish(),
   "portraitUrls": zod.array(zod.string()),
   "statsImageUrls": zod.array(zod.string()),
@@ -9629,6 +9682,7 @@ export const AdminSyncUserRolesResponse = zod.object({
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional().describe('Merged archive tags (Discord-applied ∪ manually added). Edit via PATCH \/characters\/{id}\/tags.'),
   "portraitUrl": zod.string().nullish(),
   "portraitUrls": zod.array(zod.string()),
   "statsImageUrls": zod.array(zod.string()),
@@ -9795,6 +9849,7 @@ export const AdminAssignCharacterOwnerResponse = zod.object({
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional().describe('Merged archive tags (Discord-applied ∪ manually added). Edit via PATCH \/characters\/{id}\/tags.'),
   "portraitUrl": zod.string().nullish(),
   "portraitUrls": zod.array(zod.string()),
   "statsImageUrls": zod.array(zod.string()),
@@ -9855,6 +9910,7 @@ export const AdminClearCharacterOwnerResponse = zod.object({
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional().describe('Merged archive tags (Discord-applied ∪ manually added). Edit via PATCH \/characters\/{id}\/tags.'),
   "portraitUrl": zod.string().nullish(),
   "portraitUrls": zod.array(zod.string()),
   "statsImageUrls": zod.array(zod.string()),
@@ -10068,6 +10124,7 @@ export const GetPublicCharacterResponse = zod.object({
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
   "background": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional().describe('Merged archive tags (Discord-applied ∪ manually added). Edit via PATCH \/characters\/{id}\/tags.'),
   "portraitUrl": zod.string().nullish(),
   "portraitUrls": zod.array(zod.string()),
   "statsImageUrls": zod.array(zod.string()),

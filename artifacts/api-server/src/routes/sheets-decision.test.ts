@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
 import request from "supertest";
 
-import { db, characterSheets, characters } from "@workspace/db";
+import { db, characterSheets, characters, characterTagOptions } from "@workspace/db";
 import { buildTestApp } from "../test/app";
 import { createUser, createCharacter } from "../test/testDb";
 
@@ -75,6 +75,46 @@ describe("POST /api/sheets/:id/vote self-review guard", () => {
       .where(eq(characters.id, closed.characterId!));
     expect(char).toBeTruthy();
     expect(char.ownerId).toBe(owner.id);
+  });
+
+  it("seeds sheet-picked registry tags into manualTags on close, dropping stale ones", async () => {
+    await db.insert(characterTagOptions).values({ name: "Solo" }).onConflictDoNothing();
+    await db.insert(characterTagOptions).values({ name: "Netrunner" }).onConflictDoNothing();
+    const owner = await createUser();
+    const approver = await createUser({ roles: ["cs approver"] });
+    const [sheet] = await db
+      .insert(characterSheets)
+      .values({
+        ownerId: owner.id,
+        name: "Tagged Newcomer",
+        status: "pending",
+        // "ghost" was removed from the registry after submit — the close keeps
+        // the known tags rather than failing over a stale label.
+        data: { sheetType: "PC", tags: ["solo", "Netrunner", "ghost"] },
+      })
+      .returning();
+
+    const vote = await request(app)
+      .post(`/api/sheets/${sheet.id}/vote`)
+      .set("x-test-user", approver.id)
+      .send({ vote: "approve" });
+    expect(vote.status).toBe(200);
+    const close = await request(app)
+      .post(`/api/review/sheet/${sheet.id}/close`)
+      .set("x-test-user", approver.id)
+      .send({});
+    expect(close.status).toBe(200);
+
+    const [closed] = await db
+      .select()
+      .from(characterSheets)
+      .where(eq(characterSheets.id, sheet.id));
+    expect(closed.characterId).not.toBeNull();
+    const [char] = await db
+      .select()
+      .from(characters)
+      .where(eq(characters.id, closed.characterId!));
+    expect([...(char.manualTags ?? [])].sort()).toEqual(["Netrunner", "Solo"]);
   });
 
   it("a newly materialized character inherits the household checkup date instead of resetting the meds streak", async () => {

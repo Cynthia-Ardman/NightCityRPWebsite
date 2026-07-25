@@ -153,3 +153,4 @@
 - VRChat auth/identity: [identity resolution](vrchat-identity-resolution.md) linked attribution only when exactly ONE user claims the id, ambiguous never name-matches; [401 verify-before-expire](vrchat-group-instances.md) confirm via /auth/user before wiping session.
 - Mission edit fields: [PATCH assignments whole-replaces roster — omit when untouched](mission-roster-stale-edit.md); [npcStartAt surfaces use coalesce(npc,start), changes reset npcAnnouncedAt](mission-npc-start-time.md).
 - [OAuth redirect host allowlist](oauth-redirect-host-allowlist.md) — Discord OAuth must round-trip on the browsing host (allowlisted echo), never one pinned domain; each host needs a registered Discord redirect URI.
+- [Player character tags](character-player-tags.md) — registry-locked tag edits; resolveRegistryTags returns {tags,unknown} (close is lenient); PATCH locks row in-tx vs importer.
