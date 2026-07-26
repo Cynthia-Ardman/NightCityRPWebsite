@@ -97,6 +97,22 @@ export function majorityOf(n: number): number {
   return Math.floor(n / 2) + 1;
 }
 
+// Displayed tally of an (already eligibility-filtered) vote list. Pause is a
+// visible marker only — it never counts toward the decision thresholds. Used
+// by the detail/list endpoints of all three pipelines so the displayed counts
+// can't drift from each other.
+export function countVotes(votes: Array<{ vote: string }>): {
+  approveCount: number;
+  rejectCount: number;
+  pauseCount: number;
+} {
+  return {
+    approveCount: votes.filter((v) => v.vote === "approve").length,
+    rejectCount: votes.filter((v) => v.vote === "reject").length,
+    pauseCount: votes.filter((v) => v.vote === "pause").length,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Generic review_votes helpers (sheets + requests).
 // ---------------------------------------------------------------------------

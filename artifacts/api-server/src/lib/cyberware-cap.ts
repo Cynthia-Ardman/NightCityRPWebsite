@@ -6,6 +6,8 @@
 // trustworthy CWP value for catalog items, so a crafted payload cannot bypass
 // the cap by under-reporting (or negating) the cost of a catalog install.
 
+import { normalizeName } from "./strings";
+
 export const MAX_CREATION_CWP = 6;
 
 // Total cyberware-points a character may carry once they exist in-world.
@@ -65,7 +67,7 @@ export function collectCyberware(d: Record<string, unknown>): CyberwareEntry[] {
 export function buildCyberwareCostMap(rows: Array<{ name: string; cwp: string | null }>): Map<string, number> {
   const map = new Map<string, number>();
   for (const r of rows) {
-    const key = r.name.trim().toLowerCase();
+    const key = normalizeName(r.name);
     if (!key) continue;
     const cost = Number(r.cwp) || 0;
     const prev = map.get(key);
@@ -79,7 +81,7 @@ export function buildCyberwareCostMap(rows: Array<{ name: string; cwp: string | 
 // is ignored — this is what makes the 6-CWP creation cap tamper-proof. Custom
 // (non-catalog) entries fall back to their client-sent value.
 export function entryPoints(c: CyberwareEntry, costMap: Map<string, number>): number {
-  const key = (c.name ?? "").trim().toLowerCase();
+  const key = normalizeName(c.name ?? "");
   const catalogCost = costMap.get(key);
   if (catalogCost !== undefined) return catalogCost;
   return Number(c.points) || 0;

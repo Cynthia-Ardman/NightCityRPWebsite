@@ -25,6 +25,7 @@ import { hasRole, sendDirectMessage, postToChannel, NIGHTCITYBOT_LOGS_CHANNEL_ID
 import { applyWalletDelta } from "./economy";
 import { recordInventoryEvent } from "./inventoryEvents";
 import { logger } from "./logger";
+import { portalLink } from "./portalUrl";
 import { createNotification } from "./notifications";
 
 // A puzzle as serialized over the API. The stored row keeps grid/daemons/
@@ -60,9 +61,7 @@ function isStaff(user: User): boolean {
 // The browser link a player follows to play a puzzle. Mirrors the offers play
 // link pattern: prefer PUBLIC_BASE_URL, fall back to the first Replit domain.
 function playLink(id: number): string {
-  const portalBase = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "")
-    .replace(/^https?:\/\//, "");
-  return portalBase ? `https://${portalBase}/breach/play/${id}` : `/breach/play/${id}`;
+  return portalLink(`/breach/play/${id}`);
 }
 
 // Attach display names (creator + assignee) for the staff/history surfaces.

@@ -2,7 +2,10 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { db, characterSheets, characters, characterStatus, inventoryItems, inventoryEvents, users, activityEvents, catalogCyberware, catalogGuns, type User } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { postToChannel, startThreadFromMessage, hasRole, addGuildMemberRole, APPROVED_CHARACTER_ROLE_ID, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { hasRole, addGuildMemberRole, APPROVED_CHARACTER_ROLE_ID, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { announceWithThread } from "../lib/reviewAnnounce";
+import { portalLink } from "../lib/portalUrl";
+import { normalizeName } from "../lib/strings";
 import { createNotification } from "../lib/notifications";
 import { logger } from "../lib/logger";
 import { recordAudit } from "../lib/audit";
@@ -16,6 +19,7 @@ import {
   isEligibleReviewer,
   listEligibleReviewers,
   majorityOf,
+  countVotes,
   tallyReviewVotes,
   castReviewVote,
   clearReviewVotes,
@@ -247,9 +251,7 @@ router.get("/sheets/:id", requireAuth, async (req, res): Promise<void> => {
   // Count only eligible-pool votes so an ineligible (e.g. admin-only) vote can't
   // skew the displayed tally — mirrors the decision math in tallyReviewVotes.
   const effectiveVotes = votes.filter((v) => eligibleSet.has(v.voterId));
-  const approveCount = effectiveVotes.filter((v) => v.vote === "approve").length;
-  const rejectCount = effectiveVotes.filter((v) => v.vote === "reject").length;
-  const pauseCount = effectiveVotes.filter((v) => v.vote === "pause").length;
+  const { approveCount, rejectCount, pauseCount } = countVotes(effectiveVotes);
   const myVote = votes.find((v) => v.voterId === req.user!.id) ?? null;
   res.json({
     ...s,
@@ -321,7 +323,7 @@ async function loadCyberwareCatalogMap(): Promise<Map<string, { cwp: number; slo
     .from(catalogCyberware);
   const map = new Map<string, { cwp: number; slot: string }>();
   for (const r of rows) {
-    const key = String(r.name ?? "").trim().toLowerCase();
+    const key = normalizeName(String(r.name ?? ""));
     if (!key) continue;
     const cost = Number(r.cwp) || 0;
     const prev = map.get(key);
@@ -347,7 +349,7 @@ async function loadGunCatalogMap(): Promise<Map<string, GunAttrs>> {
     .from(catalogGuns);
   const map = new Map<string, GunAttrs>();
   for (const r of rows) {
-    const key = String(r.name ?? "").trim().toLowerCase();
+    const key = normalizeName(String(r.name ?? ""));
     if (!key || map.has(key)) continue;
     map.set(key, {
       category: r.category,
@@ -410,7 +412,7 @@ async function validateSheetForSubmission(data: unknown, user: User): Promise<st
   if (Array.isArray(d.guns) && d.guns.length > 0) {
     const gunMap = await loadGunCatalogMap();
     const techNames = Array.from(gunMap.entries())
-      .filter(([, a]) => String(a.category ?? "").trim().toLowerCase() === "tech")
+      .filter(([, a]) => normalizeName(String(a.category ?? "")) === "tech")
       .map(([name]) => name);
     const offender = findTechStartingGun(d.guns, techNames);
     if (offender) {
@@ -436,36 +438,39 @@ async function computePoints(data: unknown): Promise<number> {
 async function announceSubmission(sheetId: number, name: string, data: any, user: User): Promise<void> {
   if (!CS_CHANNEL_ID) return;
   const sheetType = (data as { sheetType: string }).sheetType;
-  const portalBase = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(/^https?:\/\//, "");
-  const reviewUrl = portalBase ? `https://${portalBase}/sheets/${sheetId}` : `/sheets/${sheetId}`;
+  const reviewUrl = portalLink(`/sheets/${sheetId}`);
   const points = await computePoints(data);
-  const msgId = await postToChannel(CS_CHANNEL_ID, `New ${sheetType} sheet pending review: **${name}** by ${user.username}`, [
-    {
-      title: name,
-      description: data.background?.slice(0, 500) ?? "",
-      fields: [
-        { name: "Type", value: sheetType, inline: true },
-        { name: "Player", value: user.username, inline: true },
-        { name: "Archetype", value: data.archetype ?? "—", inline: true },
-        { name: "Pronouns", value: data.pronouns ?? "—", inline: true },
-        { name: "Occupation", value: data.occupation ?? "—", inline: true },
-        { name: "Cyberware Pts", value: `${points}/6`, inline: true },
-        { name: "Review", value: reviewUrl, inline: false },
-      ],
+  // Turn the summary post into a thread so reviewers can discuss in-channel;
+  // the portal mirrors that thread read-only. Thread id == the OP message id.
+  // Only persist discordThreadId when a thread genuinely exists — on a hard
+  // failure (null) leave it unset so the panel shows "not linked" and a later
+  // backfill can thread from the stored message id.
+  await announceWithThread({
+    channelId: CS_CHANNEL_ID,
+    content: `New ${sheetType} sheet pending review: **${name}** by ${user.username}`,
+    embeds: [
+      {
+        title: name,
+        description: data.background?.slice(0, 500) ?? "",
+        fields: [
+          { name: "Type", value: sheetType, inline: true },
+          { name: "Player", value: user.username, inline: true },
+          { name: "Archetype", value: data.archetype ?? "—", inline: true },
+          { name: "Pronouns", value: data.pronouns ?? "—", inline: true },
+          { name: "Occupation", value: data.occupation ?? "—", inline: true },
+          { name: "Cyberware Pts", value: `${points}/6`, inline: true },
+          { name: "Review", value: reviewUrl, inline: false },
+        ],
+      },
+    ],
+    threadTitle: `Sheet: ${name}`,
+    persist: async ({ msgId, threadId }) => {
+      await db
+        .update(characterSheets)
+        .set({ discordMessageId: msgId, ...(threadId ? { discordThreadId: threadId } : {}) })
+        .where(eq(characterSheets.id, sheetId));
     },
-  ]);
-  if (msgId) {
-    // Turn the summary post into a thread so reviewers can discuss in-channel;
-    // the portal mirrors that thread read-only. Thread id == the OP message id.
-    // Only persist discordThreadId when a thread genuinely exists — on a hard
-    // failure (null) leave it unset so the panel shows "not linked" and a later
-    // backfill can thread from the stored message id.
-    const threadId = await startThreadFromMessage(CS_CHANNEL_ID, msgId, `Sheet: ${name}`);
-    await db
-      .update(characterSheets)
-      .set({ discordMessageId: msgId, ...(threadId ? { discordThreadId: threadId } : {}) })
-      .where(eq(characterSheets.id, sheetId));
-  }
+  });
   await db.insert(activityEvents).values({
     kind: "sheet_submitted",
     actorId: user.id,

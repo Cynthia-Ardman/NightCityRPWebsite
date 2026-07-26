@@ -36,9 +36,11 @@ import {
 } from "../lib/cyberwareSlots";
 import { isSessionWindowOpen, nextSessionWindowStart, SESSION_WINDOW_HINT } from "../lib/sessionWindow";
 import { parseCwp } from "../lib/cyberware";
-import { hasRole } from "../lib/discord";
+import { isStaffRoles } from "../lib/roleChecks";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
+import { normalizeName } from "../lib/strings";
+import { isStaffUser, loadOwnedChar, loadOwnedOrStaffChar } from "../lib/access";
 
 const router: IRouter = Router();
 
@@ -46,34 +48,6 @@ const router: IRouter = Router();
 // session (mirrors the weekly attendance bonus). Exactly one payout per
 // session — enforced by the open-shop endpoint's session guard.
 const SHOP_OPEN_PAYOUT = 150;
-
-async function loadOwnedChar(userId: string, id: number): Promise<Character | null> {
-  const [c] = await db
-    .select()
-    .from(characters)
-    .where(and(eq(characters.id, id), eq(characters.ownerId, userId)));
-  return c ?? null;
-}
-
-function isStaffUser(user: { roles?: string[] | null }): boolean {
-  return hasRole(user.roles ?? [], "ADMIN") || hasRole(user.roles ?? [], "FIXER");
-}
-
-// Inventory CRUD is a "one-stop-shop" for staff: fixers/admins may add/edit/
-// remove items (gear, guns, cyberware) on ANY character from the edit dialog,
-// while players remain scoped to their own characters. Returns the character
-// row if the caller is staff (any character) or the owner (their own), else
-// null so callers 404 exactly as before.
-async function loadOwnedOrStaffChar(
-  user: { id: string; roles?: string[] | null },
-  id: number,
-): Promise<Character | null> {
-  if (isStaffUser(user)) {
-    const [c] = await db.select().from(characters).where(eq(characters.id, id));
-    return c ?? null;
-  }
-  return loadOwnedChar(user.id, id);
-}
 
 router.get("/characters", requireAuth, async (req, res): Promise<void> => {
   const rows = await db
@@ -515,7 +489,7 @@ router.post("/characters/:id/inventory", requireAuth, async (req, res): Promise<
   // Canonicalize the category once so whitespace/case variants ("Cyberware ")
   // can't slip past the cap gate or land an off-canon value in the column.
   const canonCategory =
-    typeof category === "string" && category.trim().toLowerCase() === "cyberware"
+    typeof category === "string" && normalizeName(category) === "cyberware"
       ? "cyberware"
       : category;
   // One cyberware item per capped slot, per (player) character. Miscellaneous,
@@ -606,8 +580,8 @@ router.patch("/characters/:cid/inventory/:itemId", requireAuth, async (req, res)
   // ripperdoc/review. Block any non-staff PATCH that touches a cyberware item OR
   // tries to turn an item INTO cyberware; staff (admin/fixer) retain direct
   // control for corrections.
-  const beforeIsCyber = (before.category ?? "").trim().toLowerCase() === "cyberware";
-  const targetIsCyber = typeof category === "string" && category.trim().toLowerCase() === "cyberware";
+  const beforeIsCyber = normalizeName(before.category ?? "") === "cyberware";
+  const targetIsCyber = typeof category === "string" && normalizeName(category) === "cyberware";
   if ((beforeIsCyber || targetIsCyber) && !isStaffUser(req.user!)) {
     res.status(403).json({ error: "Cyberware changes must go through review. Submit a cyberware request instead." });
     return;
@@ -687,7 +661,7 @@ router.delete("/characters/:cid/inventory/:itemId", requireAuth, async (req, res
   // a cyberware item directly (corrections). Players use the request flow.
   if (
     doomed &&
-    (doomed.category ?? "").trim().toLowerCase() === "cyberware" &&
+    normalizeName(doomed.category ?? "") === "cyberware" &&
     !isStaffUser(req.user!)
   ) {
     res.status(403).json({ error: "Cyberware changes must go through review. Submit a cyberware request instead." });
@@ -758,7 +732,7 @@ router.post("/characters/:cid/inventory/:itemId/transfer", requireAuth, async (r
   // count it as INSTALLED cyberware (risk band + weekly meds billing) without
   // any ripperdoc involved. Route these through a ripperdoc remove first —
   // the removed item ("cyberware (removed)") transfers fine.
-  if ((item.category ?? "").trim().toLowerCase() === "cyberware" && parseCwp(item.notes) != null) {
+  if (normalizeName(item.category ?? "") === "cyberware" && parseCwp(item.notes) != null) {
     res.status(400).json({
       error: "This cyberware is currently installed. Have a ripperdoc remove it first — then the removed piece can be given or sold.",
     });
@@ -994,7 +968,7 @@ router.get("/inventory-items/:uuid", requireAuth, async (req, res): Promise<void
     .select()
     .from(inventoryItems)
     .where(eq(inventoryItems.instanceUuid, uuidParam));
-  const isStaff = hasRole(req.user!.roles, "ADMIN") || hasRole(req.user!.roles, "FIXER");
+  const isStaff = isStaffRoles(req.user!.roles);
   if (!live && !isStaff) {
     res.status(404).json({ error: "Not found" });
     return;

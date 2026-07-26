@@ -23,6 +23,8 @@ import { recordInventoryEvent } from "./inventoryEvents";
 import { cwpForItem, parseCwp, sumCwpByCharacter } from "./cyberware";
 import { buildCyberwareCostMap, checkCwpCapacity } from "./cyberware-cap";
 import { logger } from "./logger";
+import { normalizeName } from "./strings";
+import { portalLink } from "./portalUrl";
 import { createNotification } from "./notifications";
 
 // Offer kinds beyond a plain sale. `sale` is the historic default.
@@ -142,8 +144,7 @@ function computeCommissionAmount(offer: {
 
 // Build the absolute portal URL for an offer's approval page. Mirrors sheets.ts.
 function offerLink(): string {
-  const portalBase = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(/^https?:\/\//, "");
-  return portalBase ? `https://${portalBase}/inbox` : `/inbox`;
+  return portalLink("/inbox");
 }
 
 // Per-unit CWP a stock item costs to install. The catalog is authoritative when
@@ -156,7 +157,7 @@ async function resolveInstallCwp(
   operatorCwp: number | null | undefined,
 ): Promise<number> {
   const catRows = await db.select({ name: catalogCyberware.name, cwp: catalogCyberware.cwp }).from(catalogCyberware);
-  const catalogCost = buildCyberwareCostMap(catRows).get(name.trim().toLowerCase());
+  const catalogCost = buildCyberwareCostMap(catRows).get(normalizeName(name));
   if (catalogCost !== undefined && catalogCost > 0) return catalogCost;
   // No authoritative catalog value. A "CWP n" tag on the stock is a floor the
   // operator cannot undercut (so a crafted low override can't dodge the cap);
@@ -420,7 +421,7 @@ export async function createInstallOwnedOffer(opts: {
   // Must be an UNINSTALLED chrome piece the player already owns: category
   // cyberware AND no CWP install tag. Anything already installed (has a CWP
   // note) is rejected — use the remove flow instead.
-  if ((item.category ?? "").trim().toLowerCase() !== "cyberware" || parseCwp(item.notes) != null) {
+  if (normalizeName(item.category ?? "") !== "cyberware" || parseCwp(item.notes) != null) {
     return { status: 400, body: { error: "That item is not an uninstalled cyberware piece" } };
   }
 
@@ -1032,7 +1033,7 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
         .select()
         .from(inventoryItems)
         .where(and(eq(inventoryItems.id, offer.installItemId!), eq(inventoryItems.characterId, buyer.id)));
-      if (!target || (target.category ?? "").trim().toLowerCase() !== "cyberware" || parseCwp(target.notes) != null) {
+      if (!target || normalizeName(target.category ?? "") !== "cyberware" || parseCwp(target.notes) != null) {
         completionFailReason = "Cyberware to install was not found or is already installed";
         throw new Error("install-owned-target-miss");
       }

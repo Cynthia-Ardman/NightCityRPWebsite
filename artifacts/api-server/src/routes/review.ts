@@ -17,6 +17,7 @@ import {
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, sendDirectMessage, listThreadMessages, threadWebUrl, type DiscordThreadMessage } from "../lib/discord";
 import { isReviewer, type ReviewActionResult } from "../lib/review";
+import { portalBaseHost } from "../lib/portalUrl";
 import { closeRequest, reopenRequest, STAFF_QUEUE_EXCLUDED_REQUEST_TYPES, PLAYER_DECIDED_REQUEST_TYPES } from "./requests";
 import { closeEdit, reopenEdit } from "./pending-edits";
 import { closeSheet, reopenSheet } from "./sheets";
@@ -70,7 +71,7 @@ function submitterLink(type: SubjectType, id: number): string | null {
   // matching row's discussion. Lore proposals have no player thread page, so
   // point at the player's own lore list instead.
   const path = type === "lore" ? "/directory/lore/mine" : `/submissions?focus=${type}-${id}`;
-  const base = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  const base = portalBaseHost().replace(/\/+$/, "");
   return base ? `https://${base}${path}` : null;
 }
 

@@ -21,7 +21,9 @@ import {
   catalogRent,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole, sendDirectMessage, postToChannel, startThreadFromMessage } from "../lib/discord";
+import { hasRole, sendDirectMessage, postToChannel } from "../lib/discord";
+import { announceWithThread } from "../lib/reviewAnnounce";
+import { portalLink } from "../lib/portalUrl";
 import { createNotification } from "../lib/notifications";
 import { reconcileBusinessChannelAccess } from "../lib/businessChannelAccess";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
@@ -35,6 +37,7 @@ import {
   isEligibleReviewer,
   listEligibleReviewers,
   majorityOf,
+  countVotes,
   tallyReviewVotes,
   castReviewVote,
   clearReviewVotes,
@@ -85,16 +88,17 @@ export async function announceRequest(
 ): Promise<void> {
   if (!CS_CHANNEL_ID) return;
   try {
-    const portalBase = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(/^https?:\/\//, "");
     // Deep-link straight to this request: the misc-requests queue reads ?focus=
     // and auto-expands + scrolls to the matching card, so the CS-approver post
     // lands the reviewer on the exact ticket (parity with sheets/edits).
-    const reviewPath = `/requests?focus=${requestId}`;
-    const reviewUrl = portalBase ? `https://${portalBase}${reviewPath}` : reviewPath;
-    const msgId = await postToChannel(
-      CS_CHANNEL_ID,
-      `New ${reqType} request pending review: **${title}** by ${submitterName}`,
-      [
+    const reviewUrl = portalLink(`/requests?focus=${requestId}`);
+    // Only persist discordThreadId when a thread genuinely exists; on a hard
+    // failure (null) keep just the message id so a later backfill can thread
+    // from it without re-posting.
+    await announceWithThread({
+      channelId: CS_CHANNEL_ID,
+      content: `New ${reqType} request pending review: **${title}** by ${submitterName}`,
+      embeds: [
         {
           title,
           fields: [
@@ -105,17 +109,14 @@ export async function announceRequest(
           ],
         },
       ],
-    );
-    if (msgId) {
-      // Only persist discordThreadId when a thread genuinely exists; on a hard
-      // failure (null) keep just the message id so a later backfill can thread
-      // from it without re-posting.
-      const threadId = await startThreadFromMessage(CS_CHANNEL_ID, msgId, `Request: ${title}`);
-      await db
-        .update(customRequests)
-        .set({ discordMessageId: msgId, ...(threadId ? { discordThreadId: threadId } : {}) })
-        .where(eq(customRequests.id, requestId));
-    }
+      threadTitle: `Request: ${title}`,
+      persist: async ({ msgId, threadId }) => {
+        await db
+          .update(customRequests)
+          .set({ discordMessageId: msgId, ...(threadId ? { discordThreadId: threadId } : {}) })
+          .where(eq(customRequests.id, requestId));
+      },
+    });
   } catch (err) {
     logger.warn({ err, requestId }, "announceRequest failed");
   }
@@ -854,9 +855,7 @@ async function attachTallies(
     const eligible = reviewerPool.filter((rv) => rv.id !== r.requestedById);
     const eligibleSet = new Set(eligible.map((rv) => rv.id));
     const votes = (votesById.get(r.id) ?? []).filter((v) => eligibleSet.has(v.voterId));
-    const approveCount = votes.filter((v) => v.vote === "approve").length;
-    const rejectCount = votes.filter((v) => v.vote === "reject").length;
-    const pauseCount = votes.filter((v) => v.vote === "pause").length;
+    const { approveCount, rejectCount, pauseCount } = countVotes(votes);
     const mine = (votesById.get(r.id) ?? []).find((v) => v.voterId === viewerId);
     return {
       ...shape(r),

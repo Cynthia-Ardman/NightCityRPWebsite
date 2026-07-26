@@ -17,6 +17,7 @@ import {
 } from "@workspace/db";
 import { logger } from "./logger";
 import { recordAudit } from "./audit";
+import { portalLink } from "./portalUrl";
 import { patchBalance } from "./unbelievaboat";
 import { recordSettledWalletMovement } from "./economy";
 import {
@@ -118,11 +119,7 @@ function resolveAbsoluteImageUrl(raw: string | null | undefined): string | null 
 // link pattern: prefer PUBLIC_BASE_URL, fall back to the first Replit domain, and
 // degrade to a relative path when neither is set so the post is still readable.
 export function buildMissionUrl(missionId: number): string {
-  const base = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(
-    /^https?:\/\//,
-    "",
-  );
-  return base ? `https://${base}/missions/${missionId}` : `/missions/${missionId}`;
+  return portalLink(`/missions/${missionId}`);
 }
 
 // ===========================================================================

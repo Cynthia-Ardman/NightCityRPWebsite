@@ -23,12 +23,14 @@ import {
   inventoryItems,
 } from "@workspace/db";
 import { requireAuth, requireAnyRole } from "../middlewares/auth";
-import { hasRole, addGuildMemberRole, grantDeadCharacterRole, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { addGuildMemberRole, grantDeadCharacterRole, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { isStaffRoles } from "../lib/roleChecks";
 import { sumCwpByCharacter } from "../lib/cyberware";
 import { deriveCyberwareBand } from "../lib/jobs";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
 import { loadReservedListingIds } from "../lib/listingReservations";
 import { normalizeTag, mergeTags, splitDesiredTags } from "../lib/characterTags";
+import { normalizeName } from "../lib/strings";
 
 const router: IRouter = Router();
 
@@ -249,7 +251,7 @@ router.get("/directory/characters/:id", requireAuth, async (req, res): Promise<v
     return;
   }
   const me = req.user!;
-  const isStaff = hasRole(me.roles, "ADMIN") || hasRole(me.roles, "FIXER");
+  const isStaff = isStaffRoles(me.roles);
   const isOwner = row.ownerId !== null && row.ownerId === me.id;
   if (!isStaff && !isOwner) {
     res.status(403).json({ error: "Character sheets are visible only to the owner, fixers, and admins" });
@@ -281,7 +283,7 @@ router.get("/directory/archive", staffOnly, async (req, res): Promise<void> => {
   const statusRaw = typeof req.query.status === "string" ? req.query.status : "";
   const statusList = statusRaw
     .split(",")
-    .map((s) => s.trim().toLowerCase())
+    .map((s) => normalizeName(s))
     .filter((s) => (LIFE_STATUSES as readonly string[]).includes(s));
   // CWP band filter (organic/none/medium/high/extreme) — multi-select. The band
   // is derived (isOrganic + cyberwareLevel), not stored, so each requested band
@@ -289,7 +291,7 @@ router.get("/directory/archive", staffOnly, async (req, res): Promise<void> => {
   const bandsRaw = typeof req.query.bands === "string" ? req.query.bands : "";
   const bandList = bandsRaw
     .split(",")
-    .map((s) => s.trim().toLowerCase())
+    .map((s) => normalizeName(s))
     .filter((s) => (CWP_BANDS as readonly string[]).includes(s)) as CwpBand[];
 
   const conds = [] as Array<ReturnType<typeof eq>>;
@@ -786,7 +788,7 @@ router.get("/directory/stores/:id", async (req, res): Promise<void> => {
 router.get("/catalog/guns", async (req, res): Promise<void> => {
   const all = await db.select().from(catalogGuns);
   const isStaff =
-    !!req.user && (hasRole(req.user.roles, "ADMIN") || hasRole(req.user.roles, "FIXER"));
+    !!req.user && isStaffRoles(req.user.roles);
   if (isStaff) {
     res.json(all);
     return;
@@ -1208,7 +1210,7 @@ router.delete(
 router.get("/catalog/cyberware", async (req, res): Promise<void> => {
   const all = await db.select().from(catalogCyberware);
   const isStaff =
-    !!req.user && (hasRole(req.user.roles, "ADMIN") || hasRole(req.user.roles, "FIXER"));
+    !!req.user && isStaffRoles(req.user.roles);
   if (isStaff) {
     res.json(all);
     return;
@@ -1441,7 +1443,7 @@ router.get("/catalog/rent", async (req, res): Promise<void> => {
   // (admin/fixer) additionally see WHO occupies each listing so they can
   // remove the occupant from the catalog; players never see the occupant.
   const isStaff =
-    !!req.user && (hasRole(req.user.roles, "ADMIN") || hasRole(req.user.roles, "FIXER"));
+    !!req.user && isStaffRoles(req.user.roles);
   const [listings, occupants, reservedIds] = await Promise.all([
     db.select().from(catalogRent),
     db
@@ -1755,7 +1757,7 @@ router.get("/directory/tag-options", requireAuth, async (req, res): Promise<void
   // Backfill the registry from the UNION of in-use tags (idempotent) so it
   // reflects reality. Gated to staff so a regular member loading the picker
   // never triggers writes; this endpoint's only consumers are staff dialogs.
-  const isStaff = hasRole(req.user!.roles, "ADMIN") || hasRole(req.user!.roles, "FIXER");
+  const isStaff = isStaffRoles(req.user!.roles);
   if (isStaff) {
     const [existing, tagRows] = await Promise.all([
       db.select({ name: characterTagOptions.name }).from(characterTagOptions),
@@ -1763,7 +1765,7 @@ router.get("/directory/tag-options", requireAuth, async (req, res): Promise<void
         .select({ applied: characters.appliedTags, manual: characters.manualTags })
         .from(characters),
     ]);
-    const known = new Set(existing.map((r) => r.name.trim().toLowerCase()));
+    const known = new Set(existing.map((r) => normalizeName(r.name)));
     const toAdd = new Map<string, string>(); // lowercase key -> display name
     for (const row of tagRows) {
       for (const raw of [...(row.applied ?? []), ...(row.manual ?? [])]) {

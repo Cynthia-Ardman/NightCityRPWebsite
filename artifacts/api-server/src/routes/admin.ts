@@ -36,6 +36,7 @@ import { isVrchatCalendarSyncEnabled, VRCHAT_SYNC_FLAG } from "../lib/eventsServ
 import { scanVrchatChannel } from "../lib/vrchatLinks";
 import { getEconomyMode, reconcileOneUser, recordSettledWalletMovement, applyWalletDelta } from "../lib/economy";
 import { computeAdminAnalytics, parseAnalyticsRange, parseExcludeAbove } from "../lib/analytics";
+import { normalizeName } from "../lib/strings";
 
 const router: IRouter = Router();
 
@@ -586,7 +587,7 @@ router.post("/admin/characters", adminOrFixer, async (req, res): Promise<void> =
   const TRAUMA_TIERS = new Set(["silver", "gold", "platinum", "diamond", "corporate"]);
   let traumaTeamTier: string | null = null;
   if (typeof b.traumaTeamTier === "string" && b.traumaTeamTier.trim()) {
-    const t = b.traumaTeamTier.trim().toLowerCase();
+    const t = normalizeName(b.traumaTeamTier);
     if (!TRAUMA_TIERS.has(t)) {
       res.status(400).json({ error: `traumaTeamTier must be one of: ${[...TRAUMA_TIERS].join(", ")}` });
       return;
@@ -3520,7 +3521,7 @@ async function previewClaimByUsername(): Promise<Array<{
   const byUsername = new Map<string, Array<{ id: string; username: string }>>();
   for (const u of allUsers) {
     for (const handle of [u.username, u.globalName].filter((x): x is string => !!x)) {
-      const key = handle.trim().toLowerCase();
+      const key = normalizeName(handle);
       if (!key) continue;
       const list = byUsername.get(key) ?? [];
       list.push({ id: u.id, username: u.username });
@@ -3529,7 +3530,7 @@ async function previewClaimByUsername(): Promise<Array<{
   }
 
   return unclaimed.map((c) => {
-    const key = (c.legacyDiscordUsername ?? "").trim().toLowerCase();
+    const key = normalizeName(c.legacyDiscordUsername ?? "");
     const hits = byUsername.get(key) ?? [];
     // Dedupe — a single user matched on both username AND globalName
     // shouldn't be counted twice.

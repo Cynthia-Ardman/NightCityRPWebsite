@@ -10,7 +10,7 @@ import {
   characters,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole } from "../lib/discord";
+import { isStaffRoles } from "../lib/roleChecks";
 import { approveOffer, denyOffer, type OfferKind } from "../lib/saleOffers";
 
 const router: IRouter = Router();
@@ -92,7 +92,7 @@ async function listVenueOffers(
     res.status(404).json({ error: "Not found" });
     return;
   }
-  let authorized = venue.ownerId === req.user!.id || hasRole(req.user!.roles, "ADMIN") || hasRole(req.user!.roles, "FIXER");
+  let authorized = venue.ownerId === req.user!.id || isStaffRoles(req.user!.roles);
   if (!authorized) {
     const empTable = kind === "store" ? storeEmployees : ripperdocEmployees;
     const empVenueCol = kind === "store" ? storeEmployees.storeId : ripperdocEmployees.ripperdocId;
@@ -127,7 +127,7 @@ router.get("/offers/:id", requireAuth, async (req, res): Promise<void> => {
   const venueId = kind === "store" ? offer.storeId : offer.ripperdocId;
   const venueTable = kind === "store" ? stores : ripperdocs;
   const [venue] = venueId != null ? await db.select().from(venueTable).where(eq(venueTable.id, venueId)) : [undefined];
-  const isStaff = hasRole(req.user!.roles, "ADMIN") || hasRole(req.user!.roles, "FIXER");
+  const isStaff = isStaffRoles(req.user!.roles);
   const isBuyer = offer.buyerUserId === req.user!.id;
   const isOwner = venue?.ownerId === req.user!.id;
   let authorized = isStaff || isBuyer || isOwner;

@@ -14,10 +14,12 @@ import {
 } from "@workspace/db";
 import type { Request } from "express";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole, postToChannel, startThreadFromMessage, addGuildMemberRole, grantDeadCharacterRole, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { hasRole, addGuildMemberRole, grantDeadCharacterRole, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { announceWithThread } from "../lib/reviewAnnounce";
+import { portalLink } from "../lib/portalUrl";
 import { createNotification } from "../lib/notifications";
 import { logger } from "../lib/logger";
-import { isReviewer, isEligibleReviewer, listEligibleReviewerIds, listEligibleReviewers, loadLastActivityBySubject, majorityOf, type ReviewActionResult } from "../lib/review";
+import { isReviewer, isEligibleReviewer, listEligibleReviewerIds, listEligibleReviewers, loadLastActivityBySubject, majorityOf, countVotes, type ReviewActionResult } from "../lib/review";
 import { recordAudit } from "../lib/audit";
 
 const router: IRouter = Router();
@@ -230,12 +232,15 @@ function isCosmeticOnlyDiff(diff: Record<string, unknown>, current: Record<strin
 async function announceEdit(editId: number, character: Character, submitter: User, diff: EditableDiff, note: string | null): Promise<void> {
   if (!CS_CHANNEL_ID) return;
   const changedFields = Object.keys(diff);
-  const portalBase = (process.env.PUBLIC_BASE_URL ?? process.env.REPLIT_DOMAINS?.split(",")[0] ?? "").replace(/^https?:\/\//, "");
-  const reviewUrl = portalBase ? `https://${portalBase}/pending-edits/${editId}` : `/pending-edits/${editId}`;
-  const msgId = await postToChannel(
-    CS_CHANNEL_ID,
-    `Character edit pending review: **${character.name}** by ${submitter.username}`,
-    [
+  const reviewUrl = portalLink(`/pending-edits/${editId}`);
+  // Start a thread from the summary post; the portal mirrors it read-only.
+  // Thread id == the OP message id. Only persist discordThreadId when a thread
+  // genuinely exists — on a hard failure (null) leave it unset so a later
+  // backfill can thread from the stored message id.
+  await announceWithThread({
+    channelId: CS_CHANNEL_ID,
+    content: `Character edit pending review: **${character.name}** by ${submitter.username}`,
+    embeds: [
       {
         title: `Edit to ${character.name}`,
         description: note?.slice(0, 500) ?? "(no note)",
@@ -246,18 +251,14 @@ async function announceEdit(editId: number, character: Character, submitter: Use
         ],
       },
     ],
-  );
-  if (msgId) {
-    // Start a thread from the summary post; the portal mirrors it read-only.
-    // Thread id == the OP message id. Only persist discordThreadId when a thread
-    // genuinely exists — on a hard failure (null) leave it unset so a later
-    // backfill can thread from the stored message id.
-    const threadId = await startThreadFromMessage(CS_CHANNEL_ID, msgId, `Edit: ${character.name}`);
-    await db
-      .update(pendingCharacterEdits)
-      .set({ discordMessageId: msgId, ...(threadId ? { discordThreadId: threadId } : {}) })
-      .where(eq(pendingCharacterEdits.id, editId));
-  }
+    threadTitle: `Edit: ${character.name}`,
+    persist: async ({ msgId, threadId }) => {
+      await db
+        .update(pendingCharacterEdits)
+        .set({ discordMessageId: msgId, ...(threadId ? { discordThreadId: threadId } : {}) })
+        .where(eq(pendingCharacterEdits.id, editId));
+    },
+  });
 }
 
 // Public entry point used by PATCH /characters/:id. Encapsulates the
@@ -545,9 +546,7 @@ async function hydrateEdits(
     // Count only eligible-pool votes so an ineligible (e.g. admin-only) vote
     // can't skew the displayed tally — mirrors the decision math.
     const votes = allVotes.filter((v) => eligibleSet.has(v.voterId));
-    const approveCount = votes.filter((v) => v.vote === "approve").length;
-    const rejectCount = votes.filter((v) => v.vote === "reject").length;
-    const pauseCount = votes.filter((v) => v.vote === "pause").length;
+    const { approveCount, rejectCount, pauseCount } = countVotes(votes);
     const myVote = allVotes.find((v) => v.voterId === opts.viewerId) ?? null;
     return {
       id: r.id,
@@ -735,9 +734,7 @@ router.get("/pending-edits/:id", requireAuth, async (req, res): Promise<void> =>
   // Count only eligible-pool votes so an ineligible (e.g. admin-only) vote can't
   // skew the displayed tally — mirrors the decision math.
   const effectiveVotes = votes.filter((v) => eligibleSet.has(v.voterId));
-  const approveCount = effectiveVotes.filter((v) => v.vote === "approve").length;
-  const rejectCount = effectiveVotes.filter((v) => v.vote === "reject").length;
-  const pauseCount = effectiveVotes.filter((v) => v.vote === "pause").length;
+  const { approveCount, rejectCount, pauseCount } = countVotes(effectiveVotes);
   const myVote = votes.find((v) => v.voterId === u.id) ?? null;
   // Build a field-by-field before/after preview. We use the snapshot
   // captured at submission time so the reviewer sees what the submitter
