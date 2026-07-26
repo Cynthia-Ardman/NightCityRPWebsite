@@ -50,12 +50,14 @@ export default function BreachHub() {
 
   const [target, setTarget] = useState<CharacterPickerValue>(null);
   const [difficulty, setDifficulty] = useState<BreachPuzzleInputDifficulty>("medium");
-  const [timeLimit, setTimeLimit] = useState<number>(60);
+  // Kept as raw strings so the boxes can be cleared while typing; parsed and
+  // validated only when the breach is assigned.
+  const [timeLimit, setTimeLimit] = useState<string>("60");
   const [missionContext, setMissionContext] = useState<MissionContextValue>(null);
   const [logFilter, setLogFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<LogStatusFilter>("all");
   const [difficultyFilter, setDifficultyFilter] = useState<LogDifficultyFilter>("all");
-  const [rewardEddies, setRewardEddies] = useState<number>(0);
+  const [rewardEddies, setRewardEddies] = useState<string>("");
   const [rewardItemName, setRewardItemName] = useState<string>("");
   const [rewardItemCategory, setRewardItemCategory] = useState<string>("");
   const [rewardNote, setRewardNote] = useState<string>("");
@@ -118,19 +120,21 @@ export default function BreachHub() {
       toast({ title: "Pick a character", description: "Search for who receives this breach.", variant: "destructive" });
       return;
     }
-    if (timeLimit < 10 || timeLimit > 600) {
+    const timeLimitSeconds = Number.parseInt(timeLimit, 10);
+    if (!Number.isFinite(timeLimitSeconds) || timeLimitSeconds < 10 || timeLimitSeconds > 600) {
       toast({ title: "Invalid time limit", description: "Time limit must be 10–600 seconds.", variant: "destructive" });
       return;
     }
+    const rewardEddiesNum = Number.parseInt(rewardEddies, 10);
     try {
       const puzzle = await createMut.mutateAsync({
         data: {
           assignedCharacterId: target.id,
           difficulty,
-          timeLimitSeconds: timeLimit,
+          timeLimitSeconds,
           contextLabel: missionContext?.label.trim() || undefined,
           missionId: missionContext?.missionId ?? undefined,
-          rewardEddies: rewardEddies > 0 ? rewardEddies : undefined,
+          rewardEddies: Number.isFinite(rewardEddiesNum) && rewardEddiesNum > 0 ? rewardEddiesNum : undefined,
           rewardItemName: rewardItemName.trim() || undefined,
           rewardItemCategory: rewardItemCategory.trim() || undefined,
           rewardNote: rewardNote.trim() || undefined,
@@ -149,7 +153,7 @@ export default function BreachHub() {
       setPreview(null);
       setTarget(null);
       setMissionContext(null);
-      setRewardEddies(0);
+      setRewardEddies("");
       setRewardItemName("");
       setRewardItemCategory("");
       setRewardNote("");
@@ -213,11 +217,11 @@ export default function BreachHub() {
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Time Limit (s)</Label>
                 <Input
-                  type="number"
-                  min={10}
-                  max={600}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="60"
                   value={timeLimit}
-                  onChange={(e) => setTimeLimit(Number(e.target.value))}
+                  onChange={(e) => setTimeLimit(e.target.value.replace(/[^0-9]/g, ""))}
                   className="rounded-none font-mono"
                   data-testid="input-timelimit"
                 />
@@ -242,10 +246,11 @@ export default function BreachHub() {
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Eddies</Label>
                 <Input
-                  type="number"
-                  min={0}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0"
                   value={rewardEddies}
-                  onChange={(e) => setRewardEddies(Number(e.target.value))}
+                  onChange={(e) => setRewardEddies(e.target.value.replace(/[^0-9]/g, ""))}
                   className="rounded-none font-mono"
                   data-testid="input-reward-eddies"
                 />
