@@ -1912,23 +1912,26 @@ router.post("/stores/:id/grant", requireAuth, async (req, res): Promise<void> =>
   res.json({ ok: true, venueBalance: finalBalance, walletBalance: 0 });
 });
 
-// Any player may gift eddies from their personal wallet into a store's account.
-// One-directional (personal debit -> store credit); mirrors the deposit leg of
-// venueDepositWithdraw but is NOT owner-restricted.
-router.post("/stores/:id/give", requireAuth, async (req, res): Promise<void> => {
+// Any player may gift eddies from their personal wallet into a business
+// (store or ripperdoc clinic) account. One-directional (personal debit ->
+// venue credit); mirrors the deposit leg of venueDepositWithdraw but is NOT
+// owner-restricted. Shared by /stores/:id/give and /ripperdocs/:id/give-eddies.
+async function venueGive(kind: VenueKind, req: Request, res: Response): Promise<void> {
   const venueId = parseInt(String(req.params.id), 10);
   const amount = Number(req.body?.amount);
   if (!Number.isInteger(amount) || amount <= 0) {
     res.status(400).json({ error: "amount must be a positive whole number" });
     return;
   }
-  const [store] = await db.select().from(stores).where(eq(stores.id, venueId));
-  if (!store) {
+  const venueTable = kind === "store" ? stores : ripperdocs;
+  const [venue] = await db.select().from(venueTable).where(eq(venueTable.id, venueId));
+  if (!venue) {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  if (store.balance + amount > MAX_WALLET_BALANCE) {
-    res.status(400).json({ error: `This would push the store balance past the maximum of ${MAX_WALLET_BALANCE.toLocaleString()} eddies.` });
+  const venueNoun = kind === "store" ? "store" : "clinic";
+  if (venue.balance + amount > MAX_WALLET_BALANCE) {
+    res.status(400).json({ error: `This would push the ${venueNoun} balance past the maximum of ${MAX_WALLET_BALANCE.toLocaleString()} eddies.` });
     return;
   }
   const giver = req.user!;
@@ -1937,17 +1940,21 @@ router.post("/stores/:id/give", requireAuth, async (req, res): Promise<void> => 
     typeof req.body?.idempotencyKey === "string" && req.body.idempotencyKey.trim().length > 0
       ? req.body.idempotencyKey.trim().slice(0, 100)
       : String(Date.now());
-  const idempotencyKey = `store-give-${venueId}-${clientKey}-${giver.id}`;
+  // Keep the historical "store-give-" key prefix for stores so pre-refactor
+  // retries still dedupe; ripperdocs get their own prefix.
+  const idempotencyKey = `${kind === "store" ? "store-give" : "ripperdoc-give"}-${venueId}-${clientKey}-${giver.id}`;
+  const txKind = kind === "store" ? "store_give" : "ripperdoc_give";
+  const venueRef = kind === "store" ? { storeId: venueId } : { ripperdocId: venueId };
   const result = await applyWalletDelta({
     userId: giver.id,
     discordId: giver.discordId,
     amount: -amount,
-    source: "store",
-    kind: "store_give",
-    reason: `Gift to ${store.name}`,
-    memo: note ? `gift to store "${store.name}": ${note}` : `gift to store "${store.name}"`,
-    storeId: venueId,
-    relatedEntityType: "store",
+    source: kind,
+    kind: txKind,
+    reason: `Payment to ${venue.name}`,
+    memo: note ? `payment to ${venueNoun} "${venue.name}": ${note}` : `payment to ${venueNoun} "${venue.name}"`,
+    ...venueRef,
+    relatedEntityType: kind,
     relatedEntityId: venueId,
     idempotencyKey,
   });
@@ -1967,8 +1974,8 @@ router.post("/stores/:id/give", requireAuth, async (req, res): Promise<void> => 
     res.json({
       ok: true,
       dryRun: true,
-      venueBalance: store.balance,
-      proposedVenueBalance: store.balance + amount,
+      venueBalance: venue.balance,
+      proposedVenueBalance: venue.balance + amount,
       walletBalance: result.balance,
       proposedWalletBalance: result.proposedBalance,
     });
@@ -1988,48 +1995,57 @@ router.post("/stores/:id/give", requireAuth, async (req, res): Promise<void> => 
   // race (unlike a withdraw), so no reversal path is needed.
   const venueIdempotencyKey = `${idempotencyKey}-venue`;
   const { ip, ua } = auditMeta(req);
-  let finalVenueBalance = store.balance + amount;
+  let finalVenueBalance = venue.balance + amount;
   await db.transaction(async (tx) => {
     const [existing] = await tx
       .select({ newBalance: walletTransactions.newBalance })
       .from(walletTransactions)
       .where(eq(walletTransactions.idempotencyKey, venueIdempotencyKey));
     if (existing) {
-      finalVenueBalance = existing.newBalance ?? store.balance;
+      finalVenueBalance = existing.newBalance ?? venue.balance;
       return;
     }
     const [u] = await tx
-      .update(stores)
-      .set({ balance: sql`${stores.balance} + ${amount}` })
-      .where(eq(stores.id, venueId))
-      .returning({ balance: stores.balance });
+      .update(venueTable)
+      .set({ balance: sql`${venueTable.balance} + ${amount}` })
+      .where(eq(venueTable.id, venueId))
+      .returning({ balance: venueTable.balance });
     finalVenueBalance = u.balance;
     await tx.insert(walletTransactions).values({
       amount,
-      kind: "store_give",
-      source: "store",
+      kind: txKind,
+      source: kind,
       syncStatus: "synced",
-      memo: `Gift from ${giver.username} — ${store.name}${note ? `: ${note}` : ""}`,
+      memo: `Payment from ${giver.username} — ${venue.name}${note ? `: ${note}` : ""}`,
       previousBalance: finalVenueBalance - amount,
       newBalance: finalVenueBalance,
-      storeId: venueId,
-      relatedEntityType: "store",
+      ...venueRef,
+      relatedEntityType: kind,
       relatedEntityId: venueId,
       idempotencyKey: venueIdempotencyKey,
     });
     await tx.insert(auditLog).values({
       category: "shop",
-      action: "store_give",
+      action: txKind,
       actorId: giver.id,
       actorName: giver.username,
       actorIp: ip,
       actorUa: ua,
-      targetType: "store",
+      targetType: kind,
       targetId: String(venueId),
-      message: `${giver.username} gifted ${amount} eddies to ${store.name}`,
+      message: `${giver.username} paid ${amount} eddies to ${venue.name}`,
     });
   });
   res.json({ ok: true, venueBalance: finalVenueBalance, walletBalance: result.balance });
+}
+
+router.post("/stores/:id/give", requireAuth, async (req, res): Promise<void> => {
+  await venueGive("store", req, res);
+});
+// "/ripperdocs/:id/give" is already taken by the item-gift flow, so the money
+// path gets an explicit "-eddies" suffix.
+router.post("/ripperdocs/:id/give-eddies", requireAuth, async (req, res): Promise<void> => {
+  await venueGive("ripperdoc", req, res);
 });
 
 // Per-venue transaction history (owner or staff only).

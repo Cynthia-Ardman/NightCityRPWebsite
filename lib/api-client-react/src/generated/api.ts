@@ -13234,6 +13234,78 @@ export const useDepositToRipperdoc = <TError = ErrorType<void>,
       return useMutation(getDepositToRipperdocMutationOptions(options));
     }
 
+export const getGiveToRipperdocUrl = (id: number,) => {
+
+
+
+
+  return `/api/ripperdocs/${id}/give-eddies`
+}
+
+/**
+ * @summary Any player pays eddies from their personal wallet into a clinic account
+ */
+export const giveToRipperdoc = async (id: number,
+    venueAccountInput: VenueAccountInput, options?: RequestInit): Promise<VenueAccountResult> => {
+
+  return customFetch<VenueAccountResult>(getGiveToRipperdocUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      venueAccountInput,)
+  }
+);}
+
+
+
+
+export const getGiveToRipperdocMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof giveToRipperdoc>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof giveToRipperdoc>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext> => {
+
+const mutationKey = ['giveToRipperdoc'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof giveToRipperdoc>>, {id: number;data: BodyType<VenueAccountInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  giveToRipperdoc(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GiveToRipperdocMutationResult = NonNullable<Awaited<ReturnType<typeof giveToRipperdoc>>>
+    export type GiveToRipperdocMutationBody = BodyType<VenueAccountInput>
+    export type GiveToRipperdocMutationError = ErrorType<void>
+
+    /**
+ * @summary Any player pays eddies from their personal wallet into a clinic account
+ */
+export const useGiveToRipperdoc = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof giveToRipperdoc>>, TError,{id: number;data: BodyType<VenueAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof giveToRipperdoc>>,
+        TError,
+        {id: number;data: BodyType<VenueAccountInput>},
+        TContext
+      > => {
+      return useMutation(getGiveToRipperdocMutationOptions(options));
+    }
+
 export const getWithdrawFromRipperdocUrl = (id: number,) => {
 
 

@@ -7,6 +7,10 @@ import {
   useSinkEddies,
   useWithdrawEddies,
   useDepositEddies,
+  useListStores,
+  useListRipperdocs,
+  useGiveToStore,
+  useGiveToRipperdoc,
   getGetMyWalletQueryKey,
   getGetMyWalletTransactionsQueryKey,
   type WalletTransaction,
@@ -166,6 +170,8 @@ export default function Ledger() {
       <WithdrawDepositCard cash={wallet?.cash ?? null} bank={wallet?.bank ?? null} />
 
       <TransferCard cash={wallet?.cash ?? null} total={wallet?.balance ?? null} />
+
+      <PayBusinessCard cash={wallet?.cash ?? null} total={wallet?.balance ?? null} />
 
       <SinkCard cash={wallet?.cash ?? null} total={wallet?.balance ?? null} />
 
@@ -423,6 +429,143 @@ function TransferCard({ cash, total }: { cash: number | null; total: number | nu
         {transferError && (
           <div className="text-destructive font-mono text-sm" data-testid="text-transfer-error">
             {transferError}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Pay a business (store or ripperdoc clinic) from the player's personal
+// wallet. Same UX as paying another player, but the money lands in the
+// venue's own account instead of a character's wallet. Spends cash only,
+// like transfers.
+function PayBusinessCard({ cash, total }: { cash: number | null; total: number | null }) {
+  const qc = useQueryClient();
+  const { data: storeList } = useListStores();
+  const { data: ripperdocList } = useListRipperdocs();
+  const [target, setTarget] = useState<string>("");
+  const [amount, setAmount] = useState(0);
+  const [memo, setMemo] = useState("");
+
+  const onSuccess = () => {
+    qc.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetMyWalletTransactionsQueryKey() });
+    setTarget("");
+    setAmount(0);
+    setMemo("");
+  };
+  const payStore = useGiveToStore({ mutation: { onSuccess } });
+  const payClinic = useGiveToRipperdoc({ mutation: { onSuccess } });
+
+  const stores = storeList ?? [];
+  const clinics = ripperdocList ?? [];
+  const isPending = payStore.isPending || payClinic.isPending;
+  const canSubmit = !!target && amount > 0 && !isPending;
+
+  // Same funds-error enhancement as TransferCard: when the failure is about
+  // cash and the bank would cover it, nudge the player to withdraw first.
+  const error = payStore.error ?? payClinic.error;
+  let payError: string | null = null;
+  if (error) {
+    payError = apiErrorMessage(error, "Payment failed. Check funds or try again.");
+    const isFundsError = /cash|insufficient/i.test(payError);
+    if (
+      isFundsError &&
+      cash != null &&
+      total != null &&
+      amount > 0 &&
+      cash < amount &&
+      total >= amount
+    ) {
+      payError = `Not enough cash on hand — you have ${formatEddies(cash)} in cash. Withdraw at least ${formatEddies(amount - cash)} from your bank first, then try again.`;
+    }
+  }
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-nc-cyan">PAY A BUSINESS</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="font-mono text-xs text-muted-foreground">
+          Send eddies from your personal wallet straight into a store or clinic account — for
+          purchases, services, tips, or settling a tab.
+        </p>
+        <form
+          className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!canSubmit) return;
+            const [kind, idStr] = target.split(":");
+            const id = Number(idStr);
+            if (!Number.isInteger(id)) return;
+            const data = { amount, memo: memo || undefined, idempotencyKey: crypto.randomUUID() };
+            // Clear any stale error from the *other* mutation so a leftover
+            // failure message doesn't linger next to a fresh attempt.
+            payStore.reset();
+            payClinic.reset();
+            if (kind === "store") payStore.mutate({ id, data });
+            else if (kind === "ripperdoc") payClinic.mutate({ id, data });
+          }}
+        >
+          <div className="sm:col-span-4">
+            <Label className="text-xs font-mono">BUSINESS</Label>
+            <select
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              className="w-full h-10 bg-background border border-border rounded-none px-2 font-mono text-sm text-foreground"
+              data-testid="select-pay-business"
+            >
+              <option value="">Select business…</option>
+              {stores.length > 0 && (
+                <optgroup label="Stores">
+                  {stores.map((s) => (
+                    <option key={`store-${s.id}`} value={`store:${s.id}`}>
+                      {s.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {clinics.length > 0 && (
+                <optgroup label="Ripperdoc clinics">
+                  {clinics.map((r) => (
+                    <option key={`ripperdoc-${r.id}`} value={`ripperdoc:${r.id}`}>
+                      {r.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <Label className="text-xs font-mono">AMOUNT (€$)</Label>
+            <Input
+              type="number"
+              min={1}
+              value={amount || ""}
+              onChange={(e) => setAmount(Number(e.target.value))}
+              data-testid="input-pay-business-amount"
+            />
+          </div>
+          <div className="sm:col-span-4">
+            <Label className="text-xs font-mono">MEMO</Label>
+            <Input value={memo} onChange={(e) => setMemo(e.target.value)} data-testid="input-pay-business-memo" />
+          </div>
+          <div className="sm:col-span-2">
+            <Button
+              type="submit"
+              disabled={!canSubmit}
+              className="w-full rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
+              data-testid="button-pay-business"
+            >
+              {isPending ? "PAYING..." : "PAY"}
+            </Button>
+          </div>
+        </form>
+        {payError && (
+          <div className="text-destructive font-mono text-sm" data-testid="text-pay-business-error">
+            {payError}
           </div>
         )}
       </CardContent>

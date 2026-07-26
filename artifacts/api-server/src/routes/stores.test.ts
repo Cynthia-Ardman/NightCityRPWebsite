@@ -676,3 +676,80 @@ describe("PATCH /ripperdocs/:id/stock/:stockId (manual clinic stock edit is audi
     expect(audits.length).toBe(0);
   });
 });
+
+describe("pay a business (giveToStore / giveToRipperdoc)", () => {
+  it("any player pays a store: debits their wallet, credits the store, records both legs", async () => {
+    await setEconomyMode("enabled");
+    const owner = await createUser();
+    const payer = await createUser();
+    const store = await makeStore(owner.id);
+    await fund(payer.id, 1000);
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/give`)
+      .set("x-test-user", payer.id)
+      .send({ amount: 300, memo: "for the pistol", idempotencyKey: "pay-store-1" });
+    expect(res.status).toBe(200);
+    expect(res.body.venueBalance).toBe(300);
+    const [p] = await db.select().from(users).where(eq(users.id, payer.id));
+    expect(p.walletBalance).toBe(700);
+    const legs = await db.select().from(walletTransactions).where(eq(walletTransactions.storeId, store.id));
+    expect(legs.length).toBe(2); // personal debit + venue credit
+  });
+
+  it("replaying the same idempotency key does not double-charge or double-credit", async () => {
+    await setEconomyMode("enabled");
+    const owner = await createUser();
+    const payer = await createUser();
+    const store = await makeStore(owner.id);
+    await fund(payer.id, 1000);
+    const body = { amount: 250, idempotencyKey: "pay-store-dup" };
+    const first = await request(app).post(`/api/stores/${store.id}/give`).set("x-test-user", payer.id).send(body);
+    const second = await request(app).post(`/api/stores/${store.id}/give`).set("x-test-user", payer.id).send(body);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(second.body.venueBalance).toBe(250);
+    const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(s.balance).toBe(250);
+    const [p] = await db.select().from(users).where(eq(users.id, payer.id));
+    expect(p.walletBalance).toBe(750);
+  });
+
+  it("any player pays a ripperdoc clinic via /give-eddies", async () => {
+    await setEconomyMode("enabled");
+    const owner = await createUser();
+    const payer = await createUser();
+    const rip = await makeRipperdoc(owner.id);
+    await fund(payer.id, 500);
+    const res = await request(app)
+      .post(`/api/ripperdocs/${rip.id}/give-eddies`)
+      .set("x-test-user", payer.id)
+      .send({ amount: 200, memo: "checkup tab", idempotencyKey: "pay-rip-1" });
+    expect(res.status).toBe(200);
+    expect(res.body.venueBalance).toBe(200);
+    const [r] = await db.select().from(ripperdocs).where(eq(ripperdocs.id, rip.id));
+    expect(r.balance).toBe(200);
+    const [p] = await db.select().from(users).where(eq(users.id, payer.id));
+    expect(p.walletBalance).toBe(300);
+    // The venue leg is tagged to the clinic so its history shows the payment.
+    const legs = await db.select().from(walletTransactions).where(eq(walletTransactions.ripperdocId, rip.id));
+    expect(legs.length).toBe(2);
+    expect(legs.some((l) => l.kind === "ripperdoc_give" && l.amount === 200)).toBe(true);
+  });
+
+  it("400s on insufficient personal funds without touching the clinic balance", async () => {
+    await setEconomyMode("enabled");
+    const owner = await createUser();
+    const payer = await createUser();
+    const rip = await makeRipperdoc(owner.id);
+    await fund(payer.id, 50);
+    const res = await request(app)
+      .post(`/api/ripperdocs/${rip.id}/give-eddies`)
+      .set("x-test-user", payer.id)
+      .send({ amount: 200, idempotencyKey: "pay-rip-poor" });
+    expect(res.status).toBe(400);
+    const [r] = await db.select().from(ripperdocs).where(eq(ripperdocs.id, rip.id));
+    expect(r.balance).toBe(0);
+    const [p] = await db.select().from(users).where(eq(users.id, payer.id));
+    expect(p.walletBalance).toBe(50);
+  });
+});

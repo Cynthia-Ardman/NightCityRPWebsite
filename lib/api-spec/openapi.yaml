@@ -2941,6 +2941,28 @@ paths:
         "404": { description: Not found }
         "409": { description: Economy disabled }
         "502": { description: Wallet sync failed }
+  /ripperdocs/{id}/give-eddies:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: giveToRipperdoc
+      tags: [ripperdocs]
+      summary: Any player pays eddies from their personal wallet into a clinic account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VenueAccountInput" }
+      responses:
+        "200":
+          description: Paid
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VenueAccountResult" }
+        "400": { description: Bad amount or insufficient personal wallet balance }
+        "404": { description: Not found }
+        "409": { description: Economy disabled }
+        "502": { description: Wallet sync failed }
   /ripperdocs/{id}/withdraw:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -8870,7 +8892,7 @@ components:
       properties:
         amount: { type: integer, minimum: 1, description: "Whole eddies to move between the owner's personal wallet and the venue account." }
         idempotencyKey: { type: string, maxLength: 100, description: "Client-generated key (e.g. a UUID created once per submit) so network retries / double-clicks of the same move don't debit or credit twice." }
-        memo: { type: string, maxLength: 200, description: "Optional note attached to a player gift (giveToStore only); ignored by deposit/withdraw/grant." }
+        memo: { type: string, maxLength: 200, description: "Optional note attached to a player payment (giveToStore / giveToRipperdoc only); ignored by deposit/withdraw/grant." }
 
     VenueAccountResult:
       type: object
