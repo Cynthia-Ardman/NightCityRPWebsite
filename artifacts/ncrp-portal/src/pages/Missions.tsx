@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/format";
+import { formatDate, formatEddies } from "@/lib/format";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -886,7 +886,7 @@ function MissionCard({
             {m.assignedCount}
             {m.slots > 0 ? ` / ${m.slots}` : ""} players
           </span>
-          <span className="text-nc-yellow">Player pay: €${m.playerPay.toLocaleString()}</span>
+          <span className="text-nc-yellow">Player pay: {formatEddies(m.playerPay)}</span>
         </div>
 
         {/* 7. Fixer (clickable for admins) */}

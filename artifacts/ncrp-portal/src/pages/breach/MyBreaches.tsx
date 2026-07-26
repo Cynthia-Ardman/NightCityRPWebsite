@@ -1,3 +1,4 @@
+import { formatDateTime } from "@/lib/format";
 import { Link } from "wouter";
 import { useListMyBreachPuzzles, getListMyBreachPuzzlesQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -117,7 +118,7 @@ export default function MyBreaches() {
                             {p.rewardPaidAt ? rewardSummary(p) : "—"}
                           </td>
                           <td className="py-2 pr-4 text-xs text-muted-foreground">
-                            {p.completedAt ? new Date(p.completedAt).toLocaleString() : "—"}
+                            {p.completedAt ? formatDateTime(p.completedAt) : "—"}
                           </td>
                         </tr>
                       ))}

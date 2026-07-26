@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/format";
+import { formatDate, formatEddies, formatDateTime } from "@/lib/format";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -475,7 +475,7 @@ export default function RipperdocConsole() {
                           >
                             <div className="flex justify-between gap-2">
                               <span className="truncate">{s.name}</span>
-                              <span className="text-nc-yellow shrink-0">€${s.price.toLocaleString()} · x{s.quantity}</span>
+                              <span className="text-nc-yellow shrink-0">{formatEddies(s.price)} · x{s.quantity}</span>
                             </div>
                           </button>
                         ))}
@@ -565,7 +565,7 @@ export default function RipperdocConsole() {
                     {medical!.checkups.map((ch) => (
                       <div key={ch.id} className="border-b border-border/30 pb-2 last:border-b-0" data-testid={`row-checkup-${ch.id}`}>
                         <div className="text-xs font-mono text-foreground">
-                          {ch.createdAt ? new Date(ch.createdAt).toLocaleString() : "—"}
+                          {ch.createdAt ? formatDateTime(ch.createdAt) : "—"}
                         </div>
                         <div className="text-[11px] font-mono text-muted-foreground">
                           {ch.actorName ? `by ${ch.actorName}` : ""}{ch.level ? ` · level: ${ch.level}` : ""}
@@ -600,7 +600,7 @@ export default function RipperdocConsole() {
                           </div>
                         </div>
                         <span className={`text-xs font-mono shrink-0 ${p.amount < 0 ? "text-destructive" : "text-nc-green"}`}>
-                          {p.amount < 0 ? "" : "+"}€${p.amount.toLocaleString()}
+                          {p.amount < 0 ? "" : "+"}{formatEddies(p.amount)}
                         </span>
                       </div>
                     ))}
@@ -693,7 +693,7 @@ export default function RipperdocConsole() {
                             {b.quantity && b.quantity > 1 ? ` ×${b.quantity}` : ""}
                           </span>
                           <span className="text-xs font-mono text-nc-yellow shrink-0">
-                            €${b.amount.toLocaleString()}
+                            {formatEddies(b.amount)}
                           </span>
                         </div>
                         <div className="text-[11px] font-mono text-muted-foreground">

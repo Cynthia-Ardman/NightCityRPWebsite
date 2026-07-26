@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/format";
+import { formatDate, formatEddies } from "@/lib/format";
 import { useMemo } from "react";
 import { type SaleOffer } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +33,7 @@ function ProfitCell({ offer }: { offer: SaleOffer }) {
   const sign = profit > 0 ? "+" : profit < 0 ? "−" : "";
   return (
     <span className={cls} data-testid={`text-offer-profit-${offer.id}`}>
-      {sign}€${Math.abs(profit).toLocaleString()}
+      {sign}{formatEddies(Math.abs(profit))}
     </span>
   );
 }
@@ -93,7 +93,7 @@ export default function VenueOffersPanel({ offers }: { offers: SaleOffer[] }) {
                       {o.sellerName ?? "Owner"}
                     </td>
                     <td className="p-3 text-right text-nc-yellow whitespace-nowrap">
-                      €${o.totalPrice.toLocaleString()}
+                      {formatEddies(o.totalPrice)}
                     </td>
                     <td className="p-3 text-right whitespace-nowrap">
                       <ProfitCell offer={o} />
@@ -102,7 +102,7 @@ export default function VenueOffersPanel({ offers }: { offers: SaleOffer[] }) {
                       {o.commissionPct > 0
                         ? `${o.commissionPct}%${
                             o.status === "approved" && o.commissionAmount != null
-                              ? ` (€$${o.commissionAmount.toLocaleString()})`
+                              ? ` (${formatEddies(o.commissionAmount)})`
                               : ""
                           }`
                         : "—"}

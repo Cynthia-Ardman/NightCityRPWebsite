@@ -1,3 +1,4 @@
+import { formatDateTime } from "@/lib/format";
 import { useParams, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -171,7 +172,7 @@ export default function SheetDetail() {
         <div>
           <h1 className="text-4xl font-display text-foreground" data-testid="text-sheet-name">{sheet.name}</h1>
           <p className="font-mono text-xs text-muted-foreground mt-1">
-            Submitted {new Date(sheet.submittedAt ?? sheet.createdAt).toLocaleString()}
+            Submitted {formatDateTime(sheet.submittedAt ?? sheet.createdAt)}
             {sheet.ownerName ? <> by <span className="text-foreground">{sheet.ownerName}</span></> : null} · Status:{" "}
             {sheetStatusBadge(sheet.status, !isStaff)}
           </p>

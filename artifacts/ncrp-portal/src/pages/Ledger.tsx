@@ -1,3 +1,4 @@
+import { formatEddies, formatDateTime } from "@/lib/format";
 import {
   useGetMyWallet,
   useGetMyWalletTransactions,
@@ -191,7 +192,7 @@ export default function Ledger() {
                       <div className="min-w-0">
                         <div className="text-foreground truncate">{typeLabel(t)}</div>
                         <div className="text-[11px] text-muted-foreground">
-                          {new Date(t.createdAt).toLocaleString()}
+                          {formatDateTime(t.createdAt)}
                         </div>
                       </div>
                       <div
@@ -204,7 +205,7 @@ export default function Ledger() {
                             <ArrowUpRight className="w-3 h-3" />
                           )}
                           {credit ? "+" : "−"}
-                          {Math.abs(t.amount).toLocaleString()} €$
+                          {formatEddies(Math.abs(t.amount))}
                         </span>
                       </div>
                     </div>
@@ -250,7 +251,7 @@ export default function Ledger() {
                         data-testid={`row-ledger-${t.id}`}
                       >
                         <td className="p-3 text-muted-foreground whitespace-nowrap">
-                          {new Date(t.createdAt).toLocaleString()}
+                          {formatDateTime(t.createdAt)}
                         </td>
                         <td
                           className="p-3 whitespace-nowrap text-foreground"
@@ -288,7 +289,7 @@ export default function Ledger() {
                               <ArrowUpRight className="w-3 h-3" />
                             )}
                             {credit ? "+" : "−"}
-                            {Math.abs(t.amount).toLocaleString()} €$
+                            {formatEddies(Math.abs(t.amount))}
                           </span>
                         </td>
                       </tr>
@@ -349,7 +350,7 @@ function TransferCard({ cash, total }: { cash: number | null; total: number | nu
       cash < amount &&
       total >= amount
     ) {
-      transferError = `Not enough cash on hand — you have ${cash.toLocaleString()} €$ in cash. Withdraw at least ${(amount - cash).toLocaleString()} €$ from your bank first, then try again.`;
+      transferError = `Not enough cash on hand — you have ${formatEddies(cash)} in cash. Withdraw at least ${formatEddies(amount - cash)} from your bank first, then try again.`;
     }
   }
 
@@ -459,7 +460,7 @@ function SinkCard({ cash, total }: { cash: number | null; total: number | null }
     sinkError = apiErrorMessage(sink.error, "Payment failed. Check funds or try again.");
     const isFundsError = /cash|insufficient funds/i.test(sinkError);
     if (isFundsError && cash != null && total != null && amount > 0 && cash < amount && total >= amount) {
-      sinkError = `Not enough cash on hand — you have ${cash.toLocaleString()} €$ in cash. Withdraw at least ${(amount - cash).toLocaleString()} €$ from your bank first, then try again.`;
+      sinkError = `Not enough cash on hand — you have ${formatEddies(cash)} in cash. Withdraw at least ${formatEddies(amount - cash)} from your bank first, then try again.`;
     }
   }
 
@@ -564,12 +565,12 @@ function WithdrawDepositCard({ cash, bank }: { cash: number | null; bank: number
   const withdrawError = withdraw.error
     ? apiErrorMessage(withdraw.error, "Withdrawal failed. Try again.")
     : bank != null && withdrawAmount > bank
-      ? `You only have ${bank.toLocaleString()} €$ in the bank.`
+      ? `You only have ${formatEddies(bank)} in the bank.`
       : null;
   const depositError = deposit.error
     ? apiErrorMessage(deposit.error, "Deposit failed. Try again.")
     : cash != null && depositAmount > cash
-      ? `You only have ${cash.toLocaleString()} €$ in cash.`
+      ? `You only have ${formatEddies(cash)} in cash.`
       : null;
 
   return (

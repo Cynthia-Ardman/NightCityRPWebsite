@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatEddies } from "@/lib/format";
 import { useLocation } from "wouter";
 import {
   useUpdateStore,
@@ -206,7 +207,7 @@ export default function StaffVenuePanel({
                   {(leases ?? []).map((l) => (
                     <SelectItem key={l.id} value={String(l.id)} data-testid={`option-lease-${l.id}`}>
                       {l.address}
-                      {l.tier ? ` · ${l.tier}` : ""} · €${l.monthlyRent.toLocaleString()}/mo
+                      {l.tier ? ` · ${l.tier}` : ""} · {formatEddies(l.monthlyRent)}/mo
                       {l.characterName ? ` · ${l.characterName}` : ""}
                     </SelectItem>
                   ))}

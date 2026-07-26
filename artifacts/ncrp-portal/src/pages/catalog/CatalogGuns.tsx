@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { formatEddies } from "@/lib/format";
 import { useListGuns } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -321,7 +322,7 @@ export default function CatalogGuns() {
                   </td>
                   {canSeePrice && (
                     <td className="p-3 text-right text-nc-yellow">
-                      {g.price.toLocaleString()} €$
+                      {formatEddies(g.price)}
                     </td>
                   )}
                 </tr>

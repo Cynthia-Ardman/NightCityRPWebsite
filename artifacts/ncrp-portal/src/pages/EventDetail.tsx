@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatEddies, formatDateTime } from "@/lib/format";
 import { Link, useParams, useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -61,6 +62,7 @@ import {
 } from "lucide-react";
 import Markdown from "@/components/Markdown";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
+import { NpcStateBadge, PaymentBadge } from "@/components/RosterBadges";
 import { useToast } from "@/hooks/use-toast";
 
 function errOf(e: unknown): string | null {
@@ -574,7 +576,7 @@ function TicketSection({ data }: { data: EventView }) {
           title: res.walletStatus === "dry_run" ? "Ticket reserved (test mode)" : "Ticket purchased",
           description:
             res.ticket.pricePaid > 0
-              ? `€$${res.ticket.pricePaid.toLocaleString()} — ${res.ticket.ticketTypeName}`
+              ? `${formatEddies(res.ticket.pricePaid)} — ${res.ticket.ticketTypeName}`
               : res.ticket.ticketTypeName,
         });
       },
@@ -618,7 +620,7 @@ function TicketSection({ data }: { data: EventView }) {
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-foreground">{t.name}</span>
-                      <span className="text-nc-cyan">{t.price > 0 ? `€$${t.price.toLocaleString()}` : "FREE"}</span>
+                      <span className="text-nc-cyan">{t.price > 0 ? `${formatEddies(t.price)}` : "FREE"}</span>
                       {t.quantity > 0 && (
                         <span className="text-muted-foreground text-xs">
                           {t.soldOut ? "SOLD OUT" : `${t.remaining} left`}
@@ -656,7 +658,7 @@ function TicketSection({ data }: { data: EventView }) {
                   <div className="flex-1 min-w-0 flex flex-wrap items-center gap-2">
                     <span className="text-foreground">{t.ticketTypeName}</span>
                     <span className="text-muted-foreground text-xs">
-                      {t.pricePaid > 0 ? `€$${t.pricePaid.toLocaleString()}` : "free"}
+                      {t.pricePaid > 0 ? `${formatEddies(t.pricePaid)}` : "free"}
                     </span>
                     {ticketStatusBadge(t)}
                   </div>
@@ -756,7 +758,7 @@ function CheckInRoster({ event }: { event: EventView }) {
                     <span className="text-foreground">{t.buyerName ?? t.buyerUserId}</span>
                     <span className="text-nc-cyan text-xs">{t.ticketTypeName}</span>
                     <span className="text-muted-foreground text-xs">
-                      {t.pricePaid > 0 ? `€$${t.pricePaid.toLocaleString()}` : "free"}
+                      {t.pricePaid > 0 ? `${formatEddies(t.pricePaid)}` : "free"}
                     </span>
                     {t.payoutStatus === "failed" && event.canManage && (
                       <Badge
@@ -770,7 +772,7 @@ function CheckInRoster({ event }: { event: EventView }) {
                   </div>
                   {t.attendedAt && (
                     <p className="text-muted-foreground text-xs">
-                      Checked in {new Date(t.attendedAt).toLocaleString()}
+                      Checked in {formatDateTime(t.attendedAt)}
                       {t.attendedByName ? ` by ${t.attendedByName}` : ""}
                     </p>
                   )}
@@ -973,7 +975,7 @@ function NpcSignupSection({ data }: { data: EventView }) {
         </CardHeader>
         <CardContent className="space-y-3 font-mono text-sm">
           <div className="flex items-center gap-2">
-            <NpcStateBadge state={mine.state} />
+            <NpcStateBadge state={mine.state} signedUpAccent="magenta" />
             {mine.characterName && <span className="text-foreground">{mine.characterName}</span>}
           </div>
           {mine.state === "attended" && (
@@ -1091,56 +1093,6 @@ function NpcSignupSection({ data }: { data: EventView }) {
   );
 }
 
-function NpcStateBadge({ state }: { state: EventSignupView["state"] }) {
-  const cls =
-    state === "attended"
-      ? "border-green-500 text-green-400 bg-green-500/10"
-      : state === "no_show"
-        ? "border-destructive text-destructive bg-destructive/10"
-        : "border-nc-magenta text-nc-magenta bg-nc-magenta/10";
-  const label =
-    state === "attended" ? "Attended" : state === "no_show" ? "No-show" : "Signed up";
-  return (
-    <Badge variant="outline" className={`rounded-none text-[10px] ${cls}`}>
-      {label}
-    </Badge>
-  );
-}
-
-function PaymentBadge({
-  status,
-  amount,
-  error,
-}: {
-  status: string;
-  amount?: number | null;
-  error?: string | null;
-}) {
-  const cls =
-    status === "paid"
-      ? "border-green-500 text-green-400 bg-green-500/10"
-      : status === "failed"
-        ? "border-destructive text-destructive bg-destructive/10"
-        : status === "simulated"
-          ? "border-nc-cyan text-nc-cyan bg-nc-cyan/10"
-          : "border-nc-yellow text-nc-yellow bg-nc-yellow/10";
-  const label =
-    status === "paid" ? "Paid" : status === "failed" ? "Failed" : status === "simulated" ? "Test" : "Unpaid";
-  return (
-    <div className="inline-flex flex-col items-end gap-0.5">
-      <Badge variant="outline" className={`rounded-none text-[10px] ${cls}`}>
-        {label}
-        {amount ? ` €$${amount.toLocaleString()}` : ""}
-      </Badge>
-      {error && (
-        <span className="text-[10px] font-mono text-destructive max-w-[12rem] truncate" title={error}>
-          {error}
-        </span>
-      )}
-    </div>
-  );
-}
-
 // Per-person attendance + pay-once roster. The organizer confirms each NPC as
 // attended (paying the single fee in the FEE input) or no-show — mirroring the
 // mission NPC roster. The backend dedups per (eventId, userId) so an NPC can
@@ -1239,7 +1191,7 @@ function NpcRoster({ event, signups }: { event: EventView; signups: EventSignupV
                   ) : s.state === "attended" ? (
                     <PaymentBadge status={s.paymentStatus} amount={s.payAmount} error={s.paymentError} />
                   ) : (
-                    <NpcStateBadge state={s.state} />
+                    <NpcStateBadge state={s.state} signedUpAccent="magenta" />
                   )}
                 </div>
               </li>

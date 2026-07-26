@@ -1,3 +1,4 @@
+import { formatDateTime } from "@/lib/format";
 import {
   useGetReviewDiscordThread,
   getGetReviewDiscordThreadQueryKey,
@@ -87,7 +88,7 @@ export default function DiscordThreadPanel({
                         Bot
                       </span>
                     ) : null}
-                    <span className="text-muted-foreground">{new Date(m.createdAt).toLocaleString()}</span>
+                    <span className="text-muted-foreground">{formatDateTime(m.createdAt)}</span>
                   </div>
                   <p className="font-mono text-sm text-foreground/90 whitespace-pre-wrap break-words [overflow-wrap:anywhere] mt-0.5">
                     {m.content}

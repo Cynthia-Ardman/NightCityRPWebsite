@@ -22,3 +22,18 @@ export function formatDate(value: string | number | Date | null | undefined): st
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
+
+// Date + time variant for timestamps (ledgers, comments, thread messages),
+// e.g. "Jan 1, 2026, 9:30 PM". Same null/invalid fallback as formatDate.
+export function formatDateTime(value: string | number | Date | null | undefined): string {
+  if (value == null || value === "") return "—";
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}

@@ -1,4 +1,5 @@
 import { Link, useParams } from "wouter";
+import { formatDateTime } from "@/lib/format";
 import { useGetInventoryItemHistory } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -106,7 +107,7 @@ export default function InventoryItemDetail() {
                     <div className="border border-border/60 p-3 bg-background/50 font-mono text-sm space-y-1">
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
                         <Badge variant="outline" className={`rounded-none ${meta.color}`}>{meta.label.toUpperCase()}</Badge>
-                        <span className="text-xs text-muted-foreground">{new Date(ev.createdAt).toLocaleString()}</span>
+                        <span className="text-xs text-muted-foreground">{formatDateTime(ev.createdAt)}</span>
                       </div>
                       <div className="text-foreground">
                         {ev.fromCharacterName && (

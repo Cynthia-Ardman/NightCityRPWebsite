@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatEddies, formatDateTime } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,7 +70,7 @@ export default function VenueWalletPanel({
       }
       toast({
         title: v.done,
-        description: `${moved.toLocaleString()} €$ ${v.flow} this account.`,
+        description: `${formatEddies(moved)} ${v.flow} this account.`,
       });
     } catch (err) {
       const data = (err as { data?: { error?: string } })?.data;
@@ -89,7 +90,7 @@ export default function VenueWalletPanel({
           <Wallet className="w-4 h-4" /> ACCOUNT
         </CardTitle>
         <span className="font-mono text-nc-yellow text-lg" data-testid={`text-${testIdPrefix}-balance`}>
-          {balance.toLocaleString()} €$
+          {formatEddies(balance)}
         </span>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -151,11 +152,11 @@ export default function VenueWalletPanel({
                 >
                   <div className="flex flex-col">
                     <span className="text-foreground">{t.memo || t.kind}</span>
-                    <span className="text-muted-foreground">{new Date(t.createdAt).toLocaleString()}</span>
+                    <span className="text-muted-foreground">{formatDateTime(t.createdAt)}</span>
                   </div>
                   <span className={t.amount >= 0 ? "text-nc-cyan" : "text-destructive"}>
                     {t.amount >= 0 ? "+" : ""}
-                    {t.amount.toLocaleString()} €$
+                    {formatEddies(t.amount)}
                   </span>
                 </div>
               ))}

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { formatEddies } from "@/lib/format";
 import { useListCyberware } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -225,7 +226,7 @@ export default function CatalogCyberware() {
                   <td className={`p-3 font-semibold ${slotColor(c.slot)}`}>{c.slot}</td>
                   <td className="p-3">{trimZero(c.cwp)}</td>
                   <td className="p-3 text-muted-foreground" title={c.description ?? ""}>{c.description ?? "—"}</td>
-                  {canSeePrice && <td className="p-3 text-right text-nc-yellow whitespace-nowrap">{c.price.toLocaleString()} €$</td>}
+                  {canSeePrice && <td className="p-3 text-right text-nc-yellow whitespace-nowrap">{formatEddies(c.price)}</td>}
                 </tr>
               ))}
               {filtered.length === 0 && <tr><td colSpan={canSeePrice ? 5 : 4} className="text-center p-8 text-muted-foreground">No cyberware found.</td></tr>}

@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/format";
+import { formatDate, formatEddies } from "@/lib/format";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -311,7 +311,7 @@ export default function VenueRequestSection({
                           <SelectItem key={b.id} value={String(b.id)}>
                             {b.name}
                             {b.district ? ` — ${b.district}` : ""}
-                            {b.tier ? ` · ${b.tier}` : ""} · €${b.monthlyRent.toLocaleString()}/mo
+                            {b.tier ? ` · ${b.tier}` : ""} · {formatEddies(b.monthlyRent)}/mo
                           </SelectItem>
                         ))
                       )}

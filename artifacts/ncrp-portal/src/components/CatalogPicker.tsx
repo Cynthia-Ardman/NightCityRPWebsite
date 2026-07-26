@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatEddies } from "@/lib/format";
 import {
   useListGuns,
   useListCyberware,
@@ -108,7 +109,7 @@ export default function CatalogPicker({ kind, onPick, triggerLabel = "ADD FROM C
                   >
                     <td className="p-2 font-bold">{r.name}</td>
                     <td className="p-2 text-muted-foreground">{r.category ?? "—"}</td>
-                    <td className="p-2 text-right text-nc-yellow">{r.price.toLocaleString()} €$</td>
+                    <td className="p-2 text-right text-nc-yellow">{formatEddies(r.price)}</td>
                   </tr>
                 ))}
               </tbody>

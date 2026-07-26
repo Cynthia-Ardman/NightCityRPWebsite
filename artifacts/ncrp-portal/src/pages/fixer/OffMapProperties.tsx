@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { formatEddies } from "@/lib/format";
 import { Link } from "wouter";
 import { useListOffMapProperties } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -115,7 +116,7 @@ export default function OffMapProperties() {
                       {r.ownerName ? ` · ${r.ownerName}` : " · — unclaimed —"}
                       {r.district ? ` · ${r.district}` : ""}
                       {r.tier ? ` · ${r.tier}` : ""}
-                      {` · €$${r.monthlyRent.toLocaleString()}/mo`}
+                      {` · ${formatEddies(r.monthlyRent)}/mo`}
                       {r.venueName ? ` · backs ${r.venueName}` : ""}
                     </div>
                   </div>

@@ -7,12 +7,30 @@ import { lifeStatusMeta, type LifeStatus } from "@/lib/lifeStatus";
 
 const base = "rounded-none text-[10px] font-mono uppercase tracking-wider";
 
-export function KindBadge({ kind }: { kind: string }) {
+// Two palettes exist deliberately: the Character Archive renders PC=cyan /
+// NPC=magenta, while the player's own roster renders PC=magenta / NPC=yellow.
+export function KindBadge({
+  kind,
+  palette = "archive",
+  className = "",
+}: {
+  kind: string;
+  palette?: "archive" | "roster";
+  className?: string;
+}) {
   const isNpc = kind === "npc";
+  const colors =
+    palette === "roster"
+      ? isNpc
+        ? "border-nc-yellow text-nc-yellow"
+        : "border-nc-magenta text-nc-magenta"
+      : isNpc
+        ? "border-nc-magenta text-nc-magenta"
+        : "border-nc-cyan text-nc-cyan";
   return (
     <Badge
       variant="outline"
-      className={`${base} ${isNpc ? "border-nc-magenta text-nc-magenta" : "border-nc-cyan text-nc-cyan"}`}
+      className={`${base} ${colors} ${className}`}
       data-testid="badge-kind"
     >
       {isNpc ? "NPC" : "PC"}

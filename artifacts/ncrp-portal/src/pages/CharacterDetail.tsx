@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/format";
+import { formatDate, formatEddies, formatDateTime } from "@/lib/format";
 import {
   useGetCharacter,
   useListCharacterUpdates,
@@ -340,12 +340,12 @@ function BreachTab({ characterId }: { characterId: number }) {
                   <span>Daemons {p.solvedCount}/{p.daemons.length}</span>
                   <span className="text-nc-yellow">
                     {p.rewardPaidAt
-                      ? [p.rewardEddies > 0 ? `€$${p.rewardEddies.toLocaleString()}` : null, p.rewardItemName].filter(Boolean).join(" + ") || "—"
+                      ? [p.rewardEddies > 0 ? `${formatEddies(p.rewardEddies)}` : null, p.rewardItemName].filter(Boolean).join(" + ") || "—"
                       : "—"}
                   </span>
                 </div>
                 <div className="text-[11px] text-muted-foreground">
-                  {new Date(p.completedAt ?? p.createdAt).toLocaleString()}
+                  {formatDateTime(p.completedAt ?? p.createdAt)}
                 </div>
               </li>
             ))}
@@ -372,11 +372,11 @@ function BreachTab({ characterId }: { characterId: number }) {
                     <td className="py-2 pr-4 text-muted-foreground">{p.solvedCount}/{p.daemons.length}</td>
                     <td className="py-2 pr-4 text-nc-yellow">
                       {p.rewardPaidAt
-                        ? [p.rewardEddies > 0 ? `€$${p.rewardEddies.toLocaleString()}` : null, p.rewardItemName].filter(Boolean).join(" + ") || "—"
+                        ? [p.rewardEddies > 0 ? `${formatEddies(p.rewardEddies)}` : null, p.rewardItemName].filter(Boolean).join(" + ") || "—"
                         : "—"}
                     </td>
                     <td className="py-2 pr-4 text-xs text-muted-foreground">
-                      {new Date(p.completedAt ?? p.createdAt).toLocaleString()}
+                      {formatDateTime(p.completedAt ?? p.createdAt)}
                     </td>
                   </tr>
                 ))}
@@ -445,7 +445,7 @@ function MissionsTab({ characterId, staffView = false }: { characterId: number; 
                         </Badge>
                       </span>
                       <span className="text-nc-yellow md:col-span-2 md:text-right">
-                        {m.playerPay > 0 ? `${m.playerPay.toLocaleString()} €$${isPaid(m.status) ? "" : " (pending)"}` : "—"}
+                        {m.playerPay > 0 ? `${formatEddies(m.playerPay)}${isPaid(m.status) ? "" : " (pending)"}` : "—"}
                       </span>
                     </span>
                   </a>
@@ -480,7 +480,7 @@ function UpdatesLog({ characterId }: { characterId: number }) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 text-xs font-mono">
                   <span className="text-nc-cyan truncate">{u.authorName ?? "Unknown"}</span>
-                  <span className="text-muted-foreground shrink-0">{new Date(u.createdAt).toLocaleString()}</span>
+                  <span className="text-muted-foreground shrink-0">{formatDateTime(u.createdAt)}</span>
                 </div>
                 <p className="mt-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm text-foreground">{u.note}</p>
               </div>
@@ -631,7 +631,7 @@ function CategoryPaymentHistory({
                     className={`whitespace-nowrap font-bold ${credit ? "text-nc-green" : "text-nc-magenta"}`}
                   >
                     {credit ? "+" : "−"}
-                    {Math.abs(t.amount).toLocaleString()} €$
+                    {formatEddies(Math.abs(t.amount))}
                   </span>
                 </li>
               );
@@ -1680,7 +1680,7 @@ function HousingCard({ characterId, characterName }: { characterId: number; char
                     <div className="text-xs text-muted-foreground">
                       {l.tier ? <span className="text-nc-magenta uppercase mr-2">{l.tier}</span> : null}
                       {l.district ? <span className="text-nc-cyan mr-2">{l.district}</span> : null}
-                      <span className="text-nc-yellow">€${l.monthlyRent.toLocaleString()}/mo</span>
+                      <span className="text-nc-yellow">{formatEddies(l.monthlyRent)}/mo</span>
                       {paid ? (
                         <span className={`ml-3 ${l.delinquent ? "text-destructive" : ""}`}>
                           {l.delinquent ? "DELINQUENT — last paid through " : "Paid through "}

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { formatEddies } from "@/lib/format";
 import { Link } from "wouter";
 import {
   useListRentListings,
@@ -478,7 +479,7 @@ export default function CatalogRent() {
                         <td className="p-3 text-foreground/80">{building ?? "—"}</td>
                         <td className="p-3 text-nc-magenta">{r.district ?? "—"}</td>
                         <td className="p-3 uppercase">{tierLabel(r.tier) ?? "—"}</td>
-                        <td className="p-3 text-right text-nc-yellow">{r.monthlyRent.toLocaleString()} €$</td>
+                        <td className="p-3 text-right text-nc-yellow">{formatEddies(r.monthlyRent)}</td>
                         <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>{renderAction(r)}</td>
                       </tr>
                     );
@@ -552,7 +553,7 @@ export default function CatalogRent() {
                                 >
                                   <td className="p-3 font-bold">{unit ?? "—"}</td>
                                   <td className="p-3 uppercase">{tierLabel(r.tier) ?? "—"}</td>
-                                  <td className="p-3 text-right text-nc-yellow">{r.monthlyRent.toLocaleString()} €$</td>
+                                  <td className="p-3 text-right text-nc-yellow">{formatEddies(r.monthlyRent)}</td>
                                   <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>{renderAction(r)}</td>
                                 </tr>
                               );
@@ -678,7 +679,7 @@ function PropertyHistoryDialog({
             <History className="w-5 h-5" /> {listing.name}
           </DialogTitle>
           <DialogDescription className="font-mono text-xs">
-            {[listing.district, tierLabel(listing.tier), `€$${listing.monthlyRent.toLocaleString()}/mo`]
+            {[listing.district, tierLabel(listing.tier), `${formatEddies(listing.monthlyRent)}/mo`]
               .filter(Boolean)
               .join(" • ")}
           </DialogDescription>
@@ -949,7 +950,7 @@ function PropertyHistoryDialog({
                         </div>
                       </div>
                       <div className={p.amount < 0 ? "text-destructive" : "text-nc-yellow"}>
-                        {p.amount.toLocaleString()} €$
+                        {formatEddies(p.amount)}
                       </div>
                     </div>
                   ))}
@@ -1172,7 +1173,7 @@ function LeaseDialog({
             }}
           >
             <p className="text-muted-foreground">
-              Signs the lease immediately. Rent <span className="text-nc-yellow">€${listing.monthlyRent.toLocaleString()}/mo</span> auto-debits on the 1st of each month.
+              Signs the lease immediately. Rent <span className="text-nc-yellow">{formatEddies(listing.monthlyRent)}/mo</span> auto-debits on the 1st of each month.
             </p>
             <div>
               <Label className="text-xs">CHARACTER</Label>
@@ -1292,7 +1293,7 @@ function BusinessLeaseDialog({
                     ? { storeKind: bizType === "store_guns" ? "guns" : "mixed" }
                     : {}),
                   description:
-                    `Business space: ${listing.name} (€$${listing.monthlyRent.toLocaleString()}/mo)\n` +
+                    `Business space: ${listing.name} (${formatEddies(listing.monthlyRent)}/mo)\n` +
                     `Business name: ${businessName.trim()}\n` +
                     `Purpose: ${purpose.trim()}`,
                 },

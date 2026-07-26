@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { formatEddies } from "@/lib/format";
 import { useParams, Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -116,7 +117,7 @@ export default function BreachPlay() {
       {result?.rewardPaid && (
         <div className="font-mono text-sm text-nc-yellow border border-nc-yellow/40 bg-nc-yellow/10 px-4 py-2">
           Reward delivered: {[
-            result.rewardEddies && result.rewardEddies > 0 ? `€$${result.rewardEddies.toLocaleString()}` : null,
+            result.rewardEddies && result.rewardEddies > 0 ? `${formatEddies(result.rewardEddies)}` : null,
             result.rewardItemName,
           ].filter(Boolean).join(" + ")}
         </div>

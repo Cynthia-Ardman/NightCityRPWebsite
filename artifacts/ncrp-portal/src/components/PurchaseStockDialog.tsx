@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { formatEddies } from "@/lib/format";
 import {
   useListGuns,
   useListCyberware,
@@ -163,7 +164,7 @@ export default function PurchaseStockDialog({
             </p>
             <div className="flex items-center justify-between border border-border/40 px-3 py-1.5">
               <span className="text-muted-foreground text-xs">ACCOUNT BALANCE</span>
-              <span className="text-nc-yellow">€${balance.toLocaleString()}</span>
+              <span className="text-nc-yellow">{formatEddies(balance)}</span>
             </div>
             <div>
               <Label className="text-xs">CATALOG ITEM</Label>
@@ -174,7 +175,7 @@ export default function PurchaseStockDialog({
                 <SelectContent>
                   {rows.map((r) => (
                     <SelectItem key={r.id} value={String(r.id)}>
-                      {r.name} — €${r.price.toLocaleString()}
+                      {r.name} — {formatEddies(r.price)}
                     </SelectItem>
                   ))}
                   {rows.length === 0 && !isLoading && (
@@ -188,8 +189,8 @@ export default function PurchaseStockDialog({
             {selected && (
               <div className="text-xs text-muted-foreground space-y-1 border border-border/40 p-2">
                 {selected.category && <div>Category: <span className="text-foreground">{selected.category}</span></div>}
-                <div>Catalog price: <span className="text-nc-yellow">€${selected.price.toLocaleString()}</span></div>
-                <div>Unit cost: <span className="text-nc-yellow">€${unitCost.toLocaleString()}</span></div>
+                <div>Catalog price: <span className="text-nc-yellow">{formatEddies(selected.price)}</span></div>
+                <div>Unit cost: <span className="text-nc-yellow">{formatEddies(unitCost)}</span></div>
               </div>
             )}
             {canSetCost && (
@@ -246,7 +247,7 @@ export default function PurchaseStockDialog({
             </div>
             <div className="flex items-center justify-between border-t border-border/40 pt-3">
               <span className="text-muted-foreground">Total cost</span>
-              <span className="text-nc-yellow text-lg">€${totalCost.toLocaleString()}</span>
+              <span className="text-nc-yellow text-lg">{formatEddies(totalCost)}</span>
             </div>
             {routesApproval && (
               <p className="text-muted-foreground text-xs" data-testid="text-purchase-routes-approval">

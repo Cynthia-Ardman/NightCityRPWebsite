@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatEddies, formatDateTime } from "@/lib/format";
 import { Link, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -135,7 +136,7 @@ export default function FixerMissions() {
                     >
                       <td className="p-0">
                         <Link href={href} className="block p-2 text-muted-foreground text-xs">
-                          {m.startAt ? new Date(m.startAt).toLocaleString() : "—"}
+                          {m.startAt ? formatDateTime(m.startAt) : "—"}
                         </Link>
                       </td>
                       <td className="p-0">
@@ -161,7 +162,7 @@ export default function FixerMissions() {
                       </td>
                       <td className="p-0">
                         <Link href={href} className="block p-2 text-right text-nc-yellow">
-                          {m.playerPay ? `€$${m.playerPay.toLocaleString()}` : "—"}
+                          {m.playerPay ? `${formatEddies(m.playerPay)}` : "—"}
                         </Link>
                       </td>
                       <td className="p-2">

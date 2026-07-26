@@ -92,6 +92,9 @@ vi.mock("@workspace/api-client-react", () => ({
   ],
   getListPendingEditsQueryKey: () => ["pending-edits"],
   getListMyCharactersQueryKey: () => ["characters", "mine"],
+  getListPublicCharactersQueryKey: () => ["public-characters"],
+  getGetPublicCharacterQueryKey: (id: number) => ["public-character", id],
+  getListPublicCharacterTagsQueryKey: () => ["public-character-tags"],
 }));
 
 // The dialog reads the effective viewer via ViewAsContext (useEffectiveMe ->

@@ -7,10 +7,8 @@ import {
   useRemoveInventoryItem,
   useListCyberware,
   getGetCharacterInventoryQueryKey,
-  getGetCharacterQueryKey,
-  getListArchiveCharactersQueryKey,
-  getGetArchiveCharacterQueryKey,
 } from "@workspace/api-client-react";
+import { invalidateCharacterQueries } from "@/lib/characterQueries";
 import CyberwareEditor, {
   type CyberRow,
   parseCyberNotes,
@@ -85,14 +83,10 @@ export default function StaffCyberwareCard({
           remove: (a) => removeInventory.mutateAsync(a),
         },
       });
-      await qc.invalidateQueries({ queryKey: getGetCharacterInventoryQueryKey(characterId) });
-      await qc.invalidateQueries({ queryKey: getGetCharacterQueryKey(characterId) });
       // The character-archive list AND the archive detail page both derive the
       // CWP band badge from real chrome, so both must refetch after an edit or
-      // the badge shows the stale band. The list key is prefix-matched (no
-      // params) to invalidate every filtered variation.
-      await qc.invalidateQueries({ queryKey: getListArchiveCharactersQueryKey() });
-      await qc.invalidateQueries({ queryKey: getGetArchiveCharacterQueryKey(characterId) });
+      // the badge shows the stale band (covered by the shared invalidation set).
+      await invalidateCharacterQueries(qc, characterId);
       toast({ title: "Cyberware saved", description: `${characterName}'s chrome is updated.` });
     } catch (err) {
       const data = (err as { response?: { data?: { error?: string } } } | null)?.response?.data;

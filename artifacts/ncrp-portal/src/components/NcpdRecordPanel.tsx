@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/format";
+import { formatDate, formatEddies } from "@/lib/format";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -204,7 +204,7 @@ function DossierSection({ record }: { record: NcpdRecord }) {
         </DossierField>
         <DossierField label="Account balance">
           <span data-testid="text-ncpd-dossier-balance">
-            {record.balance != null ? `${record.balance.toLocaleString()} €$` : <span className="text-muted-foreground">UNKNOWN</span>}
+            {record.balance != null ? `${formatEddies(record.balance)}` : <span className="text-muted-foreground">UNKNOWN</span>}
           </span>
         </DossierField>
       </div>
@@ -326,7 +326,7 @@ function FinesSection({
                 <Badge variant="outline" className={`rounded-none uppercase font-display text-[10px] ${fineStatusClass(f.status)}`}>
                   {f.status}
                 </Badge>
-                <span className="font-mono text-nc-yellow text-sm">€${f.amount.toLocaleString()}</span>
+                <span className="font-mono text-nc-yellow text-sm">{formatEddies(f.amount)}</span>
                 <span className="font-mono text-xs text-muted-foreground">
                   Issued {fmtDate(f.createdAt)}
                   {f.officerName ? ` by ${f.officerName}` : ""}

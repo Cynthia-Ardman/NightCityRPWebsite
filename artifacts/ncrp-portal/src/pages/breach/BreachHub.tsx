@@ -1,3 +1,4 @@
+import { formatDateTime } from "@/lib/format";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -496,7 +497,7 @@ export default function BreachHub() {
                             {p.rewardPaidAt && <span className="ml-1 text-nc-green text-xs">✓paid</span>}
                           </td>
                           <td className="py-2 pr-4 text-xs text-muted-foreground">
-                            {new Date(p.createdAt).toLocaleString()}
+                            {formatDateTime(p.createdAt)}
                           </td>
                         </tr>
                       ))}

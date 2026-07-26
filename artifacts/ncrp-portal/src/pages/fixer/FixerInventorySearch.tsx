@@ -1,3 +1,4 @@
+import { formatDateTime } from "@/lib/format";
 import { useState } from "react";
 import { Link } from "wouter";
 import { useSearchInventoryByOwner, getSearchInventoryByOwnerQueryKey } from "@workspace/api-client-react";
@@ -112,7 +113,7 @@ export default function FixerInventorySearch() {
                               <span className="text-foreground">{event.itemName}</span>
                               {event.quantity != null && <span className="text-muted-foreground"> x{event.quantity}</span>}
                             </div>
-                            <span className="text-xs text-muted-foreground">{new Date(event.createdAt).toLocaleString()}</span>
+                            <span className="text-xs text-muted-foreground">{formatDateTime(event.createdAt)}</span>
                           </div>
                           <div className="mt-1 text-muted-foreground">
                             {event.fromCharacterName && <span className="text-nc-cyan">{event.fromCharacterName}</span>}

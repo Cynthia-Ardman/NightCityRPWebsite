@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
@@ -630,9 +630,9 @@ export default function MySubmissions() {
                 data-testid={`details-${r.key}`}
               >
                 <div><span className="text-nc-cyan">CHARACTER:</span> {r.characterName}</div>
-                <div><span className="text-nc-cyan">SUBMITTED:</span> {new Date(r.createdAt).toLocaleString()}</div>
+                <div><span className="text-nc-cyan">SUBMITTED:</span> {formatDateTime(r.createdAt)}</div>
                 {r.reviewedAt ? (
-                  <div><span className="text-nc-cyan">DECIDED:</span> {new Date(r.reviewedAt).toLocaleString()}</div>
+                  <div><span className="text-nc-cyan">DECIDED:</span> {formatDateTime(r.reviewedAt)}</div>
                 ) : null}
                 {r.description ? <p className="whitespace-pre-wrap text-foreground pt-1">{r.description}</p> : null}
                 {r.reviewerNote ? <p className="italic pt-1">Staff note: "{r.reviewerNote}"</p> : null}

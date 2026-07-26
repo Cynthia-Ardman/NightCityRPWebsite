@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatEddies } from "@/lib/format";
 import { useSellStoreItem, useSellRipperdocItem } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,7 @@ export default function SellStockDialog({ kind, venueId, stock, onClose, onDone 
             }}
           >
             <p className="text-muted-foreground">
-              Unit price <span className="text-nc-yellow">€${stock.price.toLocaleString()}</span> · In stock {stock.quantity}
+              Unit price <span className="text-nc-yellow">{formatEddies(stock.price)}</span> · In stock {stock.quantity}
             </p>
             <p className="text-muted-foreground text-xs">
               Charges the buyer's eddies and transfers the item to them immediately.
@@ -79,13 +80,13 @@ export default function SellStockDialog({ kind, venueId, stock, onClose, onDone 
             </div>
             <div className="flex justify-between border-t border-border/40 pt-2">
               <span>TOTAL</span>
-              <span className="text-nc-yellow">€${total.toLocaleString()}</span>
+              <span className="text-nc-yellow">{formatEddies(total)}</span>
             </div>
             {hasCost && (
               <div className="space-y-0.5" data-testid="text-sell-profit">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>PROFIT (price − cost)</span>
-                  <span className="text-nc-green">€${profit.toLocaleString()}</span>
+                  <span className="text-nc-green">{formatEddies(profit)}</span>
                 </div>
                 <p className="text-[10px] text-muted-foreground">
                   If sold by an employee, their commission is a % of this profit, not the full price.

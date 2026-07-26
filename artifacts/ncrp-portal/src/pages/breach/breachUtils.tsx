@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { formatEddies } from "@/lib/format";
 import type { BreachPuzzle } from "@workspace/api-client-react";
 
 export function statusBadge(status: BreachPuzzle["status"]) {
@@ -39,7 +40,7 @@ export function difficultyBadge(difficulty: string) {
 
 export function rewardSummary(p: BreachPuzzle): string {
   const parts: string[] = [];
-  if (p.rewardEddies > 0) parts.push(`€$${p.rewardEddies.toLocaleString()}`);
+  if (p.rewardEddies > 0) parts.push(`${formatEddies(p.rewardEddies)}`);
   if (p.rewardItemName) parts.push(p.rewardItemName);
   return parts.length ? parts.join(" + ") : "—";
 }

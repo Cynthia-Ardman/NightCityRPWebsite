@@ -11,13 +11,10 @@ import {
   useListCyberware,
   getGetCharacterInventoryQueryKey,
   getGetCharacterPendingEditQueryKey,
-  getGetCharacterQueryKey,
   getListPendingEditsQueryKey,
-  getListMyCharactersQueryKey,
-  getListArchiveCharactersQueryKey,
-  getGetArchiveCharacterQueryKey,
   type Character,
 } from "@workspace/api-client-react";
+import { invalidateCharacterQueries } from "@/lib/characterQueries";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -304,8 +301,7 @@ export default function EditCharacterDialog({
             description: `${character.name}'s changes are live.`,
           });
           qc.invalidateQueries({ queryKey: getGetCharacterPendingEditQueryKey(character.id) });
-          qc.invalidateQueries({ queryKey: getGetCharacterQueryKey(character.id) });
-          qc.invalidateQueries({ queryKey: getListMyCharactersQueryKey() });
+          void invalidateCharacterQueries(qc, character.id);
           onOpenChange(false);
           return;
         }
@@ -345,7 +341,7 @@ export default function EditCharacterDialog({
           title: "Character deleted",
           description: `${character.name} has been permanently removed.`,
         });
-        qc.invalidateQueries({ queryKey: getListMyCharactersQueryKey() });
+        void invalidateCharacterQueries(qc, character.id);
         onOpenChange(false);
         navigate("/characters");
       },
@@ -465,13 +461,9 @@ export default function EditCharacterDialog({
         },
       });
 
-      await qc.invalidateQueries({ queryKey: getGetCharacterInventoryQueryKey(character.id) });
-      await qc.invalidateQueries({ queryKey: getGetCharacterQueryKey(character.id) });
       // Refresh the character-archive list AND detail so the derived CWP band
-      // badge reflects the edited chrome (list key prefix-matched to hit every
-      // filtered variation).
-      await qc.invalidateQueries({ queryKey: getListArchiveCharactersQueryKey() });
-      await qc.invalidateQueries({ queryKey: getGetArchiveCharacterQueryKey(character.id) });
+      // badge reflects the edited chrome (covered by the shared invalidation set).
+      await invalidateCharacterQueries(qc, character.id);
       toast({ title: "Cyberware saved", description: `${character.name}'s chrome is updated.` });
       return true;
     } catch (err) {

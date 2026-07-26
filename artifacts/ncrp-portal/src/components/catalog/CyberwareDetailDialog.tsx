@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { formatEddies } from "@/lib/format";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useUpdateCyberware,
@@ -308,11 +309,11 @@ export default function CyberwareDetailDialog({
             <Row label="CWP" value={current.cwp ?? "—"} />
             <Row
               label="Price"
-              value={<span className="text-nc-yellow">{current.price.toLocaleString()} €$</span>}
+              value={<span className="text-nc-yellow">{formatEddies(current.price)}</span>}
             />
             <Row
               label="Install Cost"
-              value={current.installCost == null ? "Ripperdoc determined" : `${current.installCost.toLocaleString()} €$`}
+              value={current.installCost == null ? "Ripperdoc determined" : `${formatEddies(current.installCost)}`}
             />
             {current.description && current.description.trim() && (
               <div className="pt-3">

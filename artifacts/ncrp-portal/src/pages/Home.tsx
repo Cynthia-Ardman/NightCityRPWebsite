@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/format";
+import { formatDate, formatEddies, formatDateTime } from "@/lib/format";
 import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useListMyStores, useListMyRipperdocs, useGetUpcomingBills, useListMyMissions, useListMissions, useListEvents, getListMissionsQueryKey, getListEventsQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, getCharacterStatus, updateCharacterStatus, getGetCharacterStatusQueryKey, useGetIncomeStatus, useRunIncomeWork, useRunIncomeSlut, getGetIncomeStatusQueryKey, type MissionSummary, type EventView, type IncomeCommandResult } from "@workspace/api-client-react";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
@@ -1254,7 +1254,7 @@ function ActivityHistoryDialog({
                   <span className="flex shrink-0 items-center gap-2">
                     {(showAmount || e.amount != null) && e.amount != null && (
                       <span className={e.amount < 0 ? "text-destructive" : "text-nc-yellow"}>
-                        {e.amount < 0 ? "-" : "+"}€${Math.abs(e.amount).toLocaleString()}
+                        {e.amount < 0 ? "-" : "+"}{formatEddies(Math.abs(e.amount))}
                       </span>
                     )}
                     <Badge
@@ -1364,8 +1364,8 @@ function IncomeCard() {
           data-testid="text-income-result"
         >
           {lastResult.outcome === "fined"
-            ? `FINED €$${Math.abs(lastResult.amount).toLocaleString()}`
-            : `EARNED €$${lastResult.amount.toLocaleString()}`}{" "}
+            ? `FINED ${formatEddies(Math.abs(lastResult.amount))}`
+            : `EARNED ${formatEddies(lastResult.amount)}`}{" "}
           ({lastResult.command.toUpperCase()})
         </div>
       )}
@@ -1376,7 +1376,7 @@ function IncomeCard() {
       )}
 
       <div className="text-xs text-muted-foreground mt-auto pt-1" data-testid="text-income-balance">
-        TOTAL_EDDIES · €${(data.balance ?? 0).toLocaleString()}
+        TOTAL_EDDIES · ${formatEddies(data.balance ?? 0)}
       </div>
     </div>
   );
@@ -1463,7 +1463,7 @@ function AttendCard() {
         </Button>
       </div>
       <div className="text-xs text-muted-foreground">
-        WEEK_OF {weekLabel} · €${data.payout.toLocaleString()}
+        WEEK_OF {weekLabel} · {formatEddies(data.payout)}
       </div>
       {!windowOpen && !data.claimed && (
         <div className="text-xs font-mono text-nc-yellow" data-testid="text-attend-next-window">
@@ -1473,7 +1473,7 @@ function AttendCard() {
       )}
       {data.claimedAt && (
         <div className="text-xs font-mono text-nc-yellow">
-          LAST_CLAIM: {new Date(data.claimedAt).toLocaleString()}
+          LAST_CLAIM: {formatDateTime(data.claimedAt)}
         </div>
       )}
       {claim.error instanceof Error && (
@@ -1604,7 +1604,7 @@ function ShopOpenSection({ characterId, name }: { characterId: number; name?: st
 
   const lease = data.businessLeases[0];
   const shopDesc = lease
-    ? `${lease.address} · €$${lease.monthlyRent.toLocaleString()}/mo`
+    ? `${lease.address} · ${formatEddies(lease.monthlyRent)}/mo`
     : (data.shopLabel ?? "Storefront / clinic");
   const capped = data.opensThisMonth > data.opensCountedForIncome;
   // Shop can only be opened during the live session window (Sundays 2-9pm
@@ -1658,7 +1658,7 @@ function ShopOpenSection({ characterId, name }: { characterId: number; name?: st
       </div>
       {data.history?.[0] && (
         <div className="text-xs font-mono text-nc-yellow">
-          LAST_OPENED: {new Date(data.history[0].openedAt).toLocaleString()}
+          LAST_OPENED: {formatDateTime(data.history[0].openedAt)}
         </div>
       )}
       {open.error instanceof Error && (
@@ -1750,15 +1750,15 @@ function UpcomingBillsCard() {
               <div className="grid grid-cols-3 gap-2 text-center border border-border/50 p-3 bg-background/40">
                 <div>
                   <div className="text-xs font-mono text-muted-foreground uppercase">Next Rent</div>
-                  <div className="font-display text-lg text-nc-yellow" data-testid="text-bills-next-rent">€${data.totals.nextRent.toLocaleString()}</div>
+                  <div className="font-display text-lg text-nc-yellow" data-testid="text-bills-next-rent">{formatEddies(data.totals.nextRent)}</div>
                 </div>
                 <div>
                   <div className="text-xs font-mono text-muted-foreground uppercase">Meds / wk</div>
-                  <div className="font-display text-lg text-destructive" data-testid="text-bills-meds-weekly">€${data.totals.nextMedsWeekly.toLocaleString()}</div>
+                  <div className="font-display text-lg text-destructive" data-testid="text-bills-meds-weekly">{formatEddies(data.totals.nextMedsWeekly)}</div>
                 </div>
                 <div>
                   <div className="text-xs font-mono text-muted-foreground uppercase">~ / mo</div>
-                  <div className="font-display text-lg text-foreground" data-testid="text-bills-monthly-estimate">€${data.totals.monthlyEstimate.toLocaleString()}</div>
+                  <div className="font-display text-lg text-foreground" data-testid="text-bills-monthly-estimate">{formatEddies(data.totals.monthlyEstimate)}</div>
                 </div>
               </div>
 
@@ -1827,11 +1827,11 @@ function UpcomingBillsCard() {
                         </div>
                         {l.pausedForLoa ? (
                           <div className="text-right whitespace-nowrap">
-                            <div className="text-muted-foreground line-through">€${l.monthlyRent.toLocaleString()}/mo</div>
+                            <div className="text-muted-foreground line-through">{formatEddies(l.monthlyRent)}/mo</div>
                             <div className="text-xs text-nc-cyan">PAUSED · LOA</div>
                           </div>
                         ) : (
-                          <div className="text-nc-yellow whitespace-nowrap">€${l.monthlyRent.toLocaleString()}/mo</div>
+                          <div className="text-nc-yellow whitespace-nowrap">{formatEddies(l.monthlyRent)}/mo</div>
                         )}
                       </div>
                     </Link>
@@ -2112,7 +2112,7 @@ function BillSection({
                 <div className="text-foreground break-words">{it.primary}</div>
                 <div className="text-xs text-muted-foreground break-words leading-relaxed">{it.secondary}</div>
               </div>
-              <div className={`whitespace-nowrap ${color} font-display`}>€${it.amount.toLocaleString()}</div>
+              <div className={`whitespace-nowrap ${color} font-display`}>{formatEddies(it.amount)}</div>
             </div>
           );
           return it.to ? (

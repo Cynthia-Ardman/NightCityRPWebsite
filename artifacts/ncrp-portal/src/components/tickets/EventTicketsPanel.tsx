@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { formatEddies, formatDateTime } from "@/lib/format";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListMyTickets,
@@ -81,12 +82,12 @@ export default function EventTicketsPanel() {
           </Link>
           <span className="text-foreground text-xs">{t.ticketTypeName}</span>
           <span className="text-muted-foreground text-xs">
-            {t.pricePaid > 0 ? `€$${t.pricePaid.toLocaleString()}` : "free"}
+            {t.pricePaid > 0 ? `${formatEddies(t.pricePaid)}` : "free"}
           </span>
           {statusBadge(t)}
         </div>
         <p className="text-muted-foreground text-xs">
-          {new Date(t.eventStartAt).toLocaleString()}
+          {formatDateTime(t.eventStartAt)}
           {t.eventLocation ? ` · ${t.eventLocation}` : ""}
         </p>
       </div>

@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/format";
+import { formatDate, formatEddies } from "@/lib/format";
 import { Fragment, useState } from "react";
 import { Link } from "wouter";
 import { useGetActorReport, useGetActorHistory, useGetAttendanceReport } from "@workspace/api-client-react";
@@ -76,7 +76,7 @@ export default function FixerReports() {
                         </TableCell>
                         <TableCell className="text-foreground">{a.userName ?? a.userId}</TableCell>
                         <TableCell className="text-right">{a.actCount}</TableCell>
-                        <TableCell className="text-right text-nc-yellow">€$ {a.totalPaid.toLocaleString()}</TableCell>
+                        <TableCell className="text-right text-nc-yellow">{formatEddies(a.totalPaid)}</TableCell>
                       </TableRow>
                       {isOpen &&
                         a.missions.map((m, i) => (
@@ -91,7 +91,7 @@ export default function FixerReports() {
                             </TableCell>
                             <TableCell className="text-right text-muted-foreground">{fmtDate(m.missionDate)}</TableCell>
                             <TableCell className="text-right text-nc-yellow/80">
-                              €$ {m.amount.toLocaleString()}
+                              {formatEddies(m.amount)}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -145,7 +145,7 @@ export default function FixerReports() {
                         </TableCell>
                         <TableCell className="text-foreground break-words [overflow-wrap:anywhere]">{a.userName ?? a.userId}</TableCell>
                         <TableCell className="text-right">{a.actCount}</TableCell>
-                        <TableCell className="text-right text-nc-yellow">€$ {a.totalPaid.toLocaleString()}</TableCell>
+                        <TableCell className="text-right text-nc-yellow">{formatEddies(a.totalPaid)}</TableCell>
                       </TableRow>
                       {isOpen &&
                         a.events.map((e, i) => (
@@ -162,7 +162,7 @@ export default function FixerReports() {
                               ) : null}
                             </TableCell>
                             <TableCell className="text-right text-muted-foreground">{fmtDate(e.actedAt)}</TableCell>
-                            <TableCell className="text-right text-nc-yellow/80">€$ {e.amount.toLocaleString()}</TableCell>
+                            <TableCell className="text-right text-nc-yellow/80">{formatEddies(e.amount)}</TableCell>
                           </TableRow>
                         ))}
                     </Fragment>

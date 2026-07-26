@@ -4,11 +4,8 @@ import {
   useListTagOptions,
   useUpdateCharacterTags,
   getListTagOptionsQueryKey,
-  getGetCharacterQueryKey,
-  getListPublicCharactersQueryKey,
-  getListPublicCharacterTagsQueryKey,
-  getListArchiveCharactersQueryKey,
 } from "@workspace/api-client-react";
+import { invalidateCharacterQueries } from "@/lib/characterQueries";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,10 +72,7 @@ export default function EditCharacterTagsDialog({
       {
         onSuccess: () => {
           toast({ title: "Tags updated", description: `Updated ${characterName}.` });
-          void qc.invalidateQueries({ queryKey: getGetCharacterQueryKey(characterId) });
-          void qc.invalidateQueries({ queryKey: getListPublicCharactersQueryKey() });
-          void qc.invalidateQueries({ queryKey: getListPublicCharacterTagsQueryKey() });
-          void qc.invalidateQueries({ queryKey: getListArchiveCharactersQueryKey() });
+          void invalidateCharacterQueries(qc, characterId);
           onOpenChange(false);
         },
         onError: (e: unknown) => {

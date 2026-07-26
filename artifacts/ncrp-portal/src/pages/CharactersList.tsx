@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
+import { KindBadge } from "@/components/directory/CharacterBadges";
 
 export default function CharactersList() {
   const { data: characters, isLoading: charsLoading } = useListMyCharacters();
@@ -209,9 +210,7 @@ function CharacterSection({
                 <CardHeader className="pb-2">
                   <CardTitle className="text-xl font-display group-hover:text-nc-cyan transition-colors truncate" title={char.name}>{char.name}</CardTitle>
                   <CardDescription className="font-mono text-xs uppercase mt-1">
-                    <Badge variant="outline" className={`rounded-none mr-2 ${char.kind === "pc" ? "border-nc-magenta text-nc-magenta" : "border-nc-yellow text-nc-yellow"}`}>
-                      {char.kind === "pc" ? "PC" : "NPC"}
-                    </Badge>
+                    <KindBadge kind={char.kind} palette="roster" className="mr-2" />
                     {char.archetype && <span className="text-muted-foreground">{char.archetype}</span>}
                   </CardDescription>
                 </CardHeader>

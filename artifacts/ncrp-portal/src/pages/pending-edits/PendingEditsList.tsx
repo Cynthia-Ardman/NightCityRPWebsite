@@ -1,3 +1,4 @@
+import { formatDateTime } from "@/lib/format";
 import { useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -61,7 +62,7 @@ function EditRow({
             <div className="flex-1 min-w-0">
               <div className="font-display text-lg text-foreground truncate">{e.characterName}</div>
               <div className="font-mono text-xs text-muted-foreground">
-                by {e.submitterName ?? "(unknown)"} · {new Date(e.submittedAt).toLocaleString()}
+                by {e.submitterName ?? "(unknown)"} · {formatDateTime(e.submittedAt)}
               </div>
               {changed.length > 0 && (
                 <div className="font-mono text-xs text-nc-cyan/70 mt-1">

@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/format";
+import { formatDate, formatEddies } from "@/lib/format";
 import { useState } from "react";
 import { Link } from "wouter";
 import {
@@ -67,9 +67,6 @@ function fmtMonth(iso: string): string {
   return d.toLocaleDateString(undefined, { month: "short", year: "2-digit" });
 }
 
-function fmtEddies(n: number): string {
-  return `€$ ${n.toLocaleString()}`;
-}
 
 const tooltipStyle = {
   backgroundColor: "hsl(240 10% 8%)",
@@ -317,8 +314,8 @@ export default function FixerAnalytics() {
             </button>
             <span className="text-nc-yellow" data-testid="text-excluded-wallets">
               {typeof data?.excludedWallets === "number"
-                ? `${data.excludedWallets} wallet${data.excludedWallets === 1 ? "" : "s"} above €$ ${excludeAbove.toLocaleString()} excluded from economy charts`
-                : `filtering wallets above €$ ${excludeAbove.toLocaleString()}…`}
+                ? `${data.excludedWallets} wallet${data.excludedWallets === 1 ? "" : "s"} above ${formatEddies(excludeAbove)} excluded from economy charts`
+                : `filtering wallets above ${formatEddies(excludeAbove)}…`}
             </span>
           </>
         )}
@@ -420,7 +417,7 @@ export default function FixerAnalytics() {
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 20%)" />
                       <XAxis dataKey="week" tick={{ fontSize: 11, fontFamily: "monospace" }} />
                       <YAxis tick={{ fontSize: 11, fontFamily: "monospace" }} tickFormatter={(v: number) => v.toLocaleString()} />
-                      <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => [fmtEddies(Math.abs(v)), name.replace(/^(created|destroyed)_/, "$1 ")]} />
+                      <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => [formatEddies(Math.abs(v)), name.replace(/^(created|destroyed)_/, "$1 ")]} />
                       <Legend formatter={(v: string) => v.replace(/^created_/, "")} />
                       {cats.map((cat) => (
                         <Bar key={`c-${cat}`} dataKey={`created_${cat}`} stackId="flow" fill={CATEGORY_COLORS[cat] ?? "#9aa0a6"} />
@@ -454,7 +451,7 @@ export default function FixerAnalytics() {
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 20%)" />
                       <XAxis dataKey="week" tick={{ fontSize: 11, fontFamily: "monospace" }} />
                       <YAxis tick={{ fontSize: 11, fontFamily: "monospace" }} tickFormatter={(v: number) => v.toLocaleString()} domain={["auto", "auto"]} />
-                      <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [fmtEddies(v), "tracked supply"]} />
+                      <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [formatEddies(v), "tracked supply"]} />
                       <Line type="monotone" dataKey="total" stroke="#00f0ff" strokeWidth={2} dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -486,7 +483,7 @@ export default function FixerAnalytics() {
                 </div>
                 <div className="border border-border p-3">
                   <div className="text-xs text-muted-foreground">TOTAL PAYOUTS</div>
-                  <div className="text-2xl text-nc-yellow" data-testid="stat-total-payout">{fmtEddies(data.missions.totalPayout)}</div>
+                  <div className="text-2xl text-nc-yellow" data-testid="stat-total-payout">{formatEddies(data.missions.totalPayout)}</div>
                 </div>
               </div>
               {missionRows.length === 0 ? (
@@ -499,7 +496,7 @@ export default function FixerAnalytics() {
                       <XAxis dataKey="week" tick={{ fontSize: 11, fontFamily: "monospace" }} />
                       <YAxis yAxisId="left" tick={{ fontSize: 11, fontFamily: "monospace" }} allowDecimals={false} />
                       <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fontFamily: "monospace" }} tickFormatter={(v: number) => v.toLocaleString()} />
-                      <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => (name === "payout" ? [fmtEddies(v), "payouts"] : [v, "missions"])} />
+                      <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => (name === "payout" ? [formatEddies(v), "payouts"] : [v, "missions"])} />
                       <Legend />
                       <Bar yAxisId="left" dataKey="missions" fill="#ff2ec4" />
                       <Bar yAxisId="right" dataKey="payout" fill="#f5d90a" fillOpacity={0.7} />

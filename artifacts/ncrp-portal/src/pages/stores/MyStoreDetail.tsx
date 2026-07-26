@@ -1,4 +1,5 @@
 import { useParams, Redirect, useLocation } from "wouter";
+import { formatEddies } from "@/lib/format";
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -554,12 +555,12 @@ export default function MyStoreDetail() {
                 )}
                 <span className="text-muted-foreground text-xs">Qty {s.quantity}</span>
                 {canEditStock && (s.cost ?? 0) > 0 && (
-                  <span className="text-muted-foreground text-xs" data-testid={`text-stock-cost-${s.id}`}>Cost {s.cost!.toLocaleString()} €$</span>
+                  <span className="text-muted-foreground text-xs" data-testid={`text-stock-cost-${s.id}`}>Cost {formatEddies(s.cost!)}</span>
                 )}
                 {s.description && <span className="text-muted-foreground text-xs">{s.description}</span>}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-nc-yellow">{s.price.toLocaleString()} €$</span>
+                <span className="text-nc-yellow">{formatEddies(s.price)}</span>
                 <Button
                   size="sm"
                   onClick={() => setSellTarget({ id: s.id, name: s.name, price: s.price, quantity: s.quantity, cost: s.cost ?? 0 })}

@@ -5,14 +5,10 @@ import {
   useListArchiveUsers,
   useUpdateArchiveCharacter,
   useDeleteCharacter,
-  getGetArchiveCharacterQueryKey,
-  getListArchiveCharactersQueryKey,
   getListArchiveUsersQueryKey,
-  getGetPublicCharacterQueryKey,
-  getListPublicCharactersQueryKey,
-  getListPublicCharacterTagsQueryKey,
   type ArchiveCharacter,
 } from "@workspace/api-client-react";
+import { invalidateCharacterQueries } from "@/lib/characterQueries";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -153,8 +149,7 @@ export default function ArchiveEditDialog({
           title: "Character deleted",
           description: `${character.name} has been permanently removed.`,
         });
-        void qc.invalidateQueries({ queryKey: getListArchiveCharactersQueryKey() });
-        void qc.invalidateQueries({ queryKey: getListPublicCharactersQueryKey() });
+        void invalidateCharacterQueries(qc);
         onOpenChange(false);
         navigate("/directory/characters");
       },
@@ -216,11 +211,7 @@ export default function ArchiveEditDialog({
             title: "Character updated",
             description: res.changed.length > 0 ? `Changed: ${res.changed.join(", ")}` : "Saved.",
           });
-          void qc.invalidateQueries({ queryKey: getGetArchiveCharacterQueryKey(character.id) });
-          void qc.invalidateQueries({ queryKey: getListArchiveCharactersQueryKey() });
-          void qc.invalidateQueries({ queryKey: getGetPublicCharacterQueryKey(character.id) });
-          void qc.invalidateQueries({ queryKey: getListPublicCharactersQueryKey() });
-          void qc.invalidateQueries({ queryKey: getListPublicCharacterTagsQueryKey() });
+          void invalidateCharacterQueries(qc, character.id);
           onOpenChange(false);
         },
         onError: (err) => {

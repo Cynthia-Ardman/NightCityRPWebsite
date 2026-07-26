@@ -1,4 +1,5 @@
 import { useAdminListUsers, useAdminHydrateUsers, useAdminSetCyberpsychoAccess, useAdminListCharacters, useAdminAdjustWallet, useAdminSinkWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminGetVrchatCalendarSync, getAdminGetVrchatCalendarSyncQueryKey, useAdminSetVrchatCalendarSync, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey, useAdminMissionThreadBackfill, useAdminEconomyReconcile, useAdminRehostEventImages, useAdminGuidebookLinkRepair, type MissionThreadBackfillResult, type EconomyReconcileResult, type RehostEventImagesResult, type GuidebookLinkRepairResult, type AuditLogRow } from "@workspace/api-client-react";
+import { formatEddies, formatDateTime } from "@/lib/format";
 import { useState, useEffect, Fragment } from "react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Link } from "wouter";
@@ -160,7 +161,7 @@ function AuditTab() {
               <TableBody className="font-mono text-xs">
                 {rows?.map((e) => (
                   <TableRow key={e.id} className="hover:bg-muted/50 border-border" data-testid={`row-audit-${e.id}`}>
-                    <TableCell className="text-muted-foreground">{new Date(e.createdAt).toLocaleString()}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatDateTime(e.createdAt)}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="rounded-none border-nc-magenta text-nc-magenta text-[0.625rem] px-1 py-0">
                         {e.kind}
@@ -490,7 +491,7 @@ export function AuditLogTab() {
                         onClick={() => setExpandedId(expanded ? null : e.id)}
                         data-testid={`row-auditlog-${e.id}`}
                       >
-                        <TableCell className="text-muted-foreground">{new Date(e.createdAt).toLocaleString()}</TableCell>
+                        <TableCell className="text-muted-foreground">{formatDateTime(e.createdAt)}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="rounded-none border-nc-yellow text-nc-yellow text-[0.625rem] px-1 py-0">
                             {e.category}
@@ -648,7 +649,7 @@ export function FlagsTab() {
                           data-testid={`input-flag-edit-${r.key}`}
                         />
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{new Date(r.updatedAt).toLocaleString()}</TableCell>
+                      <TableCell className="text-muted-foreground">{formatDateTime(r.updatedAt)}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
                           <Button
@@ -782,7 +783,7 @@ function NpcRoleScanCard() {
               </span>
               <span className="text-muted-foreground">NOT ON PORTAL: {result.guildOnlyCount ?? 0}</span>
               {result.scannedAt && (
-                <span className="text-muted-foreground">Scanned {new Date(result.scannedAt).toLocaleString()}</span>
+                <span className="text-muted-foreground">Scanned {formatDateTime(result.scannedAt)}</span>
               )}
             </div>
             <div className="rounded-md border border-border">
@@ -1206,7 +1207,7 @@ export function EconomyTab() {
                   <TableCell className={`text-right ${e.diff ? "text-nc-yellow" : ""}`}>
                     {e.diff === null || e.diff === undefined ? "—" : `${e.diff > 0 ? "+" : ""}${e.diff.toLocaleString()}`}
                   </TableCell>
-                  <TableCell>{e.lastSyncedAt ? new Date(e.lastSyncedAt).toLocaleString() : "never"}</TableCell>
+                  <TableCell>{e.lastSyncedAt ? formatDateTime(e.lastSyncedAt) : "never"}</TableCell>
                   <TableCell>
                     <span className={e.lastSyncStatus === "failed" ? "text-destructive" : "text-muted-foreground"}>
                       {e.lastSyncStatus ?? "—"}
@@ -1352,7 +1353,7 @@ function AdminSinkCard() {
       },
       {
         onSuccess: () => {
-          toast({ title: "Eddies Burned", description: `${target.name} paid Night City Bot ${values.amount.toLocaleString()} €$.` });
+          toast({ title: "Eddies Burned", description: `${target.name} paid Night City Bot ${formatEddies(values.amount)}.` });
           form.reset();
           setTarget(null);
         },
@@ -1880,7 +1881,7 @@ export function JobsTab() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{j.message || '-'}</TableCell>
-                    <TableCell className="text-muted-foreground">{new Date(j.startedAt).toLocaleString()}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatDateTime(j.startedAt)}</TableCell>
                   </TableRow>
                 ))}
                 {!jobs?.length && (
@@ -2608,7 +2609,7 @@ function MergeAccountCard() {
     const repointTotal = Object.values(preview.wouldRepoint).reduce((s, n) => s + n, 0);
     const ok = window.confirm(
       `MERGE ACCOUNT ${dropId.trim()} INTO ${keepId.trim()}?\n\n` +
-      `• €${preview.wouldTransferEddies.toLocaleString()} will be moved on UnbelievaBoat to the keep account.\n` +
+      `• ${formatEddies(preview.wouldTransferEddies)} will be moved on UnbelievaBoat to the keep account.\n` +
       `• ~${repointTotal} child rows (characters, stores, wallet history, requests…) will be repointed.\n` +
       `• Empty fields on the keep account will be filled from the drop account.\n` +
       `• The drop account row will then be DELETED. This cannot be undone.\n\n` +
@@ -2633,7 +2634,7 @@ function MergeAccountCard() {
       const repointTotalDone = Object.values(body.repointed ?? {}).reduce((s: number, n) => s + (n as number), 0);
       toast({
         title: `Merged ${dropId.trim()} → ${keepId.trim()}`,
-        description: `Transferred €${(body.walletTransfer?.amount ?? 0).toLocaleString()}, repointed ${repointTotalDone} rows, filled ${body.fieldsFilled?.length ?? 0} fields.`,
+        description: `Transferred ${formatEddies(body.walletTransfer?.amount ?? 0)}, repointed ${repointTotalDone} rows, filled ${body.fieldsFilled?.length ?? 0} fields.`,
       });
       setPreview(null);
       setKeepId("");
@@ -2697,20 +2698,20 @@ function MergeAccountCard() {
               <div className="border border-nc-cyan/50 bg-nc-cyan/5 p-2 space-y-1">
                 <div className="text-nc-cyan font-bold tracking-widest">KEEP · {String(preview.keep.username ?? "?")}</div>
                 <div className="text-muted-foreground">id: {String(preview.keep.id)}</div>
-                <div>balance: €${Number(preview.keep.walletBalance ?? 0).toLocaleString()}</div>
-                <div className="text-muted-foreground">live UB: {preview.liveUbBalance.keep == null ? "—" : `€${preview.liveUbBalance.keep.toLocaleString()}`}</div>
+                <div>balance: {formatEddies(Number(preview.keep.walletBalance ?? 0))}</div>
+                <div className="text-muted-foreground">live UB: {preview.liveUbBalance.keep == null ? "—" : formatEddies(preview.liveUbBalance.keep)}</div>
               </div>
               <div className="border border-destructive/50 bg-destructive/5 p-2 space-y-1">
                 <div className="text-destructive font-bold tracking-widest">DROP · {String(preview.drop.username ?? "?")}</div>
                 <div className="text-muted-foreground">id: {String(preview.drop.id)}</div>
-                <div>balance: €${Number(preview.drop.walletBalance ?? 0).toLocaleString()}</div>
-                <div className="text-muted-foreground">live UB: {preview.liveUbBalance.drop == null ? "—" : `€${preview.liveUbBalance.drop.toLocaleString()}`}</div>
+                <div>balance: {formatEddies(Number(preview.drop.walletBalance ?? 0))}</div>
+                <div className="text-muted-foreground">live UB: {preview.liveUbBalance.drop == null ? "—" : formatEddies(preview.liveUbBalance.drop)}</div>
               </div>
             </div>
             <div className="space-y-1">
               <div>
                 Eddies to transfer:{" "}
-                <span className="text-nc-cyan font-bold">€${preview.wouldTransferEddies.toLocaleString()}</span>{" "}
+                <span className="text-nc-cyan font-bold">{formatEddies(preview.wouldTransferEddies)}</span>{" "}
                 <span className={preview.economyMode === "enabled" ? "text-nc-cyan" : "text-destructive"}>
                   (economy: {preview.economyMode}{preview.economyMode !== "enabled" ? " — transfer will NOT run" : ""})
                 </span>

@@ -1,3 +1,4 @@
+import { formatDateTime } from "@/lib/format";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -114,7 +115,7 @@ export default function ReviewCommentThread({
                         Player
                       </span>
                     )}
-                    <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString()}</span>
+                    <span className="text-muted-foreground">{formatDateTime(c.createdAt)}</span>
                   </div>
                   <p className="font-mono text-sm text-foreground/90 whitespace-pre-wrap break-words [overflow-wrap:anywhere] mt-0.5">
                     {c.body}

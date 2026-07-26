@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatEddies } from "@/lib/format";
 import { Link, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGetStorePublic, useGiveToStore, useListMyStores, getGetStorePublicQueryKey } from "@workspace/api-client-react";
@@ -48,7 +49,7 @@ export default function DirectoryStoreDetail() {
         });
         return;
       }
-      toast({ title: "Gift sent", description: `${sent.toLocaleString()} €$ given to ${data?.name ?? "this store"}.` });
+      toast({ title: "Gift sent", description: `${formatEddies(sent)} given to ${data?.name ?? "this store"}.` });
     } catch (err) {
       const msg = (err as { data?: { error?: string } })?.data?.error
         || (err instanceof Error ? err.message : "Something went wrong — no money moved.");

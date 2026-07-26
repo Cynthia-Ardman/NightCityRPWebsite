@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatDateTime } from "@/lib/format";
 import { Link, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -126,7 +127,7 @@ export default function FixerEvents() {
                     >
                       <td className="p-0">
                         <Link href={href} className="block p-2 text-muted-foreground text-xs">
-                          {new Date(e.startAt).toLocaleString()}
+                          {formatDateTime(e.startAt)}
                         </Link>
                       </td>
                       <td className="p-0">

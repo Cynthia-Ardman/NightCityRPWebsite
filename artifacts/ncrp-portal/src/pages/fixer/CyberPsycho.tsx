@@ -1,3 +1,4 @@
+import { formatDateTime } from "@/lib/format";
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -57,7 +58,7 @@ function relTime(iso: string | null | undefined): string {
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.round(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
-  return new Date(iso).toLocaleString();
+  return formatDateTime(iso);
 }
 
 export default function CyberPsycho() {

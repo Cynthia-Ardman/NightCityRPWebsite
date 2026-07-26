@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/format";
+import { formatDate, formatEddies } from "@/lib/format";
 import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -106,6 +106,7 @@ import {
   jobTypeLabel,
 } from "@/lib/missionStatus";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
+import { NpcStateBadge, PaymentBadge } from "@/components/RosterBadges";
 import { CloseApplicationsButton } from "@/components/CloseApplicationsButton";
 import { TrialFixerBadge } from "@/components/TrialFixerBadge";
 import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
@@ -434,7 +435,7 @@ function MissionDetailView({ data: rawData, when }: { data: MissionDetailModel; 
             </Badge>
           )}
           <span className="text-nc-yellow font-mono text-xs uppercase tracking-widest">
-            Player pay €${data.playerPay.toLocaleString()}
+            Player pay {formatEddies(data.playerPay)}
           </span>
         </div>
       </div>
@@ -996,7 +997,7 @@ function NpcSignupSection({ data }: { data: MissionDetailModel }) {
       <CardContent className="space-y-3 font-mono text-sm">
         <p className="text-muted-foreground text-xs">
           Volunteer to play an NPC on this job. The fixer confirms attendance afterwards
-          {(data.npcPayAmount ?? 0) > 0 ? ` and pays ${(data.npcPayAmount ?? 0).toLocaleString()} €$.` : "."}
+          {(data.npcPayAmount ?? 0) > 0 ? ` and pays ${formatEddies(data.npcPayAmount ?? 0)}.` : "."}
         </p>
         <div>
           <Label className="text-xs">CHARACTER (optional)</Label>
@@ -1031,22 +1032,6 @@ function NpcSignupSection({ data }: { data: MissionDetailModel }) {
         {err && <div className="text-destructive text-xs" data-testid="text-npc-signup-error">{err}</div>}
       </CardContent>
     </Card>
-  );
-}
-
-function NpcStateBadge({ state }: { state: MissionNpcSignupView["state"] }) {
-  const cls =
-    state === "attended"
-      ? "border-green-500 text-green-400 bg-green-500/10"
-      : state === "no_show"
-        ? "border-destructive text-destructive bg-destructive/10"
-        : "border-nc-yellow text-nc-yellow bg-nc-yellow/10";
-  const label =
-    state === "attended" ? "Attended" : state === "no_show" ? "No-show" : "Signed up";
-  return (
-    <Badge variant="outline" className={`rounded-none text-[10px] ${cls}`}>
-      {label}
-    </Badge>
   );
 }
 
@@ -1222,36 +1207,6 @@ function AssignmentRow({
       >
         <X className="w-4 h-4" />
       </Button>
-    </div>
-  );
-}
-
-function PaymentBadge({
-  status,
-  amount,
-  error,
-}: {
-  status: string;
-  amount?: number | null;
-  error?: string | null;
-}) {
-  const cls =
-    status === "paid"
-      ? "border-green-500 text-green-400 bg-green-500/10"
-      : status === "failed"
-        ? "border-destructive text-destructive bg-destructive/10"
-        : status === "simulated"
-          ? "border-nc-cyan text-nc-cyan bg-nc-cyan/10"
-          : "border-nc-yellow text-nc-yellow bg-nc-yellow/10";
-  const label =
-    status === "paid" ? "Paid" : status === "failed" ? "Failed" : status === "simulated" ? "Test" : "Unpaid";
-  return (
-    <div className="inline-flex flex-col items-end gap-0.5">
-      <Badge variant="outline" className={`rounded-none text-[10px] ${cls}`}>
-        {label}
-        {amount ? ` €$${amount.toLocaleString()}` : ""}
-      </Badge>
-      {error && <span className="text-[10px] font-mono text-destructive max-w-[12rem] truncate" title={error}>{error}</span>}
     </div>
   );
 }
@@ -2027,7 +1982,7 @@ function PlayerActingLookup() {
                   <span>
                     {rows.length} act{rows.length === 1 ? "" : "s"}
                   </span>
-                  <span className="text-nc-cyan">{total.toLocaleString()} €$ total</span>
+                  <span className="text-nc-cyan">{formatEddies(total)} total</span>
                 </div>
                 <ul className="divide-y divide-border/40">
                   {rows.map((r) => (
@@ -2047,7 +2002,7 @@ function PlayerActingLookup() {
                         <span
                           className={r.paymentStatus === "failed" ? "text-destructive" : "text-nc-cyan"}
                         >
-                          {r.amount.toLocaleString()} €$
+                          {formatEddies(r.amount)}
                         </span>
                       </span>
                     </li>
@@ -2346,7 +2301,7 @@ function NpcRoster({ data, locked }: { data: MissionDetailModel; locked: boolean
       <CardContent className="space-y-3 font-mono text-sm">
         <p className="text-muted-foreground text-xs">
           Players who volunteered to NPC this job. Confirm attendance to pay{" "}
-          {(data.npcPayAmount ?? 0) > 0 ? `${(data.npcPayAmount ?? 0).toLocaleString()} €$` : "the NPC fee"}, or mark a no-show.
+          {(data.npcPayAmount ?? 0) > 0 ? `${formatEddies(data.npcPayAmount ?? 0)}` : "the NPC fee"}, or mark a no-show.
         </p>
         {signups.length === 0 ? (
           <p className="text-muted-foreground text-xs" data-testid="text-no-npc-signups">

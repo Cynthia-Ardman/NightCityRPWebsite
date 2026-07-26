@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatEddies } from "@/lib/format";
 import {
   useSellRipperdocItem,
   useGiveRipperdocItem,
@@ -113,7 +114,7 @@ export default function CyberwareActionDialog({ venueId, stock, onClose, onDone,
             </div>
 
             <p className="text-muted-foreground">
-              Unit price <span className="text-nc-yellow">€${stock.price.toLocaleString()}</span> · In stock {stock.quantity}
+              Unit price <span className="text-nc-yellow">{formatEddies(stock.price)}</span> · In stock {stock.quantity}
             </p>
             <p className="text-muted-foreground text-xs">
               {action === "install"
@@ -173,7 +174,7 @@ export default function CyberwareActionDialog({ venueId, stock, onClose, onDone,
 
             <div className="flex justify-between border-t border-border/40 pt-2">
               <span>TOTAL</span>
-              <span className="text-nc-yellow">{total > 0 ? `€$${total.toLocaleString()}` : "FREE"}</span>
+              <span className="text-nc-yellow">{total > 0 ? `${formatEddies(total)}` : "FREE"}</span>
             </div>
 
             {errMsg && <div className="text-destructive text-xs" data-testid="text-cyberware-error">{errMsg}</div>}

@@ -1,3 +1,4 @@
+import { formatEddies } from "@/lib/format";
 import { useState } from "react";
 import { Link } from "wouter";
 import {
@@ -265,7 +266,7 @@ export default function PayActors() {
                       </span>
                       <span className="flex items-center gap-3 text-xs">
                         <span className="text-muted-foreground">{ev.actorCount} actor{ev.actorCount === 1 ? "" : "s"}</span>
-                        <span className="text-nc-yellow">€$ {ev.totalPaid.toLocaleString()}</span>
+                        <span className="text-nc-yellow">{formatEddies(ev.totalPaid)}</span>
                       </span>
                     </button>
                     {isOpen && (
@@ -282,7 +283,7 @@ export default function PayActors() {
                                 <span className="text-yellow-500"> · {a.paymentStatus}</span>
                               )}
                             </span>
-                            <span className="text-nc-yellow/80">€$ {a.amount.toLocaleString()}</span>
+                            <span className="text-nc-yellow/80">{formatEddies(a.amount)}</span>
                           </li>
                         ))}
                         {ev.fixerName && (

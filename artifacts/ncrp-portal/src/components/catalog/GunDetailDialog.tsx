@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatEddies } from "@/lib/format";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUpdateGun, useDeleteGun, getListGunsQueryKey } from "@workspace/api-client-react";
 import {
@@ -183,7 +184,7 @@ export default function GunDetailDialog({
             {showPrice && (
               <Row
                 label="Price"
-                value={<span className="text-nc-yellow">{current.price.toLocaleString()} €$</span>}
+                value={<span className="text-nc-yellow">{formatEddies(current.price)}</span>}
               />
             )}
             {current.cyberwareReq && current.cyberwareReq.trim() && (

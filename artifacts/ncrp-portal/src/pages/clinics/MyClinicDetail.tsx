@@ -1,4 +1,5 @@
 import { useParams, Redirect } from "wouter";
+import { formatEddies } from "@/lib/format";
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -340,7 +341,7 @@ export default function MyClinicDetail() {
           {data.stock.map((s) => (
             <div key={s.id} className="flex justify-between items-start border-b border-border/30 py-2 font-mono text-sm gap-2">
               <div className="min-w-0">
-                <div>{s.name} <span className="text-nc-yellow ml-2">{s.price.toLocaleString()} €$</span> <span className="text-muted-foreground ml-2">x{s.quantity}</span></div>
+                <div>{s.name} <span className="text-nc-yellow ml-2">{formatEddies(s.price)}</span> <span className="text-muted-foreground ml-2">x{s.quantity}</span></div>
                 {(s.category || s.notes) && (
                   <div className="text-muted-foreground text-xs mt-0.5">
                     {s.category ? <span className="text-nc-magenta">{s.category}</span> : null}

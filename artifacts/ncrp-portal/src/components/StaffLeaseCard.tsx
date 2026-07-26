@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatEddies } from "@/lib/format";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListRentListings,
@@ -66,7 +67,7 @@ export default function StaffLeaseCard({
             <option value="">Select a property…</option>
             {(listings ?? []).map((l) => (
               <option key={l.id} value={String(l.id)}>
-                {l.name}{l.district ? ` — ${l.district}` : ""} (€${l.monthlyRent.toLocaleString()}/mo)
+                {l.name}{l.district ? ` — ${l.district}` : ""} ({formatEddies(l.monthlyRent)}/mo)
               </option>
             ))}
           </select>

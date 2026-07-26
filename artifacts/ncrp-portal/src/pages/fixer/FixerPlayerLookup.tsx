@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatEddies, formatDateTime } from "@/lib/format";
 import { Link } from "wouter";
 import {
   useSearchFixerPlayers,
@@ -44,7 +45,7 @@ const REQUEST_TYPE_LABEL: Record<string, string> = {
 };
 
 function fmt(ts: string | null | undefined): string {
-  return ts ? new Date(ts).toLocaleString() : "—";
+  return ts ? formatDateTime(ts) : "—";
 }
 
 // Imported attendance dates are calendar dates ("YYYY-MM-DD") with no time.
@@ -61,7 +62,7 @@ function fmtDate(d: string | null | undefined): string {
 
 function eddies(n: number): string {
   const sign = n < 0 ? "-" : "+";
-  return `${sign}€$${Math.abs(n).toLocaleString()}`;
+  return `${sign}${formatEddies(Math.abs(n))}`;
 }
 
 // Map a known audit/activity target to its detail route. Returns null for
@@ -318,7 +319,7 @@ export default function FixerPlayerLookup() {
                       <Row key={s.id} testId={`row-store-${s.id}`} when={fmt(s.createdAt)} href={`/directory/stores/${s.id}`}>
                         <span className="text-foreground">{s.name}</span>
                         {s.location && <span className="text-muted-foreground"> · {s.location}</span>}
-                        <span className="text-nc-yellow"> · €${s.balance.toLocaleString()}</span>
+                        <span className="text-nc-yellow"> · {formatEddies(s.balance)}</span>
                       </Row>
                     ))}
                   </RowList>
@@ -334,7 +335,7 @@ export default function FixerPlayerLookup() {
                       <Row key={r.id} testId={`row-ripperdoc-${r.id}`} when={fmt(r.createdAt)} href={`/directory/ripperdocs/${r.id}`}>
                         <span className="text-foreground">{r.name}</span>
                         {r.location && <span className="text-muted-foreground"> · {r.location}</span>}
-                        <span className="text-nc-yellow"> · €${r.balance.toLocaleString()}</span>
+                        <span className="text-nc-yellow"> · {formatEddies(r.balance)}</span>
                       </Row>
                     ))}
                   </RowList>
@@ -434,7 +435,7 @@ export default function FixerPlayerLookup() {
                         <span className="text-foreground">{m.missionTitle ?? `Mission #${m.missionId ?? "?"}`}</span>
                         {m.characterName && <span className="text-nc-cyan"> · {m.characterName}</span>}
                         <span className="text-muted-foreground"> · {m.paymentStatus}</span>
-                        {m.payAmount != null && <span className="text-nc-yellow"> · €${m.payAmount.toLocaleString()}</span>}
+                        {m.payAmount != null && <span className="text-nc-yellow"> · {formatEddies(m.payAmount)}</span>}
                         {m.attendanceCreditedAt && <span className="text-nc-cyan"> · attended</span>}
                       </Row>
                     ))}
@@ -453,7 +454,7 @@ export default function FixerPlayerLookup() {
                         <span className="text-foreground">{a.missionName ?? a.eventType ?? "Event"}</span>
                         {a.characterName && <span className="text-nc-cyan"> · {a.characterName}</span>}
                         <span className="text-muted-foreground"> · {a.paymentStatus}</span>
-                        <span className="text-nc-yellow"> · €${a.amount.toLocaleString()}</span>
+                        <span className="text-nc-yellow"> · {formatEddies(a.amount)}</span>
                         {a.fixerName && <span className="text-muted-foreground"> · by {a.fixerName}</span>}
                       </Row>
                     ))}
@@ -470,7 +471,7 @@ export default function FixerPlayerLookup() {
                     {profile.attendanceClaims.map((a) => (
                       <Row key={a.id} testId={`row-attend-${a.id}`} when={fmt(a.claimedAt)}>
                         <span className="text-foreground">Week of {a.weekStart}</span>
-                        <span className="text-nc-yellow"> · €${a.amount.toLocaleString()}</span>
+                        <span className="text-nc-yellow"> · {formatEddies(a.amount)}</span>
                       </Row>
                     ))}
                   </RowList>

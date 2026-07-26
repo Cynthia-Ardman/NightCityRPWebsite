@@ -1,3 +1,4 @@
+import { formatDateTime } from "@/lib/format";
 import { useParams, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -213,7 +214,7 @@ export default function PendingEditDetail() {
           <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-muted-foreground">
             <span>by {edit.submitterName ?? "(unknown)"}</span>
             <span>·</span>
-            <span>{new Date(edit.submittedAt).toLocaleString()}</span>
+            <span>{formatDateTime(edit.submittedAt)}</span>
             <span>·</span>
             <Link href={`/characters/${edit.characterId}`}>
               <a className="text-nc-cyan hover:underline">VIEW CHARACTER</a>
@@ -616,7 +617,7 @@ export default function PendingEditDetail() {
                 <span className={v.vote === "approve" ? "text-nc-green" : "text-destructive"}>
                   {v.vote === "approve" ? "APPROVED" : "REJECTED"}
                 </span>
-                <span className="text-muted-foreground">{new Date(v.votedAt).toLocaleString()}</span>
+                <span className="text-muted-foreground">{formatDateTime(v.votedAt)}</span>
                 {v.note && <span className="italic text-foreground/70 truncate">"{v.note}"</span>}
               </div>
             ))}

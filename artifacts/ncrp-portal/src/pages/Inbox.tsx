@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/format";
+import { formatDate, formatEddies } from "@/lib/format";
 import { useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -225,7 +225,7 @@ export default function Inbox() {
                     </div>
                   </div>
                   <div className="text-right shrink-0 space-y-2">
-                    <div className="text-nc-yellow font-mono text-lg">€${f.amount.toLocaleString()}</div>
+                    <div className="text-nc-yellow font-mono text-lg">{formatEddies(f.amount)}</div>
                     <Button
                       size="sm"
                       disabled={payFine.isPending}
@@ -252,7 +252,7 @@ export default function Inbox() {
                       {f.characterName ?? `Character #${f.characterId}`} · {f.reason}
                     </span>
                     <span className="text-nc-green whitespace-nowrap">
-                      €${f.amount.toLocaleString()} · PAID {f.paidAt ? formatDate(f.paidAt) : ""}
+                      {formatEddies(f.amount)} · PAID {f.paidAt ? formatDate(f.paidAt) : ""}
                     </span>
                   </div>
                 ))}
@@ -390,9 +390,9 @@ export default function Inbox() {
                     )}
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-nc-yellow font-mono text-lg">€${o.totalPrice.toLocaleString()}</div>
+                    <div className="text-nc-yellow font-mono text-lg">{formatEddies(o.totalPrice)}</div>
                     <div className="text-muted-foreground font-mono text-[11px]">
-                      €${o.unitPrice.toLocaleString()} / unit
+                      {formatEddies(o.unitPrice)} / unit
                     </div>
                   </div>
                 </div>
@@ -496,7 +496,7 @@ export default function Inbox() {
                         {o.venueName ?? (o.kind === "store" ? "Store" : "Clinic")}
                       </td>
                       <td className="p-3 text-right text-nc-yellow whitespace-nowrap">
-                        €${o.totalPrice.toLocaleString()}
+                        {formatEddies(o.totalPrice)}
                       </td>
                       <td className="p-3 text-muted-foreground whitespace-nowrap">
                         {o.decidedAt

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatEddies } from "@/lib/format";
 import {
   useRemoveRipperdocCyberware,
   useGetCharacterCyberware,
@@ -170,7 +171,7 @@ export default function RemoveCyberwareDialog({ venueId, onClose, onDone, preset
 
             <div className="flex justify-between border-t border-border/40 pt-2">
               <span>FEE</span>
-              <span className="text-nc-yellow">{fee > 0 ? `€$${fee.toLocaleString()}` : "FREE"}</span>
+              <span className="text-nc-yellow">{fee > 0 ? `${formatEddies(fee)}` : "FREE"}</span>
             </div>
 
             {errMsg && <div className="text-destructive text-xs" data-testid="text-remove-error">{errMsg}</div>}
