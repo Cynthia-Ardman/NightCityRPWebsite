@@ -70,8 +70,16 @@ export default function EditCharacterTagsDialog({
     update.mutate(
       { id: characterId, data: { tags: desired } },
       {
-        onSuccess: () => {
-          toast({ title: "Tags updated", description: `Updated ${characterName}.` });
+        onSuccess: (data) => {
+          const queued = (data as { queuedForApproval?: string[] } | undefined)?.queuedForApproval ?? [];
+          if (queued.length > 0) {
+            toast({
+              title: "Tags updated — approval needed",
+              description: `Sent for fixer approval: ${queued.join(", ")}. The other changes applied instantly.`,
+            });
+          } else {
+            toast({ title: "Tags updated", description: `Updated ${characterName}.` });
+          }
           void invalidateCharacterQueries(qc, characterId);
           onOpenChange(false);
         },
@@ -93,7 +101,8 @@ export default function EditCharacterTagsDialog({
             EDIT TAGS — {characterName.toUpperCase()}
           </DialogTitle>
           <DialogDescription className="font-mono text-xs text-muted-foreground">
-            Click a tag to remove it; pick from the shared tag list to add. Changes apply instantly.
+            Click a tag to remove it; pick from the shared tag list to add. Most changes apply
+            instantly — tags marked "needs approval" go to the fixers first.
           </DialogDescription>
         </DialogHeader>
 
@@ -145,6 +154,9 @@ export default function EditCharacterTagsDialog({
                     data-testid={`option-edittags-${o.id}`}
                   >
                     {o.name}
+                    {o.requiresApproval ? (
+                      <span className="ml-1 text-nc-yellow/80 normal-case">· needs approval</span>
+                    ) : null}
                   </button>
                 ))}
               </div>

@@ -1787,7 +1787,14 @@ router.get("/directory/tag-options", requireAuth, async (req, res): Promise<void
     .select()
     .from(characterTagOptions)
     .orderBy(asc(characterTagOptions.name));
-  res.json(rows.map((r) => ({ id: r.id, name: r.name })));
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      discordRoleId: r.discordRoleId ?? null,
+      requiresApproval: r.requiresApproval,
+    })),
+  );
 });
 
 const TagOptionCreateSchema = z.object({ name: z.string().trim().min(1).max(60) }).strict();
@@ -1829,25 +1836,51 @@ router.post("/directory/tag-options", staffOnly, async (req, res): Promise<void>
     });
     return t;
   });
-  res.status(201).json({ id: created.id, name: created.name });
+  res.status(201).json({
+    id: created.id,
+    name: created.name,
+    discordRoleId: created.discordRoleId ?? null,
+    requiresApproval: created.requiresApproval,
+  });
 });
 
 // Rename a global tag option. The tag name is denormalized onto every character
 // that has it applied (characters.appliedTags / manualTags store the literal
 // string), so a rename here must rewrite those arrays too or the option drifts
 // away from the tags already on characters. All done in one transaction.
+// Beyond rename, staff (fixer/admin) also manage the Discord-role linkage
+// here: `discordRoleId` maps the tag to a Discord role granted to characters'
+// owners carrying the tag, and `requiresApproval` gates player self-adds
+// behind a Misc Requests ticket.
+const TagOptionUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(60).optional(),
+    discordRoleId: z
+      .union([z.string().trim().regex(/^\d{17,20}$/, "Discord role IDs are 17-20 digit numbers"), z.null()])
+      .optional(),
+    requiresApproval: z.boolean().optional(),
+  })
+  .strict()
+  .refine((v) => v.name !== undefined || v.discordRoleId !== undefined || v.requiresApproval !== undefined, {
+    message: "Nothing to update",
+  });
+
 router.patch("/directory/tag-options/:id", staffOnly, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
-  const parsed = TagOptionCreateSchema.safeParse(req.body ?? {});
+  const parsed = TagOptionUpdateSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
     return;
   }
-  const name = normalizeTag(parsed.data.name);
+  const name = parsed.data.name !== undefined ? normalizeTag(parsed.data.name) : undefined;
+  if (name !== undefined && name.length === 0) {
+    res.status(400).json({ error: "Invalid payload" });
+    return;
+  }
   const { ip, ua } = auditMeta(req);
   // Lock the option row FOR UPDATE, then re-read the old name, re-run the
   // case-insensitive uniqueness check, and propagate — all inside the same
@@ -1867,47 +1900,68 @@ router.patch("/directory/tag-options/:id", staffOnly, async (req, res): Promise<
       notFound = true;
       return null;
     }
-    if (name === cur.name) {
+    const renaming = name !== undefined && name !== cur.name;
+    const set: Partial<{ name: string; discordRoleId: string | null; requiresApproval: boolean }> = {};
+    if (renaming) set.name = name;
+    if (parsed.data.discordRoleId !== undefined && parsed.data.discordRoleId !== cur.discordRoleId) {
+      set.discordRoleId = parsed.data.discordRoleId;
+    }
+    if (parsed.data.requiresApproval !== undefined && parsed.data.requiresApproval !== cur.requiresApproval) {
+      set.requiresApproval = parsed.data.requiresApproval;
+    }
+    if (Object.keys(set).length === 0) {
       noChange = true;
       return null;
     }
-    const [other] = await tx
-      .select({ id: characterTagOptions.id })
-      .from(characterTagOptions)
-      .where(and(ilike(characterTagOptions.name, name), ne(characterTagOptions.id, id)));
-    if (other) {
-      dupe = true;
-      return null;
+    if (renaming) {
+      const [other] = await tx
+        .select({ id: characterTagOptions.id })
+        .from(characterTagOptions)
+        .where(and(ilike(characterTagOptions.name, name!), ne(characterTagOptions.id, id)));
+      if (other) {
+        dupe = true;
+        return null;
+      }
     }
     const [t] = await tx
       .update(characterTagOptions)
-      .set({ name })
+      .set(set)
       .where(eq(characterTagOptions.id, id))
       .returning();
-    // Propagate the rename to characters that already carry the old tag, in
-    // both the importer-owned appliedTags and staff-owned manualTags arrays.
-    await tx.execute(sql`
-      UPDATE characters
-         SET applied_tags = array_replace(applied_tags, ${cur.name}, ${name})
-       WHERE ${cur.name} = ANY(applied_tags)
-    `);
-    await tx.execute(sql`
-      UPDATE characters
-         SET manual_tags = array_replace(manual_tags, ${cur.name}, ${name})
-       WHERE ${cur.name} = ANY(manual_tags)
-    `);
+    if (renaming) {
+      // Propagate the rename to characters that already carry the old tag, in
+      // both the importer-owned appliedTags and staff-owned manualTags arrays.
+      await tx.execute(sql`
+        UPDATE characters
+           SET applied_tags = array_replace(applied_tags, ${cur.name}, ${name})
+         WHERE ${cur.name} = ANY(applied_tags)
+      `);
+      await tx.execute(sql`
+        UPDATE characters
+           SET manual_tags = array_replace(manual_tags, ${cur.name}, ${name})
+         WHERE ${cur.name} = ANY(manual_tags)
+      `);
+    }
+    const changes: string[] = [];
+    if (renaming) changes.push(`renamed "${cur.name}" → "${name}"`);
+    if (set.discordRoleId !== undefined) {
+      changes.push(set.discordRoleId ? `Discord role linked (${set.discordRoleId})` : "Discord role unlinked");
+    }
+    if (set.requiresApproval !== undefined) {
+      changes.push(set.requiresApproval ? "approval now required" : "approval no longer required");
+    }
     await tx.insert(auditLog).values({
       category: "character",
-      action: "tag_option_rename",
+      action: renaming ? "tag_option_rename" : "tag_option_update",
       actorId: req.user!.id,
       actorName: req.user!.username,
       actorIp: ip,
       actorUa: ua,
       targetType: "tag_option",
       targetId: String(id),
-      message: `Renamed tag option "${cur.name}" → "${name}"`,
-      beforeJson: { name: cur.name } as never,
-      afterJson: { name } as never,
+      message: `Tag option "${cur.name}": ${changes.join(", ")}`,
+      beforeJson: { name: cur.name, discordRoleId: cur.discordRoleId, requiresApproval: cur.requiresApproval } as never,
+      afterJson: { name: t.name, discordRoleId: t.discordRoleId, requiresApproval: t.requiresApproval } as never,
     });
     return t;
   });
@@ -1923,7 +1977,12 @@ router.patch("/directory/tag-options/:id", staffOnly, async (req, res): Promise<
     res.status(409).json({ error: "A tag with that name already exists" });
     return;
   }
-  res.json({ id: updated!.id, name: updated!.name });
+  res.json({
+    id: updated!.id,
+    name: updated!.name,
+    discordRoleId: updated!.discordRoleId ?? null,
+    requiresApproval: updated!.requiresApproval,
+  });
 });
 
 router.delete("/directory/tag-options/:id", staffOnly, async (req, res): Promise<void> => {

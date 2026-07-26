@@ -8,4 +8,6 @@
 
 export type UpdateCharacterTags200 = {
   tags: string[];
+  /** Tags that were NOT applied — each has a pending Misc Request awaiting fixer approval. */
+  queuedForApproval?: string[];
 };

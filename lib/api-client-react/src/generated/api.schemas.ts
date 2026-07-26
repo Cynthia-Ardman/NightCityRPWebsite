@@ -3906,6 +3906,20 @@ export interface AvailableBusinessBuilding {
 export interface TagOption {
   id: number;
   name: string;
+  /** Discord role granted to owners of characters carrying this tag (fixer-managed; null = no linked role). */
+  discordRoleId?: string | null;
+  /** When true, players adding this tag get a pending Misc Request instead of an instant apply. */
+  requiresApproval: boolean;
+}
+
+/**
+ * Partial update — any subset of fields; at least one required.
+ */
+export interface TagOptionUpdate {
+  name?: string;
+  /** 17-20 digit Discord role ID, or null to unlink. */
+  discordRoleId?: string | null;
+  requiresApproval?: boolean;
 }
 
 export interface TagOptionInput {
@@ -4059,6 +4073,7 @@ export const CustomRequestType = {
   employee_invite: 'employee_invite',
   venue_stock: 'venue_stock',
   mission_participation: 'mission_participation',
+  character_tag: 'character_tag',
 } as const;
 
 export type CustomRequestStatus = typeof CustomRequestStatus[keyof typeof CustomRequestStatus];
@@ -7909,6 +7924,8 @@ export type UpdateCharacterTagsBody = {
 
 export type UpdateCharacterTags200 = {
   tags: string[];
+  /** Tags that were NOT applied — each has a pending Misc Request awaiting fixer approval. */
+  queuedForApproval?: string[];
 };
 
 export type DeactivateCharacter200 = {
@@ -8448,6 +8465,7 @@ export const ListMyCustomRequestsType = {
   ripperdoc: 'ripperdoc',
   employee_invite: 'employee_invite',
   venue_stock: 'venue_stock',
+  character_tag: 'character_tag',
 } as const;
 
 export type ListLoreParams = {

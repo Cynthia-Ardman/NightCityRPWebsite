@@ -17,16 +17,23 @@ non-obvious ones that bite:
 - `normalizeApprovalParams` default `{ ok: {} }` already covers no-param types — leave it.
 - Do NOT add to `STAFF_QUEUE_EXCLUDED_REQUEST_TYPES` (those are owner/player-decided; a fixer-voted type MUST stay visible in the staff queue).
 
+**Internal-only variant:** a type created only by server code (e.g. character_tag,
+minted by the tags PATCH) skips `REQUEST_TYPES` (POST validation) and skips the
+`CustomRequestInput.type` enum — players must not POST it directly. It still
+needs the other two enums, the queue/frontend wiring, and (if dedup matters) a
+partial unique index + untargeted `onConflictDoNothing()` (drizzle can't type an
+expression column in a conflict `target`).
+
 **OpenAPI** `lib/api-spec/openapi.yaml` — THREE enums (easy to miss one):
-1. `CustomRequest.type` (the schema, ~line 6940).
-2. `CustomRequestInput.type` (submit body).
+1. `CustomRequest.type` (the schema).
+2. `CustomRequestInput.type` (submit body — omit for internal-only types).
 3. `listMyCustomRequests` query `type` enum.
    (The `listCustomCatalogItems` enum is the staff-only "Custom catalog tab" — only add there if you also build a catalog page for the type.)
 Then run `pnpm --filter @workspace/api-spec run codegen` (orval client + zod; runs typecheck:libs). Client exports `src` directly — no separate dist build needed for api-client-react.
 
 **Frontend** — exhaustive maps over `CustomRequest["type"]` / category will fail typecheck if missed:
 - `pages/requests/PendingRequests.tsx` `TYPE_META` (label + lucide icon; accessed without `?.`).
-- `pages/MyRequests.tsx` — its OWN `HistoryRow["category"]` union, `CUSTOM_LABEL` Record, `CATEGORY_FILTERS` array, `categoryColor` switch, AND `FIXER_VOTED_TYPES` set.
+- `pages/MySubmissions.tsx` — its OWN `HistoryRow["category"]` union, `CUSTOM_LABEL` Record, `CATEGORY_FILTERS` array, `categoryColor` switch, AND `FIXER_VOTED_TYPES` set.
 - `components/catalog/CatalogRequestSection.tsx` `RequestType` union (reusable submit dialog; `hasSource` is gun/cyberware-only, so a no-source type just shows title+desc+image).
 - A player entry point (e.g. a card in `pages/CharacterDetail.tsx` using `CatalogRequestSection` with `presetCharacterId`).
 

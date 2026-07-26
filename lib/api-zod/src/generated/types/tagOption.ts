@@ -9,4 +9,8 @@
 export interface TagOption {
   id: number;
   name: string;
+  /** Discord role granted to owners of characters carrying this tag (fixer-managed; null = no linked role). */
+  discordRoleId?: string | null;
+  /** When true, players adding this tag get a pending Misc Request instead of an instant apply. */
+  requiresApproval: boolean;
 }

@@ -3,7 +3,7 @@ import { useListMyFixerNpcs, useListAllFixerNpcs } from "@workspace/api-client-r
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { Plus, Users, FileText, Search, Briefcase, BarChart3, Coins, UserSearch, ArrowRight, PartyPopper, UserPlus, ShieldAlert, Building2, Activity, type LucideIcon } from "lucide-react";
+import { Plus, Users, FileText, Search, Briefcase, BarChart3, Coins, UserSearch, ArrowRight, PartyPopper, UserPlus, ShieldAlert, Building2, Activity, Tag as TagIcon, type LucideIcon } from "lucide-react";
 
 type FixerTool = {
   href: string;
@@ -105,6 +105,15 @@ const FIXER_TOOLS: FixerTool[] = [
     description: "Every off-map lease — residential homes and business spaces not tied to a catalog building, with the venue each business backs.",
     cta: "Browse off-map",
     accent: "yellow",
+  },
+  {
+    href: "/fixer/tag-roles",
+    testId: "link-fixer-tag-roles",
+    icon: TagIcon,
+    title: "Tag Roles",
+    description: "Link character tags to Discord roles and choose which tags need fixer approval before players can wear them.",
+    cta: "Manage tag roles",
+    accent: "cyan",
   },
   {
     href: "/fixer/cyberware-violations",

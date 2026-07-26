@@ -85,7 +85,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen, BookMarked, PackagePlus, Package, Pencil } from "lucide-react";
+import { Clock, FileText, Inbox, Home, Crosshair, Cpu, Store, Syringe, BookOpen, BookMarked, PackagePlus, Package, Pencil, Tag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useMarkReviewSeenInstant } from "@/hooks/useReviewSeen";
@@ -114,6 +114,9 @@ const TYPE_META: Record<
   // Mission participation is decided by the assigned character's player
   // (excluded from the staff queue); kept here only for exhaustiveness.
   mission_participation: { label: "MISSION PARTICIPATION", Icon: FileText },
+  // Player asked for an approval-gated character tag (created internally by
+  // PATCH /characters/:id/tags — no direct submit form).
+  character_tag: { label: "CHARACTER TAG", Icon: Tag },
 };
 
 // Venue requests stash purpose/location in the details payload — surface them

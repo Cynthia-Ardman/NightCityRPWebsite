@@ -645,6 +645,7 @@ export * from './storeUpdateKind';
 export * from './systemLiveState';
 export * from './tagOption';
 export * from './tagOptionInput';
+export * from './tagOptionUpdate';
 export * from './transferInput';
 export * from './upcomingBills';
 export * from './upcomingBillsCyberwareStatus';

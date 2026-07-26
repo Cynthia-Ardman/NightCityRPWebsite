@@ -20,4 +20,5 @@ export const CustomRequestType = {
   employee_invite: 'employee_invite',
   venue_stock: 'venue_stock',
   mission_participation: 'mission_participation',
+  character_tag: 'character_tag',
 } as const;

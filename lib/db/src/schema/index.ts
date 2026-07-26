@@ -587,6 +587,14 @@ export const characterTagOptions = pgTable("character_tag_options", {
   name: text("name").notNull().unique(),
   createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Optional Discord role linkage: when set, a character carrying this tag
+  // earns the mapped Discord role for its owner. Managed by fixers/admins.
+  discordRoleId: text("discord_role_id"),
+  // When true, a player adding this tag to their character does NOT get it
+  // instantly — the add is diverted into a custom_requests "character_tag"
+  // ticket that fixers approve from the Misc Requests queue. Staff edits
+  // bypass the gate.
+  requiresApproval: boolean("requires_approval").notNull().default(false),
 });
 export type CharacterTagOption = typeof characterTagOptions.$inferSelect;
 
@@ -785,6 +793,13 @@ export const customRequests = pgTable("custom_requests", {
   reservedListingLiveIdx: uniqueIndex("custom_requests_reserved_listing_live_idx")
     .on(t.reservedListingId)
     .where(sql`reserved_listing_id IS NOT NULL AND status IN ('pending', 'approved')`),
+  // At most ONE live character_tag request per character+tag. The tag PATCH's
+  // read-then-insert dedupe is racy under concurrent submits; this partial
+  // unique index makes the loser's insert conflict (handled with
+  // onConflictDoNothing). No space-containing literals (deploy migration trap).
+  characterTagLiveIdx: uniqueIndex("custom_requests_character_tag_live_idx")
+    .on(t.characterId, sql`lower(details ->> 'tag')`)
+    .where(sql`type = 'character_tag' AND status IN ('pending', 'changes_requested')`),
 }));
 export type CustomRequest = typeof customRequests.$inferSelect;
 

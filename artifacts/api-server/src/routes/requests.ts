@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
-import { and, desc, eq, gte, inArray, ne, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, ne, notInArray, sql } from "drizzle-orm";
 import {
   db,
   customRequests,
@@ -19,6 +19,7 @@ import {
   missionAssignments,
   missionApplications,
   catalogRent,
+  characterTagOptions,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, sendDirectMessage, postToChannel } from "../lib/discord";
@@ -32,6 +33,8 @@ import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
 import { endOfCurrentMonth } from "../lib/billingDates";
 import { isAdmin } from "../lib/roleChecks";
+import { mergeTags } from "../lib/characterTags";
+import { syncTagRolesForCharacter } from "../lib/tagRoles";
 import {
   isReviewer,
   isEligibleReviewer,
@@ -153,6 +156,8 @@ function typeLabelFor(type: string): string {
       return "stock cost";
     case "mission_participation":
       return "mission participation";
+    case "character_tag":
+      return "character tag";
     default:
       return "request";
   }
@@ -177,9 +182,10 @@ function clampPct(raw: unknown): number {
 
 // Audit category for a request decision — venues are shop, property is
 // housing, guns/cyberware are inventory.
-function auditCategoryFor(type: string): "housing" | "shop" | "inventory" {
+function auditCategoryFor(type: string): "housing" | "shop" | "inventory" | "character" {
   if (type === "property") return "housing";
   if (type === "gun" || type === "cyberware" || type === "item") return "inventory";
+  if (type === "character_tag") return "character";
   // store / ripperdoc / stock_cost / venue_stock / employee_invite all live
   // under the shop umbrella.
   return "shop";
@@ -603,6 +609,48 @@ async function materializeRequest(
       .returning();
     return { ok: { appliedRef: `ripperdoc:${r.id}`, summary: `New ripperdoc approved: ${reqRow.title}` } };
   }
+  if (reqRow.type === "character_tag") {
+    // Approval-gated tag add (created by PATCH /characters/:id/tags when the
+    // tag option has requiresApproval). Applying = adding the tag to the
+    // character's manualTags. The Discord role grant (if the option is
+    // role-linked) happens post-commit in afterApprove — external writes must
+    // never run inside the tx.
+    const det = (reqRow.details ?? {}) as { tag?: string };
+    const tagName = typeof det.tag === "string" ? det.tag.trim() : "";
+    if (!tagName) {
+      return { error: { status: 400, body: { error: "Tag request is missing its tag" } } };
+    }
+    // Re-resolve against the registry at close — the option may have been
+    // renamed or removed since the request was submitted.
+    const [opt] = await tx
+      .select({ name: characterTagOptions.name })
+      .from(characterTagOptions)
+      .where(ilike(characterTagOptions.name, tagName));
+    if (!opt) {
+      return { error: { status: 400, body: { error: `Tag "${tagName}" is no longer in the tag registry` } } };
+    }
+    const [fresh] = await tx
+      .select({ appliedTags: characters.appliedTags, manualTags: characters.manualTags })
+      .from(characters)
+      .where(eq(characters.id, reqRow.characterId))
+      .for("update");
+    if (!fresh) {
+      return { error: { status: 400, body: { error: "Character no longer exists" } } };
+    }
+    const current = mergeTags(fresh.appliedTags, fresh.manualTags);
+    if (!current.some((t) => t.toLowerCase() === opt.name.toLowerCase())) {
+      await tx
+        .update(characters)
+        .set({ manualTags: [...(fresh.manualTags ?? []), opt.name] })
+        .where(eq(characters.id, reqRow.characterId));
+    }
+    return {
+      ok: {
+        appliedRef: `character_tag:${reqRow.characterId}:${opt.name.toLowerCase()}`,
+        summary: `Tag approved: ${opt.name}`,
+      },
+    };
+  }
   if (reqRow.type === "venue_stock") {
     // Fixers have voted to approve and set the cost/qty/retail. We don't add
     // the stock or debit the venue here — instead we hand off to the existing
@@ -689,6 +737,12 @@ async function afterApprove(
     actorAvatarUrl: u.avatarUrl,
     message: `${c.name}: ${summary}${via === "override" ? " (admin override)" : ""}`,
   });
+  if (reqRow.type === "character_tag") {
+    // Grant the mapped Discord role (if any) now that the tag add committed.
+    // Fire-and-forget: a Discord miss never blocks the approval trail.
+    const tag = String((reqRow.details as { tag?: string } | null)?.tag ?? "").trim();
+    if (tag) void syncTagRolesForCharacter(reqRow.characterId, [tag], [], `tag request #${reqRow.id} approved`);
+  }
   if (reqRow.type === "gun" || reqRow.type === "cyberware" || reqRow.type === "item") {
     await recordInventoryEvent({
       instanceUuid: appliedRef.replace("inventory:", ""),

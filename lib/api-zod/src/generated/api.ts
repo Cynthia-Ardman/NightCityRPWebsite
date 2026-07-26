@@ -347,11 +347,14 @@ export const DeleteCharacterParams = zod.object({
 
 
 /**
- * Sets the character's FULL desired tag list. Applies instantly (no
-review) — tags are cosmetic archive labels. Every tag must exist in
+ * Sets the character's FULL desired tag list. Every tag must exist in
 the shared tag-option registry (`/directory/tag-options`), except tags
 the character already carries (e.g. Discord-imported), which stay
-allowed so an unrelated edit never fails.
+allowed so an unrelated edit never fails. Tags whose option requires
+approval are NOT applied instantly for players — each new one is
+diverted into a pending Misc Request (returned in `queuedForApproval`)
+that fixers approve. Staff edits bypass the approval gate. Tags linked
+to a Discord role grant/remove that role for the character's owner.
 
  * @summary Replace a character's archive tags (owner or fixer/admin)
  */
@@ -368,7 +371,8 @@ export const UpdateCharacterTagsBody = zod.object({
 })
 
 export const UpdateCharacterTagsResponse = zod.object({
-  "tags": zod.array(zod.string())
+  "tags": zod.array(zod.string()),
+  "queuedForApproval": zod.array(zod.string()).optional().describe('Tags that were NOT applied — each has a pending Misc Request awaiting fixer approval.')
 })
 
 
@@ -10108,7 +10112,9 @@ export const ListPublicCharacterTagsResponse = zod.array(ListPublicCharacterTags
  */
 export const ListTagOptionsResponseItem = zod.object({
   "id": zod.number(),
-  "name": zod.string()
+  "name": zod.string(),
+  "discordRoleId": zod.string().nullish().describe('Discord role granted to owners of characters carrying this tag (fixer-managed; null = no linked role).'),
+  "requiresApproval": zod.boolean().describe('When true, players adding this tag get a pending Misc Request instead of an instant apply.')
 })
 export const ListTagOptionsResponse = zod.array(ListTagOptionsResponseItem)
 
@@ -10122,19 +10128,23 @@ export const CreateTagOptionBody = zod.object({
 
 
 /**
- * @summary Rename a global tag option (FIXER/ADMIN). The new name is also propagated to every character that already has the old tag applied.
+ * @summary Update a global tag option (FIXER/ADMIN): rename (propagated to every character carrying the old tag), link/unlink a Discord role, or toggle the approval requirement.
  */
 export const UpdateTagOptionParams = zod.object({
   "id": zod.coerce.number()
 })
 
 export const UpdateTagOptionBody = zod.object({
-  "name": zod.string()
-})
+  "name": zod.string().optional(),
+  "discordRoleId": zod.string().nullish().describe('17-20 digit Discord role ID, or null to unlink.'),
+  "requiresApproval": zod.boolean().optional()
+}).describe('Partial update — any subset of fields; at least one required.')
 
 export const UpdateTagOptionResponse = zod.object({
   "id": zod.number(),
-  "name": zod.string()
+  "name": zod.string(),
+  "discordRoleId": zod.string().nullish().describe('Discord role granted to owners of characters carrying this tag (fixer-managed; null = no linked role).'),
+  "requiresApproval": zod.boolean().describe('When true, players adding this tag get a pending Misc Request instead of an instant apply.')
 })
 
 
@@ -10895,7 +10905,7 @@ export const ListCustomRequestsQueryParams = zod.object({
 
 export const ListCustomRequestsResponseItem = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation', 'character_tag']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -10959,12 +10969,12 @@ export const SubmitCustomRequestBody = zod.object({
  * @summary The signed-in user's own custom requests.
  */
 export const ListMyCustomRequestsQueryParams = zod.object({
-  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'employee_invite', 'venue_stock']).optional()
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'employee_invite', 'venue_stock', 'character_tag']).optional()
 })
 
 export const ListMyCustomRequestsResponseItem = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation', 'character_tag']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -11037,7 +11047,7 @@ export const VoteCustomRequestBody = zod.object({
 
 export const VoteCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation', 'character_tag']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -11109,7 +11119,7 @@ export const OverrideCustomRequestBody = zod.object({
 
 export const OverrideCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation', 'character_tag']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -11173,7 +11183,7 @@ export const ResubmitCustomRequestParams = zod.object({
 
 export const ResubmitCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation', 'character_tag']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -11220,7 +11230,7 @@ export const WithdrawCustomRequestParams = zod.object({
 
 export const WithdrawCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation', 'character_tag']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -11267,7 +11277,7 @@ export const SubmitDraftCustomRequestParams = zod.object({
 
 export const SubmitDraftCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation', 'character_tag']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -11323,7 +11333,7 @@ export const UpdateCustomRequestBody = zod.object({
 
 export const UpdateCustomRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation', 'character_tag']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -11383,7 +11393,7 @@ export const DecideStockCostRequestBody = zod.object({
 
 export const DecideStockCostRequestResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation', 'character_tag']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -11434,7 +11444,7 @@ export const DecideEmployeeInviteBody = zod.object({
 
 export const DecideEmployeeInviteResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation', 'character_tag']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),
@@ -11485,7 +11495,7 @@ export const DecideMissionParticipationBody = zod.object({
 
 export const DecideMissionParticipationResponse = zod.object({
   "id": zod.number(),
-  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation']),
+  "type": zod.enum(['property', 'gun', 'cyberware', 'item', 'store', 'ripperdoc', 'stock_cost', 'employee_invite', 'venue_stock', 'mission_participation', 'character_tag']),
   "characterId": zod.number(),
   "characterName": zod.string(),
   "requestedById": zod.string(),

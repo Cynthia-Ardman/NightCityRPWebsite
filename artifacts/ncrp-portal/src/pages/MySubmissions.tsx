@@ -68,6 +68,7 @@ type HistoryRow = {
     | "Venue Stock"
     | "Employment"
     | "Mission"
+    | "Tag"
     | "Lease";
   title: string;
   characterName: string;
@@ -112,6 +113,7 @@ const FIXER_VOTED_TYPES = new Set<CustomRequest["type"]>([
   "store",
   "ripperdoc",
   "venue_stock",
+  "character_tag",
 ]);
 
 const CUSTOM_LABEL: Record<CustomRequest["type"], HistoryRow["category"]> = {
@@ -125,6 +127,7 @@ const CUSTOM_LABEL: Record<CustomRequest["type"], HistoryRow["category"]> = {
   venue_stock: "Venue Stock",
   employee_invite: "Employment",
   mission_participation: "Mission",
+  character_tag: "Tag",
 };
 
 const CATEGORY_FILTERS: Array<HistoryRow["category"] | "All"> = [
@@ -139,6 +142,7 @@ const CATEGORY_FILTERS: Array<HistoryRow["category"] | "All"> = [
   "Clinic",
   "Stock",
   "Venue Stock",
+  "Tag",
   "Lease",
 ];
 
@@ -168,6 +172,8 @@ function categoryColor(category: HistoryRow["category"]): string {
       return "text-nc-green";
     case "Mission":
       return "text-nc-cyan";
+    case "Tag":
+      return "text-nc-yellow";
     case "Lease":
       return "text-nc-green";
   }

@@ -330,6 +330,7 @@ import type {
   StoreUpdate,
   TagOption,
   TagOptionInput,
+  TagOptionUpdate,
   TransferInput,
   UpcomingBills,
   UpdateCharacter409,
@@ -1401,11 +1402,14 @@ export const getUpdateCharacterTagsUrl = (id: number,) => {
 }
 
 /**
- * Sets the character's FULL desired tag list. Applies instantly (no
-review) — tags are cosmetic archive labels. Every tag must exist in
+ * Sets the character's FULL desired tag list. Every tag must exist in
 the shared tag-option registry (`/directory/tag-options`), except tags
 the character already carries (e.g. Discord-imported), which stay
-allowed so an unrelated edit never fails.
+allowed so an unrelated edit never fails. Tags whose option requires
+approval are NOT applied instantly for players — each new one is
+diverted into a pending Misc Request (returned in `queuedForApproval`)
+that fixers approve. Staff edits bypass the approval gate. Tags linked
+to a Discord role grant/remove that role for the character's owner.
 
  * @summary Replace a character's archive tags (owner or fixer/admin)
  */
@@ -18188,10 +18192,10 @@ export const getUpdateTagOptionUrl = (id: number,) => {
 }
 
 /**
- * @summary Rename a global tag option (FIXER/ADMIN). The new name is also propagated to every character that already has the old tag applied.
+ * @summary Update a global tag option (FIXER/ADMIN): rename (propagated to every character carrying the old tag), link/unlink a Discord role, or toggle the approval requirement.
  */
 export const updateTagOption = async (id: number,
-    tagOptionInput: TagOptionInput, options?: RequestInit): Promise<TagOption> => {
+    tagOptionUpdate: TagOptionUpdate, options?: RequestInit): Promise<TagOption> => {
 
   return customFetch<TagOption>(getUpdateTagOptionUrl(id),
   {
@@ -18199,7 +18203,7 @@ export const updateTagOption = async (id: number,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
-      tagOptionInput,)
+      tagOptionUpdate,)
   }
 );}
 
@@ -18207,8 +18211,8 @@ export const updateTagOption = async (id: number,
 
 
 export const getUpdateTagOptionMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTagOption>>, TError,{id: number;data: BodyType<TagOptionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof updateTagOption>>, TError,{id: number;data: BodyType<TagOptionInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTagOption>>, TError,{id: number;data: BodyType<TagOptionUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTagOption>>, TError,{id: number;data: BodyType<TagOptionUpdate>}, TContext> => {
 
 const mutationKey = ['updateTagOption'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -18220,7 +18224,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTagOption>>, {id: number;data: BodyType<TagOptionInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTagOption>>, {id: number;data: BodyType<TagOptionUpdate>}> = (props) => {
           const {id,data} = props ?? {};
 
           return  updateTagOption(id,data,requestOptions)
@@ -18234,18 +18238,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type UpdateTagOptionMutationResult = NonNullable<Awaited<ReturnType<typeof updateTagOption>>>
-    export type UpdateTagOptionMutationBody = BodyType<TagOptionInput>
+    export type UpdateTagOptionMutationBody = BodyType<TagOptionUpdate>
     export type UpdateTagOptionMutationError = ErrorType<void>
 
     /**
- * @summary Rename a global tag option (FIXER/ADMIN). The new name is also propagated to every character that already has the old tag applied.
+ * @summary Update a global tag option (FIXER/ADMIN): rename (propagated to every character carrying the old tag), link/unlink a Discord role, or toggle the approval requirement.
  */
 export const useUpdateTagOption = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTagOption>>, TError,{id: number;data: BodyType<TagOptionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTagOption>>, TError,{id: number;data: BodyType<TagOptionUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateTagOption>>,
         TError,
-        {id: number;data: BodyType<TagOptionInput>},
+        {id: number;data: BodyType<TagOptionUpdate>},
         TContext
       > => {
       return useMutation(getUpdateTagOptionMutationOptions(options));

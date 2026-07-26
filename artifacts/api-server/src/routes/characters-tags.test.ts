@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { eq, and, desc } from "drizzle-orm";
-import { db, characters, characterTagOptions, auditLog } from "@workspace/db";
+import { db, characters, characterTagOptions, auditLog, customRequests } from "@workspace/db";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
 
@@ -137,6 +137,150 @@ describe("PATCH /characters/:id/tags", () => {
       .from(auditLog)
       .where(and(eq(auditLog.action, "tags_edit"), eq(auditLog.targetId, String(char.id))));
     expect(rows.length).toBe(0);
+  });
+
+  it("diverts approval-gated tags into a pending character_tag request for players", async () => {
+    await db
+      .insert(characterTagOptions)
+      .values({ name: "Gated", requiresApproval: true })
+      .onConflictDoNothing();
+    await seedTagOption("Free");
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id });
+
+    const res = await request(app)
+      .patch(`/api/characters/${char.id}/tags`)
+      .set("x-test-user", owner.id)
+      .send({ tags: ["Free", "gated"] });
+    expect(res.status).toBe(200);
+    // Non-gated tag applied instantly; gated one queued, not applied.
+    expect(res.body.tags).toEqual(["Free"]);
+    expect(res.body.queuedForApproval).toEqual(["Gated"]);
+
+    const [row] = await db.select().from(characters).where(eq(characters.id, char.id));
+    expect(row.manualTags).toEqual(["Free"]);
+
+    const reqs = await db
+      .select()
+      .from(customRequests)
+      .where(and(eq(customRequests.type, "character_tag"), eq(customRequests.characterId, char.id)));
+    expect(reqs.length).toBe(1);
+    expect(reqs[0].status).toBe("pending");
+    expect((reqs[0].details as { tag?: string })?.tag).toBe("Gated");
+
+    // Re-submitting the same desired set must NOT create a duplicate request.
+    const again = await request(app)
+      .patch(`/api/characters/${char.id}/tags`)
+      .set("x-test-user", owner.id)
+      .send({ tags: ["Free", "Gated"] });
+    expect(again.status).toBe(200);
+    expect(again.body.queuedForApproval).toEqual(["Gated"]);
+    const reqs2 = await db
+      .select()
+      .from(customRequests)
+      .where(and(eq(customRequests.type, "character_tag"), eq(customRequests.characterId, char.id)));
+    expect(reqs2.length).toBe(1);
+  });
+
+  it("lets staff apply approval-gated tags instantly (bypass)", async () => {
+    await db
+      .insert(characterTagOptions)
+      .values({ name: "StaffGated", requiresApproval: true })
+      .onConflictDoNothing();
+    const owner = await createUser();
+    const fixer = await createFixer();
+    const char = await createCharacter({ ownerId: owner.id });
+
+    const res = await request(app)
+      .patch(`/api/characters/${char.id}/tags`)
+      .set("x-test-user", fixer.id)
+      .send({ tags: ["StaffGated"] });
+    expect(res.status).toBe(200);
+    expect(res.body.tags).toEqual(["StaffGated"]);
+    expect(res.body.queuedForApproval ?? []).toEqual([]);
+  });
+});
+
+describe("PATCH /directory/tag-options/:id (role link + approval flag)", () => {
+  it("lets staff set discordRoleId and requiresApproval, rejects bad role IDs", async () => {
+    const fixer = await createFixer();
+    const [opt] = await db
+      .insert(characterTagOptions)
+      .values({ name: "RoleLinked" })
+      .onConflictDoNothing()
+      .returning();
+
+    const bad = await request(app)
+      .patch(`/api/directory/tag-options/${opt.id}`)
+      .set("x-test-user", fixer.id)
+      .send({ discordRoleId: "not-a-role" });
+    expect(bad.status).toBe(400);
+
+    const res = await request(app)
+      .patch(`/api/directory/tag-options/${opt.id}`)
+      .set("x-test-user", fixer.id)
+      .send({ discordRoleId: "123456789012345678", requiresApproval: true });
+    expect(res.status).toBe(200);
+    expect(res.body.discordRoleId).toBe("123456789012345678");
+    expect(res.body.requiresApproval).toBe(true);
+    expect(res.body.name).toBe("RoleLinked");
+
+    // Unlink with null; name untouched.
+    const unlink = await request(app)
+      .patch(`/api/directory/tag-options/${opt.id}`)
+      .set("x-test-user", fixer.id)
+      .send({ discordRoleId: null });
+    expect(unlink.status).toBe(200);
+    expect(unlink.body.discordRoleId).toBeNull();
+    expect(unlink.body.requiresApproval).toBe(true);
+
+    // GET list surfaces the new fields.
+    const list = await request(app).get("/api/directory/tag-options").set("x-test-user", fixer.id);
+    expect(list.status).toBe(200);
+    const row = (list.body as Array<{ id: number; discordRoleId: string | null; requiresApproval: boolean }>).find(
+      (r) => r.id === opt.id,
+    );
+    expect(row?.requiresApproval).toBe(true);
+    expect(row?.discordRoleId).toBeNull();
+  });
+
+  it("approving a character_tag request applies the tag on close", async () => {
+    await db
+      .insert(characterTagOptions)
+      .values({ name: "CloseGated", requiresApproval: true })
+      .onConflictDoNothing();
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id });
+
+    const submit = await request(app)
+      .patch(`/api/characters/${char.id}/tags`)
+      .set("x-test-user", owner.id)
+      .send({ tags: ["CloseGated"] });
+    expect(submit.status).toBe(200);
+    const [reqRow] = await db
+      .select()
+      .from(customRequests)
+      .where(and(eq(customRequests.type, "character_tag"), eq(customRequests.characterId, char.id)));
+    expect(reqRow).toBeTruthy();
+
+    // Two approver votes decide it, then close materializes the tag.
+    const f1 = await createUser({ roles: ["fixer", "cs approver"] });
+    const f2 = await createUser({ roles: ["fixer", "cs approver"] });
+    await request(app).post(`/api/requests/${reqRow.id}/vote`).set("x-test-user", f1.id).send({ vote: "approve" });
+    const decide = await request(app)
+      .post(`/api/requests/${reqRow.id}/vote`)
+      .set("x-test-user", f2.id)
+      .send({ vote: "approve" });
+    expect(decide.body.status).toBe("approved");
+
+    const close = await request(app)
+      .post(`/api/review/request/${reqRow.id}/close`)
+      .set("x-test-user", f1.id)
+      .send({});
+    expect(close.status).toBe(200);
+
+    const [row] = await db.select().from(characters).where(eq(characters.id, char.id));
+    expect(row.manualTags ?? []).toContain("CloseGated");
   });
 
   it("GET /characters/:id returns the merged tags list", async () => {

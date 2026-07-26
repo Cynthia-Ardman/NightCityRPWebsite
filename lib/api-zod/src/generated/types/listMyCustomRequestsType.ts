@@ -18,4 +18,5 @@ export const ListMyCustomRequestsType = {
   ripperdoc: 'ripperdoc',
   employee_invite: 'employee_invite',
   venue_stock: 'venue_stock',
+  character_tag: 'character_tag',
 } as const;

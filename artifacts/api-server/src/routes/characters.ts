@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { eq, and, desc, or, sql, notInArray } from "drizzle-orm";
+import { eq, and, desc, or, sql, notInArray, inArray } from "drizzle-orm";
 import {
   db,
   characters,
@@ -19,6 +19,8 @@ import {
   stores,
   ripperdocs,
   classifyWalletCategory,
+  customRequests,
+  characterTagOptions,
   type Character,
 } from "@workspace/db";
 import { gte } from "drizzle-orm";
@@ -26,6 +28,8 @@ import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { recordSettledWalletMovement } from "../lib/economy";
 import { mergeTags, splitDesiredTags, resolveRegistryTags } from "../lib/characterTags";
+import { syncTagRolesForCharacter } from "../lib/tagRoles";
+import { announceRequest } from "./requests";
 import { createPendingEdit } from "./pending-edits";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
 import {
@@ -175,13 +179,80 @@ router.patch("/characters/:id/tags", requireAuth, async (req, res): Promise<void
     res.status(400).json({ error: `Unknown tag(s): ${resolved.unknown.join(", ")}. Tags must come from the shared tag list.` });
     return;
   }
+  // Approval gate: tag options flagged requiresApproval don't apply instantly
+  // for players — each NEW such tag is diverted into a pending "character_tag"
+  // custom request that fixers approve from the Misc Requests queue (which
+  // adds the tag + grants the linked Discord role at close). Staff edits
+  // bypass the gate. Tags the character already carries are never diverted —
+  // removing/keeping existing tags stays instant.
+  const isStaffActor = isStaffRoles(req.user!.roles);
+  const currentLower = new Set(current.map((t) => t.toLowerCase()));
+  let desiredTags = resolved.tags;
+  const queuedForApproval: string[] = [];
+  if (!isStaffActor) {
+    const addedNames = resolved.tags.filter((t) => !currentLower.has(t.toLowerCase()));
+    if (addedNames.length > 0) {
+      const gatedOptions = await db
+        .select({ name: characterTagOptions.name })
+        .from(characterTagOptions)
+        .where(eq(characterTagOptions.requiresApproval, true));
+      const gatedLower = new Set(gatedOptions.map((o) => o.name.toLowerCase()));
+      const gatedAdds = addedNames.filter((t) => gatedLower.has(t.toLowerCase()));
+      if (gatedAdds.length > 0) {
+        desiredTags = resolved.tags.filter((t) => !gatedAdds.some((g) => g.toLowerCase() === t.toLowerCase()));
+        for (const tag of gatedAdds) {
+          // Dedupe: at most one live request per character+tag. The read is a
+          // fast-path; the partial unique index custom_requests_character_tag_
+          // live_idx is the real guard — a concurrent duplicate insert hits it
+          // and onConflictDoNothing makes the loser a silent no-op.
+          const [existing] = await db
+            .select({ id: customRequests.id })
+            .from(customRequests)
+            .where(
+              and(
+                eq(customRequests.type, "character_tag"),
+                eq(customRequests.characterId, id),
+                inArray(customRequests.status, ["pending", "changes_requested"]),
+                sql`lower(${customRequests.details} ->> 'tag') = ${tag.toLowerCase()}`,
+              ),
+            )
+            .limit(1);
+          if (existing) {
+            queuedForApproval.push(tag);
+            continue;
+          }
+          const [inserted] = await db
+            .insert(customRequests)
+            .values({
+              type: "character_tag",
+              characterId: id,
+              requestedById: req.user!.id,
+              title: `Tag: ${tag}`,
+              description: `Requesting the "${tag}" tag for ${c.name}.`,
+              details: { tag } as never,
+            })
+            // Untargeted DO NOTHING: drizzle can't type an expression column in
+            // `target`, and the only unique index this insert can hit is
+            // custom_requests_character_tag_live_idx (reservedListingId is null).
+            .onConflictDoNothing()
+            .returning({ id: customRequests.id });
+          queuedForApproval.push(tag);
+          // Conflict (concurrent duplicate) returns no row — the winner's
+          // request already announced; nothing to do for the loser.
+          if (inserted) {
+            void announceRequest(inserted.id, "character_tag", `Tag: ${tag}`, c.name, req.user!.username);
+          }
+        }
+      }
+    }
+  }
   // Mutation + audit row land together (traceability rule for direct edits).
   // The row is locked and re-read inside the tx so a concurrent importer
   // rewrite of appliedTags can't be clobbered by the pre-tx snapshot.
   const fwd = req.headers["x-forwarded-for"];
   const ip = (Array.isArray(fwd) ? fwd[0] : (fwd?.toString().split(",")[0] ?? req.ip)) ?? null;
   const ua = req.headers["user-agent"]?.toString().slice(0, 500) ?? null;
-  const after = await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [fresh] = await tx
       .select({ appliedTags: characters.appliedTags, manualTags: characters.manualTags })
       .from(characters)
@@ -189,9 +260,9 @@ router.patch("/characters/:id/tags", requireAuth, async (req, res): Promise<void
       .for("update");
     if (!fresh) return null;
     const before = mergeTags(fresh.appliedTags, fresh.manualTags);
-    const { applied, manual } = splitDesiredTags(resolved.tags, fresh.appliedTags);
+    const { applied, manual } = splitDesiredTags(desiredTags, fresh.appliedTags);
     const next = mergeTags(applied, manual);
-    if (JSON.stringify(before) === JSON.stringify(next)) return next;
+    if (JSON.stringify(before) === JSON.stringify(next)) return { before, next };
     await tx
       .update(characters)
       .set({ appliedTags: applied, manualTags: manual })
@@ -209,13 +280,23 @@ router.patch("/characters/:id/tags", requireAuth, async (req, res): Promise<void
       beforeJson: { tags: before },
       afterJson: { tags: next },
     });
-    return next;
+    return { before, next };
   });
-  if (after === null) {
+  if (result === null) {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  res.json({ tags: after });
+  // Sync role-linked Discord roles for tags that actually changed, AFTER the
+  // tag write committed. Fire-and-forget; approval-gated adds are handled at
+  // request close, not here.
+  const beforeLower = new Set(result.before.map((t) => t.toLowerCase()));
+  const nextLower = new Set(result.next.map((t) => t.toLowerCase()));
+  const addedApplied = result.next.filter((t) => !beforeLower.has(t.toLowerCase()));
+  const removedApplied = result.before.filter((t) => !nextLower.has(t.toLowerCase()));
+  if (addedApplied.length > 0 || removedApplied.length > 0) {
+    void syncTagRolesForCharacter(id, addedApplied, removedApplied, `tags edited by ${req.user!.username}`);
+  }
+  res.json({ tags: result.next, queuedForApproval });
 });
 
 router.put("/characters/:id/lifestyle", requireAuth, async (req, res): Promise<void> => {

@@ -260,11 +260,14 @@ paths:
       tags: [characters]
       summary: Replace a character's archive tags (owner or fixer/admin)
       description: |
-        Sets the character's FULL desired tag list. Applies instantly (no
-        review) — tags are cosmetic archive labels. Every tag must exist in
+        Sets the character's FULL desired tag list. Every tag must exist in
         the shared tag-option registry (`/directory/tag-options`), except tags
         the character already carries (e.g. Discord-imported), which stay
-        allowed so an unrelated edit never fails.
+        allowed so an unrelated edit never fails. Tags whose option requires
+        approval are NOT applied instantly for players — each new one is
+        diverted into a pending Misc Request (returned in `queuedForApproval`)
+        that fixers approve. Staff edits bypass the approval gate. Tags linked
+        to a Discord role grant/remove that role for the character's owner.
       requestBody:
         required: true
         content:
@@ -289,6 +292,10 @@ paths:
                   tags:
                     type: array
                     items: { type: string }
+                  queuedForApproval:
+                    type: array
+                    items: { type: string }
+                    description: Tags that were NOT applied — each has a pending Misc Request awaiting fixer approval.
         "400": { description: Invalid or unknown tag names }
         "404": { description: Not found }
   /characters/{id}/updates:
@@ -4134,12 +4141,12 @@ paths:
     patch:
       operationId: updateTagOption
       tags: [directory]
-      summary: "Rename a global tag option (FIXER/ADMIN). The new name is also propagated to every character that already has the old tag applied."
+      summary: "Update a global tag option (FIXER/ADMIN): rename (propagated to every character carrying the old tag), link/unlink a Discord role, or toggle the approval requirement."
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/TagOptionInput" }
+            schema: { $ref: "#/components/schemas/TagOptionUpdate" }
       responses:
         "200":
           description: Updated tag option
@@ -4735,7 +4742,7 @@ paths:
         - in: query
           name: type
           required: false
-          schema: { type: string, enum: [property, gun, cyberware, item, store, ripperdoc, employee_invite, venue_stock] }
+          schema: { type: string, enum: [property, gun, cyberware, item, store, ripperdoc, employee_invite, venue_stock, character_tag] }
       responses:
         "200":
           description: Requests
@@ -9316,10 +9323,28 @@ components:
 
     TagOption:
       type: object
-      required: [id, name]
+      required: [id, name, requiresApproval]
       properties:
         id: { type: integer }
         name: { type: string }
+        discordRoleId:
+          type: string
+          nullable: true
+          description: Discord role granted to owners of characters carrying this tag (fixer-managed; null = no linked role).
+        requiresApproval:
+          type: boolean
+          description: When true, players adding this tag get a pending Misc Request instead of an instant apply.
+
+    TagOptionUpdate:
+      type: object
+      description: Partial update — any subset of fields; at least one required.
+      properties:
+        name: { type: string }
+        discordRoleId:
+          type: string
+          nullable: true
+          description: 17-20 digit Discord role ID, or null to unlink.
+        requiresApproval: { type: boolean }
 
     TagOptionInput:
       type: object
@@ -9409,7 +9434,7 @@ components:
       required: [id, type, characterId, characterName, requestedById, title, status, createdAt]
       properties:
         id: { type: integer }
-        type: { type: string, enum: [property, gun, cyberware, item, store, ripperdoc, stock_cost, employee_invite, venue_stock, mission_participation] }
+        type: { type: string, enum: [property, gun, cyberware, item, store, ripperdoc, stock_cost, employee_invite, venue_stock, mission_participation, character_tag] }
         characterId: { type: integer }
         characterName: { type: string }
         requestedById: { type: string }
