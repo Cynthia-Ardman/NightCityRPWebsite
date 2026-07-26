@@ -10,6 +10,7 @@ import {
   listCharacterPuzzles,
   getPuzzle,
   startPuzzle,
+  reportProgress,
   submitResult,
   getPracticeStats,
   recordPracticeAttempt,
@@ -64,6 +65,13 @@ router.get("/breach/puzzles/:id", requireAuth, async (req, res): Promise<void> =
 // Player: start the timer (idempotent).
 router.post("/breach/puzzles/:id/start", requireAuth, async (req, res): Promise<void> => {
   const result = await startPuzzle(req.user!, parseInt(String(req.params.id), 10));
+  res.status(result.status).json(result.body);
+});
+
+// Player: fire-and-forget mid-run progress so staff can spectate live.
+// Advisory only — never affects scoring; stale/late reports get accepted:false.
+router.post("/breach/puzzles/:id/progress", requireAuth, async (req, res): Promise<void> => {
+  const result = await reportProgress(req.user!, parseInt(String(req.params.id), 10), req.body?.selection);
   res.status(result.status).json(result.body);
 });
 

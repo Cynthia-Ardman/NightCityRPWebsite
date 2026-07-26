@@ -46,6 +46,7 @@ vi.mock("@workspace/api-client-react", () => ({
   useGetBreachPuzzle: () => ({ data: EXPIRED_PUZZLE, isLoading: false, error: null }),
   useStartBreachPuzzle: () => ({ mutateAsync: h.startAsync, isPending: false }),
   useSubmitBreachResult: () => ({ mutateAsync: h.submitAsync, isPending: false }),
+  useReportBreachProgress: () => ({ mutate: vi.fn(), isPending: false }),
   getGetBreachPuzzleQueryKey: () => ["breach-puzzle", 2],
   getListMyBreachPuzzlesQueryKey: () => ["my-breach-puzzles"],
   getGetMyWalletQueryKey: () => ["my-wallet"],

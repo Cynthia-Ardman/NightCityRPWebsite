@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import {
   db,
   breachPuzzles,
@@ -393,6 +393,67 @@ export async function startPuzzle(user: User, id: number): Promise<ServiceResult
     .where(and(eq(breachPuzzles.id, id), eq(breachPuzzles.assignedUserId, user.id)))
     .returning();
   return { status: 200, body: await shape(updated) };
+}
+
+// Player: report the selection-so-far mid-run so staff can spectate live.
+// Advisory display data ONLY — the final /result submission stays authoritative
+// for scoring, status, and reward. Monotonic: a stale/shorter selection (out of
+// order delivery) never overwrites a longer one, and nothing is written once
+// the puzzle is completed. Never errors the run: invalid/late reports are
+// acknowledged with accepted:false rather than a 4xx the client would surface.
+export async function reportProgress(
+  user: User,
+  id: number,
+  selection: unknown,
+): Promise<ServiceResult<{ accepted: boolean }>> {
+  const [row] = await db.select().from(breachPuzzles).where(eq(breachPuzzles.id, id));
+  if (!row) return { status: 404, body: { error: "Not found" } };
+  if (row.assignedUserId !== user.id) return { status: 403, body: { error: "Forbidden" } };
+
+  // Validate shape: an array of {r,c} integer positions, capped at the buffer
+  // size (the board never legally exceeds it).
+  if (
+    !Array.isArray(selection) ||
+    selection.length === 0 ||
+    selection.length > row.bufferSize ||
+    !selection.every(
+      (p) =>
+        p != null &&
+        typeof p === "object" &&
+        Number.isInteger((p as Pos).r) &&
+        Number.isInteger((p as Pos).c),
+    )
+  ) {
+    return { status: 200, body: { accepted: false } };
+  }
+  const clean: Pos[] = (selection as Pos[]).map((p) => ({ r: p.r, c: p.c }));
+
+  // Only in-flight runs within the time window (+ the same network grace the
+  // final submit gets) accept progress.
+  if (row.completedAt || !row.startedAt) return { status: 200, body: { accepted: false } };
+  const elapsed = (Date.now() - row.startedAt.getTime()) / 1000;
+  if (elapsed > row.timeLimitSeconds + SUBMIT_GRACE_SECONDS) {
+    return { status: 200, body: { accepted: false } };
+  }
+
+  // Monotonic conditional write: only extend the stored selection, and never
+  // touch a row that completed in the meantime (the final submit owns
+  // `selection` from that point on).
+  const updated = await db
+    .update(breachPuzzles)
+    .set({ selection: clean })
+    .where(
+      and(
+        eq(breachPuzzles.id, id),
+        eq(breachPuzzles.assignedUserId, user.id),
+        isNull(breachPuzzles.completedAt),
+        isNotNull(breachPuzzles.startedAt),
+        sql`${breachPuzzles.startedAt} > now() - make_interval(secs => ${row.timeLimitSeconds + SUBMIT_GRACE_SECONDS})`,
+        sql`coalesce(jsonb_array_length(${breachPuzzles.selection}), 0) < ${clean.length}`,
+      ),
+    )
+    .returning({ id: breachPuzzles.id });
+  return { status: 200, body: { accepted: updated.length > 0 } };
 }
 
 export type SubmitResult = {

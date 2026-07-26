@@ -8563,6 +8563,10 @@ export type GetMyBreachPendingCount200 = {
   count: number;
 };
 
+export type ReportBreachProgress200 = {
+  accepted: boolean;
+};
+
 export type NcpdSearchCharactersParams = {
 /**
  * Name fragment or exact character number.

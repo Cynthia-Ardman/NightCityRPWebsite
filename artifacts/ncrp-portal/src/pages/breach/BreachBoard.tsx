@@ -6,8 +6,9 @@ export type Pos = { r: number; c: number };
 export type BreachOutcome = { success: boolean; solvedCount: number; expired: boolean };
 
 // Does `seq` contain `daemon` as a contiguous run? (Mirrors the server's
-// scoreSelection rule so the UI gives identical live feedback.)
-function containsContiguous(seq: string[], daemon: string[]): boolean {
+// scoreSelection rule so the UI gives identical live feedback.) Exported so
+// the staff Watch view computes identical daemon-progress from live picks.
+export function containsContiguous(seq: string[], daemon: string[]): boolean {
   if (daemon.length === 0) return false;
   for (let i = 0; i <= seq.length - daemon.length; i++) {
     let ok = true;
@@ -66,6 +67,9 @@ export interface BreachBoardProps {
   // time up). The parent decides what to do with the final selection (e.g.
   // submit to the server, or nothing for practice).
   onFinish?: (selection: Pos[], outcome: BreachOutcome) => void;
+  // Fired after every cell pick with the selection-so-far. Used to stream
+  // progress to the server for live spectating; must never block play.
+  onSelectionChange?: (selection: Pos[]) => void;
   // Read-only completed view (history / resuming a finished puzzle). When set
   // with initialSelection the board renders the ended overlay immediately.
   readOnly?: boolean;
@@ -86,6 +90,7 @@ export default function BreachBoard({
   timeLimitSeconds,
   startAt,
   onFinish,
+  onSelectionChange,
   readOnly = false,
   initialSelection,
   outcomeOverride = null,
@@ -210,6 +215,7 @@ export default function BreachBoard({
       const next = [...selection, { r, c }];
       setSelection(next);
       setFeedback({ msg: "" });
+      onSelectionChange?.(next);
 
       const seq = next.map((p) => grid[p.r][p.c]);
       const allSolved = daemons.length > 0 && daemons.every((d) => containsContiguous(seq, d));
@@ -220,7 +226,7 @@ export default function BreachBoard({
         finish(next, false);
       }
     },
-    [ended, selection, bufferSize, grid, daemons, finish],
+    [ended, selection, bufferSize, grid, daemons, finish, onSelectionChange],
   );
 
   // Which row/column is "live" for the next pick (highlight legal cells).

@@ -572,6 +572,7 @@ export * from './rehostEventImagesResult';
 export * from './rehostEventImagesResultFailuresItem';
 export * from './rehostEventImagesResultTargetsItem';
 export * from './reopenReviewTicket200';
+export * from './reportBreachProgress200';
 export * from './requestChangesInput';
 export * from './resubmitPendingEdit200';
 export * from './reviewApplicationInput';

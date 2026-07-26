@@ -25,6 +25,7 @@ import {
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import MissionContextPicker, { type MissionContextValue } from "@/components/MissionContextPicker";
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
 import { statusBadge, difficultyBadge, rewardSummary } from "./breachUtils";
 import { Cpu, Send, RefreshCw, Eye } from "lucide-react";
 
@@ -43,6 +44,15 @@ const STATUS_FILTERS: { value: LogStatusFilter; label: string }[] = [
 ];
 
 type LogDifficultyFilter = "all" | BreachPuzzleInputDifficulty;
+
+// A run is "live" (watchable in real time) when the player has jacked in and
+// the clock hasn't run out. Derived client-side from the polled log row —
+// after the window lapses the badge drops even before the final result lands.
+function isLiveRun(p: { status: string; startedAt?: string | null; timeLimitSeconds: number }, now: number): boolean {
+  if (p.status !== "in_progress" || !p.startedAt) return false;
+  const elapsed = (now - new Date(p.startedAt).getTime()) / 1000;
+  return elapsed >= 0 && elapsed <= p.timeLimitSeconds;
+}
 
 export default function BreachHub() {
   const qc = useQueryClient();
@@ -492,7 +502,22 @@ export default function BreachHub() {
                           </td>
                           <td className="py-2 pr-4">{difficultyBadge(p.difficulty)}</td>
                           <td className="py-2 pr-4">
-                            {statusBadge(p.status)}
+                            {isLiveRun(p, Date.now()) ? (
+                              <span className="inline-flex items-center gap-2">
+                                <Badge className="rounded-none bg-nc-green text-background font-mono animate-pulse" data-testid={`badge-live-${p.id}`}>
+                                  LIVE
+                                </Badge>
+                                <Link
+                                  href={`/breach/watch/${p.id}`}
+                                  className="text-nc-green text-xs underline underline-offset-2"
+                                  data-testid={`link-watch-${p.id}`}
+                                >
+                                  WATCH
+                                </Link>
+                              </span>
+                            ) : (
+                              statusBadge(p.status)
+                            )}
                             {(p.status === "success" || p.status === "failed") && (
                               <span className="ml-2 text-xs text-muted-foreground">{p.solvedCount}/{p.daemons.length}</span>
                             )}

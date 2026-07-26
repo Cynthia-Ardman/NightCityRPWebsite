@@ -286,6 +286,7 @@ import type {
   RefreshVrchatInstances200,
   RehostEventImagesResult,
   ReopenReviewTicket200,
+  ReportBreachProgress200,
   RequestChangesInput,
   ResubmitPendingEdit200,
   ReviewApplicationInput,
@@ -25658,6 +25659,79 @@ export const useStartBreachPuzzle = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getStartBreachPuzzleMutationOptions(options));
+    }
+
+export const getReportBreachProgressUrl = (id: number,) => {
+
+
+
+
+  return `/api/breach/puzzles/${id}/progress`
+}
+
+/**
+ * Fire-and-forget progress for live spectating. Advisory display data only — the final /result submission stays authoritative for scoring and reward. Monotonic: a shorter (stale) selection never overwrites a longer one, and reports after completion or the time window are ignored. Late, stale, or malformed reports return accepted:false rather than an error so a progress hiccup can never break the run.
+ * @summary Report the mid-run selection-so-far so staff can spectate live (assigned player; advisory only).
+ */
+export const reportBreachProgress = async (id: number,
+    breachResultInput: BreachResultInput, options?: RequestInit): Promise<ReportBreachProgress200> => {
+
+  return customFetch<ReportBreachProgress200>(getReportBreachProgressUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      breachResultInput,)
+  }
+);}
+
+
+
+
+export const getReportBreachProgressMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportBreachProgress>>, TError,{id: number;data: BodyType<BreachResultInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reportBreachProgress>>, TError,{id: number;data: BodyType<BreachResultInput>}, TContext> => {
+
+const mutationKey = ['reportBreachProgress'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reportBreachProgress>>, {id: number;data: BodyType<BreachResultInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reportBreachProgress(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReportBreachProgressMutationResult = NonNullable<Awaited<ReturnType<typeof reportBreachProgress>>>
+    export type ReportBreachProgressMutationBody = BodyType<BreachResultInput>
+    export type ReportBreachProgressMutationError = ErrorType<void>
+
+    /**
+ * @summary Report the mid-run selection-so-far so staff can spectate live (assigned player; advisory only).
+ */
+export const useReportBreachProgress = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportBreachProgress>>, TError,{id: number;data: BodyType<BreachResultInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reportBreachProgress>>,
+        TError,
+        {id: number;data: BodyType<BreachResultInput>},
+        TContext
+      > => {
+      return useMutation(getReportBreachProgressMutationOptions(options));
     }
 
 export const getSubmitBreachResultUrl = (id: number,) => {

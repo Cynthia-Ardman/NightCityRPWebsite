@@ -6,6 +6,7 @@ import {
   useGetBreachPuzzle,
   useStartBreachPuzzle,
   useSubmitBreachResult,
+  useReportBreachProgress,
   getGetBreachPuzzleQueryKey,
   getListMyBreachPuzzlesQueryKey,
   getGetMyWalletQueryKey,
@@ -26,6 +27,16 @@ export default function BreachPlay() {
 
   const startMut = useStartBreachPuzzle();
   const submitMut = useSubmitBreachResult();
+  const progressMut = useReportBreachProgress();
+
+  // Fire-and-forget mid-run progress so staff can spectate live. Advisory
+  // only — errors are swallowed and never surface to the player or block play.
+  const handleSelectionChange = (sel: Pos[]) => {
+    progressMut.mutate(
+      { id: puzzleId, data: { selection: sel } },
+      { onError: () => {} },
+    );
+  };
 
   const grid = (puzzle?.grid ?? []) as string[][];
   const daemons = (puzzle?.daemons ?? []) as string[][];
@@ -154,6 +165,7 @@ export default function BreachPlay() {
         initialSelection={(puzzle.selection ?? []) as Pos[]}
         outcomeOverride={liveOutcome ?? storedOutcome}
         onFinish={handleFinish}
+        onSelectionChange={handleSelectionChange}
         heading={heading}
         resultFooter={resultFooter}
       />

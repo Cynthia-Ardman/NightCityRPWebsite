@@ -5778,6 +5778,37 @@ paths:
         "403": { description: Forbidden }
         "404": { description: Not found }
         "409": { description: Puzzle already completed }
+  /breach/puzzles/{id}/progress:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: reportBreachProgress
+      tags: [breach]
+      summary: Report the mid-run selection-so-far so staff can spectate live (assigned player; advisory only).
+      description: >-
+        Fire-and-forget progress for live spectating. Advisory display data
+        only — the final /result submission stays authoritative for scoring and
+        reward. Monotonic: a shorter (stale) selection never overwrites a longer
+        one, and reports after completion or the time window are ignored. Late,
+        stale, or malformed reports return accepted:false rather than an error
+        so a progress hiccup can never break the run.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BreachResultInput" }
+      responses:
+        "200":
+          description: Acknowledged (accepted=false when the report was stale, late, or malformed).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted]
+                properties:
+                  accepted: { type: boolean }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
   /breach/puzzles/{id}/result:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }

@@ -25,6 +25,7 @@ import MySubmissions from "@/pages/MySubmissions";
 import Inbox from "@/pages/Inbox";
 import BreachHub from "@/pages/breach/BreachHub";
 import BreachPlay from "@/pages/breach/BreachPlay";
+import BreachWatch from "@/pages/breach/BreachWatch";
 import BreachPractice from "@/pages/breach/BreachPractice";
 import MyBreaches from "@/pages/breach/MyBreaches";
 import Ledger from "@/pages/Ledger";
@@ -257,6 +258,9 @@ function AppRoutes() {
           <Route path="/breach/mine" component={MyBreaches} />
           <Route path="/breach/practice" component={BreachPractice} />
           <Route path="/breach/play/:id" component={BreachPlay} />
+          <Route path="/breach/watch/:id">
+            {(params) => <StaffBreachGuard><BreachWatch key={params.id} /></StaffBreachGuard>}
+          </Route>
           <Route path="/breach">
             <StaffBreachGuard><BreachHub /></StaffBreachGuard>
           </Route>

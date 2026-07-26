@@ -13156,6 +13156,26 @@ export const StartBreachPuzzleResponse = zod.object({
 
 
 /**
+ * Fire-and-forget progress for live spectating. Advisory display data only — the final /result submission stays authoritative for scoring and reward. Monotonic: a shorter (stale) selection never overwrites a longer one, and reports after completion or the time window are ignored. Late, stale, or malformed reports return accepted:false rather than an error so a progress hiccup can never break the run.
+ * @summary Report the mid-run selection-so-far so staff can spectate live (assigned player; advisory only).
+ */
+export const ReportBreachProgressParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ReportBreachProgressBody = zod.object({
+  "selection": zod.array(zod.object({
+  "r": zod.number().describe('Row index in the code matrix (0-based).'),
+  "c": zod.number().describe('Column index in the code matrix (0-based).')
+})).describe('The player\'s final selected path through the matrix.')
+})
+
+export const ReportBreachProgressResponse = zod.object({
+  "accepted": zod.boolean()
+})
+
+
+/**
  * Authoritative scoring. Invalid or losing paths are recorded as a failed attempt (still 200). Resubmitting a completed puzzle returns the recorded outcome idempotently (no double pay). `ln` is usually false on resubmit, but MAY be true when this call settles a previously-unsettled reward (e.g. an earlier payout leg failed and is now retried).
  * @summary Submit the final selected path; server scores it, pays any reward once, and notifies staff.
  */
