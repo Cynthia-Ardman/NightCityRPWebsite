@@ -1148,14 +1148,14 @@ export async function closeSheet(
       const characterId = mat;
       const [updated] = await tx
         .update(characterSheets)
-        .set({ status: "closed", closedAt: new Date(), closedBy: u.id, characterId })
+        .set({ status: "closed", closedAt: new Date(), closedBy: u.id, characterId, closedOutcome: sheet.status })
         .where(eq(characterSheets.id, id))
         .returning();
       return { kind: "applied" as const, sheet: updated };
     }
     const [updated] = await tx
       .update(characterSheets)
-      .set({ status: "closed", closedAt: new Date(), closedBy: u.id })
+      .set({ status: "closed", closedAt: new Date(), closedBy: u.id, closedOutcome: sheet.status })
       .where(eq(characterSheets.id, id))
       .returning();
     return { kind: "archived" as const, sheet: updated, prevStatus: sheet.status };
@@ -1237,7 +1237,7 @@ export async function closeSheet(
       action: "sheet_closed",
       targetType: "sheet",
       targetId: id,
-      message: `Closed sheet "${result.sheet.name}" (${result.sheet.status})${note ? ` — note: ${note}` : ""}`,
+      message: `Closed sheet "${result.sheet.name}" (${result.prevStatus})${note ? ` — note: ${note}` : ""}`,
     });
   }
   const [row] = await db.select().from(characterSheets).where(eq(characterSheets.id, id));

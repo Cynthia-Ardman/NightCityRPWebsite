@@ -8,12 +8,18 @@ export function RequestStatusBadge({
   status,
   stagedApproval = false,
   cancelledLabel = "CANCELLED",
+  closedOutcome = null,
 }: {
   status: string;
   // Custom requests reach "cancelled" when the PLAYER withdraws them, so
   // owner-facing surfaces pass "WITHDRAWN" to read as the player's own action
   // rather than a staff cancellation. Other subjects keep the default.
   cancelledLabel?: string;
+  // For closed (archived) rows: the resolved status the ticket had at close
+  // time (approved | rejected | cancelled). When present, the badge shows the
+  // real outcome instead of a generic "CLOSED". Null on legacy rows where the
+  // outcome wasn't recoverable — those keep the CLOSED badge.
+  closedOutcome?: string | null;
   // A decision that is "approved" only STAGES the outcome — a staff member must
   // still click "Close and Apply" before the effect (lease / item / character
   // edit / sheet) takes hold and the owner is DM'd. Owner-facing surfaces for
@@ -57,6 +63,29 @@ export function RequestStatusBadge({
         </Badge>
       );
     case "closed":
+      // A closed row is the final archived state — surface the preserved
+      // outcome so the player can tell whether it was approved or denied.
+      if (closedOutcome === "approved") {
+        return (
+          <Badge variant="outline" className="border-nc-green text-nc-green rounded-none font-mono text-[10px]">
+            <CheckCircle2 className="w-3 h-3 mr-1" /> APPROVED
+          </Badge>
+        );
+      }
+      if (closedOutcome === "rejected") {
+        return (
+          <Badge variant="outline" className="border-destructive text-destructive rounded-none font-mono text-[10px]">
+            <XCircle className="w-3 h-3 mr-1" /> REJECTED
+          </Badge>
+        );
+      }
+      if (closedOutcome === "cancelled") {
+        return (
+          <Badge variant="outline" className="border-muted-foreground text-muted-foreground rounded-none font-mono text-[10px]">
+            <XCircle className="w-3 h-3 mr-1" /> {cancelledLabel}
+          </Badge>
+        );
+      }
       return (
         <Badge variant="outline" className="border-muted-foreground text-muted-foreground rounded-none font-mono text-[10px]">
           <CheckCircle2 className="w-3 h-3 mr-1" /> CLOSED

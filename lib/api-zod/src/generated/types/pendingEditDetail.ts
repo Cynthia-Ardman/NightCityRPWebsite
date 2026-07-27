@@ -7,6 +7,7 @@
  */
 import type { EligibleReviewer } from './eligibleReviewer';
 import type { PendingEditDetailBefore } from './pendingEditDetailBefore';
+import type { PendingEditDetailClosedOutcome } from './pendingEditDetailClosedOutcome';
 import type { PendingEditDetailMyVote } from './pendingEditDetailMyVote';
 import type { PendingEditDetailProposedDiff } from './pendingEditDetailProposedDiff';
 import type { PendingEditDetailStatus } from './pendingEditDetailStatus';
@@ -28,6 +29,11 @@ export interface PendingEditDetail {
   /** @nullable */
   updateNote?: string | null;
   status: PendingEditDetailStatus;
+  /**
+     * For closed (archived) edits: the resolved status at close time. Null on legacy rows where it wasn't recoverable.
+     * @nullable
+     */
+  closedOutcome?: PendingEditDetailClosedOutcome;
   /** @nullable */
   decisionSummary?: string | null;
   /**

@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { CharacterSheetClosedOutcome } from './characterSheetClosedOutcome';
 import type { CharacterSheetData } from './characterSheetData';
 import type { CharacterSheetStatus } from './characterSheetStatus';
 import type { EligibleReviewer } from './eligibleReviewer';
@@ -19,6 +20,11 @@ export interface CharacterSheet {
   characterId?: number | null;
   name: string;
   status: CharacterSheetStatus;
+  /**
+     * For closed (archived) sheets: the resolved status at close time. Null on legacy rows where it wasn't recoverable.
+     * @nullable
+     */
+  closedOutcome?: CharacterSheetClosedOutcome;
   /** @nullable */
   discordMessageId?: string | null;
   /** @nullable */

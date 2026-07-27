@@ -73,6 +73,9 @@ type HistoryRow = {
   title: string;
   characterName: string;
   status: string;
+  // For closed rows: the preserved outcome (approved | rejected | cancelled)
+  // so the badge can show the real result instead of a generic CLOSED.
+  closedOutcome?: string | null;
   createdAt: string;
   reviewedAt?: string | null;
   reviewerNote?: string | null;
@@ -318,6 +321,7 @@ export default function MySubmissions() {
         title: r.title,
         characterName: r.characterName,
         status: r.status,
+        closedOutcome: r.closedOutcome,
         createdAt: r.createdAt,
         reviewedAt: r.reviewedAt,
         reviewerNote: r.reviewerNote,
@@ -356,6 +360,7 @@ export default function MySubmissions() {
         title: s.name,
         characterName: s.name,
         status: s.status,
+        closedOutcome: s.closedOutcome,
         createdAt: s.createdAt,
         reviewedAt: s.decidedAt,
         reviewerNote: s.decisionNote,
@@ -374,6 +379,7 @@ export default function MySubmissions() {
         title: e.updateNote?.trim() ? e.updateNote : `Edit to ${e.characterName}`,
         characterName: e.characterName,
         status: e.status,
+        closedOutcome: e.closedOutcome,
         createdAt: e.submittedAt,
         reviewedAt: e.decidedAt,
         reviewerNote: e.reviewComment,
@@ -474,6 +480,7 @@ export default function MySubmissions() {
             status={r.status}
             stagedApproval={!!r.subjectType}
             cancelledLabel={r.customId != null ? "WITHDRAWN" : undefined}
+            closedOutcome={r.closedOutcome}
           />
           {r.status === "changes_requested" && r.customId != null && r.customType !== "stock_cost" ? (
             <div className="flex gap-2 mt-2">

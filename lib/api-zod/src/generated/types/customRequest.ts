@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { CustomRequestClosedOutcome } from './customRequestClosedOutcome';
 import type { CustomRequestMyVote } from './customRequestMyVote';
 import type { CustomRequestStatus } from './customRequestStatus';
 import type { CustomRequestType } from './customRequestType';
@@ -47,6 +48,11 @@ export interface CustomRequest {
      * @nullable
      */
   appliedRef?: string | null;
+  /**
+     * For closed (archived) requests: the resolved status at close time. Null on legacy rows where it wasn't recoverable.
+     * @nullable
+     */
+  closedOutcome?: CustomRequestClosedOutcome;
   /**
      * Admin user id if approved via override.
      * @nullable

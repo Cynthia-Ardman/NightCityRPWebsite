@@ -478,6 +478,10 @@ export const characterSheets = pgTable("character_sheets", {
   // materializes the character; closing a rejected sheet just archives it.
   closedAt: timestamp("closed_at", { withTimezone: true }),
   closedBy: text("closed_by").references(() => users.id),
+  // The resolved status the sheet had at close time (approved | rejected).
+  // Preserved because closing overwrites `status` with "closed". Null on
+  // legacy closed rows where it wasn't recoverable.
+  closedOutcome: text("closed_outcome"),
   discordMessageId: text("discord_message_id"),
   // Discord thread that mirrors this ticket's review discussion in the
   // cs-approver channel. Read-only on the portal; the website never posts to it.
@@ -775,6 +779,11 @@ export const customRequests = pgTable("custom_requests", {
   // rejected/cancelled ticket just archives it. closedBy = who closed it.
   closedAt: timestamp("closed_at", { withTimezone: true }),
   closedBy: text("closed_by").references(() => users.id),
+  // The resolved status the ticket had at close time (approved | rejected |
+  // cancelled). Closing overwrites `status` with "closed", which used to lose
+  // the outcome — this preserves it so the player can still see what happened.
+  // Null on legacy closed rows where the outcome wasn't recoverable.
+  closedOutcome: text("closed_outcome"),
   // Discord message posted to the cs-approver channel at submit time, and the
   // thread started from it. Read-only mirror on the portal; never written to
   // by the website. customRequests historically did not post to CS — these are
@@ -1497,6 +1506,10 @@ export const pendingCharacterEdits = pgTable("pending_character_edits", {
   // the proposed diff to the character; closing a rejected edit just archives it.
   closedAt: timestamp("closed_at", { withTimezone: true }),
   closedBy: text("closed_by").references(() => users.id),
+  // The resolved status the edit had at close time (approved | rejected |
+  // cancelled). Preserved because closing overwrites `status` with "closed".
+  // Null on legacy closed rows where it wasn't recoverable.
+  closedOutcome: text("closed_outcome"),
   discordMessageId: text("discord_message_id"),
   // Discord thread mirroring this ticket's review discussion (read-only on the
   // portal; the website never posts to it).

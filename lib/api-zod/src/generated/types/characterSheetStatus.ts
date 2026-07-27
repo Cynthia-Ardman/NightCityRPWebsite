@@ -15,4 +15,6 @@ export const CharacterSheetStatus = {
   approved: 'approved',
   rejected: 'rejected',
   changes_requested: 'changes_requested',
+  cancelled: 'cancelled',
+  closed: 'closed',
 } as const;

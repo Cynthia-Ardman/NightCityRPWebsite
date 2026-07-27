@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { EligibleReviewer } from './eligibleReviewer';
+import type { PendingEditSummaryClosedOutcome } from './pendingEditSummaryClosedOutcome';
 import type { PendingEditSummaryProposedDiff } from './pendingEditSummaryProposedDiff';
 import type { PendingEditSummaryStatus } from './pendingEditSummaryStatus';
 import type { PendingEditSummaryVotersItem } from './pendingEditSummaryVotersItem';
@@ -26,6 +27,11 @@ export interface PendingEditSummary {
   /** @nullable */
   updateNote?: string | null;
   status: PendingEditSummaryStatus;
+  /**
+     * For closed (archived) edits: the resolved status at close time. Null on legacy rows where it wasn't recoverable.
+     * @nullable
+     */
+  closedOutcome?: PendingEditSummaryClosedOutcome;
   /** @nullable */
   decisionSummary?: string | null;
   /**

@@ -9535,6 +9535,7 @@ components:
         reviewedAt: { type: ["string", "null"], format: date-time }
         reviewerNote: { type: ["string", "null"], description: "On changes_requested this carries the reviewer's comment to the player." }
         appliedRef: { type: ["string", "null"], description: "What was materialized on approval (housing:<id> / inventory:<uuid>)." }
+        closedOutcome: { type: ["string", "null"], enum: [approved, rejected, cancelled, null], description: "For closed (archived) requests: the resolved status at close time. Null on legacy rows where it wasn't recoverable." }
         overriddenBy: { type: ["string", "null"], description: "Admin user id if approved via override." }
         approveCount: { type: integer, description: "Review tally — present on list responses." }
         rejectCount: { type: integer }
@@ -9799,7 +9800,8 @@ components:
         ownerName: { type: string }
         characterId: { type: ["integer", "null"] }
         name: { type: string }
-        status: { type: string, enum: [draft, pending, approved, rejected, changes_requested] }
+        status: { type: string, enum: [draft, pending, approved, rejected, changes_requested, cancelled, closed] }
+        closedOutcome: { type: ["string", "null"], enum: [approved, rejected, cancelled, null], description: "For closed (archived) sheets: the resolved status at close time. Null on legacy rows where it wasn't recoverable." }
         discordMessageId: { type: ["string", "null"] }
         decisionBy: { type: ["string", "null"] }
         decisionNote: { type: ["string", "null"], description: "On changes_requested this carries the reviewer's comment." }
@@ -10078,6 +10080,7 @@ components:
           items: { type: string }
         updateNote: { type: ["string", "null"] }
         status: { type: string, enum: [pending, approved, rejected, cancelled, changes_requested, closed] }
+        closedOutcome: { type: ["string", "null"], enum: [approved, rejected, cancelled, null], description: "For closed (archived) edits: the resolved status at close time. Null on legacy rows where it wasn't recoverable." }
         decisionSummary: { type: ["string", "null"] }
         reviewComment: { type: ["string", "null"], description: "Reviewer's comment when changes were requested." }
         overriddenBy: { type: ["string", "null"], description: "Admin user id if approved via override." }
@@ -10135,6 +10138,7 @@ components:
           additionalProperties: true
         updateNote: { type: ["string", "null"] }
         status: { type: string, enum: [pending, approved, rejected, cancelled, changes_requested, closed] }
+        closedOutcome: { type: ["string", "null"], enum: [approved, rejected, cancelled, null], description: "For closed (archived) edits: the resolved status at close time. Null on legacy rows where it wasn't recoverable." }
         decisionSummary: { type: ["string", "null"] }
         reviewComment: { type: ["string", "null"], description: "Reviewer's comment when changes were requested." }
         overriddenBy: { type: ["string", "null"], description: "Admin user id if approved via override." }

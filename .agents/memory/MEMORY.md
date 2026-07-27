@@ -156,3 +156,4 @@
 - [Gun category vs weaponType](gun-category-vs-weapontype.md) — Power/Tech/Smart firing class is catalog_guns.category; weapon_type is form factor (pistol/shotgun) — filters on weaponType='tech' match nothing.
 - [OAuth redirect host allowlist](oauth-redirect-host-allowlist.md) — Discord OAuth must round-trip on the browsing host (allowlisted echo), never one pinned domain; each host needs a registered Discord redirect URI.
 - [Player character tags](character-player-tags.md) — registry-locked tag edits; resolveRegistryTags returns {tags,unknown} (close is lenient); PATCH locks row in-tx vs importer.
+- [Closed-outcome preservation](closed-outcome-preservation.md) — every review close path sets closed_outcome (pre-close status), reopen clears it; sheets archive audit must log prevStatus not post-close.

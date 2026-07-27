@@ -562,6 +562,7 @@ async function hydrateEdits(
       changedFields: meaningfulChangedFields(r.proposedDiff, r.beforeSnapshot),
       updateNote: r.updateNote,
       status: r.status,
+      closedOutcome: r.closedOutcome,
       decisionSummary: r.decisionSummary,
       reviewComment: r.reviewComment,
       overriddenBy: r.overriddenBy,
@@ -753,6 +754,7 @@ router.get("/pending-edits/:id", requireAuth, async (req, res): Promise<void> =>
     before,
     updateNote: row.updateNote,
     status: row.status,
+    closedOutcome: row.closedOutcome,
     decisionSummary: row.decisionSummary,
     reviewComment: row.reviewComment,
     overriddenBy: row.overriddenBy,
@@ -1124,7 +1126,7 @@ export async function closeEdit(req: Request, id: number, note?: string): Promis
     }
     await tx
       .update(pendingCharacterEdits)
-      .set({ status: "closed", closedAt: new Date(), closedBy: u.id })
+      .set({ status: "closed", closedAt: new Date(), closedBy: u.id, closedOutcome: locked.status })
       .where(eq(pendingCharacterEdits.id, id));
     return { kind: "ok" as const, status: locked.status, submittedBy: locked.submitted_by, characterId: locked.character_id, ripperGrant, deadGrant };
   });

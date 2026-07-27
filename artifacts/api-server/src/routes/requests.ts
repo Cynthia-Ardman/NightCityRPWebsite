@@ -801,6 +801,7 @@ type RequestRow = {
   appliedRef: string | null;
   closedAt: Date | null;
   closedBy: string | null;
+  closedOutcome: string | null;
   createdAt: Date;
 };
 
@@ -849,6 +850,9 @@ function shape(row: RequestRow): Record<string, unknown> {
     appliedRef: row.appliedRef,
     closedAt: row.closedAt ? row.closedAt.toISOString() : null,
     closedBy: row.closedBy,
+    // Legacy closed rows predate closed_outcome; an appliedRef proves the
+    // approved effect was committed, so fall back to "approved" there.
+    closedOutcome: row.closedOutcome ?? (row.status === "closed" && row.appliedRef ? "approved" : null),
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -874,6 +878,7 @@ async function selectWhere(predicate: ReturnType<typeof and> | ReturnType<typeof
       appliedRef: customRequests.appliedRef,
       closedAt: customRequests.closedAt,
       closedBy: customRequests.closedBy,
+      closedOutcome: customRequests.closedOutcome,
       createdAt: customRequests.createdAt,
     })
     .from(customRequests)
@@ -1597,14 +1602,14 @@ export async function closeRequest(req: Request, id: number, note?: string, clos
       if ("error" in mat) return { kind: "error" as const, status: mat.error.status, body: mat.error.body };
       await tx
         .update(customRequests)
-        .set({ status: "closed", closedAt: new Date(), closedBy: u.id, appliedRef: mat.ok.appliedRef })
+        .set({ status: "closed", closedAt: new Date(), closedBy: u.id, appliedRef: mat.ok.appliedRef, closedOutcome: reqRow.status })
         .where(eq(customRequests.id, id));
       return { kind: "applied" as const, reqRow, c, appliedRef: mat.ok.appliedRef, summary: mat.ok.summary };
     }
     // Rejected / cancelled (or an already-applied approved row): archive only.
     await tx
       .update(customRequests)
-      .set({ status: "closed", closedAt: new Date(), closedBy: u.id })
+      .set({ status: "closed", closedAt: new Date(), closedBy: u.id, closedOutcome: reqRow.status })
       .where(eq(customRequests.id, id));
     return { kind: "archived" as const, reqRow };
   });
@@ -1674,6 +1679,7 @@ export async function reopenRequest(req: Request, id: number): Promise<ReviewAct
         decisionParams: null,
         closedAt: null,
         closedBy: null,
+        closedOutcome: null,
         details: det as never,
       })
       .where(eq(customRequests.id, id));

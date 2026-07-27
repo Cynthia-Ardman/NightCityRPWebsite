@@ -4098,6 +4098,19 @@ export const CustomRequestStatus = {
 } as const;
 
 /**
+ * For closed (archived) requests: the resolved status at close time. Null on legacy rows where it wasn't recoverable.
+ * @nullable
+ */
+export type CustomRequestClosedOutcome = typeof CustomRequestClosedOutcome[keyof typeof CustomRequestClosedOutcome] | null;
+
+
+export const CustomRequestClosedOutcome = {
+  approved: 'approved',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
+} as const;
+
+/**
  * The viewer's own vote, if any.
  * @nullable
  */
@@ -4164,6 +4177,11 @@ export interface CustomRequest {
      * @nullable
      */
   appliedRef?: string | null;
+  /**
+     * For closed (archived) requests: the resolved status at close time. Null on legacy rows where it wasn't recoverable.
+     * @nullable
+     */
+  closedOutcome?: CustomRequestClosedOutcome;
   /**
      * Admin user id if approved via override.
      * @nullable
@@ -4617,6 +4635,21 @@ export const CharacterSheetStatus = {
   approved: 'approved',
   rejected: 'rejected',
   changes_requested: 'changes_requested',
+  cancelled: 'cancelled',
+  closed: 'closed',
+} as const;
+
+/**
+ * For closed (archived) sheets: the resolved status at close time. Null on legacy rows where it wasn't recoverable.
+ * @nullable
+ */
+export type CharacterSheetClosedOutcome = typeof CharacterSheetClosedOutcome[keyof typeof CharacterSheetClosedOutcome] | null;
+
+
+export const CharacterSheetClosedOutcome = {
+  approved: 'approved',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
 } as const;
 
 export type CharacterSheetDataSheetType = typeof CharacterSheetDataSheetType[keyof typeof CharacterSheetDataSheetType];
@@ -4747,6 +4780,11 @@ export interface CharacterSheet {
   characterId?: number | null;
   name: string;
   status: CharacterSheetStatus;
+  /**
+     * For closed (archived) sheets: the resolved status at close time. Null on legacy rows where it wasn't recoverable.
+     * @nullable
+     */
+  closedOutcome?: CharacterSheetClosedOutcome;
   /** @nullable */
   discordMessageId?: string | null;
   /** @nullable */
@@ -5015,6 +5053,19 @@ export const PendingEditSummaryStatus = {
   closed: 'closed',
 } as const;
 
+/**
+ * For closed (archived) edits: the resolved status at close time. Null on legacy rows where it wasn't recoverable.
+ * @nullable
+ */
+export type PendingEditSummaryClosedOutcome = typeof PendingEditSummaryClosedOutcome[keyof typeof PendingEditSummaryClosedOutcome] | null;
+
+
+export const PendingEditSummaryClosedOutcome = {
+  approved: 'approved',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
+} as const;
+
 export type PendingEditSummaryVotersItemVote = typeof PendingEditSummaryVotersItemVote[keyof typeof PendingEditSummaryVotersItemVote];
 
 
@@ -5048,6 +5099,11 @@ export interface PendingEditSummary {
   /** @nullable */
   updateNote?: string | null;
   status: PendingEditSummaryStatus;
+  /**
+     * For closed (archived) edits: the resolved status at close time. Null on legacy rows where it wasn't recoverable.
+     * @nullable
+     */
+  closedOutcome?: PendingEditSummaryClosedOutcome;
   /** @nullable */
   decisionSummary?: string | null;
   /**
@@ -5113,6 +5169,19 @@ export const PendingEditDetailStatus = {
   closed: 'closed',
 } as const;
 
+/**
+ * For closed (archived) edits: the resolved status at close time. Null on legacy rows where it wasn't recoverable.
+ * @nullable
+ */
+export type PendingEditDetailClosedOutcome = typeof PendingEditDetailClosedOutcome[keyof typeof PendingEditDetailClosedOutcome] | null;
+
+
+export const PendingEditDetailClosedOutcome = {
+  approved: 'approved',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
+} as const;
+
 export type PendingEditDetailMyVote = null | {
   vote?: 'approve' | 'reject' | 'pause';
   /** @nullable */
@@ -5136,6 +5205,11 @@ export interface PendingEditDetail {
   /** @nullable */
   updateNote?: string | null;
   status: PendingEditDetailStatus;
+  /**
+     * For closed (archived) edits: the resolved status at close time. Null on legacy rows where it wasn't recoverable.
+     * @nullable
+     */
+  closedOutcome?: PendingEditDetailClosedOutcome;
   /** @nullable */
   decisionSummary?: string | null;
   /**
