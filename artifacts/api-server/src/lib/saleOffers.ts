@@ -22,6 +22,7 @@ import { hasRole, sendDirectMessage } from "./discord";
 import { recordInventoryEvent } from "./inventoryEvents";
 import { cwpForItem, parseCwp, sumCwpByCharacter } from "./cyberware";
 import { buildCyberwareCostMap, checkCwpCapacity } from "./cyberware-cap";
+import { installSlotClashError } from "./cyberwareSlots";
 import { logger } from "./logger";
 import { normalizeName } from "./strings";
 import { portalLink } from "./portalUrl";
@@ -215,6 +216,13 @@ export async function createOffer(opts: {
     const used = (await sumCwpByCharacter([buyer.id])).get(buyer.id) ?? 0;
     const cap = checkCwpCapacity({ kind: buyer.kind, used, add: cwp * qty });
     if (!cap.ok) return { status: 409, body: { error: cap.reason } };
+    // One-per-capped-slot: reject up front (re-checked again at approval).
+    const slotErr = await installSlotClashError({
+      buyer,
+      item: { name: item.name, notes: (item as { notes?: string | null }).notes ?? null },
+      qty,
+    });
+    if (slotErr) return { status: 409, body: { error: slotErr } };
   }
 
   const seller = await resolveSeller(kind, venue, venueId, actor);
@@ -434,6 +442,15 @@ export async function createInstallOwnedOffer(opts: {
   const used = (await sumCwpByCharacter([buyer.id])).get(buyer.id) ?? 0;
   const cap = checkCwpCapacity({ kind: buyer.kind, used, add: cwp * qty });
   if (!cap.ok) return { status: 409, body: { error: cap.reason } };
+  // One-per-capped-slot: the piece being installed already sits in the buyer's
+  // inventory (uninstalled), so exclude it from the clash scan.
+  const slotErr = await installSlotClashError({
+    buyer,
+    item: { name: item.name, notes: item.notes },
+    qty,
+    excludeItemId: item.id,
+  });
+  if (slotErr) return { status: 409, body: { error: slotErr } };
 
   const fee = Math.max(0, opts.fee ?? 0);
   const seller = await resolveSeller(kind, venue, venueId, actor);
@@ -1006,12 +1023,15 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
       return;
     }
 
-    if (offerType === "install") {
-      // Race-safe capacity enforcement. The pre-tx check (above) can pass for two
-      // concurrent approvals against the same near-cap PC. Take a row lock on the
-      // buyer so those approvals serialize, then recompute used CWP *inside* the
-      // tx — the second waiter now sees the first's committed install.
+    if (offerType === "install" || isInstallOwned) {
+      // Race-safe enforcement for BOTH install modes. The pre-tx checks can pass
+      // for two concurrent approvals against the same PC. Take a row lock on the
+      // buyer so those approvals serialize; the second waiter then sees the
+      // first's committed install in the cap/slot re-checks below.
       await tx.execute(sql`SELECT id FROM ${characters} WHERE ${eq(characters.id, buyer.id)} FOR UPDATE`);
+    }
+
+    if (offerType === "install") {
       const installedRows = await tx
         .select({ name: inventoryItems.name, notes: inventoryItems.notes, quantity: inventoryItems.quantity })
         .from(inventoryItems)
@@ -1021,6 +1041,18 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
       if (!capNow.ok) {
         completionFailReason = capNow.reason ?? "Cyberware capacity exceeded";
         throw new Error("capacity-guard-miss"); // rolls back the flip + debit
+      }
+      // One-per-capped-slot re-check under the same buyer lock (another install
+      // may have landed in this slot since the offer was created).
+      const slotErrNow = await installSlotClashError({
+        executor: tx,
+        buyer,
+        item: { name: offer.itemName, notes: null },
+        qty: offer.quantity,
+      });
+      if (slotErrNow) {
+        completionFailReason = slotErrNow;
+        throw new Error("slot-guard-miss"); // rolls back the flip + debit
       }
     }
 
@@ -1036,6 +1068,19 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
       if (!target || normalizeName(target.category ?? "") !== "cyberware" || parseCwp(target.notes) != null) {
         completionFailReason = "Cyberware to install was not found or is already installed";
         throw new Error("install-owned-target-miss");
+      }
+      // One-per-capped-slot re-check under the buyer row lock; exclude the
+      // piece being installed (it already sits in the buyer's inventory).
+      const ownedSlotErr = await installSlotClashError({
+        executor: tx,
+        buyer,
+        item: { name: target.name, notes: target.notes },
+        qty: target.quantity ?? 1,
+        excludeItemId: target.id,
+      });
+      if (ownedSlotErr) {
+        completionFailReason = ownedSlotErr;
+        throw new Error("slot-guard-miss");
       }
       const [updated] = await tx
         .update(inventoryItems)

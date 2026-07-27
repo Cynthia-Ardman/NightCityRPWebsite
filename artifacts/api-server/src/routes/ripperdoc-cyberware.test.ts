@@ -14,6 +14,7 @@ vi.mock("../lib/discord", async (orig) => {
 import {
   db, ripperdocs, ripperdocStock, ripperdocEmployees,
   inventoryItems, walletTransactions, characters, users, saleOffers, botConfig,
+  catalogCyberware,
 } from "@workspace/db";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { buildTestApp } from "../test/app";
@@ -181,6 +182,147 @@ describe("POST /ripperdocs/:id/install", () => {
     const totalCwp = rows.reduce((s, r) => s + (parseCwp(r.notes) ?? 0) * (r.quantity ?? 1), 0);
     expect(totalCwp).toBeLessThanOrEqual(15);
     expect(totalCwp).toBe(11);
+  });
+});
+
+describe("POST /ripperdocs/:id/install — one-per-capped-slot", () => {
+  // Catalog rows give the slot for name-matched items (mirrors prod, where the
+  // NeoFiber x2 duplicate slipped through the install-offer path).
+  async function seedCatalog() {
+    await db.insert(catalogCyberware).values([
+      { name: "NeoFiber", slot: "Neural", cwp: 2 },
+      { name: "Kerenzikov", slot: "Neural", cwp: 5 },
+      { name: "Skill Chip", slot: "Miscellaneous", cwp: 1 },
+    ] as never);
+  }
+
+  it("409s a qty>1 install of capped-slot cyberware (NeoFiber x2 regression)", async () => {
+    await setEconomyMode("enabled");
+    await seedCatalog();
+    const { owner, clinic, buyer, buyerUser } = await seedClinic();
+    await fund(buyerUser.id, 1000);
+    const [stock] = await db
+      .insert(ripperdocStock)
+      .values({ ripperdocId: clinic.id, name: "NeoFiber", category: "cyberware", price: 100, quantity: 2, notes: "CWP 2" })
+      .returning();
+    const res = await request(app)
+      .post(`/api/ripperdocs/${clinic.id}/install`)
+      .set("x-test-user", owner.id)
+      .send({ stockId: stock.id, buyerCharacterId: buyer.id, qty: 2 });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/Only one/i);
+    expect(await db.select().from(inventoryItems).where(eq(inventoryItems.characterId, buyer.id))).toHaveLength(0);
+  });
+
+  it("409s an install into a slot the character already occupies", async () => {
+    await setEconomyMode("enabled");
+    await seedCatalog();
+    const { owner, clinic, stock, buyer, buyerUser } = await seedClinic(); // stock = Kerenzikov (Neural)
+    await fund(buyerUser.id, 1000);
+    await installChrome(buyer.id, buyerUser.id, "NeoFiber", 2); // occupies Neural via catalog match
+    const res = await request(app)
+      .post(`/api/ripperdocs/${clinic.id}/install`)
+      .set("x-test-user", owner.id)
+      .send({ stockId: stock.id, buyerCharacterId: buyer.id });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/already has cyberware in the Neural slot/i);
+  });
+
+  it("allows Miscellaneous-slot cyberware to stack (qty 2 + existing copy)", async () => {
+    await setEconomyMode("enabled");
+    await seedCatalog();
+    const { owner, clinic, buyer, buyerUser } = await seedClinic();
+    await fund(buyerUser.id, 1000);
+    await installChrome(buyer.id, buyerUser.id, "Skill Chip", 1);
+    const [stock] = await db
+      .insert(ripperdocStock)
+      .values({ ripperdocId: clinic.id, name: "Skill Chip", category: "cyberware", price: 50, quantity: 2, notes: "CWP 1" })
+      .returning();
+    const res = await request(app)
+      .post(`/api/ripperdocs/${clinic.id}/install`)
+      .set("x-test-user", owner.id)
+      .send({ stockId: stock.id, buyerCharacterId: buyer.id, qty: 2 });
+    expect(res.status).toBe(200);
+    expect(res.body.offer.status).toBe("approved");
+  });
+
+  it("exempts NPCs from the slot cap", async () => {
+    await setEconomyMode("enabled");
+    await seedCatalog();
+    const { owner, clinic, stock, buyer, buyerUser } = await seedClinic({ buyerKind: "npc" });
+    await fund(buyerUser.id, 1000);
+    await installChrome(buyer.id, buyerUser.id, "NeoFiber", 2);
+    const res = await request(app)
+      .post(`/api/ripperdocs/${clinic.id}/install`)
+      .set("x-test-user", owner.id)
+      .send({ stockId: stock.id, buyerCharacterId: buyer.id });
+    expect(res.status).toBe(200);
+  });
+
+  it("serializes concurrent install-owned approvals into one capped slot (buyer lock)", async () => {
+    await setEconomyMode("enabled");
+    await seedCatalog();
+    const { owner, clinic, buyer, buyerUser } = await seedClinic();
+    await fund(buyerUser.id, 1000);
+    // Two UNINSTALLED Neural-slot pieces already in the buyer's inventory.
+    const mkOwned = async (name: string) => {
+      const [row] = await db
+        .insert(inventoryItems)
+        .values({
+          characterId: buyer.id,
+          ownerId: buyerUser.id,
+          name,
+          category: "cyberware",
+          quantity: 1,
+          notes: null, // no CWP tag => uninstalled
+          pricePaid: 0,
+          acquiredAt: new Date(),
+        })
+        .returning();
+      return row;
+    };
+    const itemA = await mkOwned("NeoFiber");
+    const itemB = await mkOwned("Kerenzikov");
+    const mkOffer = (installItemId: number) =>
+      request(app)
+        .post(`/api/ripperdocs/${clinic.id}/install-owned`)
+        .set("x-test-user", owner.id)
+        .send({ installItemId, buyerCharacterId: buyer.id, fee: 0 });
+    const o1 = await mkOffer(itemA.id);
+    const o2 = await mkOffer(itemB.id);
+    expect(o1.status).toBe(201);
+    expect(o2.status).toBe(201);
+    // Buyer approves both concurrently: only one may land in the Neural slot.
+    const approve = (offerId: number) =>
+      request(app).post(`/api/offers/${offerId}/approve`).set("x-test-user", buyerUser.id).send({});
+    const [a1, a2] = await Promise.all([approve(o1.body.id), approve(o2.body.id)]);
+    expect([a1.status, a2.status].sort()).toEqual([200, 409]);
+    const installed = await db
+      .select()
+      .from(inventoryItems)
+      .where(and(eq(inventoryItems.characterId, buyer.id), eq(inventoryItems.category, "cyberware")));
+    const withCwp = installed.filter((r) => parseCwp(r.notes) != null);
+    expect(withCwp).toHaveLength(1);
+  });
+
+  it("re-checks the slot inside the completion tx (concurrent installs into one slot)", async () => {
+    await setEconomyMode("enabled");
+    await seedCatalog();
+    const { owner, clinic, stock, buyer, buyerUser } = await seedClinic({ stockQty: 2 }); // Kerenzikov, Neural
+    await fund(buyerUser.id, 1000);
+    const mk = () =>
+      request(app)
+        .post(`/api/ripperdocs/${clinic.id}/install`)
+        .set("x-test-user", owner.id)
+        .send({ stockId: stock.id, buyerCharacterId: buyer.id });
+    const [r1, r2] = await Promise.all([mk(), mk()]);
+    expect([r1.status, r2.status].sort()).toEqual([200, 409]);
+    const rows = await db
+      .select()
+      .from(inventoryItems)
+      .where(and(eq(inventoryItems.characterId, buyer.id), eq(inventoryItems.category, "cyberware")));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].quantity).toBe(1);
   });
 });
 

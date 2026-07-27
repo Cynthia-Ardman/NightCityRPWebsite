@@ -24,6 +24,7 @@
 - [Checkup dates](checkup-streak-creation-floor.md) — createdAt = implicit first checkup (null ≠ max streak); lastCheckupAt is billing-effective ONLY (floor event backdates it) — displays use lastCheckupActualAt.
 - [api-server dev no watcher](api-server-dev-no-watcher.md) — dev workflow is build+start, NO reload; new routes 404 until restart_workflow; curl :8080 expect 401 not 404.
 - Cyberware derivation: [band from inventory_items CWP](cyberware-band-source.md) not characters.cyberwareLevel; [installed-ness from CWP notes tag presence](cyberware-installed-derivation.md), installed transfers blocked.
+- [Cyberware slot cap on install paths](cyberware-slot-cap-install-paths.md) — every install path needs installSlotClashError() pre-check + in-tx re-check under buyer lock; CWP cap alone let NeoFiber x2 through.
 - [Legacy bot dual-billing](legacy-bot-dual-billing.md) — old NightCityBot still bills cyberware meds in prod alongside our live cron → double charges + divergent week counts; disable legacy job, don't match its math.
 - Billing exclusions: [LOA dual-flag](loa-dual-flag-billing.md) crons must honor BOTH loa flags; [cyberware-only scope](cyberware-vs-general-billing-scope.md) LOA/retired/dead excluded from cyber household+meds only, not rent.
 - Ripperdoc: [console medical](ripperdoc-console-medical.md) staff medical console presets+locks existing dialogs, never fork approval; [role grant](ripperdoc-role-grant.md) sheet flag grants id-pinned role on sheet CLOSE, backfill unions sheet-signal + clinic owners.
