@@ -3924,6 +3924,12 @@ export interface TagOptionUpdate {
 
 export interface TagOptionInput {
   name: string;
+  /**
+     * 17-20 digit Discord role ID, or null/omitted for no link.
+     * @pattern ^\d{17,20}$
+     */
+  discordRoleId?: string | null;
+  requiresApproval?: boolean;
 }
 
 /**

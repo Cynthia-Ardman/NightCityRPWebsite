@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useListTagOptions,
   useUpdateTagOption,
+  useCreateTagOption,
   getListTagOptionsQueryKey,
   type TagOption,
 } from "@workspace/api-client-react";
@@ -17,8 +18,8 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 // Fixer console for tag → Discord role links. Each registry tag can carry a
 // Discord role ID (granted to owners of characters wearing the tag) and a
 // requires-approval flag (player self-adds become Misc Requests instead of
-// applying instantly). Names are edited on the Directory admin page — this
-// page only manages the role/approval wiring.
+// applying instantly). New tags can be created here (name + optional role
+// link); renames still happen on the Directory admin page.
 const ROLE_ID_RE = /^\d{17,20}$/;
 
 function TagRow({ option }: { option: TagOption }) {
@@ -92,6 +93,90 @@ function TagRow({ option }: { option: TagOption }) {
   );
 }
 
+function CreateTagForm() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const create = useCreateTagOption();
+  const [name, setName] = useState("");
+  const [roleId, setRoleId] = useState("");
+  const [requiresApproval, setRequiresApproval] = useState(false);
+
+  const trimmedName = name.trim();
+  const trimmedRole = roleId.trim();
+  const roleValid = trimmedRole === "" || ROLE_ID_RE.test(trimmedRole);
+  const canSubmit = trimmedName.length > 0 && roleValid && !create.isPending;
+
+  const submit = () => {
+    if (!canSubmit) return;
+    create.mutate(
+      {
+        data: {
+          name: trimmedName,
+          ...(trimmedRole ? { discordRoleId: trimmedRole } : {}),
+          requiresApproval,
+        },
+      },
+      {
+        onSuccess: (created) => {
+          toast({ title: "Tag created", description: `Added "${created.name}".` });
+          setName("");
+          setRoleId("");
+          setRequiresApproval(false);
+          void qc.invalidateQueries({ queryKey: getListTagOptionsQueryKey() });
+        },
+        onError: (e: unknown) => {
+          const msg =
+            (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+            "Could not create tag.";
+          toast({ title: "Failed to create tag", description: msg, variant: "destructive" });
+        },
+      },
+    );
+  };
+
+  return (
+    <div
+      className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto] items-center gap-3 border border-dashed border-border bg-card/20 px-4 py-3"
+      data-testid="form-tagrole-create"
+    >
+      <Input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && submit()}
+        placeholder="New tag name…"
+        maxLength={60}
+        className="rounded-none font-mono text-xs uppercase"
+        data-testid="input-tagrole-create-name"
+      />
+      <Input
+        value={roleId}
+        onChange={(e) => setRoleId(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && submit()}
+        placeholder="Discord role ID (optional)"
+        className={`rounded-none w-56 font-mono text-xs ${!roleValid ? "border-destructive" : ""}`}
+        data-testid="input-tagrole-create-roleid"
+      />
+      <div className="flex items-center gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Approval</span>
+        <Switch
+          checked={requiresApproval}
+          onCheckedChange={setRequiresApproval}
+          data-testid="switch-tagrole-create-approval"
+        />
+      </div>
+      <Button
+        className="rounded-none"
+        size="sm"
+        disabled={!canSubmit}
+        onClick={submit}
+        data-testid="button-tagrole-create"
+      >
+        {create.isPending ? "Creating…" : "Create tag"}
+      </Button>
+    </div>
+  );
+}
+
 export default function TagRoles() {
   const { data: options, isLoading } = useListTagOptions();
   const [filter, setFilter] = useState("");
@@ -114,6 +199,7 @@ export default function TagRoles() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          <CreateTagForm />
           <Input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
@@ -126,7 +212,7 @@ export default function TagRoles() {
               <p className="font-mono text-xs text-muted-foreground italic">Loading…</p>
             ) : shown.length === 0 ? (
               <p className="font-mono text-xs text-muted-foreground italic" data-testid="text-tagroles-empty">
-                {options?.length ? "No matching tags." : "No tags defined yet — add tags on the Directory page first."}
+                {options?.length ? "No matching tags." : "No tags defined yet — create one above."}
               </p>
             ) : (
               <div className="space-y-2" data-testid="list-tagroles">

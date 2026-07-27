@@ -10122,8 +10122,13 @@ export const ListTagOptionsResponse = zod.array(ListTagOptionsResponseItem)
 /**
  * @summary Create a new global tag option (FIXER/ADMIN).
  */
+export const createTagOptionBodyDiscordRoleIdRegExp = new RegExp('^\\d{17,20}$');
+
+
 export const CreateTagOptionBody = zod.object({
-  "name": zod.string()
+  "name": zod.string(),
+  "discordRoleId": zod.string().regex(createTagOptionBodyDiscordRoleIdRegExp).nullish().describe('17-20 digit Discord role ID, or null\/omitted for no link.'),
+  "requiresApproval": zod.boolean().optional()
 })
 
 

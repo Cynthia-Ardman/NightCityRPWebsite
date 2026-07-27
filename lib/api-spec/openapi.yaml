@@ -9351,6 +9351,12 @@ components:
       required: [name]
       properties:
         name: { type: string }
+        discordRoleId:
+          type: string
+          nullable: true
+          pattern: '^\d{17,20}$'
+          description: 17-20 digit Discord role ID, or null/omitted for no link.
+        requiresApproval: { type: boolean }
 
     HousingLease:
       type: object

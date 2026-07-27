@@ -1797,7 +1797,15 @@ router.get("/directory/tag-options", requireAuth, async (req, res): Promise<void
   );
 });
 
-const TagOptionCreateSchema = z.object({ name: z.string().trim().min(1).max(60) }).strict();
+const TagOptionCreateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(60),
+    discordRoleId: z
+      .union([z.string().trim().regex(/^\d{17,20}$/, "Discord role IDs are 17-20 digit numbers"), z.null()])
+      .optional(),
+    requiresApproval: z.boolean().optional(),
+  })
+  .strict();
 
 router.post("/directory/tag-options", staffOnly, async (req, res): Promise<void> => {
   const parsed = TagOptionCreateSchema.safeParse(req.body ?? {});
@@ -1819,7 +1827,12 @@ router.post("/directory/tag-options", staffOnly, async (req, res): Promise<void>
   const created = await db.transaction(async (tx) => {
     const [t] = await tx
       .insert(characterTagOptions)
-      .values({ name, createdById: req.user!.id })
+      .values({
+        name,
+        createdById: req.user!.id,
+        discordRoleId: parsed.data.discordRoleId ?? null,
+        requiresApproval: parsed.data.requiresApproval ?? false,
+      })
       .returning();
     await tx.insert(auditLog).values({
       category: "character",
@@ -1832,7 +1845,7 @@ router.post("/directory/tag-options", staffOnly, async (req, res): Promise<void>
       targetId: String(t.id),
       message: `Created tag option "${t.name}"`,
       beforeJson: null,
-      afterJson: { name: t.name } as never,
+      afterJson: { name: t.name, discordRoleId: t.discordRoleId, requiresApproval: t.requiresApproval } as never,
     });
     return t;
   });
