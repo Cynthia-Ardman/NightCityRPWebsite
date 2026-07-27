@@ -352,7 +352,20 @@ export default function MyClinicDetail() {
                 {s.description && <div className="text-muted-foreground text-xs mt-0.5 whitespace-pre-wrap">{s.description}</div>}
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <div className="flex flex-col items-end">
+                <div className="flex flex-col items-end gap-1">
+                  <Input
+                    className="w-24 h-8 text-xs"
+                    type="number"
+                    min={0}
+                    title="Sale price charged to the buyer"
+                    placeholder="Price"
+                    defaultValue={s.price}
+                    onBlur={(e) => {
+                      const next = Math.max(0, Number(e.target.value) || 0);
+                      if (next !== s.price) updateStock.mutate({ id: rid, stockId: s.id, data: { price: next } });
+                    }}
+                    data-testid={`input-stock-price-${s.id}`}
+                  />
                   <Input
                     className="w-24 h-8 text-xs"
                     type="number"
