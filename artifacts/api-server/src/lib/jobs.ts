@@ -12,7 +12,7 @@ import { reconcileDiscordEvents, backfillMainSessions, reconcileVrchatCalendar }
 import { isSystemLive, type LiveSystem } from "./liveMode";
 import { runEconomyReconcile, getEconomyMode, advanceSettledWalletBalance } from "./economy";
 import { pollGroupInstances } from "./vrchatInstances";
-import { vrchatCredsConfigured, maintainVrchatSession } from "./vrchatClient";
+import { vrchatCredsConfigured, maintainVrchatSession, claimVrchatPollTick } from "./vrchatClient";
 import {
   DEFAULT_BASELINE_LIVING_COST,
   DEFAULT_XANADU_GOLD_COST,
@@ -1132,6 +1132,11 @@ export function startCron() {
         // manual reconnect (email code). Skips the poll while still down so
         // the warn log doesn't spam every 2 minutes.
         try {
+          // Single-poller leadership: with autoscale running >1 instance,
+          // concurrent same-account polls race VRChat's cookie rotation and
+          // can loop expire→reconnect (observed 2026-07-26). Only the DB
+          // claim winner touches VRChat this tick.
+          if (!(await claimVrchatPollTick())) return;
           if (!(await maintainVrchatSession())) return;
           await pollGroupInstances();
         } catch (err) {

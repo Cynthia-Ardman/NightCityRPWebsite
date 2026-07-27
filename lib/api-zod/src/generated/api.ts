@@ -10776,7 +10776,8 @@ export const ListVrchatInstancesResponse = zod.object({
  */
 export const RefreshVrchatInstancesResponse = zod.object({
   "ok": zod.boolean(),
-  "count": zod.number()
+  "count": zod.number().nullable().describe('Instances found, or null when the refresh was skipped because another poll ran within the claim window.'),
+  "skipped": zod.string().optional().describe('Present (\"recently_polled\") when the poll was skipped to avoid racing a concurrent poll.')
 })
 
 

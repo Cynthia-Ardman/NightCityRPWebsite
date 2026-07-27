@@ -125,6 +125,23 @@ conditional UPDATE on `last_disconnect_notify_at` (NULL or >12h old); notify
 failure releases only ITS OWN claim (exact-timestamp match), never a
 concurrent claimer's. finalizeSession clears both columns to end the episode.
 
+## Cookie-rotation race + single-poller leadership (2026-07-27)
+The 2026-07-26 Sunday-evening ~14-min expire→reconnect loop (only during traffic
+peaks) was SELF-interference with >1 autoscaled instance and the DB reconnect
+cooldown already in place: VRChat rotates the auth cookie on ordinary responses;
+the instance still holding the pre-rotation cookie gets a REAL 401, confirms the
+rotated-away cookie dead against /auth/user, wins the reconnect claim before the
+rotation is visible, and password-relogins — invalidating the other instance's
+healthy session. Cadence = 15-min cooldown + one 2-min poll cycle. Fixes:
+(1) `handleUnauthorized` re-reads stored cookies on 401 — a stored auth cookie
+DIFFERENT from the one used = rotation race → keep session, transient error.
+(2) The 2-min poll is DB-claimed (`last_poll_tick_at`, 100s window,
+`claimVrchatPollTick`) so only one instance talks to VRChat per tick; the staff
+manual refresh endpoint uses the SAME claim (skip → serve cache, `skipped:
+"recently_polled"`). Residual: calendar reconcile can still overlap across
+instances (runJob overlap guard is in-process only) but the rotation guard caps
+the blast radius.
+
 **Auto-reconnect cooldown is ALSO DB-claimed** (`last_auto_reconnect_at`,
 conditional UPDATE, 15-min window). Root cause of the 2026-07-23 outage loop:
 each prod instance had its own in-memory cooldown → concurrent password

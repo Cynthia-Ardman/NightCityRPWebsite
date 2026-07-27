@@ -559,6 +559,33 @@ const DISCONNECT_NOTIFY_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 // transient VRChat-side blip that self-heals within minutes never pages anyone.
 const DISCONNECT_ALERT_GRACE_MS = 20 * 60 * 1000;
 
+// DB-claimed poll-tick leadership: only ONE server instance may run the
+// 2-minute instance poll per cycle. Concurrent same-account polls from
+// multiple autoscaled instances race VRChat's cookie rotation (see the
+// handleUnauthorized rotation guard) — beyond correctness, single-poller
+// also halves the shared account's API traffic. The window is slightly
+// under the 2-min cron period so a skipped/slow tick can't permanently
+// starve polling if the previous winner dies mid-cycle.
+const POLL_TICK_CLAIM_MS = 100 * 1000;
+
+export async function claimVrchatPollTick(): Promise<boolean> {
+  const now = new Date();
+  const claimed = await db
+    .update(vrchatSessions)
+    .set({ lastPollTickAt: now })
+    .where(
+      and(
+        eq(vrchatSessions.id, SESSION_ID),
+        or(
+          isNull(vrchatSessions.lastPollTickAt),
+          sql`${vrchatSessions.lastPollTickAt} < ${new Date(now.getTime() - POLL_TICK_CLAIM_MS)}`,
+        ),
+      ),
+    )
+    .returning({ id: vrchatSessions.id });
+  return claimed.length > 0;
+}
+
 export async function maintainVrchatSession(): Promise<boolean> {
   if (!vrchatCredsConfigured()) return false;
   const cookies = await loadSession();
@@ -659,6 +686,18 @@ async function notifyAdminsVrchatDisconnected(): Promise<void> {
 
 // Shared 401 handling for apiGet/apiSend: verify before discarding.
 async function handleUnauthorized(cookies: SessionCookies, context: string): Promise<never> {
+  // Rotation race guard: VRChat rotates the auth cookie on ordinary responses,
+  // and with >1 server instance a concurrent request can persist the rotated
+  // cookie while OUR in-flight request still carried the old one. That 401 is
+  // real for the old cookie but the session is fine — re-read the stored
+  // cookie first and treat a mid-flight change as transient (retry next
+  // cycle with the fresh cookie) instead of confirming the old cookie dead
+  // and password-relogining over a healthy session.
+  const stored = await loadSession();
+  if (stored.auth && stored.auth !== cookies.auth) {
+    logger.info({ context }, "VRChat 401 with a rotated stored cookie; keeping session");
+    throw new Error(`VRChat ${context} raced a cookie rotation — session kept, will retry next cycle.`);
+  }
   if (await confirmCookieDead(cookies)) {
     if (await tryAutoReconnect(context, cookies.auth)) {
       throw new Error(`VRChat ${context} hit an expired cookie — session auto-reconnected, will retry next cycle.`);

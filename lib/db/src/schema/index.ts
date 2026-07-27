@@ -2319,6 +2319,14 @@ export const vrchatSessions = pgTable("vrchat_sessions", {
   // sessions, turning one expiry into an expire/reconnect loop. Claimed via a
   // conditional UPDATE on this column; only the winner performs the login.
   lastAutoReconnectAt: timestamp("last_auto_reconnect_at", { withTimezone: true }),
+  // Last claimed instance-poll tick. Claimed via conditional UPDATE (like the
+  // reconnect cooldown) so only ONE server instance talks to VRChat per poll
+  // cycle. Concurrent same-account polls race VRChat's cookie rotation: the
+  // instance still holding the pre-rotation cookie gets a real 401, confirms
+  // the (rotated-away) cookie dead, and password-relogins — invalidating the
+  // other instance's fresh session and looping expire/reconnect every ~14 min
+  // whenever autoscale runs >1 instance (observed 2026-07-26).
+  lastPollTickAt: timestamp("last_poll_tick_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()

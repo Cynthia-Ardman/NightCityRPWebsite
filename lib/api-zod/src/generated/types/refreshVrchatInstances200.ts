@@ -8,5 +8,8 @@
 
 export type RefreshVrchatInstances200 = {
   ok: boolean;
-  count: number;
+  /** Instances found, or null when the refresh was skipped because another poll ran within the claim window. */
+  count: number | null;
+  /** Present ("recently_polled") when the poll was skipped to avoid racing a concurrent poll. */
+  skipped?: string;
 };

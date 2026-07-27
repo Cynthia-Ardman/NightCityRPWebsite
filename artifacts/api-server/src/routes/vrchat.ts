@@ -19,6 +19,7 @@ import {
   beginManualLogin,
   completeEmailOtpLogin,
   getSessionInfo,
+  claimVrchatPollTick,
 } from "../lib/vrchatClient";
 
 const router: IRouter = Router();
@@ -253,6 +254,14 @@ router.post("/vrchat/instances/refresh", ...staffOnly, async (_req: Request, res
     return;
   }
   try {
+    // Same single-poller claim as the cron: concurrent same-account polls
+    // (manual refresh overlapping a cron tick, or two instances) race
+    // VRChat's cookie rotation. If another poll ran within the claim window
+    // the cache is at most that fresh anyway — serve it instead of racing.
+    if (!(await claimVrchatPollTick())) {
+      res.json({ ok: true, count: null, skipped: "recently_polled" });
+      return;
+    }
     const count = await pollGroupInstances();
     res.json({ ok: true, count });
   } catch (err) {

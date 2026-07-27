@@ -4583,7 +4583,13 @@ paths:
                 required: [ok, count]
                 properties:
                   ok: { type: boolean }
-                  count: { type: integer }
+                  count:
+                    type: integer
+                    nullable: true
+                    description: Instances found, or null when the refresh was skipped because another poll ran within the claim window.
+                  skipped:
+                    type: string
+                    description: Present ("recently_polled") when the poll was skipped to avoid racing a concurrent poll.
         "400": { description: VRChat credentials not configured }
         "401": { description: Not signed in }
         "403": { description: Not an admin or fixer }
