@@ -297,6 +297,8 @@ export interface BreachPuzzle {
   /** @nullable */
   dmSentAt?: string | null;
   createdAt: string;
+  /** A worked solution path — present ONLY on completed puzzles so players can review the correct route (empty when the grid is unsolvable). Never returned for unfinished puzzles. */
+  solutionPath?: BreachPos[];
 }
 
 export type BreachPreviewInputDifficulty = typeof BreachPreviewInputDifficulty[keyof typeof BreachPreviewInputDifficulty];

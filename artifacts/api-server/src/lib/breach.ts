@@ -35,6 +35,10 @@ export type BreachPuzzleView = BreachPuzzle & {
   createdByName: string | null;
   assignedUserName: string | null;
   missionTitle: string | null;
+  // A worked solution path, present ONLY on completed puzzles so players can
+  // review the correct route after the fact. Never attached to unfinished
+  // puzzles (that would hand out the answer mid-run).
+  solutionPath?: Pos[];
 };
 
 export type ServiceResult<T> = { status: number; body: T | { error: string } };
@@ -105,6 +109,18 @@ function redactUnstarted(view: BreachPuzzleView): BreachPuzzleView {
     daemons: Array.from({ length: daemonCount }, () => []),
     selection: null,
   };
+}
+
+// Attach a worked solution path to COMPLETED puzzles so players can study the
+// correct route afterwards. Unfinished puzzles never get one — even for staff
+// list surfaces the path is only meaningful (and safe) once play is over.
+function withSolution(view: BreachPuzzleView): BreachPuzzleView {
+  if (!view.completedAt) return view;
+  const grid = view.grid as string[][] | null;
+  const daemons = view.daemons as string[][] | null;
+  if (!Array.isArray(grid) || grid.length === 0 || !Array.isArray(daemons)) return view;
+  const solutionPath = solvePuzzle(grid, daemons, view.bufferSize) ?? [];
+  return { ...view, solutionPath };
 }
 
 export type BreachPreview = {
@@ -321,7 +337,7 @@ export async function listMyPuzzles(user: User): Promise<ServiceResult<BreachPuz
     .where(eq(breachPuzzles.assignedUserId, user.id))
     .orderBy(desc(breachPuzzles.createdAt));
   const shaped = await Promise.all(rows.map(shape));
-  return { status: 200, body: shaped.map(redactUnstarted) };
+  return { status: 200, body: shaped.map(redactUnstarted).map(withSolution) };
 }
 
 // Lightweight count of the caller's un-started incoming breaches (status
@@ -349,7 +365,8 @@ export async function listCharacterPuzzles(user: User, characterId: number): Pro
   const shaped = await Promise.all(rows.map(shape));
   // Staff may inspect full puzzle contents; the owner only sees redacted rows
   // until each puzzle is completed (same anti-offline-solve rule as listMy).
-  return { status: 200, body: isStaff(user) ? shaped : shaped.map(redactUnstarted) };
+  const visible = isStaff(user) ? shaped : shaped.map(redactUnstarted);
+  return { status: 200, body: visible.map(withSolution) };
 }
 
 export async function getPuzzle(user: User, id: number): Promise<ServiceResult<BreachPuzzleView>> {
@@ -376,7 +393,7 @@ export async function getPuzzle(user: User, id: number): Promise<ServiceResult<B
     const [fresh] = await db.select().from(breachPuzzles).where(eq(breachPuzzles.id, id));
     return { status: 200, body: await shape(fresh ?? row) };
   }
-  return { status: 200, body: await shape(row) };
+  return { status: 200, body: withSolution(await shape(row)) };
 }
 
 // Player: start the server-authoritative timer. Idempotent — once startedAt is

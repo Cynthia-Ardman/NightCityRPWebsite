@@ -6869,6 +6869,10 @@ components:
         rewardPaidAt: { type: ["string", "null"], format: date-time }
         dmSentAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
+        solutionPath:
+          type: array
+          description: "A worked solution path — present ONLY on completed puzzles so players can review the correct route (empty when the grid is unsolvable). Never returned for unfinished puzzles."
+          items: { $ref: "#/components/schemas/BreachPos" }
     BreachPreviewInput:
       type: object
       required: [difficulty]

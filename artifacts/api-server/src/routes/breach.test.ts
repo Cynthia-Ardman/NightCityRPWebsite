@@ -175,3 +175,73 @@ describe("breach reward — exactly-once at the HTTP layer", () => {
     expect(ledger[0].syncStatus).toBe("synced");
   });
 });
+
+describe("breach solution reveal", () => {
+  it("attaches solutionPath to a player's list only after completion, never before", async () => {
+    await enableEconomy();
+    const admin = await createAdmin();
+    const player = await createUser();
+    const character = await createCharacter({ ownerId: player.id });
+
+    const preview = await request(app)
+      .post("/api/breach/puzzles/preview")
+      .set("x-test-user", admin.id)
+      .send({ difficulty: "easy" });
+    expect(preview.status).toBe(200);
+    const { grid, daemons, bufferSize, solutionPath } = preview.body;
+
+    const created = await request(app)
+      .post("/api/breach/puzzles")
+      .set("x-test-user", admin.id)
+      .send({
+        assignedCharacterId: character.id,
+        difficulty: "easy",
+        timeLimitSeconds: 600,
+        rewardEddies: 0,
+        puzzle: { grid, daemons, bufferSize },
+      });
+    expect(created.status).toBe(201);
+    const puzzleId = created.body.id as number;
+
+    // Unfinished: the list row stays redacted AND carries no solution path.
+    const before = await request(app).get("/api/breach/mine").set("x-test-user", player.id);
+    expect(before.status).toBe(200);
+    const rowBefore = before.body.find((p: { id: number }) => p.id === puzzleId);
+    expect(rowBefore.grid).toEqual([]);
+    expect(rowBefore.solutionPath).toBeUndefined();
+
+    // Unfinished detail fetch (which anchors the timer) must not leak it either.
+    const detailBefore = await request(app)
+      .get(`/api/breach/puzzles/${puzzleId}`)
+      .set("x-test-user", player.id);
+    expect(detailBefore.status).toBe(200);
+    expect(detailBefore.body.solutionPath).toBeUndefined();
+
+    // Complete the puzzle (reward 0 → no wallet call needed).
+    const start = await request(app)
+      .post(`/api/breach/puzzles/${puzzleId}/start`)
+      .set("x-test-user", player.id);
+    expect(start.status).toBe(200);
+    const result = await request(app)
+      .post(`/api/breach/puzzles/${puzzleId}/result`)
+      .set("x-test-user", player.id)
+      .send({ selection: solutionPath });
+    expect(result.status).toBe(200);
+
+    // Completed: the list row now carries the full grid AND a worked solution.
+    const after = await request(app).get("/api/breach/mine").set("x-test-user", player.id);
+    expect(after.status).toBe(200);
+    const rowAfter = after.body.find((p: { id: number }) => p.id === puzzleId);
+    expect(rowAfter.completedAt).toBeTruthy();
+    expect(rowAfter.grid.length).toBeGreaterThan(0);
+    expect(Array.isArray(rowAfter.solutionPath)).toBe(true);
+    expect(rowAfter.solutionPath.length).toBeGreaterThan(0);
+    // Every solution step must be a valid in-grid coordinate.
+    for (const pos of rowAfter.solutionPath) {
+      expect(pos.r).toBeGreaterThanOrEqual(0);
+      expect(pos.r).toBeLessThan(rowAfter.grid.length);
+      expect(pos.c).toBeGreaterThanOrEqual(0);
+      expect(pos.c).toBeLessThan(rowAfter.grid[0].length);
+    }
+  });
+});

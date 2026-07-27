@@ -13132,7 +13132,11 @@ export const ListBreachPuzzlesResponseItem = zod.object({
   "timeTakenSeconds": zod.number().nullish(),
   "rewardPaidAt": zod.coerce.date().nullish(),
   "dmSentAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "solutionPath": zod.array(zod.object({
+  "r": zod.number().describe('Row index in the code matrix (0-based).'),
+  "c": zod.number().describe('Column index in the code matrix (0-based).')
+})).optional().describe('A worked solution path — present ONLY on completed puzzles so players can review the correct route (empty when the grid is unsolvable). Never returned for unfinished puzzles.')
 })
 export const ListBreachPuzzlesResponse = zod.array(ListBreachPuzzlesResponseItem)
 
@@ -13221,7 +13225,11 @@ export const ListMyBreachPuzzlesResponseItem = zod.object({
   "timeTakenSeconds": zod.number().nullish(),
   "rewardPaidAt": zod.coerce.date().nullish(),
   "dmSentAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "solutionPath": zod.array(zod.object({
+  "r": zod.number().describe('Row index in the code matrix (0-based).'),
+  "c": zod.number().describe('Column index in the code matrix (0-based).')
+})).optional().describe('A worked solution path — present ONLY on completed puzzles so players can review the correct route (empty when the grid is unsolvable). Never returned for unfinished puzzles.')
 })
 export const ListMyBreachPuzzlesResponse = zod.array(ListMyBreachPuzzlesResponseItem)
 
@@ -13273,7 +13281,11 @@ export const GetBreachPuzzleResponse = zod.object({
   "timeTakenSeconds": zod.number().nullish(),
   "rewardPaidAt": zod.coerce.date().nullish(),
   "dmSentAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "solutionPath": zod.array(zod.object({
+  "r": zod.number().describe('Row index in the code matrix (0-based).'),
+  "c": zod.number().describe('Column index in the code matrix (0-based).')
+})).optional().describe('A worked solution path — present ONLY on completed puzzles so players can review the correct route (empty when the grid is unsolvable). Never returned for unfinished puzzles.')
 })
 
 
@@ -13316,7 +13328,11 @@ export const StartBreachPuzzleResponse = zod.object({
   "timeTakenSeconds": zod.number().nullish(),
   "rewardPaidAt": zod.coerce.date().nullish(),
   "dmSentAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "solutionPath": zod.array(zod.object({
+  "r": zod.number().describe('Row index in the code matrix (0-based).'),
+  "c": zod.number().describe('Column index in the code matrix (0-based).')
+})).optional().describe('A worked solution path — present ONLY on completed puzzles so players can review the correct route (empty when the grid is unsolvable). Never returned for unfinished puzzles.')
 })
 
 
@@ -13388,7 +13404,11 @@ export const SubmitBreachResultResponse = zod.object({
   "timeTakenSeconds": zod.number().nullish(),
   "rewardPaidAt": zod.coerce.date().nullish(),
   "dmSentAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "solutionPath": zod.array(zod.object({
+  "r": zod.number().describe('Row index in the code matrix (0-based).'),
+  "c": zod.number().describe('Column index in the code matrix (0-based).')
+})).optional().describe('A worked solution path — present ONLY on completed puzzles so players can review the correct route (empty when the grid is unsolvable). Never returned for unfinished puzzles.')
 }),
   "success": zod.boolean().describe('True when every daemon was breached within the buffer.'),
   "valid": zod.boolean().describe('True when the submitted path obeys the alternating row\/column rules.'),
@@ -13440,7 +13460,11 @@ export const ListCharacterBreachPuzzlesResponseItem = zod.object({
   "timeTakenSeconds": zod.number().nullish(),
   "rewardPaidAt": zod.coerce.date().nullish(),
   "dmSentAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "solutionPath": zod.array(zod.object({
+  "r": zod.number().describe('Row index in the code matrix (0-based).'),
+  "c": zod.number().describe('Column index in the code matrix (0-based).')
+})).optional().describe('A worked solution path — present ONLY on completed puzzles so players can review the correct route (empty when the grid is unsolvable). Never returned for unfinished puzzles.')
 })
 export const ListCharacterBreachPuzzlesResponse = zod.array(ListCharacterBreachPuzzlesResponseItem)
 
