@@ -1012,9 +1012,13 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       // fully derivable from timestamped rows, so this single statement BOTH
       // backfills every missing historical week and refreshes the current
       // week; forward accrual and backfill share one code path and re-runs
-      // are idempotent. Past weeks are never rewritten once recorded (only
-      // the current week's rows are upserted), so a character later archived
-      // or deleted keeps its historical footprint until the FK cascades.
+      // are idempotent. Only the current AND just-closed weeks' rows are
+      // upserted: with a weekly Monday cron, the previous week's row was last
+      // written at its own Monday-morning start, so the Monday-after run must
+      // recompute it once more to finalize the full week's activity window.
+      // Older weeks are never rewritten once recorded, so a character later
+      // archived or deleted keeps its historical footprint until the FK
+      // cascades.
       // life_status is the status at snapshot time; backfilled weeks
       // necessarily carry the status current at backfill (no historical
       // status log exists). Internal housekeeping — no external effects, so
@@ -1031,7 +1035,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         weeks AS (
           SELECT gs::date AS week_start
           FROM bounds b, generate_series(b.first_week, b.this_week, interval '7 days') gs
-          WHERE gs::date = b.this_week
+          WHERE gs::date >= b.this_week - 7
              OR NOT EXISTS (SELECT 1 FROM character_week_snapshots s WHERE s.week_start = gs::date)
         ),
         pcs AS (
@@ -1055,7 +1059,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         FROM weeks w CROSS JOIN pcs c
         ON CONFLICT (week_start, character_id) DO UPDATE
           SET active = EXCLUDED.active, life_status = EXCLUDED.life_status
-          WHERE character_week_snapshots.week_start = (SELECT this_week FROM bounds)
+          WHERE character_week_snapshots.week_start >= (SELECT this_week FROM bounds) - 7
       `);
       affected = result.rowCount ?? 0;
       message = `character snapshot: wrote/refreshed ${affected} week-character row(s)`;
