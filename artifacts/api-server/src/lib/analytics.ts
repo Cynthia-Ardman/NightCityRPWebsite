@@ -699,7 +699,6 @@ export async function computeVrchatInstanceDrilldown(opts: {
     FROM vrchat_instance_sessions s
     WHERE ${where}
     ORDER BY s.first_seen_at DESC
-    LIMIT 100
   `);
   const rows = res.rows as Array<{
     id: number; world_name: string; source: string;
