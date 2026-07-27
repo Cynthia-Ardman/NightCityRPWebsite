@@ -11,6 +11,13 @@ import {
 } from "@workspace/api-client-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import FixerActivityTab from "@/components/admin/FixerActivityTab";
+import {
+  CharacterTrendDialog,
+  VrchatInstancesDialog,
+  MissionsWeekDialog,
+  EconomyWeekDialog,
+  type VrchatDrillTarget,
+} from "@/components/admin/AnalyticsDrilldowns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Activity, Coins, Briefcase, ClipboardList, Users, Globe } from "lucide-react";
@@ -130,6 +137,10 @@ export default function FixerAnalytics() {
   const [excludeInput, setExcludeInput] = useState("");
   const [excludeAbove, setExcludeAbove] = useState<number | null>(null);
   const [charBucket, setCharBucket] = useState<AdminGetAnalyticsCharactersBucket | null>(null);
+  const [trendWeek, setTrendWeek] = useState<string | null>(null);
+  const [vrTarget, setVrTarget] = useState<VrchatDrillTarget | null>(null);
+  const [missionWeek, setMissionWeek] = useState<string | null>(null);
+  const [econWeek, setEconWeek] = useState<string | null>(null);
   // Player analytics: any fixer (incl. coordinators) or admin.
   const canPlayer = !!user && (user.isFixer || user.isAdmin);
   // Fixer activity report: leadership only — admin / coordinator / archivist.
@@ -195,7 +206,7 @@ export default function FixerAnalytics() {
   // created_<cat> positive and destroyed_<cat> series.
   const econCategories = new Set<string>();
   const econRows = (data?.economy.weekly ?? []).map((w) => {
-    const row: Record<string, number | string> = { week: fmtWeek(w.weekStart) };
+    const row: Record<string, number | string> = { week: fmtWeek(w.weekStart), weekStart: w.weekStart };
     let created = 0;
     let destroyed = 0;
     for (const [cat, amt] of Object.entries(w.created)) {
@@ -220,8 +231,11 @@ export default function FixerAnalytics() {
 
   const missionRows = (data?.missions.weekly ?? []).map((w) => ({
     week: fmtWeek(w.weekStart),
+    weekStart: w.weekStart,
     missions: w.missionsRun,
     payout: w.payoutTotal,
+    playerPayout: w.playerPayout ?? 0,
+    actorPayout: w.actorPayout ?? 0,
   }));
 
   const sheetRows = (data?.players.sheetsPerMonth ?? []).map((m) => ({
@@ -233,9 +247,24 @@ export default function FixerAnalytics() {
 
   const vrWeeklyRows = (data?.vrchat.weekly ?? []).map((w) => ({
     week: fmtWeek(w.weekStart),
+    weekStart: w.weekStart,
     instances: w.sessions,
     hours: w.hours,
   }));
+
+  const trendRows = (data?.players.activityTrend ?? []).map((w) => ({
+    week: fmtWeek(w.weekStart),
+    weekStart: w.weekStart,
+    active: w.active,
+    dormant: w.dormant,
+    gained: w.gained,
+    lost: w.lost,
+  }));
+
+  const pickWeek = (st: unknown): string | null => {
+    const payload = (st as { activePayload?: Array<{ payload?: { weekStart?: string } }> } | null)?.activePayload?.[0]?.payload;
+    return payload?.weekStart ?? null;
+  };
 
   const siteRows = (data?.site.weekly ?? []).map((w) => ({
     week: fmtWeek(w.weekStart),
@@ -394,8 +423,8 @@ export default function FixerAnalytics() {
               )}
               <p className="font-mono text-xs text-muted-foreground">
                 {trackingSince
-                  ? `Visitor / login / page-activity tracking started ${formatDate(trackingSince)} — earlier weeks show zero for those series. Character series cover full history.`
-                  : "Visitor / login / page-activity tracking just went live — data accrues from today onward. Character series cover full history."}
+                  ? `Visitor / login / page-activity tracking started ${formatDate(trackingSince)} — earlier weeks show zero for those series. Character series cover full history; bulk-imported legacy characters are excluded from "characters created".`
+                  : 'Visitor / login / page-activity tracking just went live — data accrues from today onward. Character series cover full history; bulk-imported legacy characters are excluded from "characters created".'}
               </p>
             </CardContent>
           </Card>
@@ -411,9 +440,9 @@ export default function FixerAnalytics() {
               {econRows.length === 0 ? (
                 <p className="font-mono text-muted-foreground italic">No wallet activity in this range.</p>
               ) : (
-                <div className="h-80" data-testid="chart-economy-weekly">
+                <div className="h-80 cursor-pointer" data-testid="chart-economy-weekly">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={econRows} stackOffset="sign">
+                    <BarChart data={econRows} stackOffset="sign" onClick={(st) => setEconWeek(pickWeek(st))}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 20%)" />
                       <XAxis dataKey="week" tick={{ fontSize: 11, fontFamily: "monospace" }} />
                       <YAxis tick={{ fontSize: 11, fontFamily: "monospace" }} tickFormatter={(v: number) => v.toLocaleString()} />
@@ -431,6 +460,7 @@ export default function FixerAnalytics() {
               )}
               <p className="font-mono text-xs text-muted-foreground mt-2">
                 Above zero = money entering player wallets; below zero = money leaving (sinks, rent, meds…). Player-to-player transfers excluded.
+                Click a week to break it down by category and see the underlying transactions.
               </p>
             </CardContent>
           </Card>
@@ -489,21 +519,34 @@ export default function FixerAnalytics() {
               {missionRows.length === 0 ? (
                 <p className="font-mono text-muted-foreground italic">No completed missions in this range.</p>
               ) : (
-                <div className="h-64" data-testid="chart-missions-weekly">
+                <div className="h-64 cursor-pointer" data-testid="chart-missions-weekly">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={missionRows}>
+                    <BarChart data={missionRows} onClick={(st) => setMissionWeek(pickWeek(st))}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 20%)" />
                       <XAxis dataKey="week" tick={{ fontSize: 11, fontFamily: "monospace" }} />
                       <YAxis yAxisId="left" tick={{ fontSize: 11, fontFamily: "monospace" }} allowDecimals={false} />
                       <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fontFamily: "monospace" }} tickFormatter={(v: number) => v.toLocaleString()} />
-                      <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => (name === "payout" ? [formatEddies(v), "payouts"] : [v, "missions"])} />
+                      <Tooltip
+                        contentStyle={tooltipStyle}
+                        formatter={(v: number, name: string) =>
+                          name === "player pay" || name === "actor pay"
+                            ? [formatEddies(v), name]
+                            : name === "missions"
+                              ? [v, "missions"]
+                              : [formatEddies(v), name]
+                        }
+                      />
                       <Legend />
-                      <Bar yAxisId="left" dataKey="missions" fill="#ff2ec4" />
-                      <Bar yAxisId="right" dataKey="payout" fill="#f5d90a" fillOpacity={0.7} />
+                      <Bar yAxisId="left" dataKey="missions" name="missions" fill="#ff2ec4" />
+                      <Bar yAxisId="right" dataKey="playerPayout" name="player pay" stackId="pay" fill="#f5d90a" fillOpacity={0.7} />
+                      <Bar yAxisId="right" dataKey="actorPayout" name="actor pay" stackId="pay" fill="#b17aff" fillOpacity={0.7} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               )}
+              <p className="font-mono text-xs text-muted-foreground">
+                Click a week to list its missions with player vs actor payout splits.
+              </p>
             </CardContent>
           </Card>
 
@@ -578,9 +621,15 @@ export default function FixerAnalytics() {
                   No instance history in this range yet — recording started when session tracking shipped, so charts fill in from here forward.
                 </p>
               ) : (
-                <div className="h-64" data-testid="chart-vrchat-weekly">
+                <div className="h-64 cursor-pointer" data-testid="chart-vrchat-weekly">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={vrWeeklyRows}>
+                    <BarChart
+                      data={vrWeeklyRows}
+                      onClick={(st) => {
+                        const w = pickWeek(st);
+                        if (w) setVrTarget({ week: w });
+                      }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 20%)" />
                       <XAxis dataKey="week" tick={{ fontSize: 11, fontFamily: "monospace" }} />
                       <YAxis yAxisId="left" tick={{ fontSize: 11, fontFamily: "monospace" }} allowDecimals={false} />
@@ -598,12 +647,18 @@ export default function FixerAnalytics() {
                   <div className="font-display tracking-widest text-sm mb-2">TOP WORLDS BY INSTANCE-HOURS</div>
                   <div className="space-y-1 font-mono text-xs" data-testid="list-vr-top-worlds">
                     {data.vrchat.topWorlds.map((w) => (
-                      <div key={w.worldName} className="flex items-center justify-between border border-border px-3 py-2">
+                      <button
+                        key={w.worldName}
+                        type="button"
+                        onClick={() => setVrTarget({ world: w.worldName, range })}
+                        className="flex w-full items-center justify-between border border-border px-3 py-2 text-left hover:border-nc-cyan/60 hover:bg-accent/30 transition-colors cursor-pointer"
+                        data-testid={`button-vr-world-${w.worldName}`}
+                      >
                         <span className="text-foreground truncate mr-3">{w.worldName}</span>
                         <span className="text-muted-foreground whitespace-nowrap">
                           {w.sessions} inst · {w.hours.toLocaleString()}h · peak <span className="text-nc-magenta">{w.peakUserCount}</span>
                         </span>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -614,6 +669,7 @@ export default function FixerAnalytics() {
               </div>
               <p className="font-mono text-xs text-muted-foreground">
                 Head counts come from the group-instance poller (every 2 min, live server only). Per-player visit history comes from VRCX log imports.
+                Click a week or a world to see every instance with peak / average / median headcount and a population sparkline.
               </p>
             </CardContent>
           </Card>
@@ -662,6 +718,33 @@ export default function FixerAnalytics() {
               <p className="font-mono text-xs text-muted-foreground">
                 Active = live PCs with wallet or mission activity in the last 60 days; dormant = live PCs with none.
               </p>
+              {trendRows.length > 0 && (
+                <div>
+                  <div className="font-display tracking-widest text-sm mb-2">ACTIVE VS DORMANT / WEEK</div>
+                  <div className="h-64 cursor-pointer" data-testid="chart-activity-trend">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={trendRows} onClick={(st) => setTrendWeek(pickWeek(st))}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 20%)" />
+                        <XAxis dataKey="week" tick={{ fontSize: 11, fontFamily: "monospace" }} />
+                        <YAxis tick={{ fontSize: 11, fontFamily: "monospace" }} allowDecimals={false} />
+                        <Tooltip
+                          contentStyle={tooltipStyle}
+                          formatter={(v: number, name: string) => [v, name]}
+                        />
+                        <Legend />
+                        <Line type="monotone" dataKey="active" name="active (60d)" stroke="#00f0ff" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="dormant" name="dormant" stroke="#ff2ec4" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="gained" name="became active" stroke="#7dff6a" strokeWidth={1.5} dot={false} strokeDasharray="4 3" />
+                        <Line type="monotone" dataKey="lost" name="went dormant" stroke="#f5d90a" strokeWidth={1.5} dot={false} strokeDasharray="4 3" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="font-mono text-xs text-muted-foreground mt-1">
+                    Weekly snapshots of the Active(60d)/Dormant split, backfilled from historical wallet and mission activity. Click a week to
+                    see exactly which characters became active or went dormant.
+                  </p>
+                </div>
+              )}
               {sheetRows.length > 0 && (
                 <div>
                   <div className="font-display tracking-widest text-sm mb-2">NEW SHEETS / MONTH (12 mo)</div>
@@ -680,6 +763,17 @@ export default function FixerAnalytics() {
               )}
             </CardContent>
           </Card>
+
+          <CharacterTrendDialog week={trendWeek} onClose={() => setTrendWeek(null)} />
+          <VrchatInstancesDialog target={vrTarget} onClose={() => setVrTarget(null)} />
+          <MissionsWeekDialog week={missionWeek} onClose={() => setMissionWeek(null)} />
+          <EconomyWeekDialog
+            week={econWeek}
+            created={data.economy.weekly.find((w) => w.weekStart === econWeek)?.created ?? {}}
+            destroyed={data.economy.weekly.find((w) => w.weekStart === econWeek)?.destroyed ?? {}}
+            excludeAbove={excludeAbove}
+            onClose={() => setEconWeek(null)}
+          />
         </>
       )}
     </div>

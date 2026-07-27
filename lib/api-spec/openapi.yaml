@@ -2674,6 +2674,73 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/AnalyticsCharacterRow" }
 
+  /admin/analytics/character-trend:
+    get:
+      operationId: adminGetAnalyticsCharacterTrend
+      tags: [admin]
+      summary: "Drill-down for the Active/Dormant trend: characters gained (went active) or lost (went dormant) in one snapshot week."
+      parameters:
+        - { in: query, name: week, required: true, description: "Any instant inside the target snapshot week (ISO date or datetime).", schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnalyticsCharacterTrendWeek" }
+
+  /admin/analytics/vrchat-instances:
+    get:
+      operationId: adminGetAnalyticsVrchatInstances
+      tags: [admin]
+      summary: "Drill-down for the VRChat charts: individual instance sessions behind one weekly bar (week) or one top-world row (world + range)."
+      parameters:
+        - { in: query, name: week, description: "Any instant inside the target week. Provide week OR world.", schema: { type: string } }
+        - { in: query, name: world, description: "World name from the top-worlds table. Provide week OR world.", schema: { type: string } }
+        - { in: query, name: range, description: "Window applied to world lookups (same semantics as /admin/analytics).", schema: { type: string, enum: [4w, 3m, 1y, all], default: 3m } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [instances]
+                properties:
+                  instances:
+                    type: array
+                    items: { $ref: "#/components/schemas/AnalyticsVrchatInstance" }
+
+  /admin/analytics/missions-week:
+    get:
+      operationId: adminGetAnalyticsMissionsWeek
+      tags: [admin]
+      summary: "Drill-down for the Missions weekly chart: missions completed in one week plus player/actor payout splits."
+      parameters:
+        - { in: query, name: week, required: true, description: "Any instant inside the target week.", schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnalyticsMissionWeekDetail" }
+
+  /admin/analytics/economy-transactions:
+    get:
+      operationId: adminGetAnalyticsEconomyTransactions
+      tags: [admin]
+      summary: "Drill-down for the economy chart: settled transactions behind one (week, category, direction) cell."
+      parameters:
+        - { in: query, name: week, required: true, description: "Any instant inside the target week.", schema: { type: string } }
+        - { in: query, name: category, required: true, schema: { type: string } }
+        - { in: query, name: direction, schema: { type: string, enum: [created, destroyed], default: created } }
+        - { in: query, name: excludeAbove, description: "Same whale-exclusion threshold as /admin/analytics.", schema: { type: integer, minimum: 0 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnalyticsEconomyTransactions" }
+
   /admin/audit-log:
     get:
       operationId: adminListAuditLog
@@ -10294,7 +10361,7 @@ components:
       type: object
       required: [job]
       properties:
-        job: { type: string, enum: [cyberware_humanity, monthly_rent, role_sync, eviction_sweep, discord_event_sync, mission_thread_backfill, notification_prune] }
+        job: { type: string, enum: [cyberware_humanity, monthly_rent, role_sync, eviction_sweep, discord_event_sync, mission_thread_backfill, notification_prune, character_snapshot] }
 
     JobRunResult:
       type: object
@@ -11478,6 +11545,8 @@ components:
               weekStart: { type: string, format: date-time }
               missionsRun: { type: integer }
               payoutTotal: { type: number }
+              playerPayout: { type: number, description: "Portion of payoutTotal that is player mission pay (mission_payout ledger keys)." }
+              actorPayout: { type: number, description: "Portion of payoutTotal that is actor/NPC pay (actor_payout ledger keys)." }
         totalMissions: { type: integer }
         totalApplications: { type: integer }
         avgApplicationsPerMission: { type: number }
@@ -11520,6 +11589,18 @@ components:
             properties:
               month: { type: string, format: date-time }
               count: { type: integer }
+        activityTrend:
+          type: array
+          description: "Weekly Active(60d)/Dormant history from the character_snapshot job. Empty until the job has run."
+          items:
+            type: object
+            required: [weekStart, active, dormant, gained, lost]
+            properties:
+              weekStart: { type: string, format: date-time }
+              active: { type: integer }
+              dormant: { type: integer }
+              gained: { type: integer, description: "Characters that went dormant/absent -> active this week." }
+              lost: { type: integer, description: "Characters that went active -> dormant this week." }
 
     AnalyticsVrchat:
       type: object
@@ -11549,6 +11630,95 @@ components:
               sessions: { type: integer }
               hours: { type: number }
               peakUserCount: { type: integer }
+
+    AnalyticsCharacterTrendWeek:
+      type: object
+      required: [weekStart, gained, lost]
+      properties:
+        weekStart: { type: string }
+        gained:
+          type: array
+          items: { $ref: "#/components/schemas/AnalyticsTrendCharacter" }
+        lost:
+          type: array
+          items: { $ref: "#/components/schemas/AnalyticsTrendCharacter" }
+
+    AnalyticsTrendCharacter:
+      type: object
+      required: [id, name, ownerName]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        ownerName: { type: ["string", "null"] }
+
+    AnalyticsVrchatInstance:
+      type: object
+      required: [id, worldName, source, firstSeenAt, lastSeenAt, closedAt, durationMinutes, peakUserCount, avgUserCount, medianUserCount, uniqueUsers, samples]
+      properties:
+        id: { type: integer }
+        worldName: { type: string }
+        source: { type: string, description: "live (poller) or vrcx (imported)." }
+        firstSeenAt: { type: string, format: date-time }
+        lastSeenAt: { type: string, format: date-time }
+        closedAt: { type: ["string", "null"], format: date-time }
+        durationMinutes: { type: integer }
+        peakUserCount: { type: integer }
+        avgUserCount: { type: number }
+        medianUserCount: { type: number, description: "Median of the per-poll head-count samples; 0 when no samples exist." }
+        uniqueUsers: { type: ["integer", "null"], description: "Distinct players seen — VRCX-imported rows only." }
+        samples:
+          type: array
+          description: "Head-count series over the instance lifetime, downsampled to <= 60 points."
+          items:
+            type: object
+            required: [at, userCount]
+            properties:
+              at: { type: string, format: date-time }
+              userCount: { type: integer }
+
+    AnalyticsMissionWeekDetail:
+      type: object
+      required: [weekStart, totalPayout, playerPayout, actorPayout, missions]
+      properties:
+        weekStart: { type: string, format: date-time }
+        totalPayout: { type: number, description: "Mission-category ledger rows created this week (matches the chart bar)." }
+        playerPayout: { type: number }
+        actorPayout: { type: number }
+        missions:
+          type: array
+          items:
+            type: object
+            required: [id, title, status, completedAt, fixerName, participants, playerPayout, actorPayout]
+            properties:
+              id: { type: integer }
+              title: { type: string }
+              status: { type: string }
+              completedAt: { type: ["string", "null"], format: date-time }
+              fixerName: { type: ["string", "null"] }
+              participants: { type: integer }
+              playerPayout: { type: number, description: "All-time player pay for this mission (may land in a different week)." }
+              actorPayout: { type: number }
+
+    AnalyticsEconomyTransactions:
+      type: object
+      required: [transactions, total, truncated]
+      properties:
+        total: { type: number, description: "Sum of |amount| across ALL matching rows (not just the listed page)." }
+        truncated: { type: boolean, description: "True when more than 500 rows matched and the list was capped." }
+        transactions:
+          type: array
+          items:
+            type: object
+            required: [id, createdAt, amount, kind, category, memo, userName, characterName]
+            properties:
+              id: { type: integer }
+              createdAt: { type: string, format: date-time }
+              amount: { type: number }
+              kind: { type: string }
+              category: { type: string }
+              memo: { type: ["string", "null"] }
+              userName: { type: ["string", "null"] }
+              characterName: { type: ["string", "null"] }
 
     AuditLogRow:
       type: object

@@ -5474,6 +5474,7 @@ export const JobRunInputJob = {
   discord_event_sync: 'discord_event_sync',
   mission_thread_backfill: 'mission_thread_backfill',
   notification_prune: 'notification_prune',
+  character_snapshot: 'character_snapshot',
 } as const;
 
 export interface JobRunInput {
@@ -7322,6 +7323,10 @@ export type AnalyticsMissionsWeeklyItem = {
   weekStart: string;
   missionsRun: number;
   payoutTotal: number;
+  /** Portion of payoutTotal that is player mission pay (mission_payout ledger keys). */
+  playerPayout?: number;
+  /** Portion of payoutTotal that is actor/NPC pay (actor_payout ledger keys). */
+  actorPayout?: number;
 };
 
 export interface AnalyticsMissions {
@@ -7358,11 +7363,23 @@ export type AnalyticsPlayersSheetsPerMonthItem = {
   count: number;
 };
 
+export type AnalyticsPlayersActivityTrendItem = {
+  weekStart: string;
+  active: number;
+  dormant: number;
+  /** Characters that went dormant/absent -> active this week. */
+  gained: number;
+  /** Characters that went active -> dormant this week. */
+  lost: number;
+};
+
 export interface AnalyticsPlayers {
   lifeStatus: AnalyticsPlayersLifeStatus;
   activeRecent: number;
   dormant: number;
   sheetsPerMonth: AnalyticsPlayersSheetsPerMonthItem[];
+  /** Weekly Active(60d)/Dormant history from the character_snapshot job. Empty until the job has run. */
+  activityTrend?: AnalyticsPlayersActivityTrendItem[];
 }
 
 export type AnalyticsVrchatWeeklyItem = {
@@ -7451,6 +7468,92 @@ export interface AnalyticsCharacterRow {
      * @nullable
      */
   lastActivityAt?: string | null;
+}
+
+export interface AnalyticsTrendCharacter {
+  id: number;
+  name: string;
+  /** @nullable */
+  ownerName: string | null;
+}
+
+export interface AnalyticsCharacterTrendWeek {
+  weekStart: string;
+  gained: AnalyticsTrendCharacter[];
+  lost: AnalyticsTrendCharacter[];
+}
+
+export type AnalyticsVrchatInstanceSamplesItem = {
+  at: string;
+  userCount: number;
+};
+
+export interface AnalyticsVrchatInstance {
+  id: number;
+  worldName: string;
+  /** live (poller) or vrcx (imported). */
+  source: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  /** @nullable */
+  closedAt: string | null;
+  durationMinutes: number;
+  peakUserCount: number;
+  avgUserCount: number;
+  /** Median of the per-poll head-count samples; 0 when no samples exist. */
+  medianUserCount: number;
+  /**
+     * Distinct players seen — VRCX-imported rows only.
+     * @nullable
+     */
+  uniqueUsers: number | null;
+  /** Head-count series over the instance lifetime, downsampled to <= 60 points. */
+  samples: AnalyticsVrchatInstanceSamplesItem[];
+}
+
+export type AnalyticsMissionWeekDetailMissionsItem = {
+  id: number;
+  title: string;
+  status: string;
+  /** @nullable */
+  completedAt: string | null;
+  /** @nullable */
+  fixerName: string | null;
+  participants: number;
+  /** All-time player pay for this mission (may land in a different week). */
+  playerPayout: number;
+  actorPayout: number;
+};
+
+export interface AnalyticsMissionWeekDetail {
+  weekStart: string;
+  /** Mission-category ledger rows created this week (matches the chart bar). */
+  totalPayout: number;
+  playerPayout: number;
+  actorPayout: number;
+  missions: AnalyticsMissionWeekDetailMissionsItem[];
+}
+
+export type AnalyticsEconomyTransactionsTransactionsItem = {
+  id: number;
+  createdAt: string;
+  amount: number;
+  kind: string;
+  category: string;
+  /** @nullable */
+  memo: string | null;
+  /** @nullable */
+  userName: string | null;
+  /** @nullable */
+  characterName: string | null;
+};
+
+export interface AnalyticsEconomyTransactions {
+  /** Sum of |amount| across ALL matching rows (not just the listed page). */
+  total: number;
+  /** True when more than 500 rows matched and the list was capped. */
+  truncated: boolean;
+  transactions: AnalyticsEconomyTransactionsTransactionsItem[];
 }
 
 export interface AuditLogRow {
@@ -8106,6 +8209,71 @@ export const AdminGetAnalyticsCharactersBucket = {
   dead: 'dead',
   retired: 'retired',
   missing: 'missing',
+} as const;
+
+export type AdminGetAnalyticsCharacterTrendParams = {
+/**
+ * Any instant inside the target snapshot week (ISO date or datetime).
+ */
+week: string;
+};
+
+export type AdminGetAnalyticsVrchatInstancesParams = {
+/**
+ * Any instant inside the target week. Provide week OR world.
+ */
+week?: string;
+/**
+ * World name from the top-worlds table. Provide week OR world.
+ */
+world?: string;
+/**
+ * Window applied to world lookups (same semantics as /admin/analytics).
+ */
+range?: AdminGetAnalyticsVrchatInstancesRange;
+};
+
+export type AdminGetAnalyticsVrchatInstancesRange = typeof AdminGetAnalyticsVrchatInstancesRange[keyof typeof AdminGetAnalyticsVrchatInstancesRange];
+
+
+export const AdminGetAnalyticsVrchatInstancesRange = {
+  '4w': '4w',
+  '3m': '3m',
+  '1y': '1y',
+  all: 'all',
+} as const;
+
+export type AdminGetAnalyticsVrchatInstances200 = {
+  instances: AnalyticsVrchatInstance[];
+};
+
+export type AdminGetAnalyticsMissionsWeekParams = {
+/**
+ * Any instant inside the target week.
+ */
+week: string;
+};
+
+export type AdminGetAnalyticsEconomyTransactionsParams = {
+/**
+ * Any instant inside the target week.
+ */
+week: string;
+category: string;
+direction?: AdminGetAnalyticsEconomyTransactionsDirection;
+/**
+ * Same whale-exclusion threshold as /admin/analytics.
+ * @minimum 0
+ */
+excludeAbove?: number;
+};
+
+export type AdminGetAnalyticsEconomyTransactionsDirection = typeof AdminGetAnalyticsEconomyTransactionsDirection[keyof typeof AdminGetAnalyticsEconomyTransactionsDirection];
+
+
+export const AdminGetAnalyticsEconomyTransactionsDirection = {
+  created: 'created',
+  destroyed: 'destroyed',
 } as const;
 
 export type AdminListAuditLogParams = {

@@ -35,7 +35,16 @@ import { isLoginRestricted, LOGIN_RESTRICTED_KEY } from "../lib/siteAccess";
 import { isVrchatCalendarSyncEnabled, VRCHAT_SYNC_FLAG } from "../lib/eventsService";
 import { scanVrchatChannel } from "../lib/vrchatLinks";
 import { getEconomyMode, reconcileOneUser, recordSettledWalletMovement, applyWalletDelta } from "../lib/economy";
-import { computeAdminAnalytics, parseAnalyticsRange, parseExcludeAbove } from "../lib/analytics";
+import {
+  computeAdminAnalytics,
+  parseAnalyticsRange,
+  parseExcludeAbove,
+  parseWeekParam,
+  computeCharacterTrendWeek,
+  computeVrchatInstanceDrilldown,
+  computeMissionsWeekDrilldown,
+  computeEconomyWeekTransactions,
+} from "../lib/analytics";
 import { normalizeName } from "../lib/strings";
 
 const router: IRouter = Router();
@@ -275,6 +284,60 @@ router.get("/admin/analytics/characters", adminOrFixer, async (req, res): Promis
       lastActivityAt: r.last_activity_at ? new Date(r.last_activity_at).toISOString() : null,
     })),
   );
+});
+
+// Drill-down for the Active/Dormant trend chart: which characters flipped
+// active->dormant (lost) or dormant->active (gained) in one snapshot week.
+router.get("/admin/analytics/character-trend", adminOrFixer, async (req, res): Promise<void> => {
+  const week = parseWeekParam(req.query.week);
+  if (!week) {
+    res.status(400).json({ error: "invalid week" });
+    return;
+  }
+  res.json(await computeCharacterTrendWeek(week));
+});
+
+// Drill-down for the VRChat charts: the individual instance sessions behind
+// one weekly bar (?week=) or one top-world row (?world=&since window from
+// ?range=). Includes per-instance median occupancy + a downsampled population
+// series for a sparkline.
+router.get("/admin/analytics/vrchat-instances", adminOrFixer, async (req, res): Promise<void> => {
+  const week = parseWeekParam(req.query.week);
+  const world = typeof req.query.world === "string" && req.query.world.trim() !== "" ? req.query.world : null;
+  if (!week && !world) {
+    res.status(400).json({ error: "week or world required" });
+    return;
+  }
+  const range = parseAnalyticsRange(req.query.range);
+  const weeks = { "4w": 4, "3m": 13, "1y": 52, all: 20 * 52 }[range];
+  const since = new Date(Date.now() - weeks * 7 * 86_400_000);
+  const instances = await computeVrchatInstanceDrilldown(week ? { week } : { world: world!, since });
+  res.json({ instances });
+});
+
+// Drill-down for the Missions weekly chart: which missions completed in that
+// week plus per-mission and week-total player/actor payout splits.
+router.get("/admin/analytics/missions-week", adminOrFixer, async (req, res): Promise<void> => {
+  const week = parseWeekParam(req.query.week);
+  if (!week) {
+    res.status(400).json({ error: "invalid week" });
+    return;
+  }
+  res.json(await computeMissionsWeekDrilldown(week));
+});
+
+// Drill-down for the economy chart: the settled transactions behind one
+// (week, category, direction) cell, with the same whale filter as the chart.
+router.get("/admin/analytics/economy-transactions", adminOrFixer, async (req, res): Promise<void> => {
+  const week = parseWeekParam(req.query.week);
+  const category = String(req.query.category ?? "");
+  const direction = req.query.direction === "destroyed" ? "destroyed" : "created";
+  if (!week || category === "") {
+    res.status(400).json({ error: "week and category required" });
+    return;
+  }
+  const excludeAbove = parseExcludeAbove(req.query.excludeAbove);
+  res.json(await computeEconomyWeekTransactions({ week, category, direction, excludeAbove }));
 });
 
 router.get("/admin/users", adminOnly, async (_req, res): Promise<void> => {
@@ -1269,11 +1332,11 @@ router.get("/admin/jobs", adminOnly, async (_req, res): Promise<void> => {
 
 router.post("/admin/jobs/run", adminOnly, async (req, res): Promise<void> => {
   const job = String(req.body?.job ?? "");
-  if (!["cyberware_humanity", "monthly_rent", "role_sync", "eviction_sweep", "discord_event_sync", "main_session_backfill", "mission_thread_backfill", "notification_prune"].includes(job)) {
+  if (!["cyberware_humanity", "monthly_rent", "role_sync", "eviction_sweep", "discord_event_sync", "main_session_backfill", "mission_thread_backfill", "notification_prune", "character_snapshot"].includes(job)) {
     res.status(400).json({ error: "Unknown job" });
     return;
   }
-  const result = await runJob(job as "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "discord_event_sync" | "main_session_backfill" | "mission_thread_backfill" | "notification_prune");
+  const result = await runJob(job as "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "discord_event_sync" | "main_session_backfill" | "mission_thread_backfill" | "notification_prune" | "character_snapshot");
   res.json(result);
 });
 

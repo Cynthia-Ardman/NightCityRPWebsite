@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { AnalyticsPlayersActivityTrendItem } from './analyticsPlayersActivityTrendItem';
 import type { AnalyticsPlayersLifeStatus } from './analyticsPlayersLifeStatus';
 import type { AnalyticsPlayersSheetsPerMonthItem } from './analyticsPlayersSheetsPerMonthItem';
 
@@ -13,4 +14,6 @@ export interface AnalyticsPlayers {
   activeRecent: number;
   dormant: number;
   sheetsPerMonth: AnalyticsPlayersSheetsPerMonthItem[];
+  /** Weekly Active(60d)/Dormant history from the character_snapshot job. Empty until the job has run. */
+  activityTrend?: AnalyticsPlayersActivityTrendItem[];
 }

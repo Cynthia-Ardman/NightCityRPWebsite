@@ -2629,3 +2629,34 @@ export const ncpdCaseFiles = pgTable(
   }),
 );
 export type NcpdCaseFile = typeof ncpdCaseFiles.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Analytics: weekly character activity snapshots
+// ---------------------------------------------------------------------------
+// One row per (week, PC character) recording whether the character counted as
+// "active" that week under the analytics 60-day rule (any wallet movement,
+// mission application, or mission assignment in the 60 days before the week's
+// end). Written by the weekly `character_snapshot` job, which also backfills
+// every missing past week — the rule is fully derivable from timestamped rows,
+// so backfill and forward accrual share one code path. `lifeStatus` is the
+// character's life status AT SNAPSHOT TIME for forward weeks; backfilled weeks
+// carry the status current at backfill time (no historical status log exists).
+export const characterWeekSnapshots = pgTable(
+  "character_week_snapshots",
+  {
+    id: serial("id").primaryKey(),
+    // Monday (date_trunc('week')) of the snapshot week, as a plain date.
+    weekStart: date("week_start").notNull(),
+    characterId: integer("character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "cascade" }),
+    active: boolean("active").notNull().default(false),
+    lifeStatus: text("life_status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    weekCharIdx: uniqueIndex("cws_week_char_idx").on(t.weekStart, t.characterId),
+    weekIdx: index("cws_week_idx").on(t.weekStart),
+  }),
+);
+export type CharacterWeekSnapshot = typeof characterWeekSnapshots.$inferSelect;

@@ -10,4 +10,8 @@ export type AnalyticsMissionsWeeklyItem = {
   weekStart: Date;
   missionsRun: number;
   payoutTotal: number;
+  /** Portion of payoutTotal that is player mission pay (mission_payout ledger keys). */
+  playerPayout?: number;
+  /** Portion of payoutTotal that is actor/NPC pay (actor_payout ledger keys). */
+  actorPayout?: number;
 };

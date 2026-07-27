@@ -33,6 +33,20 @@ interface MissionWeek {
   weekStart: string;
   missionsRun: number;
   payoutTotal: number;
+  // Split of payoutTotal by ledger idempotency-key prefix: player mission pay
+  // (mission_payout:<assignmentId>) vs actor/NPC pay (actor_payout:<rowId>).
+  // Legacy mission-category rows predating those keys fall in neither bucket,
+  // so playerPayout + actorPayout <= payoutTotal.
+  playerPayout: number;
+  actorPayout: number;
+}
+
+interface ActivityTrendWeek {
+  weekStart: string;
+  active: number;
+  dormant: number;
+  gained: number;
+  lost: number;
 }
 
 interface AgeBuckets {
@@ -113,6 +127,9 @@ export interface AdminAnalytics {
     activeRecent: number;
     dormant: number;
     sheetsPerMonth: Array<{ month: string; count: number }>;
+    // Weekly Active(60d)/Dormant history from character_week_snapshots (the
+    // character_snapshot job). Empty until the job has run at least once.
+    activityTrend: ActivityTrendWeek[];
   };
   vrchat: VrchatStats;
   site: SiteStats;
@@ -256,7 +273,9 @@ export async function computeAdminAnalytics(
     GROUP BY 1 ORDER BY 1
   `);
   const payoutWeeksRes = await db.execute(sql`
-    SELECT date_trunc('week', created_at) AS week, SUM(amount)::bigint AS total
+    SELECT date_trunc('week', created_at) AS week, SUM(amount)::bigint AS total,
+           COALESCE(SUM(amount) FILTER (WHERE idempotency_key LIKE 'mission_payout:%'), 0)::bigint AS player_total,
+           COALESCE(SUM(amount) FILTER (WHERE idempotency_key LIKE 'actor_payout:%'), 0)::bigint AS actor_total
     FROM wallet_transactions
     WHERE ${SETTLED}
       AND created_at >= ${since}
@@ -270,7 +289,7 @@ export async function computeAdminAnalytics(
   const ensureWeek = (k: string) => {
     let row = missionWeekMap.get(k);
     if (!row) {
-      row = { weekStart: k, missionsRun: 0, payoutTotal: 0 };
+      row = { weekStart: k, missionsRun: 0, payoutTotal: 0, playerPayout: 0, actorPayout: 0 };
       missionWeekMap.set(k, row);
     }
     return row;
@@ -279,9 +298,12 @@ export async function computeAdminAnalytics(
     ensureWeek(weekOf(r.week)).missionsRun = Number(r.n) || 0;
   }
   let totalPayout = 0;
-  for (const r of payoutWeeksRes.rows as Array<{ week: Date | string; total: string }>) {
+  for (const r of payoutWeeksRes.rows as Array<{ week: Date | string; total: string; player_total: string; actor_total: string }>) {
     const t = Number(r.total) || 0;
-    ensureWeek(weekOf(r.week)).payoutTotal = t;
+    const row = ensureWeek(weekOf(r.week));
+    row.payoutTotal = t;
+    row.playerPayout = Number(r.player_total) || 0;
+    row.actorPayout = Number(r.actor_total) || 0;
     totalPayout += t;
   }
   const missionWeekly = [...missionWeekMap.values()].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
@@ -392,6 +414,31 @@ export async function computeAdminAnalytics(
     `)
   ).rows as Array<{ active: number; dormant: number }>;
 
+  // Weekly Active(60d)/Dormant trend from the character_snapshot job's rows.
+  // gained = active this week but not (or absent) the prior week; lost = the
+  // reverse. Only life-status-active PCs count, matching the live cards.
+  const trendRes = await db.execute(sql`
+    SELECT s.week_start AS week,
+           COUNT(*) FILTER (WHERE s.active AND s.life_status = 'active')::int AS active,
+           COUNT(*) FILTER (WHERE NOT s.active AND s.life_status = 'active')::int AS dormant,
+           COUNT(*) FILTER (WHERE s.active AND s.life_status = 'active' AND COALESCE(p.active, false) = false)::int AS gained,
+           COUNT(*) FILTER (WHERE NOT s.active AND s.life_status = 'active' AND p.active)::int AS lost
+    FROM character_week_snapshots s
+    LEFT JOIN character_week_snapshots p
+      ON p.character_id = s.character_id AND p.week_start = s.week_start - 7
+    WHERE s.week_start >= ${since.toISOString().slice(0, 10)}::date
+    GROUP BY 1 ORDER BY 1
+  `);
+  const activityTrend: ActivityTrendWeek[] = (
+    trendRes.rows as Array<{ week: Date | string; active: number; dormant: number; gained: number; lost: number }>
+  ).map((r) => ({
+    weekStart: new Date(r.week as string).toISOString(),
+    active: Number(r.active) || 0,
+    dormant: Number(r.dormant) || 0,
+    gained: Number(r.gained) || 0,
+    lost: Number(r.lost) || 0,
+  }));
+
   // New sheets per month over the last 12 months regardless of range — a
   // monthly series shorter than ~3 points isn't readable.
   const monthsSince = new Date(now.getFullYear(), now.getMonth() - 11, 1);
@@ -428,6 +475,10 @@ export async function computeAdminAnalytics(
       SELECT date_trunc('week', created_at) AS week, COUNT(*)::int AS n
       FROM characters
       WHERE kind = 'pc' AND created_at >= ${since}
+        -- Exclude thread-imported characters: the 2026-05-24 bulk import
+        -- created hundreds of rows in one week, which dwarfs the organic
+        -- "characters created" signal this chart is meant to show.
+        AND imported_from_thread_id IS NULL
       GROUP BY 1 ORDER BY 1
     `),
     db.execute(sql`
@@ -557,8 +608,285 @@ export async function computeAdminAnalytics(
         month: new Date(r.month as string).toISOString(),
         count: Number(r.n) || 0,
       })),
+      activityTrend,
     },
     vrchat,
     site,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Drill-downs — per-week / per-world detail behind the aggregate charts.
+// ---------------------------------------------------------------------------
+
+function parseWeekParam(raw: unknown): Date | null {
+  if (typeof raw !== "string" || raw.trim() === "") return null;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+export { parseWeekParam };
+
+export interface CharacterTrendEntry {
+  id: number;
+  name: string;
+  ownerName: string | null;
+}
+
+// Which characters were gained (dormant/absent -> active) or lost
+// (active -> dormant) in the given snapshot week, vs the prior week.
+// Mirrors the activityTrend gained/lost counters exactly.
+export async function computeCharacterTrendWeek(week: Date): Promise<{
+  weekStart: string;
+  gained: CharacterTrendEntry[];
+  lost: CharacterTrendEntry[];
+}> {
+  const weekDate = week.toISOString().slice(0, 10);
+  const res = await db.execute(sql`
+    SELECT c.id, c.name, COALESCE(u.global_name, u.username) AS owner_name,
+           s.active AS now_active
+    FROM character_week_snapshots s
+    JOIN characters c ON c.id = s.character_id
+    LEFT JOIN users u ON u.id = c.owner_id
+    LEFT JOIN character_week_snapshots p
+      ON p.character_id = s.character_id AND p.week_start = s.week_start - 7
+    WHERE s.week_start = date_trunc('week', ${weekDate}::date)::date
+      AND s.life_status = 'active'
+      AND ((s.active AND COALESCE(p.active, false) = false)
+        OR (NOT s.active AND p.active))
+    ORDER BY lower(c.name)
+  `);
+  const gained: CharacterTrendEntry[] = [];
+  const lost: CharacterTrendEntry[] = [];
+  for (const r of res.rows as Array<{ id: number; name: string; owner_name: string | null; now_active: boolean }>) {
+    (r.now_active ? gained : lost).push({ id: Number(r.id), name: r.name, ownerName: r.owner_name });
+  }
+  return { weekStart: weekDate, gained, lost };
+}
+
+export interface VrchatInstanceDetail {
+  id: number;
+  worldName: string;
+  source: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  closedAt: string | null;
+  durationMinutes: number;
+  peakUserCount: number;
+  avgUserCount: number;
+  medianUserCount: number;
+  uniqueUsers: number | null;
+  samples: Array<{ at: string; userCount: number }>;
+}
+
+// Per-instance sessions behind one weekly bar (week) or one top-world row
+// (world + since). Median comes from the raw poll samples; the population
+// sparkline is the sample series downsampled to <= 60 points per instance.
+export async function computeVrchatInstanceDrilldown(opts: {
+  week?: Date;
+  world?: string;
+  since?: Date;
+}): Promise<VrchatInstanceDetail[]> {
+  const where = opts.week
+    ? sql`date_trunc('week', s.first_seen_at) = date_trunc('week', ${opts.week}::timestamptz)`
+    : sql`s.world_name = ${opts.world ?? ""} AND s.first_seen_at >= ${opts.since ?? new Date(0)}`;
+  const res = await db.execute(sql`
+    SELECT s.id, s.world_name, s.source, s.first_seen_at, s.last_seen_at, s.closed_at,
+           s.peak_user_count, s.unique_users,
+           EXTRACT(EPOCH FROM (COALESCE(s.closed_at, s.last_seen_at) - s.first_seen_at))::float8 AS seconds,
+           CASE WHEN s.sample_count > 0 THEN s.sum_user_counts::float8 / s.sample_count ELSE 0 END AS avg_users,
+           COALESCE((SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY sm.user_count)
+                     FROM vrchat_instance_samples sm WHERE sm.session_id = s.id), 0)::float8 AS median_users
+    FROM vrchat_instance_sessions s
+    WHERE ${where}
+    ORDER BY s.first_seen_at DESC
+    LIMIT 100
+  `);
+  const rows = res.rows as Array<{
+    id: number; world_name: string; source: string;
+    first_seen_at: Date | string; last_seen_at: Date | string; closed_at: Date | string | null;
+    peak_user_count: number; unique_users: number | null;
+    seconds: number; avg_users: number; median_users: number;
+  }>;
+  const ids = rows.map((r) => Number(r.id));
+  const samplesBySession = new Map<number, Array<{ at: string; userCount: number }>>();
+  if (ids.length > 0) {
+    const sampleRes = await db.execute(sql`
+      SELECT session_id, at, user_count FROM vrchat_instance_samples
+      WHERE session_id = ANY(${sql`ARRAY[${sql.join(ids.map((i) => sql`${i}`), sql`, `)}]::int[]`})
+      ORDER BY session_id, at
+    `);
+    for (const r of sampleRes.rows as Array<{ session_id: number; at: Date | string; user_count: number }>) {
+      const sid = Number(r.session_id);
+      let arr = samplesBySession.get(sid);
+      if (!arr) {
+        arr = [];
+        samplesBySession.set(sid, arr);
+      }
+      arr.push({ at: new Date(r.at as string).toISOString(), userCount: Number(r.user_count) || 0 });
+    }
+    // Downsample long series to <= 60 points, always keeping the last point.
+    for (const [sid, arr] of samplesBySession) {
+      if (arr.length > 60) {
+        const step = Math.ceil(arr.length / 60);
+        const thin = arr.filter((_, i) => i % step === 0);
+        if (thin[thin.length - 1] !== arr[arr.length - 1]) thin.push(arr[arr.length - 1]);
+        samplesBySession.set(sid, thin);
+      }
+    }
+  }
+  return rows.map((r) => ({
+    id: Number(r.id),
+    worldName: r.world_name,
+    source: r.source,
+    firstSeenAt: new Date(r.first_seen_at as string).toISOString(),
+    lastSeenAt: new Date(r.last_seen_at as string).toISOString(),
+    closedAt: r.closed_at ? new Date(r.closed_at as string).toISOString() : null,
+    durationMinutes: Math.round((Number(r.seconds) || 0) / 60),
+    peakUserCount: Number(r.peak_user_count) || 0,
+    avgUserCount: Math.round((Number(r.avg_users) || 0) * 10) / 10,
+    medianUserCount: Math.round((Number(r.median_users) || 0) * 10) / 10,
+    uniqueUsers: r.unique_users === null ? null : Number(r.unique_users),
+    samples: samplesBySession.get(Number(r.id)) ?? [],
+  }));
+}
+
+export interface MissionWeekDetail {
+  weekStart: string;
+  // Chart-parity totals: mission-category ledger rows CREATED in this week,
+  // split player vs actor (legacy rows fall in neither bucket).
+  totalPayout: number;
+  playerPayout: number;
+  actorPayout: number;
+  missions: Array<{
+    id: number;
+    title: string;
+    status: string;
+    completedAt: string | null;
+    fixerName: string | null;
+    participants: number;
+    // Per-mission all-time payout split (whenever the money actually moved).
+    playerPayout: number;
+    actorPayout: number;
+  }>;
+}
+
+// The missions behind one weekly bar: missions COMPLETED in that week, each
+// with its payout split, plus the week's transaction-dated totals so the
+// header matches the chart bar exactly (payouts can land in a different week
+// than completion).
+export async function computeMissionsWeekDrilldown(week: Date): Promise<MissionWeekDetail> {
+  const [missionsRes, totalsRes] = await Promise.all([
+    db.execute(sql`
+      SELECT m.id, m.title, m.status, m.completed_at,
+             COALESCE(u.global_name, u.username) AS fixer_name,
+             (SELECT COUNT(*)::int FROM mission_assignments a WHERE a.mission_id = m.id) AS participants,
+             COALESCE((SELECT SUM(wt.amount) FROM wallet_transactions wt
+                       WHERE wt.related_entity_type = 'mission' AND wt.related_entity_id = m.id
+                         AND wt.sync_status IN ('synced','reconciled') AND wt.amount > 0
+                         AND wt.idempotency_key LIKE 'mission_payout:%'), 0)::bigint AS player_payout,
+             COALESCE((SELECT SUM(wt.amount) FROM wallet_transactions wt
+                       WHERE wt.related_entity_type = 'mission' AND wt.related_entity_id = m.id
+                         AND wt.sync_status IN ('synced','reconciled') AND wt.amount > 0
+                         AND wt.idempotency_key LIKE 'actor_payout:%'), 0)::bigint AS actor_payout
+      FROM missions m
+      LEFT JOIN users u ON u.id = m.fixer_id
+      WHERE m.completed_at IS NOT NULL
+        AND date_trunc('week', m.completed_at) = date_trunc('week', ${week}::timestamptz)
+      ORDER BY m.completed_at DESC
+    `),
+    db.execute(sql`
+      SELECT COALESCE(SUM(amount), 0)::bigint AS total,
+             COALESCE(SUM(amount) FILTER (WHERE idempotency_key LIKE 'mission_payout:%'), 0)::bigint AS player_total,
+             COALESCE(SUM(amount) FILTER (WHERE idempotency_key LIKE 'actor_payout:%'), 0)::bigint AS actor_total
+      FROM wallet_transactions
+      WHERE ${SETTLED}
+        AND amount > 0
+        AND (category = 'mission' OR (category IS NULL AND kind = 'mission'))
+        AND date_trunc('week', created_at) = date_trunc('week', ${week}::timestamptz)
+    `),
+  ]);
+  const totals = totalsRes.rows[0] as { total: string; player_total: string; actor_total: string } | undefined;
+  return {
+    weekStart: week.toISOString(),
+    totalPayout: Number(totals?.total) || 0,
+    playerPayout: Number(totals?.player_total) || 0,
+    actorPayout: Number(totals?.actor_total) || 0,
+    missions: (missionsRes.rows as Array<{
+      id: number; title: string; status: string; completed_at: Date | string | null;
+      fixer_name: string | null; participants: number; player_payout: string; actor_payout: string;
+    }>).map((m) => ({
+      id: Number(m.id),
+      title: m.title,
+      status: m.status,
+      completedAt: m.completed_at ? new Date(m.completed_at as string).toISOString() : null,
+      fixerName: m.fixer_name,
+      participants: Number(m.participants) || 0,
+      playerPayout: Number(m.player_payout) || 0,
+      actorPayout: Number(m.actor_payout) || 0,
+    })),
+  };
+}
+
+export interface EconomyTransactionEntry {
+  id: number;
+  createdAt: string;
+  amount: number;
+  kind: string;
+  category: string;
+  memo: string | null;
+  userName: string | null;
+  characterName: string | null;
+}
+
+// The raw settled transactions behind one economy-chart cell: week + category
+// + direction (created = money in, destroyed = money out). Applies the SAME
+// settled/transfer/whale filters as the weekly aggregate so the listed rows
+// sum exactly to the chart bar segment. Null-category rows are classified in
+// JS with the shared classifier, mirroring the aggregate path. Capped at 500
+// rows (largest first) — `truncated` tells the UI when a cap hit.
+export async function computeEconomyWeekTransactions(opts: {
+  week: Date;
+  category: string;
+  direction: "created" | "destroyed";
+  excludeAbove: number | null;
+}): Promise<{ transactions: EconomyTransactionEntry[]; total: number; truncated: boolean }> {
+  const WHALES = sql`
+    SELECT user_id FROM wallet_transactions
+    WHERE ${SETTLED}
+    GROUP BY user_id
+    HAVING SUM(amount) > ${opts.excludeAbove ?? 0}
+  `;
+  const EXCLUDE = opts.excludeAbove === null ? sql`` : sql`AND wt.user_id NOT IN (${WHALES})`;
+  const amountCond = opts.direction === "created" ? sql`wt.amount > 0` : sql`wt.amount < 0`;
+  const res = await db.execute(sql`
+    SELECT wt.id, wt.created_at, wt.amount, wt.kind, wt.category, wt.memo,
+           COALESCE(u.global_name, u.username) AS user_name,
+           c.name AS character_name
+    FROM wallet_transactions wt
+    LEFT JOIN users u ON u.id = wt.user_id
+    LEFT JOIN characters c ON c.id = wt.character_id
+    WHERE wt.sync_status IN ('synced', 'reconciled') AND wt.user_id IS NOT NULL
+      AND wt.kind NOT IN ('reconcile_seed', 'transfer', 'transfer_in', 'transfer_out')
+      AND date_trunc('week', wt.created_at) = date_trunc('week', ${opts.week}::timestamptz)
+      AND ${amountCond}
+      ${EXCLUDE}
+    ORDER BY ABS(wt.amount) DESC, wt.created_at DESC
+  `);
+  const all = (res.rows as Array<{
+    id: number; created_at: Date | string; amount: string; kind: string;
+    category: string | null; memo: string | null; user_name: string | null; character_name: string | null;
+  }>)
+    .map((r) => ({
+      id: Number(r.id),
+      createdAt: new Date(r.created_at as string).toISOString(),
+      amount: Number(r.amount) || 0,
+      kind: r.kind,
+      category: r.category ?? classifyWalletCategory(r.kind, null),
+      memo: r.memo,
+      userName: r.user_name,
+      characterName: r.character_name,
+    }))
+    .filter((r) => r.category === opts.category);
+  const total = all.reduce((s, r) => s + Math.abs(r.amount), 0);
+  return { transactions: all.slice(0, 500), total, truncated: all.length > 500 };
 }

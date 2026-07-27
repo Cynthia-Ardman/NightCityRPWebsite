@@ -17,4 +17,5 @@ export const JobRunInputJob = {
   discord_event_sync: 'discord_event_sync',
   mission_thread_backfill: 'mission_thread_backfill',
   notification_prune: 'notification_prune',
+  character_snapshot: 'character_snapshot',
 } as const;

@@ -267,7 +267,7 @@ async function chargePersonalFeeWithReservation(opts: {
   return true;
 }
 
-export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile" | "discord_event_sync" | "main_session_backfill" | "mission_thread_backfill" | "notification_prune";
+export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile" | "discord_event_sync" | "main_session_backfill" | "mission_thread_backfill" | "notification_prune" | "character_snapshot";
 
 // Retention policy for the bell-feed notifications table (append-only
 // otherwise): READ rows older than this are deleted; unread rows are kept
@@ -1004,6 +1004,61 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         .where(and(isNotNull(notifications.readAt), lt(notifications.createdAt, cutoff)));
       affected = result.rowCount ?? 0;
       message = `notification prune: deleted ${affected} read notification(s) older than ${NOTIFICATION_READ_RETENTION_DAYS} days (unread kept)`;
+    } else if (name === "character_snapshot") {
+      // Weekly Active(60d)/Dormant character snapshot for the analytics trend.
+      // One row per (week, live PC): active = any wallet movement, mission
+      // application, or mission assignment in the 60 days ending at that
+      // week's close — the same rule as the live Active(60d) card. The rule is
+      // fully derivable from timestamped rows, so this single statement BOTH
+      // backfills every missing historical week and refreshes the current
+      // week; forward accrual and backfill share one code path and re-runs
+      // are idempotent. Past weeks are never rewritten once recorded (only
+      // the current week's rows are upserted), so a character later archived
+      // or deleted keeps its historical footprint until the FK cascades.
+      // life_status is the status at snapshot time; backfilled weeks
+      // necessarily carry the status current at backfill (no historical
+      // status log exists). Internal housekeeping — no external effects, so
+      // deliberately not kill-switch or Test/Live gated.
+      const result = await db.execute(sql`
+        WITH bounds AS (
+          SELECT date_trunc('week', COALESCE(LEAST(
+            (SELECT MIN(created_at) FROM wallet_transactions),
+            (SELECT MIN(created_at) FROM mission_applications),
+            (SELECT MIN(created_at) FROM mission_assignments)
+          ), now()))::date AS first_week,
+          date_trunc('week', now())::date AS this_week
+        ),
+        weeks AS (
+          SELECT gs::date AS week_start
+          FROM bounds b, generate_series(b.first_week, b.this_week, interval '7 days') gs
+          WHERE gs::date = b.this_week
+             OR NOT EXISTS (SELECT 1 FROM character_week_snapshots s WHERE s.week_start = gs::date)
+        ),
+        pcs AS (
+          SELECT id, life_status FROM characters WHERE kind = 'pc' AND archived = false
+        )
+        INSERT INTO character_week_snapshots (week_start, character_id, active, life_status)
+        SELECT w.week_start, c.id,
+          (EXISTS (SELECT 1 FROM wallet_transactions wt
+                   WHERE wt.character_id = c.id
+                     AND wt.created_at >= w.week_start + interval '7 days' - interval '60 days'
+                     AND wt.created_at <  w.week_start + interval '7 days')
+           OR EXISTS (SELECT 1 FROM mission_applications ma
+                   WHERE ma.character_id = c.id
+                     AND ma.created_at >= w.week_start + interval '7 days' - interval '60 days'
+                     AND ma.created_at <  w.week_start + interval '7 days')
+           OR EXISTS (SELECT 1 FROM mission_assignments ms
+                   WHERE ms.character_id = c.id
+                     AND ms.created_at >= w.week_start + interval '7 days' - interval '60 days'
+                     AND ms.created_at <  w.week_start + interval '7 days')),
+          c.life_status
+        FROM weeks w CROSS JOIN pcs c
+        ON CONFLICT (week_start, character_id) DO UPDATE
+          SET active = EXCLUDED.active, life_status = EXCLUDED.life_status
+          WHERE character_week_snapshots.week_start = (SELECT this_week FROM bounds)
+      `);
+      affected = result.rowCount ?? 0;
+      message = `character snapshot: wrote/refreshed ${affected} week-character row(s)`;
     }
   } catch (err) {
     status = "failed";
@@ -1113,6 +1168,14 @@ export function startCron() {
     // early-morning cron ticks spread out.
     cron.schedule("10 6 * * *", () => {
       runJob("notification_prune").catch((err) => logger.error({ err }, "notification_prune cron"));
+    });
+    // Weekly character Active(60d)/Dormant snapshot, Mondays 06:50 UTC (after
+    // the week boundary so each run finalizes the just-closed week and opens
+    // the new one). Also self-heals: every run backfills any missing weeks,
+    // so a skipped tick or fresh environment catches up automatically. Pure
+    // internal aggregation — not kill-switch or Test/Live gated.
+    cron.schedule("50 6 * * 1", () => {
+      runJob("character_snapshot").catch((err) => logger.error({ err }, "character_snapshot cron"));
     });
     // Live VRChat instance browser poll, every 2 minutes. Reads the NCRP group's
     // open instances and refreshes the member-facing cache. Gated to the

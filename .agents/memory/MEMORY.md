@@ -26,7 +26,7 @@
 - Cyberware derivation: [band from inventory_items CWP](cyberware-band-source.md) not characters.cyberwareLevel; [installed-ness from CWP notes tag presence](cyberware-installed-derivation.md), installed transfers blocked.
 - [Legacy bot dual-billing](legacy-bot-dual-billing.md) — old NightCityBot still bills cyberware meds in prod alongside our live cron → double charges + divergent week counts; disable legacy job, don't match its math.
 - Billing exclusions: [LOA dual-flag](loa-dual-flag-billing.md) crons must honor BOTH loa flags; [cyberware-only scope](cyberware-vs-general-billing-scope.md) LOA/retired/dead excluded from cyber household+meds only, not rent.
-- [Ripperdoc console medical](ripperdoc-console-medical.md) — staff /admin/characters/:id/medical exists b/c per-char history is owner-only; console install/remove preset+lock the existing dialogs, never fork the approval flow.
+- Ripperdoc: [console medical](ripperdoc-console-medical.md) staff medical console presets+locks existing dialogs, never fork approval; [role grant](ripperdoc-role-grant.md) sheet flag grants id-pinned role on sheet CLOSE, backfill unions sheet-signal + clinic owners.
 - Cyberware edit surfaces: [non-staff lock spans API+editor+UI rows](cyberware-review-enforcement-surfaces.md) gating one is a bypass; [custom installs under real catalog slots](cyberware-custom-install-surfaces.md) CUSTOM_NAME pattern.
 - [Archive tag storage split](archive-tag-storage.md) — tags live in appliedTags (importer-owned, overwritten) + manualTags (staff-owned); read/filter the UNION so re-import can't wipe manual tags.
 - Audit: [recordAudit() swallows failures — traceable endpoints write audit+changelog inline in a db.transaction](audit-trail-durability.md); [staff PATCH must audit like sibling create/delete](staff-edit-audit-parity.md).
@@ -51,6 +51,7 @@
 - [Stock-add offer + lease race](stock-add-offer-and-lease.md) — venue-debiting offers need owner-only approve guard (canDecide's admin allowance is a bypass); single-unit lease must lock listing FOR UPDATE across check+insert.
 - [Offer install capacity race](offer-install-capacity-race.md) — install-offer CWP cap must lock buyer row + re-derive used CWP INSIDE the completion tx; operator cwp can't undercut stock "CWP n" note.
 - Cyberware import: [CWP cap & dedup](cyberware-cwp-cap.md) non-NPCs hard-capped 15, dedupe by name+per-unit-CWP; [note format](cyberware-import-note-format.md) bare-slot + `[cyberware-import:v1]` — see topics.
+- [date_trunc param cast](date-trunc-param-cast.md) — `date_trunc('week', ${param})` on a bound Date is PG-42725 ambiguous; cast `::timestamptz`. Also: PG LEAST/GREATEST ignore NULL args.
 - [Raw tx.execute snake_case trap](raw-execute-snakecase-trap.md) — casting `SELECT *` result to `$inferSelect` makes camelCase cols undefined; use `.select()....for("update")` to lock-and-read typed.
 - [Offer approve debit-before-flip refund](offer-approve-refund-races.md) — buyer debit precedes the guarded pending→approved flip; if flip fails, refund unless final status is 'approved' — see topic.
 - [api-client codegen → rebuild dist](api-client-codegen-dist.md) — consumers read built dist/*.d.ts via TS project refs; after codegen rebuild dist — see topic.
@@ -106,7 +107,7 @@
 - [Admin dashboard authz scope](admin-dashboard-authz.md) — AdminDashboard page is isAdmin-only; manual char-create POST is adminOnly to mirror UI, while legacy owner-assign endpoints stay adminOrFixer.
 - [Staff read/write authz parity](staff-read-write-authz-parity.md) — staff management UI on a character sub-resource needs the GET read path to allow the same fixer+admin scope as its writes.
 - [Cyberware category canon](cyberware-category-canon.md) — every cyberware-category predicate (cap gate, violator report, storage) must use lower(trim(category)) or whitespace/case variants bypass the 1-per-slot cap.
-- [View-as role gating](view-as-gating.md) — gate staff UI/intel on useEffectiveMe, not useAuthMe, or admin "View as player" leaks staff content on shared pages.
+- View-as: [gate staff UI on useEffectiveMe not useAuthMe](view-as-gating.md); [global search hrefs need staffOnly flag + effective-role scrub](global-search-authz.md) or View-as leaks.
 - [Kill-switch symptoms](character-submission-killswitch.md) — bot_config `character_submissions_disabled` gates only non-NPC sheet submit/POST (drafts/edits/NPCs exempt) — see topic.
 - [Settled wallet movement](settled-wallet-movement.md) — mission pay hits UB directly (NOT applyWalletDelta); record a settled ledger row + advance lastSyncedUbBalance so reconcile won't double-count; leave baseline null if unseeded.
 - [BucketSection double-grid trap](bucketsection-double-grid.md) — BucketSection renders children directly (no grid); callers own grid/stack layout — nesting a grid inside its old grid-cols collapsed cards to 1/3 width.
@@ -139,17 +140,14 @@
 - [Sheet close custom-attrs](sheet-close-custom-attrs.md) — closing a NEW sheet w/ non-catalog cyberware/guns 400s unless closer supplies attrs; catalog auto-resolves; params keyed by FULL-array index.
 - [Code-defined guidebook page](code-defined-guidebook-page.md) — bespoke React guidebook page = static route BEFORE /guidebook/:id + static card in DirectoryGuidebook (not a DB row).
 - [Mission thread lifecycle updates](mission-thread-lifecycle.md) — follow-up posts into a mission's Discord thread; announce-once guards (isEdit, pre-review status snapshot), member posts via detached wrapper.
-- [RipperDoc role grant & backfill](ripperdoc-role-grant.md) — sheet `ripperDoc` flag grants the id-pinned "RipperDoc" role on sheet CLOSE (not submit); admin backfill unions sheet-signal + clinic owners/employees.
-- [EditCharacterDialog form-reset key](dialog-reset-stable-key.md) — reset effect must key on stable character.id, not the character object; amend callers rebuild a new mergedCharacter each render — see topic.
+- Edit dialog: [form-reset keys on stable character.id](dialog-reset-stable-key.md); [main SAVE must flush dirty cyberware-grid rows](edit-dialog-cyberware-flush.md) or they're silently lost.
 - [Account merge wallet retry](account-merge-wallet-retry.md) — multi-leg money move must derive amount from the first leg's ledger row (by idem key), not live balance, or a rerun after partial failure strands the credit.
 - [Business-owner channel access](business-owner-channel-access.md) — store/ripperdoc OWNERS (not employees) get a per-member Discord channel overwrite while owning ≥1 business — see topic.
 - [CyberPsycho access grant](cyberpsycho-access-grant.md) — panel gated on ADMIN/FIXER OR users.cyberpsycho_access; shared /vrchat/session* stays role-only, never grant-reachable.
 - [Sheet draft optimistic concurrency](sheet-draft-optimistic-concurrency.md) — baseUpdatedAt revision token, 409 stale_draft; SQL re-check must date_trunc to ms (defaultNow() microseconds trap).
 - [Character death write paths](character-death-write-paths.md) — lifeStatus flips to dead via 3 write paths + role_sync self-heal; death side effects must wire ALL of them; statuses are active|dead|missing|loa|retired.
-- [Edit-dialog cyberware flush](edit-dialog-cyberware-flush.md) — cyberware grid is a separate immediate-apply save; main SAVE must flush dirty rows or they are silently lost (shipped once).
 - [Event ticket money legs](event-ticket-money-legs.md) — reserve capacity (pending row under lock) BEFORE debit; runner credit never unwinds a purchase (payoutStatus failed + retry); attendance UPDATE repeats status='purchased' guard.
 - [Responsive dual layouts vs Playwright strict mode](responsive-dual-layout-e2e.md) — md:hidden card + hidden md:block table duplicate text in DOM; scope e2e text asserts with `visible=true`.
-- [Global search authz & hrefs](global-search-authz.md) — search result hrefs must be caller-openable pages; staff-scoped rows need staffOnly flag + effective-role scrub or View-as leaks.
 - [Portal bell notifications](portal-bell-notifications.md) — new player-facing events must `void createNotification(...)` at the SAME site as the DM but NOT gated on Test/Live or discordId; api-zod star-export body-name ambiguity trap.
 - [Text-scale px immunity](text-scale-px-immunity.md) — the text-size setting scales rem only; any `text-[Npx]` literal is immune AND tiny; new micro-text must use rem arbitrary values.
 - VRChat auth/identity: [identity resolution](vrchat-identity-resolution.md) linked attribution only when exactly ONE user claims the id, ambiguous never name-matches; [401 verify-before-expire](vrchat-group-instances.md) confirm via /auth/user before wiping session.

@@ -7041,7 +7041,9 @@ export const AdminGetAnalyticsResponse = zod.object({
   "weekly": zod.array(zod.object({
   "weekStart": zod.coerce.date(),
   "missionsRun": zod.number(),
-  "payoutTotal": zod.number()
+  "payoutTotal": zod.number(),
+  "playerPayout": zod.number().optional().describe('Portion of payoutTotal that is player mission pay (mission_payout ledger keys).'),
+  "actorPayout": zod.number().optional().describe('Portion of payoutTotal that is actor\/NPC pay (actor_payout ledger keys).')
 })),
   "totalMissions": zod.number(),
   "totalApplications": zod.number(),
@@ -7070,7 +7072,14 @@ export const AdminGetAnalyticsResponse = zod.object({
   "sheetsPerMonth": zod.array(zod.object({
   "month": zod.coerce.date(),
   "count": zod.number()
-}))
+})),
+  "activityTrend": zod.array(zod.object({
+  "weekStart": zod.coerce.date(),
+  "active": zod.number(),
+  "dormant": zod.number(),
+  "gained": zod.number().describe('Characters that went dormant\/absent -> active this week.'),
+  "lost": zod.number().describe('Characters that went active -> dormant this week.')
+})).optional().describe('Weekly Active(60d)\/Dormant history from the character_snapshot job. Empty until the job has run.')
 }),
   "vrchat": zod.object({
   "weekly": zod.array(zod.object({
@@ -7125,6 +7134,116 @@ export const AdminGetAnalyticsCharactersResponseItem = zod.object({
   "lastActivityAt": zod.coerce.date().nullish().describe('Latest wallet\/mission activity touching the character (active60\/dormant buckets only).')
 })
 export const AdminGetAnalyticsCharactersResponse = zod.array(AdminGetAnalyticsCharactersResponseItem)
+
+
+/**
+ * @summary Drill-down for the Active/Dormant trend: characters gained (went active) or lost (went dormant) in one snapshot week.
+ */
+export const AdminGetAnalyticsCharacterTrendQueryParams = zod.object({
+  "week": zod.coerce.string().describe('Any instant inside the target snapshot week (ISO date or datetime).')
+})
+
+export const AdminGetAnalyticsCharacterTrendResponse = zod.object({
+  "weekStart": zod.string(),
+  "gained": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "ownerName": zod.string().nullable()
+})),
+  "lost": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "ownerName": zod.string().nullable()
+}))
+})
+
+
+/**
+ * @summary Drill-down for the VRChat charts: individual instance sessions behind one weekly bar (week) or one top-world row (world + range).
+ */
+export const adminGetAnalyticsVrchatInstancesQueryRangeDefault = `3m`;
+
+export const AdminGetAnalyticsVrchatInstancesQueryParams = zod.object({
+  "week": zod.coerce.string().optional().describe('Any instant inside the target week. Provide week OR world.'),
+  "world": zod.coerce.string().optional().describe('World name from the top-worlds table. Provide week OR world.'),
+  "range": zod.enum(['4w', '3m', '1y', 'all']).default(adminGetAnalyticsVrchatInstancesQueryRangeDefault).describe('Window applied to world lookups (same semantics as \/admin\/analytics).')
+})
+
+export const AdminGetAnalyticsVrchatInstancesResponse = zod.object({
+  "instances": zod.array(zod.object({
+  "id": zod.number(),
+  "worldName": zod.string(),
+  "source": zod.string().describe('live (poller) or vrcx (imported).'),
+  "firstSeenAt": zod.coerce.date(),
+  "lastSeenAt": zod.coerce.date(),
+  "closedAt": zod.coerce.date().nullable(),
+  "durationMinutes": zod.number(),
+  "peakUserCount": zod.number(),
+  "avgUserCount": zod.number(),
+  "medianUserCount": zod.number().describe('Median of the per-poll head-count samples; 0 when no samples exist.'),
+  "uniqueUsers": zod.number().nullable().describe('Distinct players seen — VRCX-imported rows only.'),
+  "samples": zod.array(zod.object({
+  "at": zod.coerce.date(),
+  "userCount": zod.number()
+})).describe('Head-count series over the instance lifetime, downsampled to <= 60 points.')
+}))
+})
+
+
+/**
+ * @summary Drill-down for the Missions weekly chart: missions completed in one week plus player/actor payout splits.
+ */
+export const AdminGetAnalyticsMissionsWeekQueryParams = zod.object({
+  "week": zod.coerce.string().describe('Any instant inside the target week.')
+})
+
+export const AdminGetAnalyticsMissionsWeekResponse = zod.object({
+  "weekStart": zod.coerce.date(),
+  "totalPayout": zod.number().describe('Mission-category ledger rows created this week (matches the chart bar).'),
+  "playerPayout": zod.number(),
+  "actorPayout": zod.number(),
+  "missions": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "status": zod.string(),
+  "completedAt": zod.coerce.date().nullable(),
+  "fixerName": zod.string().nullable(),
+  "participants": zod.number(),
+  "playerPayout": zod.number().describe('All-time player pay for this mission (may land in a different week).'),
+  "actorPayout": zod.number()
+}))
+})
+
+
+/**
+ * @summary Drill-down for the economy chart: settled transactions behind one (week, category, direction) cell.
+ */
+export const adminGetAnalyticsEconomyTransactionsQueryDirectionDefault = `created`;
+export const adminGetAnalyticsEconomyTransactionsQueryExcludeAboveMin = 0;
+
+
+
+export const AdminGetAnalyticsEconomyTransactionsQueryParams = zod.object({
+  "week": zod.coerce.string().describe('Any instant inside the target week.'),
+  "category": zod.coerce.string(),
+  "direction": zod.enum(['created', 'destroyed']).default(adminGetAnalyticsEconomyTransactionsQueryDirectionDefault),
+  "excludeAbove": zod.coerce.number().min(adminGetAnalyticsEconomyTransactionsQueryExcludeAboveMin).optional().describe('Same whale-exclusion threshold as \/admin\/analytics.')
+})
+
+export const AdminGetAnalyticsEconomyTransactionsResponse = zod.object({
+  "total": zod.number().describe('Sum of |amount| across ALL matching rows (not just the listed page).'),
+  "truncated": zod.boolean().describe('True when more than 500 rows matched and the list was capped.'),
+  "transactions": zod.array(zod.object({
+  "id": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "amount": zod.number(),
+  "kind": zod.string(),
+  "category": zod.string(),
+  "memo": zod.string().nullable(),
+  "userName": zod.string().nullable(),
+  "characterName": zod.string().nullable()
+}))
+})
 
 
 /**
@@ -10465,7 +10584,7 @@ export const AdminSinkWalletResponse = zod.object({
  * @summary Manually trigger a cron job
  */
 export const AdminRunJobBody = zod.object({
-  "job": zod.enum(['cyberware_humanity', 'monthly_rent', 'role_sync', 'eviction_sweep', 'discord_event_sync', 'mission_thread_backfill', 'notification_prune'])
+  "job": zod.enum(['cyberware_humanity', 'monthly_rent', 'role_sync', 'eviction_sweep', 'discord_event_sync', 'mission_thread_backfill', 'notification_prune', 'character_snapshot'])
 })
 
 export const AdminRunJobResponse = zod.object({

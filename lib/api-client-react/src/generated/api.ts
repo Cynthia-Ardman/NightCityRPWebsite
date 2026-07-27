@@ -31,8 +31,13 @@ import type {
   AdminCharacterSummary,
   AdminCreateCharacterInput,
   AdminFixerActivityParams,
+  AdminGetAnalyticsCharacterTrendParams,
   AdminGetAnalyticsCharactersParams,
+  AdminGetAnalyticsEconomyTransactionsParams,
+  AdminGetAnalyticsMissionsWeekParams,
   AdminGetAnalyticsParams,
+  AdminGetAnalyticsVrchatInstances200,
+  AdminGetAnalyticsVrchatInstancesParams,
   AdminListAuditLogParams,
   AdminListAuditParams,
   AdminRecordCheckup200,
@@ -41,6 +46,9 @@ import type {
   AdminSinkInput,
   AdminUser,
   AnalyticsCharacterRow,
+  AnalyticsCharacterTrendWeek,
+  AnalyticsEconomyTransactions,
+  AnalyticsMissionWeekDetail,
   ApplyToMissionInput,
   ApproveOfferResult,
   ArchiveCharacter,
@@ -11924,6 +11932,342 @@ export function useAdminGetAnalyticsCharacters<TData = Awaited<ReturnType<typeof
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getAdminGetAnalyticsCharactersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminGetAnalyticsCharacterTrendUrl = (params: AdminGetAnalyticsCharacterTrendParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/analytics/character-trend?${stringifiedParams}` : `/api/admin/analytics/character-trend`
+}
+
+/**
+ * @summary Drill-down for the Active/Dormant trend: characters gained (went active) or lost (went dormant) in one snapshot week.
+ */
+export const adminGetAnalyticsCharacterTrend = async (params: AdminGetAnalyticsCharacterTrendParams, options?: RequestInit): Promise<AnalyticsCharacterTrendWeek> => {
+
+  return customFetch<AnalyticsCharacterTrendWeek>(getAdminGetAnalyticsCharacterTrendUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetAnalyticsCharacterTrendQueryKey = (params?: AdminGetAnalyticsCharacterTrendParams,) => {
+    return [
+    `/api/admin/analytics/character-trend`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminGetAnalyticsCharacterTrendQueryOptions = <TData = Awaited<ReturnType<typeof adminGetAnalyticsCharacterTrend>>, TError = ErrorType<unknown>>(params: AdminGetAnalyticsCharacterTrendParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalyticsCharacterTrend>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetAnalyticsCharacterTrendQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetAnalyticsCharacterTrend>>> = ({ signal }) => adminGetAnalyticsCharacterTrend(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalyticsCharacterTrend>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetAnalyticsCharacterTrendQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetAnalyticsCharacterTrend>>>
+export type AdminGetAnalyticsCharacterTrendQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Drill-down for the Active/Dormant trend: characters gained (went active) or lost (went dormant) in one snapshot week.
+ */
+
+export function useAdminGetAnalyticsCharacterTrend<TData = Awaited<ReturnType<typeof adminGetAnalyticsCharacterTrend>>, TError = ErrorType<unknown>>(
+ params: AdminGetAnalyticsCharacterTrendParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalyticsCharacterTrend>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetAnalyticsCharacterTrendQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminGetAnalyticsVrchatInstancesUrl = (params?: AdminGetAnalyticsVrchatInstancesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/analytics/vrchat-instances?${stringifiedParams}` : `/api/admin/analytics/vrchat-instances`
+}
+
+/**
+ * @summary Drill-down for the VRChat charts: individual instance sessions behind one weekly bar (week) or one top-world row (world + range).
+ */
+export const adminGetAnalyticsVrchatInstances = async (params?: AdminGetAnalyticsVrchatInstancesParams, options?: RequestInit): Promise<AdminGetAnalyticsVrchatInstances200> => {
+
+  return customFetch<AdminGetAnalyticsVrchatInstances200>(getAdminGetAnalyticsVrchatInstancesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetAnalyticsVrchatInstancesQueryKey = (params?: AdminGetAnalyticsVrchatInstancesParams,) => {
+    return [
+    `/api/admin/analytics/vrchat-instances`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminGetAnalyticsVrchatInstancesQueryOptions = <TData = Awaited<ReturnType<typeof adminGetAnalyticsVrchatInstances>>, TError = ErrorType<unknown>>(params?: AdminGetAnalyticsVrchatInstancesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalyticsVrchatInstances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetAnalyticsVrchatInstancesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetAnalyticsVrchatInstances>>> = ({ signal }) => adminGetAnalyticsVrchatInstances(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalyticsVrchatInstances>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetAnalyticsVrchatInstancesQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetAnalyticsVrchatInstances>>>
+export type AdminGetAnalyticsVrchatInstancesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Drill-down for the VRChat charts: individual instance sessions behind one weekly bar (week) or one top-world row (world + range).
+ */
+
+export function useAdminGetAnalyticsVrchatInstances<TData = Awaited<ReturnType<typeof adminGetAnalyticsVrchatInstances>>, TError = ErrorType<unknown>>(
+ params?: AdminGetAnalyticsVrchatInstancesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalyticsVrchatInstances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetAnalyticsVrchatInstancesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminGetAnalyticsMissionsWeekUrl = (params: AdminGetAnalyticsMissionsWeekParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/analytics/missions-week?${stringifiedParams}` : `/api/admin/analytics/missions-week`
+}
+
+/**
+ * @summary Drill-down for the Missions weekly chart: missions completed in one week plus player/actor payout splits.
+ */
+export const adminGetAnalyticsMissionsWeek = async (params: AdminGetAnalyticsMissionsWeekParams, options?: RequestInit): Promise<AnalyticsMissionWeekDetail> => {
+
+  return customFetch<AnalyticsMissionWeekDetail>(getAdminGetAnalyticsMissionsWeekUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetAnalyticsMissionsWeekQueryKey = (params?: AdminGetAnalyticsMissionsWeekParams,) => {
+    return [
+    `/api/admin/analytics/missions-week`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminGetAnalyticsMissionsWeekQueryOptions = <TData = Awaited<ReturnType<typeof adminGetAnalyticsMissionsWeek>>, TError = ErrorType<unknown>>(params: AdminGetAnalyticsMissionsWeekParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalyticsMissionsWeek>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetAnalyticsMissionsWeekQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetAnalyticsMissionsWeek>>> = ({ signal }) => adminGetAnalyticsMissionsWeek(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalyticsMissionsWeek>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetAnalyticsMissionsWeekQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetAnalyticsMissionsWeek>>>
+export type AdminGetAnalyticsMissionsWeekQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Drill-down for the Missions weekly chart: missions completed in one week plus player/actor payout splits.
+ */
+
+export function useAdminGetAnalyticsMissionsWeek<TData = Awaited<ReturnType<typeof adminGetAnalyticsMissionsWeek>>, TError = ErrorType<unknown>>(
+ params: AdminGetAnalyticsMissionsWeekParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalyticsMissionsWeek>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetAnalyticsMissionsWeekQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminGetAnalyticsEconomyTransactionsUrl = (params: AdminGetAnalyticsEconomyTransactionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/analytics/economy-transactions?${stringifiedParams}` : `/api/admin/analytics/economy-transactions`
+}
+
+/**
+ * @summary Drill-down for the economy chart: settled transactions behind one (week, category, direction) cell.
+ */
+export const adminGetAnalyticsEconomyTransactions = async (params: AdminGetAnalyticsEconomyTransactionsParams, options?: RequestInit): Promise<AnalyticsEconomyTransactions> => {
+
+  return customFetch<AnalyticsEconomyTransactions>(getAdminGetAnalyticsEconomyTransactionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetAnalyticsEconomyTransactionsQueryKey = (params?: AdminGetAnalyticsEconomyTransactionsParams,) => {
+    return [
+    `/api/admin/analytics/economy-transactions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminGetAnalyticsEconomyTransactionsQueryOptions = <TData = Awaited<ReturnType<typeof adminGetAnalyticsEconomyTransactions>>, TError = ErrorType<unknown>>(params: AdminGetAnalyticsEconomyTransactionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalyticsEconomyTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetAnalyticsEconomyTransactionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetAnalyticsEconomyTransactions>>> = ({ signal }) => adminGetAnalyticsEconomyTransactions(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalyticsEconomyTransactions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetAnalyticsEconomyTransactionsQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetAnalyticsEconomyTransactions>>>
+export type AdminGetAnalyticsEconomyTransactionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Drill-down for the economy chart: settled transactions behind one (week, category, direction) cell.
+ */
+
+export function useAdminGetAnalyticsEconomyTransactions<TData = Awaited<ReturnType<typeof adminGetAnalyticsEconomyTransactions>>, TError = ErrorType<unknown>>(
+ params: AdminGetAnalyticsEconomyTransactionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetAnalyticsEconomyTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetAnalyticsEconomyTransactionsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
