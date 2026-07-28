@@ -2148,6 +2148,44 @@ describe("Mission applications", () => {
     expect(res.body).toHaveLength(0);
   });
 
+  it("my-application-outcomes excludes completed and cancelled missions", async () => {
+    const player = await createUser();
+    const admin = await createUser({ roles: ["admin"] });
+    const charA = await createCharacter({ ownerId: player.id });
+    const charB = await createCharacter({ ownerId: player.id });
+    const charC = await createCharacter({ ownerId: player.id });
+    const live = await postedMission();
+    const done = await postedMission();
+    const cancelled = await postedMission();
+
+    for (const [m, c] of [
+      [live, charA],
+      [done, charB],
+      [cancelled, charC],
+    ] as const) {
+      const applied = await request(app)
+        .post(`/api/missions/${m.id}/applications`)
+        .set("x-test-user", player.id)
+        .send({ characterId: c.id, availability: AVAIL });
+      await request(app)
+        .post(`/api/missions/${m.id}/applications/${applied.body.myApplication.id}/review`)
+        .set("x-test-user", admin.id)
+        .send({ action: "accept" });
+    }
+    // Completion is signalled by completedAt (status can stay 'open').
+    await db.update(missions).set({ completedAt: new Date() }).where(eq(missions.id, done.id));
+    await db.update(missions).set({ status: "cancelled" }).where(eq(missions.id, cancelled.id));
+
+    const res = await request(app)
+      .get("/api/missions/my-application-outcomes")
+      .set("x-test-user", player.id);
+    expect(res.status).toBe(200);
+    const ids = (res.body as Array<{ missionId: number }>).map((o) => o.missionId);
+    expect(ids).toContain(live.id);
+    expect(ids).not.toContain(done.id);
+    expect(ids).not.toContain(cancelled.id);
+  });
+
   it("an accepted/rejected application stays visible to the player after the mission closes", async () => {
     const player = await createUser();
     const admin = await createUser({ roles: ["admin"] });

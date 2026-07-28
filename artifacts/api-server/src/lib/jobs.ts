@@ -118,6 +118,20 @@ export async function householdEffectiveCheckupDate(
 // a safety bound on Math.pow.
 export const CYBERWARE_MAX_STREAK = 12;
 
+// Next cyberware_humanity (weekly meds) cron tick: 05:00 UTC on Mondays.
+// Billing and the dashboard projection both evaluate the checkup streak AT
+// this instant, not "right now" — so anything that wants to cap the billed
+// week (e.g. the checkup-reset floor event) must anchor against it too.
+export function nextWeeklyRunDate(now: Date = new Date()): Date {
+  const d = new Date(now.getTime());
+  d.setUTCHours(5, 0, 0, 0);
+  const dow = d.getUTCDay(); // 0=Sun..6=Sat; Monday=1
+  const daysUntilMon = (1 - dow + 7) % 7;
+  d.setUTCDate(d.getUTCDate() + daysUntilMon);
+  if (d.getTime() <= now.getTime()) d.setUTCDate(d.getUTCDate() + 7);
+  return d;
+}
+
 // Weeks since the last ripperdoc checkup, projected forward to a given
 // cron tick (defaults to "right now"). Returns 1 if a checkup just
 // happened (first tick after a checkup is week 1). Capped at

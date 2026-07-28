@@ -23,7 +23,7 @@ import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { recordSettledWalletMovement } from "../lib/economy";
 import { logger } from "../lib/logger";
 import { hasRole } from "../lib/discord";
-import { projectedWeeklyMeds, weeksSinceLastCheckup, deriveCyberwareBand, countsForCyberwareBilling } from "../lib/jobs";
+import { projectedWeeklyMeds, weeksSinceLastCheckup, deriveCyberwareBand, countsForCyberwareBilling, nextWeeklyRunDate } from "../lib/jobs";
 import { sumCwpByCharacter } from "../lib/cyberware";
 import {
   DEFAULT_BASELINE_LIVING_COST,
@@ -39,16 +39,8 @@ function nextMonthlyRunDate(now: Date = new Date()): Date {
   return d;
 }
 
-// cyberware_humanity cron runs 05:00 UTC on Mondays.
-function nextWeeklyRunDate(now: Date = new Date()): Date {
-  const d = new Date(now.getTime());
-  d.setUTCHours(5, 0, 0, 0);
-  const dow = d.getUTCDay(); // 0=Sun..6=Sat; Monday=1
-  const daysUntilMon = (1 - dow + 7) % 7;
-  d.setUTCDate(d.getUTCDate() + daysUntilMon);
-  if (d.getTime() <= now.getTime()) d.setUTCDate(d.getUTCDate() + 7);
-  return d;
-}
+// cyberware_humanity cron runs 05:00 UTC on Mondays — shared helper in
+// lib/jobs.ts (also used by the checkup-reset floor in admin.ts).
 
 const router: IRouter = Router();
 

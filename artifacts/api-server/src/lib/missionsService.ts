@@ -1400,6 +1400,13 @@ export async function listApplicantOutcomes(userId: string, limit = 20) {
       and(
         eq(missionApplications.userId, userId),
         inArray(missionApplications.status, ["accepted", "rejected"]),
+        // Only outcomes the player can still act on: once the mission is
+        // completed (completedAt is the real completion signal — status stays
+        // 'open') or cancelled, the result is history and must stop
+        // resurfacing in the banner (client-side dismissal is per-device
+        // localStorage, so old gigs otherwise nag forever on other devices).
+        isNull(missions.completedAt),
+        notInArray(missions.status, ["cancelled", "completed"]),
       ),
     )
     .orderBy(desc(missionApplications.reviewedAt))

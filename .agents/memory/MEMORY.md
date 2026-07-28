@@ -157,3 +157,4 @@
 - [OAuth redirect host allowlist](oauth-redirect-host-allowlist.md) — Discord OAuth must round-trip on the browsing host (allowlisted echo), never one pinned domain; each host needs a registered Discord redirect URI.
 - [Player character tags](character-player-tags.md) — registry-locked tag edits; resolveRegistryTags returns {tags,unknown} (close is lenient); PATCH locks row in-tx vs importer.
 - [Closed-outcome preservation](closed-outcome-preservation.md) — every review close path sets closed_outcome (pre-close status), reopen clears it; sheets archive audit must log prevStatus not post-close.
+- [Outcome banners filter server-side](mission-application-row-picker.md) — applicant-outcome banners exclude completed (completedAt)/cancelled missions in SQL; localStorage dismissal is per-device and can never be the only guard.

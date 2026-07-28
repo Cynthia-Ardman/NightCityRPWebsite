@@ -21,7 +21,7 @@ import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscor
 import { resolveOrProvisionUser } from "../lib/userProvision";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
-import { runJob, deriveCyberwareBand, weeksSinceLastCheckup, CYBERWARE_MAX_STREAK, householdEffectiveCheckupDate } from "../lib/jobs";
+import { runJob, deriveCyberwareBand, weeksSinceLastCheckup, CYBERWARE_MAX_STREAK, householdEffectiveCheckupDate, nextWeeklyRunDate } from "../lib/jobs";
 import { recordAudit, recordAuditInline } from "../lib/audit";
 import { listMissionThreadBackfillTargets, runMissionThreadBackfill } from "../lib/missionsService";
 import { repairGuidebookLinks } from "../lib/guidebookImport";
@@ -953,11 +953,21 @@ router.post("/admin/characters/:id/checkup", requireAuth, async (req, res): Prom
   const now = new Date();
   // Temporary floor mode (see CHECKUP_FLOOR_KEY above): cap the reset at week
   // N instead of clearing it. weeksSinceLastCheckup() maps a date D to
-  // floor((now-D)/1w)+1, so "exactly week N" = now - (N-1) weeks.
+  // floor((runAt-D)/1w)+1, so "exactly week N at the next billing run" =
+  // nextRun - (N-1) weeks.
   const floorWeeks = await checkupResetFloorWeeks();
   let checkupDate = now;
   if (floorWeeks >= 1) {
-    const floorDate = new Date(now.getTime() - (floorWeeks - 1) * 7 * 86400000);
+    // Anchor the cap against the NEXT weekly billing run, not "now". Billing
+    // (the cyberware_humanity cron) and the dashboard projection both compute
+    // weeksSinceLastCheckup AT the next Monday 05:00 UTC tick — so a date set
+    // to "week N as of now" reads as week N+1 by the time the bill lands
+    // (e.g. a Sunday checkup under floor 4 was billed at week 5 the next
+    // morning). date = nextRun - (N-1) weeks makes the run itself week N
+    // exactly. Clamp to `now` so N=1 (or a run inside the window) never
+    // stamps a future checkup date.
+    const anchored = nextWeeklyRunDate(now).getTime() - (floorWeeks - 1) * 7 * 86400000;
+    const floorDate = new Date(Math.min(anchored, now.getTime()));
     // Effective date mirrors billing exactly: lastCheckupAt when set, else
     // createdAt (the implicit initial checkup). Do NOT max() with createdAt —
     // billing derives weeks from lastCheckupAt whenever present, and the floor
@@ -991,7 +1001,9 @@ router.post("/admin/characters/:id/checkup", requireAuth, async (req, res): Prom
       // Mirror weeks: 0 for a normal full reset; under floor mode, the capped
       // week count minus 1 (the mirror historically stores "completed weeks",
       // matching weeks:0 for a just-now checkup where weeksSince = 1).
-      const mirrorWeeks = Math.max(0, weeksSinceLastCheckup(checkupDate, now) - 1);
+      // Evaluate at the next billing run — the same instant billing uses —
+      // so a floor-capped checkup mirrors exactly N-1, not a drifting value.
+      const mirrorWeeks = Math.max(0, weeksSinceLastCheckup(checkupDate, nextWeeklyRunDate(now)) - 1);
       await db
         .insert(botCyberwareStatus)
         .values({ userId: owner.discordId, weeks: mirrorWeeks, lastProcessed: now, updatedAt: now })

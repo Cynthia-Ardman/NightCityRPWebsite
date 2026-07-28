@@ -10,6 +10,7 @@ vi.mock("../lib/unbelievaboat", () => ({
 
 import { db, characters, users, walletTransactions, auditLog, botConfig } from "@workspace/db";
 import { patchBalance } from "../lib/unbelievaboat";
+import { nextWeeklyRunDate } from "../lib/jobs";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
 
@@ -125,45 +126,54 @@ describe("POST /admin/characters/:id/checkup — temporary reset floor", () => {
 
   const clearFloor = () => db.delete(botConfig).where(eq(botConfig.key, FLOOR_KEY));
 
-  // weeksSinceLastCheckup maps a date D to floor((now - D) / 1w) + 1.
-  const weeksOf = (iso: string) =>
-    Math.floor((Date.now() - new Date(iso).getTime()) / (7 * DAY)) + 1;
+  // The billing week is evaluated AT the next weekly cron run (Monday 05:00
+  // UTC), not "now" — the floor anchors against that same instant so the
+  // BILLED week is exactly N. weeksSinceLastCheckup maps a date D to
+  // floor((runAt - D) / 1w) + 1.
+  const billedWeeksOf = (iso: string) =>
+    Math.floor((nextWeeklyRunDate().getTime() - new Date(iso).getTime()) / (7 * DAY)) + 1;
 
   beforeEach(async () => {
     await clearFloor();
   });
 
-  it("caps a week-5 character at week 4 when the floor is 4", async () => {
+  it("caps a week-5 character so the NEXT BILLING RUN charges week 4 when the floor is 4", async () => {
     await setFloor(4);
     const admin = await createAdmin();
     const owner = await createUser();
     const char = await createCharacter({ ownerId: owner.id });
-    const fiveWeeksAgo = new Date(Date.now() - 32 * DAY); // ~week 5
+    const fiveWeeksAgo = new Date(Date.now() - 40 * DAY); // week 6+ at the next run
     await db.update(characters).set({ lastCheckupAt: fiveWeeksAgo }).where(eq(characters.id, char.id));
     const res = await request(app)
       .post(`/api/admin/characters/${char.id}/checkup`)
       .set("x-test-user", admin.id)
       .send({});
     expect(res.status).toBe(200);
-    expect(weeksOf(res.body.lastCheckupAt)).toBe(4);
+    // The stamped date is exactly nextRun - 3 weeks → billed week is 4, not 5
+    // (the old "now - 3 weeks" anchor read as week 5 by Monday's cron).
+    expect(billedWeeksOf(res.body.lastCheckupAt)).toBe(4);
+    expect(new Date(res.body.lastCheckupAt).getTime()).toBe(
+      nextWeeklyRunDate().getTime() - 3 * 7 * DAY,
+    );
     await clearFloor();
   });
 
-  it("leaves a week-3 character untouched when the floor is 4", async () => {
+  it("leaves a character already under the floor untouched when the floor is 4", async () => {
     await setFloor(4);
     const admin = await createAdmin();
     const owner = await createUser();
     const char = await createCharacter({ ownerId: owner.id });
-    const threeWeeksAgo = new Date(Date.now() - 16 * DAY); // ~week 3
-    await db.update(characters).set({ lastCheckupAt: threeWeeksAgo }).where(eq(characters.id, char.id));
+    // Week 2 at the next run — newer than the floor anchor, so no backdating.
+    const recent = new Date(nextWeeklyRunDate().getTime() - 10 * DAY);
+    await db.update(characters).set({ lastCheckupAt: recent }).where(eq(characters.id, char.id));
     const res = await request(app)
       .post(`/api/admin/characters/${char.id}/checkup`)
       .set("x-test-user", admin.id)
       .send({});
     expect(res.status).toBe(200);
-    // Date must be exactly the pre-existing one — never moved backward OR forward.
-    expect(new Date(res.body.lastCheckupAt).getTime()).toBe(threeWeeksAgo.getTime());
-    expect(weeksOf(res.body.lastCheckupAt)).toBe(3);
+    // Date must be exactly the pre-existing one — never moved backward.
+    expect(new Date(res.body.lastCheckupAt).getTime()).toBe(recent.getTime());
+    expect(billedWeeksOf(res.body.lastCheckupAt)).toBe(2);
     await clearFloor();
   });
 
@@ -194,14 +204,14 @@ describe("POST /admin/characters/:id/checkup — temporary reset floor", () => {
       .set("x-test-user", admin.id)
       .send({});
     expect(checkupRes.status).toBe(200);
-    expect(weeksOf(checkupRes.body.lastCheckupAt)).toBe(4);
+    expect(billedWeeksOf(checkupRes.body.lastCheckupAt)).toBe(4);
 
     const res = await request(app)
       .get(`/api/admin/characters/${char.id}/medical`)
       .set("x-test-user", admin.id);
     expect(res.status).toBe(200);
-    // Billing-effective date is backdated (~3 weeks ago)…
-    expect(weeksOf(res.body.lastCheckupAt)).toBe(4);
+    // Billing-effective date is backdated so the next run bills week 4…
+    expect(billedWeeksOf(res.body.lastCheckupAt)).toBe(4);
     // …but the actual visit date is just now (from the audit trail).
     expect(res.body.lastCheckupActualAt).toBeTruthy();
     expect(Date.now() - new Date(res.body.lastCheckupActualAt).getTime()).toBeLessThan(60_000);
