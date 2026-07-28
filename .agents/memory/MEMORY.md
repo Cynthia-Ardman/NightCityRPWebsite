@@ -31,6 +31,7 @@
 - [Archive tag storage split](archive-tag-storage.md) — tags live in appliedTags (importer-owned, overwritten) + manualTags (staff-owned); read/filter the UNION so re-import can't wipe manual tags.
 - Audit: [recordAudit() swallows failures — traceable endpoints write audit+changelog inline in a db.transaction](audit-trail-durability.md); [staff PATCH must audit like sibling create/delete](staff-edit-audit-parity.md).
 - [Catalog PATCH response parity](catalog-patch-response-parity.md) — staff edit PATCH must return the SAME computed-field shape as the GET (e.g. rent's `occupied`), or generated clients drift from the contract.
+- [Mission completedAt stamping](mission-completedat-stamping.md) — every status advance into completed_* must stamp completedAt (completedAtStamp helper) or "upcoming" filters flag finished missions.
 - [Mission data locations](mission-data-locations.md) — empty LN/missions page is by-design (check missions_id_seq before "restoring"); user-facing "missions" = legacy bot mission_event; import-legacy-missions(+assignments).ts backfill them.
 - Mission pay races: [durable uniqueness guard BEFORE the UB call](mission-payout-idempotency.md); [re-check completedAt inside INSERT...SELECT](mission-completion-lock-race.md); [roster remove re-checks paid FOR UPDATE](mission-remove-pay-race.md).
 - [Archivist approver ≠ manager](archivist-approver-not-manager.md) — ARCHIVIST gates approve only; canManage stays isManager; broaden visibility/owned-board for archivists but gate submit/post UI on canManage or it 403s.

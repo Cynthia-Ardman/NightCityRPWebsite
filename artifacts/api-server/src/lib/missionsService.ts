@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { and, or, eq, desc, gt, lte, inArray, notInArray, isNull, isNotNull, ne, sql } from "drizzle-orm";
+import { and, or, eq, desc, gt, lte, inArray, notInArray, isNull, isNotNull, ne, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   db,
@@ -86,6 +86,24 @@ export const MISSION_STATUSES = [
   "cancelled",
 ] as const;
 export type MissionStatus = (typeof MISSION_STATUSES)[number];
+
+// The completed_* sub-states. Historically some payout paths advanced status
+// into these WITHOUT stamping completedAt, so "upcoming" predicates that only
+// checked completedAt kept treating finished missions as upcoming. Payout
+// advances now stamp completedAt (see completedAtStamp), and upcoming filters
+// exclude these statuses as belt-and-braces.
+export const MISSION_COMPLETED_STATUSES = [
+  "completed",
+  "completed_players_paid",
+  "completed_paid",
+] as const;
+
+// Set-clause fragment: preserve an existing completedAt, else stamp now() when
+// the new status is a completed_* one.
+function completedAtStamp(newStatus: string): { completedAt?: SQL } {
+  if (!(MISSION_COMPLETED_STATUSES as readonly string[]).includes(newStatus)) return {};
+  return { completedAt: sql`COALESCE(${missions.completedAt}, now())` };
+}
 
 export function isMissionStatus(s: unknown): s is MissionStatus {
   return typeof s === "string" && (MISSION_STATUSES as readonly string[]).includes(s);
@@ -1232,6 +1250,9 @@ async function loadUpcomingAcceptanceByUser(
     eq(missions.workflowState, "posted"),
     ne(missions.status, "cancelled"),
     isNull(missions.completedAt),
+    // Belt-and-braces: some legacy rows reached a completed_* status without
+    // a completedAt stamp (payout paths didn't set it before completedAtStamp).
+    notInArray(missions.status, [...MISSION_COMPLETED_STATUSES]),
   );
 
   // Roster assignments on upcoming missions.
@@ -2140,7 +2161,10 @@ async function applySecondPhaseStatus(missionId: number): Promise<void> {
   const npc = await getNpcSettlement(missionId);
   const newStatus = statusAfterSecondPhase(m.status, npc.outstanding);
   if (newStatus !== m.status) {
-    await db.update(missions).set({ status: newStatus }).where(eq(missions.id, missionId));
+    await db
+      .update(missions)
+      .set({ status: newStatus, ...completedAtStamp(newStatus) })
+      .where(eq(missions.id, missionId));
   }
 }
 
@@ -3215,7 +3239,7 @@ export async function payMissionPlayers(
     : mission.status;
   await db
     .update(missions)
-    .set({ status: newStatus, autoPayProcessedAt: mission.autoPayProcessedAt ?? now })
+    .set({ status: newStatus, autoPayProcessedAt: mission.autoPayProcessedAt ?? now, ...completedAtStamp(newStatus) })
     .where(eq(missions.id, missionId));
 
   await recordAudit({
@@ -3421,7 +3445,10 @@ export async function payMissionActors(
     const npc = await getNpcSettlement(missionId);
     const newStatus = statusAfterSecondPhase(mission.status, npc.outstanding);
     if (newStatus !== mission.status) {
-      await db.update(missions).set({ status: newStatus }).where(eq(missions.id, missionId));
+      await db
+        .update(missions)
+        .set({ status: newStatus, ...completedAtStamp(newStatus) })
+        .where(eq(missions.id, missionId));
     }
   }
 

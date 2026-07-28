@@ -1682,6 +1682,16 @@ describe("Mission applications", () => {
     const detail2 = await request(app).get(`/api/missions/${other.id}`).set("x-test-user", admin.id);
     const view2 = detail2.body.applications.find((a: { userId: string }) => a.userId === player.id);
     expect(view2.upcomingAcceptedMissionId).toBeNull();
+
+    // Legacy rows: a completed_* STATUS with a NULL completedAt (payout paths
+    // used to advance status without stamping) must also not count as upcoming.
+    await db
+      .update(missions)
+      .set({ completedAt: null, status: "completed_paid" })
+      .where(eq(missions.id, upcoming.id));
+    const detail3 = await request(app).get(`/api/missions/${other.id}`).set("x-test-user", admin.id);
+    const view3 = detail3.body.applications.find((a: { userId: string }) => a.userId === player.id);
+    expect(view3.upcomingAcceptedMissionId).toBeNull();
   });
 
   it("fixer per-applicant application lookup returns pending-on-upcoming only; player-role callers get 403", async () => {
