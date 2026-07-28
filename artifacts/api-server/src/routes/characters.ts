@@ -32,12 +32,7 @@ import { syncTagRolesForCharacter } from "../lib/tagRoles";
 import { announceRequest } from "./requests";
 import { createPendingEdit } from "./pending-edits";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
-import {
-  loadCyberwareSlotByName,
-  resolveSlotForItem,
-  isCappedSlot,
-  normalizeSlot,
-} from "../lib/cyberwareSlots";
+import { installSlotClashError } from "../lib/cyberwareSlots";
 import { isSessionWindowOpen, nextSessionWindowStart, SESSION_WINDOW_HINT } from "../lib/sessionWindow";
 import { parseCwp } from "../lib/cyberware";
 import { isStaffRoles } from "../lib/roleChecks";
@@ -573,33 +568,19 @@ router.post("/characters/:id/inventory", requireAuth, async (req, res): Promise<
     typeof category === "string" && normalizeName(category) === "cyberware"
       ? "cyberware"
       : category;
-  // One cyberware item per capped slot, per (player) character. Miscellaneous,
-  // Custom/one-off and unresolved-slot chrome are intentionally uncapped and
-  // can stack. NPCs are exempt — staff manage their chrome freely. The slot is
-  // resolved from the note's "slot:" tag, falling back to a catalog name match.
-  if (canonCategory === "cyberware" && c.kind !== "npc") {
-    const catalogByName = await loadCyberwareSlotByName();
-    const newSlot = resolveSlotForItem({ name, notes: notes ?? null }, catalogByName);
-    if (isCappedSlot(newSlot)) {
-      const existing = await db
-        .select({ name: inventoryItems.name, notes: inventoryItems.notes })
-        .from(inventoryItems)
-        .where(
-          and(
-            eq(inventoryItems.characterId, id),
-            sql`lower(trim(${inventoryItems.category})) = 'cyberware'`,
-          ),
-        );
-      const targetKey = normalizeSlot(newSlot);
-      const clash = existing.some(
-        (e) => normalizeSlot(resolveSlotForItem(e, catalogByName)) === targetKey,
-      );
-      if (clash) {
-        res.status(409).json({
-          error: `This character already has cyberware in the ${newSlot} slot. Only Miscellaneous and Custom cyberware can stack.`,
-        });
-        return;
-      }
+  // Installed-cyberware guards for (player) characters: only one installed
+  // copy of any item, one item per capped slot, no installed qty > 1. Applies
+  // only when the new row is INSTALLED (carries a "CWP n" note tag) — adding
+  // an uninstalled spare to the stash is always allowed. NPCs are exempt.
+  if (canonCategory === "cyberware" && c.kind !== "npc" && parseCwp(notes ?? null) != null) {
+    const clashErr = await installSlotClashError({
+      buyer: { id, kind: c.kind },
+      item: { name, notes: notes ?? null },
+      qty: Number(quantity) || 1,
+    });
+    if (clashErr) {
+      res.status(409).json({ error: clashErr });
+      return;
     }
   }
   const [it] = await db

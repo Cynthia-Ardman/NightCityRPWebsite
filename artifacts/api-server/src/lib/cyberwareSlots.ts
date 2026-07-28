@@ -90,28 +90,43 @@ export function resolveSlotForItem(
   return catalogByName.get(normalizeName(item.name)) ?? "";
 }
 
-// Detect a capped-slot duplicate WITHIN a batch of about-to-be-seeded
-// installed cyberware rows. Sheet approval and admin character creation seed
-// whole sets at once, so the per-item install guard never sees the sibling
-// rows in the same batch (prod character 228: NeoFiber + Dense Marrow both
-// landed in "Skeleton & Torso Musculature" from one sheet approval).
-// Returns a user-facing error string on the first clash, or null when clean.
+// Detect duplicates WITHIN a batch of about-to-be-seeded installed cyberware
+// rows. Sheet approval and admin character creation seed whole sets at once,
+// so the per-item install guard never sees the sibling rows in the same batch
+// (prod character 228: NeoFiber + Dense Marrow both landed in "Skeleton &
+// Torso Musculature" from one sheet approval). Two rules:
+//   1. at most ONE installed copy of any cyberware item (by normalized name),
+//      in ANY slot — and no installed row with quantity > 1 (prod character
+//      665: a single "NeoFiber x2" install row);
+//   2. at most one installed item per CAPPED slot.
+// Returns a user-facing error string on the first violation, or null.
 export function batchSlotClashError(
-  rows: Array<{ name: string | null; notes: string | null }>,
+  rows: Array<{ name: string | null; notes: string | null; quantity?: number | null }>,
   catalogByName: Map<string, string>,
 ): string | null {
-  const seen = new Map<string, string>(); // normalized slot -> first item name
+  const seenSlots = new Map<string, string>(); // normalized slot -> first item name
+  const seenNames = new Set<string>(); // normalized item name
   for (const r of rows) {
-    // Only INSTALLED chrome (rows carrying a "CWP n" tag) occupies a slot.
+    // Only INSTALLED chrome (rows carrying a "CWP n" tag) counts.
     if (parseCwp(r.notes) == null) continue;
+    if ((r.quantity ?? 1) > 1) {
+      return `"${r.name ?? "An item"}" is listed as installed with quantity ${r.quantity} — only one copy of a cyberware item can be installed on a character.`;
+    }
+    const nameKey = normalizeName(r.name);
+    if (nameKey) {
+      if (seenNames.has(nameKey)) {
+        return `"${r.name}" appears more than once as installed cyberware — only one copy of a cyberware item can be installed on a character.`;
+      }
+      seenNames.add(nameKey);
+    }
     const slot = resolveSlotForItem(r, catalogByName);
     if (!isCappedSlot(slot)) continue;
     const key = normalizeSlot(slot);
-    const first = seen.get(key);
+    const first = seenSlots.get(key);
     if (first) {
       return `"${first}" and "${r.name ?? "another item"}" both occupy the ${slot} slot — only one piece of cyberware can be installed per slot. Remove one of them first.`;
     }
-    seen.set(key, r.name ?? "item");
+    seenSlots.set(key, r.name ?? "item");
   }
   return null;
 }
@@ -132,12 +147,17 @@ export async function installSlotClashError(opts: {
 }): Promise<string | null> {
   const { buyer, item, qty } = opts;
   if (buyer.kind === "npc") return null;
+  // NOTE: callers on install paths may pass notes without a "CWP n" tag
+  // (e.g. stock-install completion passes notes: null), so this guard always
+  // treats the incoming item as about-to-be-installed. A caller adding an
+  // uninstalled spare must skip the guard itself (see manual inventory add).
+  // No installed cyberware row may carry quantity > 1 — "NeoFiber x2
+  // installed" means two installed copies, which is never allowed (any slot).
+  if (qty > 1) {
+    return `Only one ${item.name ?? "item"} can be installed on a character. Install a single unit — a spare can stay in the inventory uninstalled.`;
+  }
   const catalogByName = await loadCyberwareSlotByName();
   const slot = resolveSlotForItem(item, catalogByName);
-  if (!isCappedSlot(slot)) return null;
-  if (qty > 1) {
-    return `Only one ${item.name ?? "item"} can be installed — the ${slot} slot holds a single piece of cyberware.`;
-  }
   const ex = opts.executor ?? db;
   const conds = [
     eq(inventoryItems.characterId, buyer.id),
@@ -148,13 +168,20 @@ export async function installSlotClashError(opts: {
     .select({ name: inventoryItems.name, notes: inventoryItems.notes })
     .from(inventoryItems)
     .where(and(...conds));
+  // Only INSTALLED chrome (rows carrying a "CWP n" tag) counts — loose,
+  // uninstalled pieces in the stash never block an install.
+  const installed = existing.filter((e) => parseCwp(e.notes) != null);
+  // Rule 1 (any slot, capped or not): at most one installed copy of a given
+  // cyberware item per character. A spare may sit uninstalled in inventory.
+  const nameKey = normalizeName(item.name);
+  if (nameKey && installed.some((e) => normalizeName(e.name) === nameKey)) {
+    return `This character already has ${item.name} installed. Only one copy of a cyberware item can be installed — remove the existing one first.`;
+  }
+  // Rule 2: one installed item per CAPPED slot.
+  if (!isCappedSlot(slot)) return null;
   const targetKey = normalizeSlot(slot);
-  // Only INSTALLED chrome (rows carrying a "CWP n" tag) occupies a slot —
-  // loose, uninstalled pieces in the stash don't block an install.
-  const clash = existing.some(
-    (e) =>
-      parseCwp(e.notes) != null &&
-      normalizeSlot(resolveSlotForItem(e, catalogByName)) === targetKey,
+  const clash = installed.some(
+    (e) => normalizeSlot(resolveSlotForItem(e, catalogByName)) === targetKey,
   );
   return clash
     ? `This character already has cyberware in the ${slot} slot. Only Miscellaneous and Custom cyberware can stack.`

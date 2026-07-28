@@ -228,12 +228,11 @@ describe("POST /ripperdocs/:id/install — one-per-capped-slot", () => {
     expect(res.body.error).toMatch(/already has cyberware in the Neural slot/i);
   });
 
-  it("allows Miscellaneous-slot cyberware to stack (qty 2 + existing copy)", async () => {
+  it("409s qty > 1 even in an uncapped (Miscellaneous) slot — one installed copy max", async () => {
     await setEconomyMode("enabled");
     await seedCatalog();
     const { owner, clinic, buyer, buyerUser } = await seedClinic();
     await fund(buyerUser.id, 1000);
-    await installChrome(buyer.id, buyerUser.id, "Skill Chip", 1);
     const [stock] = await db
       .insert(ripperdocStock)
       .values({ ripperdocId: clinic.id, name: "Skill Chip", category: "cyberware", price: 50, quantity: 2, notes: "CWP 1" })
@@ -242,8 +241,26 @@ describe("POST /ripperdocs/:id/install — one-per-capped-slot", () => {
       .post(`/api/ripperdocs/${clinic.id}/install`)
       .set("x-test-user", owner.id)
       .send({ stockId: stock.id, buyerCharacterId: buyer.id, qty: 2 });
-    expect(res.status).toBe(200);
-    expect(res.body.offer.status).toBe("approved");
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/Only one/i);
+  });
+
+  it("409s installing a second copy of chrome already installed in an uncapped slot", async () => {
+    await setEconomyMode("enabled");
+    await seedCatalog();
+    const { owner, clinic, buyer, buyerUser } = await seedClinic();
+    await fund(buyerUser.id, 1000);
+    await installChrome(buyer.id, buyerUser.id, "Skill Chip", 1);
+    const [stock] = await db
+      .insert(ripperdocStock)
+      .values({ ripperdocId: clinic.id, name: "Skill Chip", category: "cyberware", price: 50, quantity: 1, notes: "CWP 1" })
+      .returning();
+    const res = await request(app)
+      .post(`/api/ripperdocs/${clinic.id}/install`)
+      .set("x-test-user", owner.id)
+      .send({ stockId: stock.id, buyerCharacterId: buyer.id, qty: 1 });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/already has Skill Chip installed/i);
   });
 
   it("exempts NPCs from the slot cap", async () => {
