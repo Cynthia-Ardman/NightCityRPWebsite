@@ -33,3 +33,5 @@ remembered choice rather than an accident of locale.
 
 **How to apply:** any new time/date label in this grid must take the `hour12`
 flag and keep the date format fixed; only the clock format follows the toggle.
+
+- Application pre-fill must use saved DATE-SPECIFIC instants verbatim when any fall in the visible window; collapsing to a weekly pattern and re-expanding repaints days the player deliberately cleared (refresh "undoes" edits). Weekly re-projection only for fully-stale (all-past) sets.

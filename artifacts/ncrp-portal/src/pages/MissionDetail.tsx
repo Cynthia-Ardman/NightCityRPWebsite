@@ -734,6 +734,24 @@ function ApplySection({ data }: { data: MissionDetailModel }) {
     if (prefilled.current) return;
     let pattern: AvailabilitySlot[] | null = null;
     if (existing?.availability && existing.availability.length > 0) {
+      // Use the player's saved DATE-SPECIFIC picks verbatim when they still
+      // fall inside the visible window. Collapsing them to a weekly pattern
+      // and re-expanding would repaint days they deliberately cleared (e.g.
+      // clearing THIS Friday while next Friday stays painted made refresh
+      // "undo" the change). Only a fully-stale set (all instants in the past,
+      // i.e. a re-apply on a withdrawn application) re-projects via the
+      // weekly pattern.
+      const windowStart = days[0].getTime();
+      const windowEnd = days[days.length - 1].getTime() + 24 * 60 * 60 * 1000;
+      const inWindow = existing.availability.filter((iso) => {
+        const t = Date.parse(iso);
+        return !Number.isNaN(t) && t >= windowStart && t < windowEnd;
+      });
+      if (inWindow.length > 0) {
+        setSlots(inWindow);
+        prefilled.current = true;
+        return;
+      }
       pattern = patternFromInstants(existing.availability);
     } else if (def.data && def.data.pattern.length > 0) {
       pattern = def.data.pattern;
