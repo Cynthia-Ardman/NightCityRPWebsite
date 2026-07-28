@@ -34,6 +34,7 @@ import { logger } from "../lib/logger";
 import { endOfCurrentMonth } from "../lib/billingDates";
 import { isAdmin } from "../lib/roleChecks";
 import { mergeTags } from "../lib/characterTags";
+import { installSlotClashError } from "../lib/cyberwareSlots";
 import { syncTagRolesForCharacter } from "../lib/tagRoles";
 import {
   isReviewer,
@@ -460,6 +461,26 @@ async function materializeRequest(
     const slot = reqStr(params.slot);
     if (!slot) return { error: { status: 400, body: { error: "slot required to approve a cyberware request" } } };
     const notes = `CWP ${cwp}${reqRow.description ? ` · ${reqRow.description}` : ""} · slot: ${slot}`;
+    // One-per-capped-slot guard: the new chrome is INSTALLED on approval (it
+    // carries the "CWP n" tag), so it must not land in a capped slot the
+    // character already occupies. Lock the character row first so two
+    // concurrent approvals for the same character serialize — the second
+    // waits, then sees the first insert and 409s (same pattern as the
+    // sale-offer install flows). NPCs are exempt inside the helper.
+    await tx
+      .select({ id: characters.id })
+      .from(characters)
+      .where(eq(characters.id, reqRow.characterId))
+      .for("update");
+    const slotErr = await installSlotClashError({
+      executor: tx,
+      buyer: { id: reqRow.characterId!, kind: c.kind },
+      item: { name: reqRow.title, notes },
+      qty: 1,
+    });
+    if (slotErr) {
+      return { error: { status: 409, body: { error: slotErr } } };
+    }
     const [item] = await tx
       .insert(inventoryItems)
       .values({

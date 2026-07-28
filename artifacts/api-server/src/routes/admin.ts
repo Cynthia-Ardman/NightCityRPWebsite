@@ -30,6 +30,7 @@ import { like } from "drizzle-orm";
 import { rehostEventImage, guildEventImageUrl } from "../lib/eventsService";
 import { auditLog, classifyWalletCategory } from "@workspace/db";
 import { parseCwp, cwpForItem } from "../lib/cyberware";
+import { batchSlotClashError, loadCyberwareSlotByName } from "../lib/cyberwareSlots";
 import { getLiveModeState, LIVE_MODE_KEYS, LIVE_SYSTEMS, type LiveSystem } from "../lib/liveMode";
 import { isLoginRestricted, LOGIN_RESTRICTED_KEY } from "../lib/siteAccess";
 import { isVrchatCalendarSyncEnabled, VRCHAT_SYNC_FLAG } from "../lib/eventsService";
@@ -692,6 +693,16 @@ router.post("/admin/characters", adminOrFixer, async (req, res): Promise<void> =
       if (userNotes) parts.push(userNotes);
       if (slot) parts.push(`slot: ${slot}`);
       cyberRows.push({ name: cwName, notes: parts.join(" · ") });
+    }
+  }
+  // One-per-capped-slot guard across the seeded set (PCs only — staff manage
+  // NPC chrome freely). Every row here is INSTALLED (carries "CWP n"), and the
+  // per-item install guard never sees sibling rows of the same batch.
+  if (kind !== "npc" && cyberRows.length > 1) {
+    const clash = batchSlotClashError(cyberRows, await loadCyberwareSlotByName());
+    if (clash) {
+      res.status(409).json({ error: clash });
+      return;
     }
   }
 

@@ -90,6 +90,32 @@ export function resolveSlotForItem(
   return catalogByName.get(normalizeName(item.name)) ?? "";
 }
 
+// Detect a capped-slot duplicate WITHIN a batch of about-to-be-seeded
+// installed cyberware rows. Sheet approval and admin character creation seed
+// whole sets at once, so the per-item install guard never sees the sibling
+// rows in the same batch (prod character 228: NeoFiber + Dense Marrow both
+// landed in "Skeleton & Torso Musculature" from one sheet approval).
+// Returns a user-facing error string on the first clash, or null when clean.
+export function batchSlotClashError(
+  rows: Array<{ name: string | null; notes: string | null }>,
+  catalogByName: Map<string, string>,
+): string | null {
+  const seen = new Map<string, string>(); // normalized slot -> first item name
+  for (const r of rows) {
+    // Only INSTALLED chrome (rows carrying a "CWP n" tag) occupies a slot.
+    if (parseCwp(r.notes) == null) continue;
+    const slot = resolveSlotForItem(r, catalogByName);
+    if (!isCappedSlot(slot)) continue;
+    const key = normalizeSlot(slot);
+    const first = seen.get(key);
+    if (first) {
+      return `"${first}" and "${r.name ?? "another item"}" both occupy the ${slot} slot — only one piece of cyberware can be installed per slot. Remove one of them first.`;
+    }
+    seen.set(key, r.name ?? "item");
+  }
+  return null;
+}
+
 // One-per-capped-slot guard shared by every install write path (manual add,
 // ripperdoc stock install, install-owned). Returns a user-facing error string
 // when the install would violate the cap, or null when it is allowed.

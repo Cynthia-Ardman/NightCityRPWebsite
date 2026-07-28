@@ -14,6 +14,7 @@ import { validateSheetFields, findTechStartingGun } from "../lib/sheet-validatio
 import { areCharacterSubmissionsDisabled } from "../lib/characterSubmissions";
 import { householdEffectiveCheckupDate } from "../lib/jobs";
 import { resolveRegistryTags } from "../lib/characterTags";
+import { batchSlotClashError, loadCyberwareSlotByName } from "../lib/cyberwareSlots";
 import {
   isReviewer,
   isEligibleReviewer,
@@ -960,6 +961,19 @@ async function materializeCharacterFromSheet(
   // write so a missing custom attribute 400s without creating a character.
   const built = buildSheetInventoryRows(sheet.data, cyberCatalog, gunCatalog, params);
   if ("error" in built) return { error: built.error };
+
+  // One-per-capped-slot guard across the seeded set. Every cyberware row here
+  // is INSTALLED (carries "CWP n"), and the per-item install guard never sees
+  // sibling rows of the same batch — this is exactly how NeoFiber + Dense
+  // Marrow both landed in Skeleton & Torso Musculature on one approval.
+  // NPC sheets are exempt (staff manage NPC chrome freely).
+  if (!sheetDataIsNpc(sheet.data)) {
+    const cyberSeed = built.rows.filter((r) => r.category === "cyberware");
+    if (cyberSeed.length > 1) {
+      const clash = batchSlotClashError(cyberSeed, await loadCyberwareSlotByName());
+      if (clash) return { error: clash };
+    }
+  }
 
   // Inherit the owner's current household checkup date so a freshly approved
   // character doesn't reset the meds streak to week 1 (the household week is
