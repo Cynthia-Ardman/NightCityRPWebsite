@@ -116,6 +116,7 @@
 - [sheetData merge + passthrough](sheetdata-merge-passthrough.md) — char edit whole-replaces sheetData; forms must spread-merge existing keys AND EditableSchema must `.passthrough()` or sheet-created story/gear/identity fields silently wipe.
 - [Sheet self-declaration flags](sheet-self-declaration-flags.md) — boolean flags (ripperDoc/fbc) live in free-form sheetData, persist via full-blob materialize + passthrough; a new one needs 3 form surfaces + payloadSig dep + reset-on-open; effects opt-in.
 - [Availability grid locale formatting](availability-grid-locale.md) — one shared full-day grid; pin DATE format always, but clock is a per-viewer 12h/24h toggle (localStorage, default 24h); keep times in local TZ.
+- [Sheet chrome snapshot vs live inventory](sheet-chrome-snapshot.md) — SHEET: CHROME card is frozen sheet prose, INSTALLED CHROME is live inventory; divergence is expected, not a bug.
 - [Dossier background rendering](dossier-background-rendering.md) — column `background` + a "Background" section coexist; render the column card independent of hasSections, dedup only on exact normalized-text match.
 - Event NPCs: [ATTENDED confirm must allow fee=0](event-npc-fee-optional.md) never gate on amount>0; [lifecycle mirrors missions](event-npc-lifecycle.md) attended/no_show + pay, per-confirm-amount deviation.
 - [Recurring occurrence split](event-occurrence-split.md) — "edit this occurrence" = standalone child + parent excludedOccurrences; every per-occurrence surface must guard excluded instants.

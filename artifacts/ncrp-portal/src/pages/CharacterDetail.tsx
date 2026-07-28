@@ -798,7 +798,12 @@ function CyberwareTab({ characterId }: { characterId: number }) {
           <CardHeader>
             <CardTitle className="font-display tracking-widest">SHEET: {cyberwareSheet[0].toUpperCase()}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            <p className="font-mono text-xs text-muted-foreground">
+              Snapshot from the approved character sheet, as originally written — it can lag behind
+              chrome added later. The live installed list (what billing and the risk band use) is
+              under Installed Chrome below.
+            </p>
             <CyberwareSection body={cyberwareSheet[1]} />
           </CardContent>
         </Card>
