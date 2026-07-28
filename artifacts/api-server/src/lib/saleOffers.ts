@@ -1163,9 +1163,28 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
       const installNotes = offerType === "install"
         ? `CWP ${offer.cwp ?? 0} · Installed at ${venue.name} on ${today}`
         : null;
+      // Gun-store sales land in the buyer's inventory as category "gun" (the
+      // stock row's own category is the FIRING CLASS — Power/Tech/Smart — not
+      // an inventory kind). Pack the mechanical attrs into notes with the same
+      // " · " convention the custom-gun approval path uses.
+      const isGunStoreSale =
+        kind === "store" && (venue as { kind?: string | null }).kind === "guns";
+      const gunNotes = isGunStoreSale
+        ? [
+            `Category: ${decremented.category ?? "n/a"}`,
+            `Power: ${(decremented as { powerLevel?: string | null }).powerLevel ?? "n/a"}`,
+            (decremented as { cyberwareReq?: string | null }).cyberwareReq
+              ? `Requires: ${(decremented as { cyberwareReq?: string | null }).cyberwareReq}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : null;
       const category = offerType === "install"
         ? "cyberware"
-        : offer.itemCategory ?? (kind === "ripperdoc" ? "cyberware" : null);
+        : isGunStoreSale
+          ? "gun"
+          : offer.itemCategory ?? (kind === "ripperdoc" ? "cyberware" : null);
       const [item] = await tx
         .insert(inventoryItems)
         .values({
@@ -1174,7 +1193,7 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
           name: offer.itemName,
           category,
           quantity: offer.quantity,
-          notes: installNotes,
+          notes: installNotes ?? gunNotes,
           // Installs are live chrome the moment the offer completes — mirror the
           // install-owned branch (and sheet-seeded cyberware) so the character
           // page shows the item as installed, not sitting loose in the stash.
