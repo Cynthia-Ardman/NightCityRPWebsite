@@ -2,7 +2,7 @@
 - [OpenAPI list-only fields](openapi-list-only-fields.md) — a field only some endpoints of a reused schema (CustomRequest shape()) return must stay OPTIONAL in OpenAPI, never required.
 - Timeouts: [long-running scripts](long-running-scripts.md) SDK calls/fetches/pagination need explicit AbortSignal.timeout; [Anthropic SDK defaults](anthropic-sdk-timeouts.md) 10-min per-call + silent 429 retries stall batches.
 - [Background process suspension](bash-background-suspension.md) — detached/nohup processes started in one bash tool call freeze/die before the next; don't run long jobs that way — see topic.
-- [Discord forwarded messages](discord-forwarded-messages.md) — OP message_reference can hide the real first post; resolve via referenced_message.
+- Discord content traps: [forwarded messages](discord-forwarded-messages.md) resolve via referenced_message; [CDN URLs 401 after ~24h](discord-cdn-url-expiry.md) re-host via ObjectStorageService.uploadBuffer; [deep-link fallback](discord-deeplink-fallback.md) window.location.assign, not window.open.
 - Object storage: [public images](object-storage-public-images.md) treat absent ACL policy as public-read; [URL prefix](object-storage-url-prefix.md) store `/api/storage/objects/<id>`, SPA owns bare `/objects/*`.
 - Importers: [upsert idempotency](importer-upsert-idempotency.md) never clobber admin ownerId, coalesce; [reconciliation](sheet-importer-reconciliation.md) source-of-truth must DELETE vacated rows — see topics.
 - [Nullable ownerId guards](nullable-owner-guards.md) — characters.ownerId is nullable; every wallet/jobs/transfer path must guard, and transfers to unclaimed must 4xx before debit.
@@ -16,7 +16,6 @@
 - Legacy claim: [auto-claim on login](auto-claim-legacy-username.md) backfill ownerId guarded isNull; [owner stub provisioning](owner-stub-provisioning.md) mint stub keyed on Discord id, adopted on first login.
 - Autobill: [kill switches](autobill-kill-switches.md) bot_config flags default OFF, manual admin runs bypass; [monthly_rent parity](autobill-parity.md) 6 line items, LOA + idempotency rules differ per item.
 - Drizzle traps: [`= ANY(${arr})` spreads into N params and 500s](drizzle-any-array-spread.md) use inArray; [onConflict partial index needs `where:`](drizzle-onconflict-partial-index.md) read err.cause for real PG error.
-- [Discord CDN url expiry](discord-cdn-url-expiry.md) — cdn.discordapp.com URLs are signed and 401 after ~24h; always re-host via ObjectStorageService.uploadBuffer.
 - Character merge: [same-name ≠ same person](character-name-collisions.md) merge only if owner AND backstory match; [repoint EVERY char-id column](character-merge-repoint.md) incl. non-FK plain ints.
 - [Import-time name dedupe](import-name-dedupe.md) — (ownerId, lower(name)) misses nickname-vs-thread-title divergence ("Diesel" vs full name) → dup rows w/ orphaned FKs; needs fuzzy match or merge pass.
 - Testing: [api-server harness](api-server-test-harness.md) *_test DB, x-test-user shim, per-file runs; [Playwright e2e](e2e-playwright-harness.md) Nix chromium + gated test-login; [portal vitest fragile mocks](portal-vitest-fragile-mocks.md).
@@ -52,8 +51,7 @@
 - [Stock-add offer + lease race](stock-add-offer-and-lease.md) — venue-debiting offers need owner-only approve guard (canDecide's admin allowance is a bypass); single-unit lease must lock listing FOR UPDATE across check+insert.
 - [Offer install capacity race](offer-install-capacity-race.md) — install-offer CWP cap must lock buyer row + re-derive used CWP INSIDE the completion tx; operator cwp can't undercut stock "CWP n" note.
 - Cyberware import: [CWP cap & dedup](cyberware-cwp-cap.md) non-NPCs hard-capped 15, dedupe by name+per-unit-CWP; [note format](cyberware-import-note-format.md) bare-slot + `[cyberware-import:v1]` — see topics.
-- [date_trunc param cast](date-trunc-param-cast.md) — `date_trunc('week', ${param})` on a bound Date is PG-42725 ambiguous; cast `::timestamptz`. Also: PG LEAST/GREATEST ignore NULL args.
-- [Raw tx.execute snake_case trap](raw-execute-snakecase-trap.md) — casting `SELECT *` result to `$inferSelect` makes camelCase cols undefined; use `.select()....for("update")` to lock-and-read typed.
+- Raw-SQL traps: [date_trunc on bound Date is PG-42725, cast ::timestamptz; LEAST/GREATEST ignore NULLs](date-trunc-param-cast.md); [tx.execute returns snake_case — use .select()...for("update") to lock-and-read typed](raw-execute-snakecase-trap.md).
 - [Offer approve debit-before-flip refund](offer-approve-refund-races.md) — buyer debit precedes the guarded pending→approved flip; if flip fails, refund unless final status is 'approved' — see topic.
 - [api-client codegen → rebuild dist](api-client-codegen-dist.md) — consumers read built dist/*.d.ts via TS project refs; after codegen rebuild dist — see topic.
 - [Sheet approval seeds inventory](sheet-approval-inventory-seed.md) — approving a PC sheet must materialize data.cyberware/data.gear into inventory_items (fresh-insert branch only); cyberware notes need "CWP <n>" + trailing "slot: <x>".
@@ -64,8 +62,7 @@
 - Lore: [new fields thread 3 write paths](lore-write-paths.md) create/applyProposal/import-drafts; [shared vote pipeline, guidebook stays admin-only](lore-review-pipeline.md); [import clobbers manual fixes](lore-import-channel-gap.md).
 - Review authz: [close/reopen mirrors per-type VOTE authz](review-close-reopen-authz.md) not queue visibility; [all 3 queues gate reads on isReviewer](review-queue-gate-parity.md) or eligible voters locked out.
 - [Staged review effects deferred to close](staged-review-effects.md) — approve/override only STAGE (persist decisionParams); effects (lease/inventory/materialize/diff) commit at close — see topic.
-- [Sticky vs overflow-x on main](sticky-overflow-clip.md) — AppLayout main must stay overflow-x-clip; overflow-x-hidden creates a scroll container and kills sticky descendants.
-- [Portal page width tiers](portal-page-width-tiers.md) — page-root containers use max-w-7xl (standard) or max-w-[1600px] (wide tables); no global cap, sidebar is fixed w-64.
+- Portal layout: [main stays overflow-x-clip or sticky dies](sticky-overflow-clip.md); [page width tiers max-w-7xl / max-w-[1600px]](portal-page-width-tiers.md); [BucketSection renders children directly — callers own the grid](bucketsection-double-grid.md); [text-[Npx] is immune to the text-scale setting — use rem](text-scale-px-immunity.md).
 - [Mission apply UI + payout totals](mission-apply-and-payout-totals.md) — apply form is NOT manager-gated (staff also play; myApplication always for viewer); payout batch total is a display-parity sum incl. simulated/failed, not "disbursed".
 - [custom_requests is character-bound](custom-request-character-bound.md) — characterId is NOT NULL; non-character proposals (new mission/cyberware catalog) need a migration — see topic.
 - [Custom-request image dual-column](custom-request-image-dual-column.md) — image_urls array is canonical, legacy image_url must stay = first; every write path dual-writes.
@@ -82,7 +79,6 @@
 - Discord write gates: [outbound writes only when REPLIT_DEPLOYMENT=1 or ALLOW_EXTERNAL_WRITES=1](discord-deployment-gated-writes.md); [backfill posts reuse live announce URL base](discord-announce-url-parity.md).
 - [Event/mission conflict-check excludes self](event-conflict-exclude-self.md) — overlap-warning forms MUST pass excludeEventId in edit mode (else self-flag) and guard ISO conversion against invalid datetime-local.
 - Guidebook import: [Google-link rewriting](guidebook-doc-links.md); [content rendering & protected edits](guidebook-content-rendering.md) mentions + `[t=secs:fmt]`; [forum channels enumerate threads as sections](guidebook-import-forum.md).
-- [Discord deep-link fallback](discord-deeplink-fallback.md) — open native app via discord://, fall back with window.location.assign (NOT window.open — popup-blocked outside the click gesture).
 - [Portal review queue wiring](portal-review-queue-wiring.md) — a new fixer-propose/admin-approve queue must wire 4 spots (PendingRequests tab+terminal/TerminalKind, AppLayout staffPending badge — see topic.
 - [Decided items render in-tab](decided-items-in-tab.md) — no Ready-to-Apply banner; each queue tab merges resolved approved/rejected into its active grid (decidedFirst pin) with LifecycleActions; merge ONLY in activeOnly/embedded mode.
 - [MyRequests edit-button venue parity](myrequests-edit-entrypoints.md) — 3 edit entry points (draft/pending/changes_requested) each call setEditing — see topic.
@@ -91,7 +87,7 @@
 - [Session events always need NPCs](session-npc-derivation.md) — needsNpcs is DERIVED (manual flag OR eventType==="session"); route all view/gate reads through eventNeedsNpcs(e), not the raw column.
 - [Main Sessions are discrete weekly rows](main-sessions-discrete.md) — one event row per Sunday (own discord id), NOT recurrence_rule — see topic.
 - Wallet writes: [int4 ceiling](wallet-int4-ceiling.md) balances max 2,147,483,647, UB→website reconcile is an overflow vector; [atomic increments](wallet-atomic-increments.md) always relative SQL increments, never read-then-write.
-- [Economy disabled symptom](economy-disabled-symptom.md) — dashboard income WORK/SLUT "command failed" = economy toggled off; see topic for where the on/off controls live.
+- UB economy quirks: [WORK/SLUT "command failed" = economy toggled off](economy-disabled-symptom.md); [native !work/!slut have no cooldown/config API — only fix is disabling in UB dashboard](ub-native-commands.md).
 - [react-query auth gate loop](react-query-auth-loop.md) — root gate on useQuery(authMe).isLoading + errored query + retryOnMount default true = 1Hz mount/unmount loop; see topic for QueryClient defaults.
 - Calendar dup: [mission+event sharing one discord_event_id render twice, reconcile auto-heals](calendar-mission-event-dup.md); [convert = REPLACE in one tx, hand off discord_event_id](event-mission-convert-handoff.md).
 - [Dashboard count vs review-queue parity](dashboard-review-count-parity.md) — staff dashboard tallies must mirror queue semantics (reviewer-gated, exclude own) or they nag a phantom the viewer can't action.
@@ -111,7 +107,6 @@
 - View-as: [gate staff UI on useEffectiveMe not useAuthMe](view-as-gating.md); [global search hrefs need staffOnly flag + effective-role scrub](global-search-authz.md) or View-as leaks.
 - [Kill-switch symptoms](character-submission-killswitch.md) — bot_config `character_submissions_disabled` gates only non-NPC sheet submit/POST (drafts/edits/NPCs exempt) — see topic.
 - [Settled wallet movement](settled-wallet-movement.md) — mission pay hits UB directly (NOT applyWalletDelta); record a settled ledger row + advance lastSyncedUbBalance so reconcile won't double-count; leave baseline null if unseeded.
-- [BucketSection double-grid trap](bucketsection-double-grid.md) — BucketSection renders children directly (no grid); callers own grid/stack layout — nesting a grid inside its old grid-cols collapsed cards to 1/3 width.
 - [role_sync bulk fetch](role-sync-bulk-fetch.md) — hourly; bulk member snapshot preferred (per-user fallback for no-intent); only clear empty roles on a DEFINITE read, never a partial/uncertain one.
 - Approver pool: [isReviewer vs isEligibleReviewer (no admin), tallies filter to eligible](review-approver-pool-split.md); [trial-fixer author-only tier](trial-fixer-tier.md) exclude at isReviewer + strip stale grants.
 - Discord thread mirror: [cs-approver drawer pop-out, mount 15s-polling panel only when open](discord-thread-drawer.md); [persist discordThreadId at creation so "linked" never lies](discord-thread-mirror-linkage.md).
@@ -133,7 +128,6 @@
 - Mission posting: [post chokepoint](mission-post-chokepoint.md) postMission is the single approved→posted→open transition, gate "on open" side effects there; [post↔revert race](mission-post-revert-race.md) conditional persist + compensating teardown + re-read after claim.
 - [Mission private-visibility gates](mission-visibility-gates.md) — private missions: one shared viewer filter across board/profile/search/detail (archivists bypass) + 5 Discord suppressors; miss one = leak.
 - Mission board/lifecycle: [markdown preview only via <Markdown>](mission-board-markdown-preview.md) plain <p> shows raw `[c=..]`; [only draft is hard-deletable, else CANCEL](draft-mission-delete.md) lock+re-check FOR UPDATE.
-- [UB native commands uncontrollable](ub-native-commands.md) — Discord `!work`/`!slut` are UnbelievaBoat-native with no cooldown/config API; website cooldown can't dedupe against them; only fix is disabling them in the UB dashboard.
 - [Cyberware tab hook-order crash](cyberware-tab-hook-order.md) — React #310 on a char's Cyberware tab = a hook below CyberwareTab's loading/!char early returns; hoist all hooks above the guards. "Works after Retry" = cached, not data.
 - Listings/leases: [leasable=false enforced on ALL 4 paths](listing-leasable-gate.md); [venue requests reserve buildings via reserved_listing_id partial-unique](listing-reservation.md); [staff PATCH housingId links business lease, non-staff stripped](venue-lease-association.md).
 - [Commission from profit](commission-profit-basis.md) — employee commission = % of (sale total − snapshotted costBasis), one helper, cost frozen at offer creation; service-fee offers null→full-fee.
@@ -143,14 +137,12 @@
 - [Mission thread lifecycle updates](mission-thread-lifecycle.md) — follow-up posts into a mission's Discord thread; announce-once guards (isEdit, pre-review status snapshot), member posts via detached wrapper.
 - Edit dialog: [form-reset keys on stable character.id](dialog-reset-stable-key.md); [main SAVE must flush dirty cyberware-grid rows](edit-dialog-cyberware-flush.md) or they're silently lost.
 - [Account merge wallet retry](account-merge-wallet-retry.md) — multi-leg money move must derive amount from the first leg's ledger row (by idem key), not live balance, or a rerun after partial failure strands the credit.
-- [Business-owner channel access](business-owner-channel-access.md) — store/ripperdoc OWNERS (not employees) get a per-member Discord channel overwrite while owning ≥1 business — see topic.
-- [CyberPsycho access grant](cyberpsycho-access-grant.md) — panel gated on ADMIN/FIXER OR users.cyberpsycho_access; shared /vrchat/session* stays role-only, never grant-reachable.
+- Special access grants: [business OWNERS get per-member Discord channel overwrite](business-owner-channel-access.md); [CyberPsycho panel = ADMIN/FIXER OR users.cyberpsycho_access, /vrchat/session* stays role-only](cyberpsycho-access-grant.md).
 - [Sheet draft optimistic concurrency](sheet-draft-optimistic-concurrency.md) — baseUpdatedAt revision token, 409 stale_draft; SQL re-check must date_trunc to ms (defaultNow() microseconds trap).
 - [Character death write paths](character-death-write-paths.md) — lifeStatus flips to dead via 3 write paths + role_sync self-heal; death side effects must wire ALL of them; statuses are active|dead|missing|loa|retired.
 - [Event ticket money legs](event-ticket-money-legs.md) — reserve capacity (pending row under lock) BEFORE debit; runner credit never unwinds a purchase (payoutStatus failed + retry); attendance UPDATE repeats status='purchased' guard.
 - [Responsive dual layouts vs Playwright strict mode](responsive-dual-layout-e2e.md) — md:hidden card + hidden md:block table duplicate text in DOM; scope e2e text asserts with `visible=true`.
 - [Portal bell notifications](portal-bell-notifications.md) — new player-facing events must `void createNotification(...)` at the SAME site as the DM but NOT gated on Test/Live or discordId; api-zod star-export body-name ambiguity trap.
-- [Text-scale px immunity](text-scale-px-immunity.md) — the text-size setting scales rem only; any `text-[Npx]` literal is immune AND tiny; new micro-text must use rem arbitrary values.
 - VRChat auth/identity: [identity resolution](vrchat-identity-resolution.md) linked attribution only when exactly ONE user claims the id, ambiguous never name-matches; [401 verify-before-expire](vrchat-group-instances.md) confirm via /auth/user before wiping session.
 - Mission edit fields: [PATCH assignments whole-replaces roster — omit when untouched](mission-roster-stale-edit.md); [npcStartAt surfaces use coalesce(npc,start), changes reset npcAnnouncedAt](mission-npc-start-time.md).
 - [Gun category vs weaponType](gun-category-vs-weapontype.md) — Power/Tech/Smart firing class is catalog_guns.category; weapon_type is form factor (pistol/shotgun) — filters on weaponType='tech' match nothing.
