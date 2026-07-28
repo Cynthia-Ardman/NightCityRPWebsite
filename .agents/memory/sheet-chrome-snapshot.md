@@ -10,4 +10,4 @@ The Cyberware tab shows two chrome lists that are NOT the same source:
 
 **Why:** The bulk cyberware import sourced from the spreadsheet, not the sheet prose, so items and CWP totals legitimately differ (e.g. char 132: sheet says 3 items / 6 CWP, inventory has 5 items / 10 CWP). Users read the divergence as "chrome exists but isn't installed" — a support report, not a bug.
 
-**How to apply:** When someone reports missing/uninstalled chrome, first compare `sheetData.sections` prose vs inventory rows before hunting for a derivation bug. A caption on the sheet card (added 2026-07-28) explains the split; don't "fix" the sheet prose to match inventory.
+**How to apply:** When someone reports missing/uninstalled chrome, first compare `sheetData.sections` prose vs inventory rows before hunting for a derivation bug. The Cyberware tab's "SHEET:" card was REMOVED (2026-07-28, user request — clutter); the sheet's chrome prose still renders inside the Profile-tab dossier via CyberwareSection. Don't re-add the card and don't "fix" the sheet prose to match inventory.

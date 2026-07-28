@@ -686,10 +686,6 @@ function CyberwareTab({ characterId }: { characterId: number }) {
     parsedNotesByItem.set(it.id, { slot: parsed.slot, notes: parsed.notes });
   }
 
-  // Try to find the cyberware section in the imported character sheet.
-  const sections = (char.sheetData as { sections?: Record<string, string> } | null | undefined)?.sections ?? {};
-  const cyberwareSheet = Object.entries(sections).find(([heading]) => isCyberwareHeading(heading));
-
   // Risk band is derived from the character's REAL installed chrome — the same
   // source the weekly meds-billing cron charges off (sum of "CWP n" across the
   // cyberware inventory items) — so this badge always matches what the player
@@ -792,22 +788,6 @@ function CyberwareTab({ characterId }: { characterId: number }) {
           </CardContent>
         </Card>
       )}
-
-      {cyberwareSheet ? (
-        <Card className="rounded-none border-border bg-card/50">
-          <CardHeader>
-            <CardTitle className="font-display tracking-widest">SHEET: {cyberwareSheet[0].toUpperCase()}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="font-mono text-xs text-muted-foreground">
-              Snapshot from the approved character sheet, as originally written — it can lag behind
-              chrome added later. The live installed list (what billing and the risk band use) is
-              under Installed Chrome below.
-            </p>
-            <CyberwareSection body={cyberwareSheet[1]} />
-          </CardContent>
-        </Card>
-      ) : null}
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader>
