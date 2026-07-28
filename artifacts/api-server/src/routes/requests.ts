@@ -2070,6 +2070,9 @@ router.post("/requests/:id/stock-decision", requireAuth, async (req, res): Promi
     unitCost: number;
     totalCost: number;
     retail: number;
+    // Gun-only attributes mirrored from catalog_guns (store kind only).
+    powerLevel?: string | null;
+    cyberwareReq?: string | null;
     requestedByFixerId?: string;
     requestedByFixerName?: string;
   };
@@ -2143,7 +2146,19 @@ router.post("/requests/:id/stock-decision", requireAuth, async (req, res): Promi
     if (existing) {
       const [u] = await tx
         .update(stockTable)
-        .set({ quantity: existing.quantity + qty, price: retail, category: existing.category ?? det.category })
+        .set({
+          quantity: existing.quantity + qty,
+          price: retail,
+          category: existing.category ?? det.category,
+          // Backfill gun attributes on rows that predate the catalog mirroring
+          // (never overwrite a value staff already set).
+          ...(det.kind === "store"
+            ? {
+                powerLevel: (existing as typeof storeStock.$inferSelect).powerLevel ?? det.powerLevel ?? null,
+                cyberwareReq: (existing as typeof storeStock.$inferSelect).cyberwareReq ?? det.cyberwareReq ?? null,
+              }
+            : {}),
+        })
         .where(eq(stockTable.id, existing.id))
         .returning();
       stockId = u.id;
@@ -2157,6 +2172,7 @@ router.post("/requests/:id/stock-decision", requireAuth, async (req, res): Promi
           price: retail,
           quantity: qty,
           cost: unitCost,
+          ...(det.kind === "store" ? { powerLevel: det.powerLevel ?? null, cyberwareReq: det.cyberwareReq ?? null } : {}),
         } as never)
         .returning();
       stockId = ins.id;

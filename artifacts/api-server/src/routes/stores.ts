@@ -1028,9 +1028,13 @@ async function createStockCostRequest(opts: {
   unitCost: number;
   totalCost: number;
   retail: number;
+  // Gun-only attributes mirrored from catalog_guns (store kind only) so the
+  // approval path can stamp them onto the stock row it creates.
+  powerLevel?: string | null;
+  cyberwareReq?: string | null;
   actor: { id: string; username: string; avatarUrl: string | null };
 }): Promise<{ status: number; body: Record<string, unknown> }> {
-  const { kind, venue, catalogId, name, category, qty, unitCost, totalCost, retail, actor } = opts;
+  const { kind, venue, catalogId, name, category, qty, unitCost, totalCost, retail, powerLevel, cyberwareReq, actor } = opts;
   // custom_requests.characterId is NOT NULL — attach the request to the owner's
   // character (their assigned venue character, else any character they own).
   let characterId: number | null = venue.ownerCharacterId ?? null;
@@ -1067,6 +1071,8 @@ async function createStockCostRequest(opts: {
         unitCost,
         totalCost,
         retail,
+        powerLevel: powerLevel ?? null,
+        cyberwareReq: cyberwareReq ?? null,
         requestedByFixerId: actor.id,
         requestedByFixerName: actor.username,
       } as never,
@@ -1142,6 +1148,11 @@ async function purchaseFromCatalog(opts: {
   let name: string;
   let category: string | null;
   let catalogPrice: number;
+  // Gun-only attributes mirrored from catalog_guns onto store stock so the
+  // shelf row carries them without manual staff entry (ripperdoc stock has no
+  // such columns).
+  let powerLevel: string | null = null;
+  let cyberwareReq: string | null = null;
   if (kind === "store") {
     const [g] = await db.select().from(catalogGuns).where(eq(catalogGuns.id, catalogId));
     if (!g) {
@@ -1151,6 +1162,8 @@ async function purchaseFromCatalog(opts: {
     name = g.name;
     category = g.category ?? g.weaponType ?? null;
     catalogPrice = g.price;
+    powerLevel = g.powerLevel ?? null;
+    cyberwareReq = g.cyberwareReq ?? null;
   } else {
     const [c] = await db.select().from(catalogCyberware).where(eq(catalogCyberware.id, catalogId));
     if (!c) {
@@ -1191,6 +1204,8 @@ async function purchaseFromCatalog(opts: {
       unitCost,
       totalCost,
       retail,
+      powerLevel,
+      cyberwareReq,
       actor,
     });
     res.status(approval.status).json(approval.body);
@@ -1227,7 +1242,19 @@ async function purchaseFromCatalog(opts: {
       // (including a deliberate 0).
       const [u] = await tx
         .update(stockTable)
-        .set({ quantity: existing.quantity + qty, price: retailProvided ? retail : existing.price, category: existing.category ?? category })
+        .set({
+          quantity: existing.quantity + qty,
+          price: retailProvided ? retail : existing.price,
+          category: existing.category ?? category,
+          // Backfill gun attributes on rows that predate the catalog mirroring
+          // (never overwrite a value staff already set).
+          ...(kind === "store"
+            ? {
+                powerLevel: (existing as typeof storeStock.$inferSelect).powerLevel ?? powerLevel,
+                cyberwareReq: (existing as typeof storeStock.$inferSelect).cyberwareReq ?? cyberwareReq,
+              }
+            : {}),
+        })
         .where(eq(stockTable.id, existing.id))
         .returning();
       stockRow = u;
@@ -1237,7 +1264,15 @@ async function purchaseFromCatalog(opts: {
         // Default the shop cost to the per-unit price the venue just paid, so
         // commission (price − cost) is correct out of the box without a manual
         // cost entry. Staff overrides flow through unitCost above.
-        .values({ [kind === "store" ? "storeId" : "ripperdocId"]: venueId, name, category, price: retail, quantity: qty, cost: unitCost } as never)
+        .values({
+          [kind === "store" ? "storeId" : "ripperdocId"]: venueId,
+          name,
+          category,
+          price: retail,
+          quantity: qty,
+          cost: unitCost,
+          ...(kind === "store" ? { powerLevel, cyberwareReq } : {}),
+        } as never)
         .returning();
       stockRow = ins;
     }
