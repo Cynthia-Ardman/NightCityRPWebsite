@@ -206,6 +206,7 @@ export * from './cyberwareInstallInput';
 export * from './cyberwareRemoveInput';
 export * from './cyberwareRemoveInputDestination';
 export * from './cyberwareViolation';
+export * from './cyberwareViolationNotifyResult';
 export * from './cyberwareViolationSlotsItem';
 export * from './cyberwareViolationSlotsItemItemsItem';
 export * from './dashboardSummary';

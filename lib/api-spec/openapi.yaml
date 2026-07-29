@@ -3439,6 +3439,17 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/CyberwareViolation" }
+  /fixer/cyberware-violations/notify:
+    post:
+      operationId: notifyCyberwareViolators
+      tags: [fixer]
+      summary: Send each affected player a portal notification (and optional Discord DM) about their slot violations (fixer/admin). 24-hour per-player cooldown prevents re-spam.
+      responses:
+        "200":
+          description: Notification summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CyberwareViolationNotifyResult" }
   /fixer/players:
     get:
       operationId: searchFixerPlayers
@@ -8156,6 +8167,17 @@ components:
                   properties:
                     id: { type: integer }
                     name: { type: string }
+
+    CyberwareViolationNotifyResult:
+      type: object
+      required: [notified, skippedUnclaimed, skippedCooldown]
+      properties:
+        notified: { type: integer, description: "Number of players successfully notified" }
+        skippedUnclaimed:
+          type: array
+          items: { type: string }
+          description: "Character names skipped because they have no portal owner"
+        skippedCooldown: { type: integer, description: "Number of players skipped because they were already notified within the last 24 hours" }
 
     InventorySearchResult:
       type: object

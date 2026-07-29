@@ -8389,6 +8389,16 @@ export const GetCyberwareViolationsResponse = zod.array(GetCyberwareViolationsRe
 
 
 /**
+ * @summary Send each affected player a portal notification (and optional Discord DM) about their slot violations (fixer/admin). 24-hour per-player cooldown prevents re-spam.
+ */
+export const NotifyCyberwareViolatorsResponse = zod.object({
+  "notified": zod.number().describe('Number of players successfully notified'),
+  "skippedUnclaimed": zod.array(zod.string()).describe('Character names skipped because they have no portal owner'),
+  "skippedCooldown": zod.number().describe('Number of players skipped because they were already notified within the last 24 hours')
+})
+
+
+/**
  * @summary Search players by username/global name or owned character name (fixer/admin)
  */
 export const SearchFixerPlayersQueryParams = zod.object({

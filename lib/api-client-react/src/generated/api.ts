@@ -118,6 +118,7 @@ import type {
   CyberwareInstallInput,
   CyberwareRemoveInput,
   CyberwareViolation,
+  CyberwareViolationNotifyResult,
   DashboardSummary,
   DeactivateCharacter200,
   DefaultAvailability,
@@ -15267,6 +15268,76 @@ export function useGetCyberwareViolations<TData = Awaited<ReturnType<typeof getC
 
 
 
+
+export const getNotifyCyberwareViolatorsUrl = () => {
+
+
+
+
+  return `/api/fixer/cyberware-violations/notify`
+}
+
+/**
+ * @summary Send each affected player a portal notification (and optional Discord DM) about their slot violations (fixer/admin). 24-hour per-player cooldown prevents re-spam.
+ */
+export const notifyCyberwareViolators = async ( options?: RequestInit): Promise<CyberwareViolationNotifyResult> => {
+
+  return customFetch<CyberwareViolationNotifyResult>(getNotifyCyberwareViolatorsUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getNotifyCyberwareViolatorsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof notifyCyberwareViolators>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof notifyCyberwareViolators>>, TError,void, TContext> => {
+
+const mutationKey = ['notifyCyberwareViolators'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof notifyCyberwareViolators>>, void> = () => {
+
+
+          return  notifyCyberwareViolators(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type NotifyCyberwareViolatorsMutationResult = NonNullable<Awaited<ReturnType<typeof notifyCyberwareViolators>>>
+
+    export type NotifyCyberwareViolatorsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Send each affected player a portal notification (and optional Discord DM) about their slot violations (fixer/admin). 24-hour per-player cooldown prevents re-spam.
+ */
+export const useNotifyCyberwareViolators = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof notifyCyberwareViolators>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof notifyCyberwareViolators>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getNotifyCyberwareViolatorsMutationOptions(options));
+    }
 
 export const getSearchFixerPlayersUrl = (params?: SearchFixerPlayersParams,) => {
   const normalizedParams = new URLSearchParams();

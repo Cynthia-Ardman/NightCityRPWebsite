@@ -2162,6 +2162,15 @@ export interface CyberwareViolation {
   slots: CyberwareViolationSlotsItem[];
 }
 
+export interface CyberwareViolationNotifyResult {
+  /** Number of players successfully notified */
+  notified: number;
+  /** Character names skipped because they have no portal owner */
+  skippedUnclaimed: string[];
+  /** Number of players skipped because they were already notified within the last 24 hours */
+  skippedCooldown: number;
+}
+
 export type InventorySearchResultPastOwnersItem = {
   event: InventoryEvent;
   liveItem?: InventoryItem | null;

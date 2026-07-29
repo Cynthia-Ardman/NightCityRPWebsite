@@ -31,6 +31,8 @@ import {
   isCappedSlot,
   normalizeSlot,
 } from "../lib/cyberwareSlots";
+import { createNotification } from "../lib/notifications";
+import { sendDirectMessage } from "../lib/discord";
 
 const router: IRouter = Router();
 
@@ -851,6 +853,97 @@ router.get("/fixer/vrchat/players/:vrchatUserId/visits", requireAuth, requireAny
   );
 });
 
+// ---------------------------------------------------------------------------
+// Cyberware slot-cap violation helpers
+// ---------------------------------------------------------------------------
+
+type ViolationSlotBucket = { slot: string; items: Array<{ id: number; name: string }> };
+type ViolationEntry = {
+  characterId: number;
+  characterName: string;
+  ownerId: string | null;
+  ownerUsername: string | null;
+  discordId: string | null;
+  slots: Map<string, ViolationSlotBucket>;
+};
+
+/** Compute all current cyberware slot violations, including owner info for notifications. */
+async function computeCyberwareViolations(): Promise<
+  Array<{
+    characterId: number;
+    characterName: string;
+    ownerId: string | null;
+    ownerUsername: string | null;
+    discordId: string | null;
+    slots: Array<{ slot: string; count: number; items: Array<{ id: number; name: string }> }>;
+  }>
+> {
+  const catalogByName = await loadCyberwareSlotByName();
+  const rows = await db
+    .select({
+      itemId: inventoryItems.id,
+      itemName: inventoryItems.name,
+      notes: inventoryItems.notes,
+      characterId: inventoryItems.characterId,
+      characterName: characters.name,
+      characterKind: characters.kind,
+      ownerId: characters.ownerId,
+      ownerUsername: users.username,
+      discordId: users.discordId,
+    })
+    .from(inventoryItems)
+    .innerJoin(characters, eq(characters.id, inventoryItems.characterId))
+    .leftJoin(users, eq(users.id, characters.ownerId))
+    .where(sql`lower(trim(${inventoryItems.category})) = 'cyberware'`);
+
+  const byChar = new Map<number, ViolationEntry>();
+  for (const r of rows) {
+    if (r.characterId == null || r.characterKind === "npc") continue;
+    const slot = resolveSlotForItem({ name: r.itemName, notes: r.notes }, catalogByName);
+    if (!isCappedSlot(slot)) continue;
+    const key = normalizeSlot(slot);
+    let entry = byChar.get(r.characterId);
+    if (!entry) {
+      entry = {
+        characterId: r.characterId,
+        characterName: r.characterName,
+        ownerId: r.ownerId,
+        ownerUsername: r.ownerUsername,
+        discordId: r.discordId ?? null,
+        slots: new Map(),
+      };
+      byChar.set(r.characterId, entry);
+    }
+    let bucket = entry.slots.get(key);
+    if (!bucket) {
+      bucket = { slot, items: [] };
+      entry.slots.set(key, bucket);
+    }
+    bucket.items.push({ id: r.itemId, name: r.itemName });
+  }
+
+  return Array.from(byChar.values())
+    .map((entry) => ({
+      characterId: entry.characterId,
+      characterName: entry.characterName,
+      ownerId: entry.ownerId,
+      ownerUsername: entry.ownerUsername,
+      discordId: entry.discordId,
+      slots: Array.from(entry.slots.values())
+        .filter((b) => b.items.length > 1)
+        .map((b) => ({ slot: b.slot, count: b.items.length, items: b.items })),
+    }))
+    .filter((v) => v.slots.length > 0)
+    .sort((a, b) => a.characterName.localeCompare(b.characterName));
+}
+
+// In-memory per-player notification cooldown: { userId -> last notified timestamp }.
+// Prevents re-spamming the same player within the same calendar day (Pacific time).
+// Resets on server restart, which is fine — the confirmation dialog in the UI
+// already guards against accidental double-clicks in the same session.
+const violationNotifyCooldown = new Map<string, number>();
+const NOTIFY_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 // Cyberware slot-cap violators (fixer/admin). Lists player characters holding
 // more than one cyberware item in a single CAPPED slot. Miscellaneous, Custom
 // and unresolved-slot chrome are uncapped and never flagged; NPCs are exempt.
@@ -860,65 +953,121 @@ router.get(
   requireAuth,
   requireAnyRole(["FIXER", "ADMIN"]),
   async (_req, res): Promise<void> => {
-    const catalogByName = await loadCyberwareSlotByName();
-    const rows = await db
-      .select({
-        itemId: inventoryItems.id,
-        itemName: inventoryItems.name,
-        notes: inventoryItems.notes,
-        characterId: inventoryItems.characterId,
-        characterName: characters.name,
-        characterKind: characters.kind,
-        ownerUsername: users.username,
-      })
-      .from(inventoryItems)
-      .innerJoin(characters, eq(characters.id, inventoryItems.characterId))
-      .leftJoin(users, eq(users.id, characters.ownerId))
-      .where(sql`lower(trim(${inventoryItems.category})) = 'cyberware'`);
+    const violations = await computeCyberwareViolations();
+    // Strip internal-only fields (ownerId, discordId) before sending to the client.
+    res.json(
+      violations.map(({ ownerId: _ownerId, discordId: _discordId, ...v }) => v),
+    );
+  },
+);
 
-    // Group capped-slot items by character + normalized slot.
-    type SlotBucket = { slot: string; items: Array<{ id: number; name: string }> };
-    const byChar = new Map<
-      number,
-      { characterId: number; characterName: string; ownerUsername: string | null; slots: Map<string, SlotBucket> }
+// POST /fixer/cyberware-violations/notify — send each affected player a portal
+// bell notification (and optionally a Discord DM) listing their characters'
+// slot violations and asking them to resolve the conflicts. Fixer/admin only.
+// One message per player covers all their violating characters. Players with no
+// portal account (unclaimed characters) are skipped and listed in the summary.
+// A 24-hour in-memory cooldown per player prevents accidental re-spam; the
+// calling UI also requires a confirmation before firing.
+router.post(
+  "/fixer/cyberware-violations/notify",
+  requireAuth,
+  requireAnyRole(["FIXER", "ADMIN"]),
+  async (_req, res): Promise<void> => {
+    const violations = await computeCyberwareViolations();
+
+    // Group violations by ownerId (one message per player, all their characters).
+    const byOwner = new Map<
+      string,
+      {
+        userId: string;
+        discordId: string | null;
+        characters: Array<{
+          characterId: number;
+          characterName: string;
+          slots: Array<{ slot: string; count: number; items: Array<{ id: number; name: string }> }>;
+        }>;
+      }
     >();
-    for (const r of rows) {
-      if (r.characterId == null || r.characterKind === "npc") continue;
-      const slot = resolveSlotForItem({ name: r.itemName, notes: r.notes }, catalogByName);
-      if (!isCappedSlot(slot)) continue;
-      const key = normalizeSlot(slot);
-      let entry = byChar.get(r.characterId);
-      if (!entry) {
-        entry = {
-          characterId: r.characterId,
-          characterName: r.characterName,
-          ownerUsername: r.ownerUsername,
-          slots: new Map(),
-        };
-        byChar.set(r.characterId, entry);
+
+    const skippedUnclaimed: string[] = [];
+
+    for (const v of violations) {
+      if (!v.ownerId) {
+        skippedUnclaimed.push(v.characterName);
+        continue;
       }
-      let bucket = entry.slots.get(key);
-      if (!bucket) {
-        // Use the first-seen RAW slot string for a readable label.
-        bucket = { slot, items: [] };
-        entry.slots.set(key, bucket);
+      let group = byOwner.get(v.ownerId);
+      if (!group) {
+        group = { userId: v.ownerId, discordId: v.discordId, characters: [] };
+        byOwner.set(v.ownerId, group);
       }
-      bucket.items.push({ id: r.itemId, name: r.itemName });
+      group.characters.push({
+        characterId: v.characterId,
+        characterName: v.characterName,
+        slots: v.slots,
+      });
     }
 
-    const violations = Array.from(byChar.values())
-      .map((entry) => ({
-        characterId: entry.characterId,
-        characterName: entry.characterName,
-        ownerUsername: entry.ownerUsername,
-        slots: Array.from(entry.slots.values())
-          .filter((b) => b.items.length > 1)
-          .map((b) => ({ slot: b.slot, count: b.items.length, items: b.items })),
-      }))
-      .filter((v) => v.slots.length > 0)
-      .sort((a, b) => a.characterName.localeCompare(b.characterName));
+    const now = Date.now();
+    let notified = 0;
+    let skippedCooldown = 0;
 
-    res.json(violations);
+    for (const [userId, group] of byOwner) {
+      // Cooldown check — skip if notified within the last 24 hours.
+      const lastSent = violationNotifyCooldown.get(userId);
+      if (lastSent != null && now - lastSent < NOTIFY_COOLDOWN_MS) {
+        skippedCooldown++;
+        continue;
+      }
+
+      // Build a human-readable summary of all violating characters.
+      const charLines = group.characters.map((c) => {
+        const slotList = c.slots
+          .map((s) => `${s.slot} (${s.items.map((i) => i.name).join(", ")})`)
+          .join("; ");
+        return `**${c.characterName}**: ${slotList}`;
+      });
+
+      const characterPlural = group.characters.length === 1 ? "character" : "characters";
+      const notifTitle = `Cyberware slot conflict${group.characters.length > 1 ? "s" : ""} — action needed`;
+      const notifBody =
+        `Your ${characterPlural} ${group.characters.map((c) => c.characterName).join(", ")} ` +
+        `ha${group.characters.length === 1 ? "s" : "ve"} cyberware installed in the same slot. ` +
+        `Only one item per capped slot is allowed — please visit the character page and remove the duplicate.`;
+
+      // Determine notification href: single character → link directly.
+      const href =
+        group.characters.length === 1
+          ? `/directory/characters/${group.characters[0].characterId}`
+          : null;
+
+      // Bell notification (never gated on Test/Live or discordId).
+      void createNotification({
+        userId,
+        type: "cyberware_slot_violation",
+        title: notifTitle,
+        body: notifBody,
+        href,
+      });
+
+      // Discord DM — fire-and-forget, gated by externalWritesAllowed() inside sendDirectMessage.
+      if (group.discordId) {
+        const dmLines = [
+          `🔴 **Cyberware slot conflict${group.characters.length > 1 ? "s" : ""} — action needed**`,
+          "",
+          ...charLines,
+          "",
+          "Each capped slot allows only **one** installed piece of cyberware.",
+          "Please visit your character page on the Night City RP portal and remove the duplicate item.",
+        ];
+        void sendDirectMessage(group.discordId, dmLines.join("\n")).catch(() => {/* fire-and-forget */});
+      }
+
+      violationNotifyCooldown.set(userId, now);
+      notified++;
+    }
+
+    res.json({ notified, skippedUnclaimed, skippedCooldown });
   },
 );
 
