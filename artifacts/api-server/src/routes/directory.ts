@@ -809,8 +809,12 @@ router.get("/catalog/guns", async (req, res): Promise<void> => {
 //   gun       -> custom guns
 //   cyberware -> custom cyberware
 //   property  -> off-map / custom property
-// We surface APPROVED requests (the ones that became real items), joined to the
-// owning character so a fixer can see who holds each one.
+// We surface every request that actually became a real item. The review
+// pipeline moves applied requests from "approved" to "closed" (staged effects
+// commit at close), so filtering on status="approved" alone hides nearly the
+// whole list — include closed rows too, EXCEPT ones whose closed_outcome is
+// "rejected" and which never produced an item (no applied_ref). Older closed
+// rows predate closed_outcome (NULL), so applied_ref is the reliable signal.
 const CUSTOM_TYPES = ["gun", "cyberware", "property"] as const;
 router.get("/catalog/custom", requireAnyRole(["ADMIN", "FIXER"]), async (req, res): Promise<void> => {
   const type = String(req.query.type ?? "");
@@ -835,8 +839,71 @@ router.get("/catalog/custom", requireAnyRole(["ADMIN", "FIXER"]), async (req, re
     })
     .from(customRequests)
     .leftJoin(characters, eq(characters.id, customRequests.characterId))
-    .where(and(eq(customRequests.type, type), eq(customRequests.status, "approved")))
+    .where(
+      and(
+        eq(customRequests.type, type),
+        or(
+          eq(customRequests.status, "approved"),
+          and(
+            eq(customRequests.status, "closed"),
+            or(
+              isNotNull(customRequests.appliedRef),
+              eq(customRequests.closedOutcome, "approved"),
+            ),
+            sql`${customRequests.closedOutcome} IS DISTINCT FROM 'rejected'`,
+          ),
+        ),
+      ),
+    )
     .orderBy(desc(customRequests.createdAt));
+
+  // For guns, character sheets seed weapons straight into inventory_items with
+  // no custom_request row at all (sheet-approval materialization). Anything
+  // there that matches neither the official catalog by name nor an existing
+  // request's applied_ref is a custom weapon the list would otherwise miss —
+  // surface those too, tagged status "sheet" with a negative synthetic id.
+  if (type === "gun") {
+    const linkedRefs = new Set(
+      rows.map((r) => r.appliedRef).filter((r): r is string => !!r),
+    );
+    const invRows = await db
+      .select({
+        id: inventoryItems.id,
+        instanceUuid: inventoryItems.instanceUuid,
+        name: inventoryItems.name,
+        notes: inventoryItems.notes,
+        characterId: inventoryItems.characterId,
+        characterName: characters.name,
+        ownerId: characters.ownerId,
+        createdAt: inventoryItems.createdAt,
+      })
+      .from(inventoryItems)
+      .innerJoin(characters, eq(characters.id, inventoryItems.characterId))
+      .where(
+        and(
+          sql`lower(${inventoryItems.category}) IN ('gun', 'weapon', 'power', 'tech')`,
+          sql`NOT EXISTS (SELECT 1 FROM catalog_guns g WHERE lower(g.name) = lower(${inventoryItems.name}))`,
+        ),
+      );
+    for (const it of invRows) {
+      if (it.characterId == null) continue; // inner join guarantees this; type-narrow
+      if (it.instanceUuid && linkedRefs.has(`inventory:${it.instanceUuid}`)) continue;
+      rows.push({
+        id: -it.id,
+        type: "gun",
+        title: it.name,
+        description: it.notes,
+        imageUrl: null,
+        details: null,
+        status: "sheet",
+        appliedRef: it.instanceUuid ? `inventory:${it.instanceUuid}` : null,
+        characterId: it.characterId,
+        characterName: it.characterName,
+        ownerId: it.ownerId,
+        createdAt: it.createdAt,
+      });
+    }
+  }
   res.json(rows);
 });
 

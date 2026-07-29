@@ -38,7 +38,18 @@ export default function CustomCatalogTab({
               className="border-b border-border/30 hover:bg-nc-cyan/5"
               data-testid={`row-custom-${type}-${r.id}`}
             >
-              <td className="p-3 font-bold">{r.title}</td>
+              <td className="p-3 font-bold">
+                {r.title}
+                {r.status === "sheet" && (
+                  <span
+                    className="ml-2 align-middle text-[9px] font-display tracking-widest text-nc-yellow border border-nc-yellow/40 px-1 py-0.5"
+                    title="From a character sheet / inventory — no custom request on file"
+                    data-testid={`badge-sheet-${r.id}`}
+                  >
+                    SHEET
+                  </span>
+                )}
+              </td>
               <td className="p-3">
                 {r.characterName ? (
                   <Link
