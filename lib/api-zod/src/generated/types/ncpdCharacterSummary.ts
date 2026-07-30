@@ -14,4 +14,11 @@ export interface NcpdCharacterSummary {
   /** @nullable */
   archetype?: string | null;
   archived: boolean;
+  /** @nullable */
+  ownerId?: string | null;
+  /**
+     * Owning player's display name (globalName, falling back to username). Null for unclaimed characters.
+     * @nullable
+     */
+  ownerName?: string | null;
 }

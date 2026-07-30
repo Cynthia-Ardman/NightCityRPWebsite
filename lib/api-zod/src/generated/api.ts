@@ -13860,10 +13860,10 @@ export const MergeBreachPracticeStatsResponse = zod.object({
 
 
 /**
- * @summary Search characters by name or character number (NCPD/fixer/admin only).
+ * @summary Search characters by character name, player name, or character number (NCPD/fixer/admin only).
  */
 export const NcpdSearchCharactersQueryParams = zod.object({
-  "q": zod.coerce.string().optional().describe('Name fragment or exact character number.')
+  "q": zod.coerce.string().optional().describe('Character-name fragment, player-name fragment (returns all of that player\'s characters), or exact character number.')
 })
 
 export const NcpdSearchCharactersResponseItem = zod.object({
@@ -13871,7 +13871,9 @@ export const NcpdSearchCharactersResponseItem = zod.object({
   "name": zod.string(),
   "kind": zod.enum(['pc', 'npc']),
   "archetype": zod.string().nullish(),
-  "archived": zod.boolean()
+  "archived": zod.boolean(),
+  "ownerId": zod.string().nullish(),
+  "ownerName": zod.string().nullish().describe('Owning player\'s display name (globalName, falling back to username). Null for unclaimed characters.')
 })
 export const NcpdSearchCharactersResponse = zod.array(NcpdSearchCharactersResponseItem)
 

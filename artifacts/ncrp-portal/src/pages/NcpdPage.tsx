@@ -2,15 +2,15 @@ import { formatDate } from "@/lib/format";
 import { useState } from "react";
 import { Link } from "wouter";
 import {
-  useNcpdSearchCharacters,
-  getNcpdSearchCharactersQueryKey,
   useListNcpdReports,
   useListNcpdWarrants,
   getListNcpdWarrantsQueryKey,
   useListNcpdOfficers,
+  useCreateNcpdWarrant,
   type NcpdCharacterSummary,
   type NcpdOfficerCharacter,
 } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,7 +19,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import NcpdRecordPanel, { warrantStatusClass } from "@/components/NcpdRecordPanel";
 import NcpdCaseBoard from "@/components/NcpdCaseBoard";
-import { Shield, FileText, AlertTriangle, Search, Users, Star, UserSearch, FolderOpen } from "lucide-react";
+import NcpdCharacterSearch from "@/components/NcpdCharacterSearch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { Shield, FileText, AlertTriangle, Search, Users, Star, UserSearch, FolderOpen, Plus, X } from "lucide-react";
 
 function fmtDate(iso?: string | null): string {
   if (!iso) return "—";
@@ -106,6 +111,7 @@ function WarrantsBoard() {
   // The board defaults to OPEN warrants — that is the actionable list an
   // officer walks in for; served/revoked stay one click away.
   const [filter, setFilter] = useState<WarrantFilter>("open");
+  const [creating, setCreating] = useState(false);
   const params = filter === "all" ? undefined : { status: filter };
   const { data, isLoading } = useListNcpdWarrants(params, {
     query: { queryKey: getListNcpdWarrantsQueryKey(params) },
@@ -113,7 +119,7 @@ function WarrantsBoard() {
   const rows = data ?? [];
   return (
     <div className="space-y-3">
-      <div className="flex gap-1 flex-wrap" data-testid="filter-warrant-status">
+      <div className="flex gap-1 flex-wrap items-center" data-testid="filter-warrant-status">
         {WARRANT_FILTERS.map((f) => (
           <Button
             key={f}
@@ -126,7 +132,17 @@ function WarrantsBoard() {
             {f}
           </Button>
         ))}
+        <div className="flex-1" />
+        <Button
+          size="sm"
+          className="rounded-none font-display uppercase text-xs border border-nc-cyan bg-transparent text-nc-cyan hover:bg-nc-cyan/10"
+          onClick={() => setCreating(true)}
+          data-testid="button-ncpd-new-warrant"
+        >
+          <Plus className="w-4 h-4 mr-1" /> NEW WARRANT
+        </Button>
       </div>
+      <NewWarrantDialog open={creating} onOpenChange={setCreating} />
       {isLoading ? (
         <div className="text-nc-cyan font-display animate-pulse">SCANNING...</div>
       ) : !rows.length ? (
@@ -159,6 +175,119 @@ function WarrantsBoard() {
         ))
       )}
     </div>
+  );
+}
+
+// New Warrant dialog on the warrants board: pick a suspect via the shared
+// character/player search, then fill in reason + optional internal notes.
+function NewWarrantDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const [selected, setSelected] = useState<NcpdCharacterSummary | null>(null);
+  const [reason, setReason] = useState("");
+  const [notes, setNotes] = useState("");
+  const create = useCreateNcpdWarrant();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const reset = () => {
+    setSelected(null);
+    setReason("");
+    setNotes("");
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        onOpenChange(v);
+        if (!v) reset();
+      }}
+    >
+      <DialogContent className="rounded-none border-nc-cyan/40 max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-display tracking-widest text-nc-cyan flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" /> NEW WARRANT
+          </DialogTitle>
+        </DialogHeader>
+        {!selected ? (
+          <div className="space-y-3">
+            <p className="font-mono text-sm text-muted-foreground">
+              Search for the suspect by character name, player name, or character number.
+            </p>
+            <NcpdCharacterSearch autoFocus onSelect={(c) => setSelected(c)} />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3 border border-border bg-black/20 p-3 flex-wrap">
+              <div>
+                <p className="font-display tracking-wider text-foreground" data-testid="text-warrant-suspect">
+                  {selected.name}
+                </p>
+                <p className="font-mono text-xs text-muted-foreground">
+                  {selected.kind.toUpperCase()}
+                  {selected.archetype ? ` · ${selected.archetype}` : ""}
+                  {selected.ownerName ? ` · Player: ${selected.ownerName}` : ""}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-none font-display text-xs"
+                onClick={() => setSelected(null)}
+                data-testid="button-warrant-change-suspect"
+              >
+                <X className="w-4 h-4 mr-1" /> CHANGE
+              </Button>
+            </div>
+            <div className="space-y-1">
+              <Label className="font-mono text-xs uppercase">Reason</Label>
+              <Input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="rounded-none"
+                data-testid="input-new-warrant-reason"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="font-mono text-xs uppercase">Internal notes (optional)</Label>
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                className="rounded-none"
+                data-testid="input-new-warrant-notes"
+              />
+            </div>
+            <Button
+              className="rounded-none font-display w-full"
+              disabled={!reason.trim() || create.isPending}
+              onClick={() => {
+                create.mutate(
+                  { data: { characterId: selected.id, reason: reason.trim(), notes: notes.trim() || null } },
+                  {
+                    onSuccess: () => {
+                      // Invalidate every filter variant of the board list.
+                      void queryClient.invalidateQueries({ queryKey: ["/api/ncpd/warrants"] });
+                      toast({ title: "Warrant issued", description: `Warrant issued on ${selected.name}.` });
+                      onOpenChange(false);
+                      reset();
+                    },
+                    onError: (e: any) =>
+                      toast({
+                        title: "Could not issue warrant",
+                        description: String(e?.data?.error ?? e?.message ?? e),
+                        variant: "destructive",
+                      }),
+                  },
+                );
+              }}
+              data-testid="button-new-warrant-submit"
+            >
+              {create.isPending ? "ISSUING..." : "ISSUE WARRANT"}
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -201,51 +330,9 @@ function ReportsFeed() {
 }
 
 function CharacterLookup() {
-  const [q, setQ] = useState("");
-  // Enable at 2+ chars for names, but allow single-character queries when the
-  // input is numeric — officers look characters up by character number (e.g. "4").
-  const trimmed = q.trim();
-  const enabled = trimmed.length >= 2 || /^\d+$/.test(trimmed);
-  const { data, isLoading } = useNcpdSearchCharacters(
-    { q: q.trim() },
-    { query: { enabled, queryKey: getNcpdSearchCharactersQueryKey({ q: q.trim() }) } },
-  );
-  const rows: NcpdCharacterSummary[] = data ?? [];
-  return (
-    <div className="space-y-4">
-      <Input
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder="Search characters by name…"
-        className="rounded-none max-w-md"
-        data-testid="input-ncpd-search"
-      />
-      {!enabled ? (
-        <p className="font-mono text-sm text-muted-foreground">Enter at least 2 characters to search.</p>
-      ) : isLoading ? (
-        <div className="text-nc-cyan font-display animate-pulse">SEARCHING...</div>
-      ) : !rows.length ? (
-        <p className="font-mono text-sm text-muted-foreground">No matches.</p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {rows.map((c) => (
-            <Link key={c.id} href={`/ncpd/characters/${c.id}`}>
-              <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan transition-all cursor-pointer h-full" data-testid={`card-ncpd-char-${c.id}`}>
-                <CardContent className="py-4 space-y-1">
-                  <p className="font-display tracking-wider text-foreground">{c.name}</p>
-                  <p className="font-mono text-xs text-muted-foreground">
-                    {c.kind.toUpperCase()}
-                    {c.archetype ? ` · ${c.archetype}` : ""}
-                    {c.archived ? " · ARCHIVED" : ""}
-                  </p>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  // Shared search: character name, character number, or player name (player
+  // matches group all of that player's characters).
+  return <NcpdCharacterSearch />;
 }
 
 function OfficerCharacterCard({ ch }: { ch: NcpdOfficerCharacter }) {

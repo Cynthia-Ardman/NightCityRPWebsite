@@ -88,6 +88,24 @@ describe("NCPD character lookup", () => {
     expect(byId.body.map((r: { id: number }) => r.id)).toContain(c.id);
   });
 
+  it("finds ALL of a player's characters by player name, with owner fields", async () => {
+    const officer = await createOfficer();
+    const player = await createUser({ username: "chromehound_77" });
+    const c1 = await createCharacter({ ownerId: player.id, name: "Vex Marlowe" });
+    const c2 = await createCharacter({ ownerId: player.id, name: "Dutch Kepler" });
+    const other = await createCharacter({ name: "Unrelated Guy" });
+
+    const res = await request(app).get("/api/ncpd/characters?q=chromehound").set("x-test-user", officer.id);
+    expect(res.status).toBe(200);
+    const ids = res.body.map((r: { id: number }) => r.id);
+    expect(ids).toContain(c1.id);
+    expect(ids).toContain(c2.id);
+    expect(ids).not.toContain(other.id);
+    const row = res.body.find((r: { id: number }) => r.id === c1.id);
+    expect(row.ownerId).toBe(player.id);
+    expect(row.ownerName).toBe("chromehound_77");
+  });
+
   it("returns the full record: identity + reports + warrants + notes", async () => {
     const officer = await createOfficer();
     const c = await createCharacter({ name: "Rogue" });

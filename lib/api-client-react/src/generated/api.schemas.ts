@@ -7715,6 +7715,13 @@ export interface NcpdCharacterSummary {
   /** @nullable */
   archetype?: string | null;
   archived: boolean;
+  /** @nullable */
+  ownerId?: string | null;
+  /**
+     * Owning player's display name (globalName, falling back to username). Null for unclaimed characters.
+     * @nullable
+     */
+  ownerName?: string | null;
 }
 
 export interface NcpdOfficerCharacter {
@@ -8881,7 +8888,7 @@ export type ReportBreachProgress200 = {
 
 export type NcpdSearchCharactersParams = {
 /**
- * Name fragment or exact character number.
+ * Character-name fragment, player-name fragment (returns all of that player's characters), or exact character number.
  */
 q?: string;
 };

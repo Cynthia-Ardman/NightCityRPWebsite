@@ -59,8 +59,11 @@ async function loadCharacter(id: number) {
 // Character lookup + full record
 // ---------------------------------------------------------------------------
 
-// Lightweight name/id search so officers can find a character number without
-// needing the fixer-only archive. Returns identity fields only.
+// Lightweight search so officers can find a character without needing the
+// fixer-only archive. Matches character name, exact character number, OR the
+// owning player's name (username/globalName) — a player-name match returns
+// ALL of that player's characters, mirroring the fixer Player Lookup.
+// Returns identity + owner display fields only.
 router.get("/ncpd/characters", requireAuth, requireNcpd, async (req, res): Promise<void> => {
   const q = str(req.query.q);
   const idNum = q && /^\d+$/.test(q) ? Number(q) : null;
@@ -71,18 +74,23 @@ router.get("/ncpd/characters", requireAuth, requireNcpd, async (req, res): Promi
       kind: characters.kind,
       archetype: characters.archetype,
       archived: characters.archived,
+      ownerId: characters.ownerId,
+      ownerName: sql<string | null>`coalesce(${users.globalName}, ${users.username})`,
     })
     .from(characters)
+    .leftJoin(users, eq(users.id, characters.ownerId))
     .where(
       q
         ? or(
             ilike(characters.name, `%${q}%`),
+            ilike(users.username, `%${q}%`),
+            ilike(users.globalName, `%${q}%`),
             ...(idNum !== null && Number.isSafeInteger(idNum) ? [eq(characters.id, idNum)] : []),
           )
         : sql`true`,
     )
     .orderBy(characters.name)
-    .limit(25);
+    .limit(50);
   res.json(rows);
 });
 

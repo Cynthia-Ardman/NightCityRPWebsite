@@ -26833,7 +26833,7 @@ export const getNcpdSearchCharactersUrl = (params?: NcpdSearchCharactersParams,)
 }
 
 /**
- * @summary Search characters by name or character number (NCPD/fixer/admin only).
+ * @summary Search characters by character name, player name, or character number (NCPD/fixer/admin only).
  */
 export const ncpdSearchCharacters = async (params?: NcpdSearchCharactersParams, options?: RequestInit): Promise<NcpdCharacterSummary[]> => {
 
@@ -26880,7 +26880,7 @@ export type NcpdSearchCharactersQueryError = ErrorType<void>
 
 
 /**
- * @summary Search characters by name or character number (NCPD/fixer/admin only).
+ * @summary Search characters by character name, player name, or character number (NCPD/fixer/admin only).
  */
 
 export function useNcpdSearchCharacters<TData = Awaited<ReturnType<typeof ncpdSearchCharacters>>, TError = ErrorType<void>>(

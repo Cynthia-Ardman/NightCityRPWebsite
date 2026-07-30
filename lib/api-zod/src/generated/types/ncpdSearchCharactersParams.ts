@@ -8,7 +8,7 @@
 
 export type NcpdSearchCharactersParams = {
 /**
- * Name fragment or exact character number.
+ * Character-name fragment, player-name fragment (returns all of that player's characters), or exact character number.
  */
 q?: string;
 };

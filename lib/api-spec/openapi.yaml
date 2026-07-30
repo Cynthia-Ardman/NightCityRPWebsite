@@ -6079,15 +6079,15 @@ paths:
     get:
       operationId: ncpdSearchCharacters
       tags: [ncpd]
-      summary: Search characters by name or character number (NCPD/fixer/admin only).
+      summary: Search characters by character name, player name, or character number (NCPD/fixer/admin only).
       parameters:
         - in: query
           name: q
           schema: { type: string }
-          description: Name fragment or exact character number.
+          description: Character-name fragment, player-name fragment (returns all of that player's characters), or exact character number.
       responses:
         "200":
-          description: Matching characters (identity fields only, max 25)
+          description: Matching characters (identity + owner fields only, max 50)
           content:
             application/json:
               schema:
@@ -11823,6 +11823,10 @@ components:
         kind: { type: string, enum: [pc, npc] }
         archetype: { type: ["string", "null"] }
         archived: { type: boolean }
+        ownerId: { type: ["string", "null"] }
+        ownerName:
+          type: ["string", "null"]
+          description: Owning player's display name (globalName, falling back to username). Null for unclaimed characters.
 
     NcpdOfficerCharacter:
       type: object
