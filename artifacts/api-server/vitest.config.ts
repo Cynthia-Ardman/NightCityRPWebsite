@@ -33,6 +33,13 @@ process.env.VITEST_WORKER_COUNT = String(workerCount);
 export default defineConfig({
   test: {
     environment: "node",
+    // Under a full parallel run the host's CPU/IO saturates and the per-test
+    // truncateAll() hook (and slow DB-heavy tests) can exceed the 10s default,
+    // failing unrelated files with "Hook timed out". These are load flakes,
+    // not hangs — give hooks/tests generous headroom so the suite is
+    // deterministic; genuinely hung tests still fail, just slower.
+    hookTimeout: 120_000,
+    testTimeout: 60_000,
     globalSetup: ["./src/test/globalSetup.ts"],
     // workerDbEnv.ts MUST come first: it rewrites DATABASE_URL to this worker's
     // own database before setup.ts (which imports the @workspace/db singleton).
