@@ -2136,6 +2136,33 @@ export const RequestStoreStockBody = zod.object({
 })
 
 
+/**
+ * @summary Gun-store operator (owner/employee/staff) submits a custom gun request with proposed specs and an optional buyer + sale price. Goes to the fixer review queue; on approve+close the gun lands in this store's stock and, when a buyer and price were named, a pending sale offer is created in the buyer's Inbox.
+ */
+export const RequestStoreGunParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+export const requestStoreGunBodySalePriceMin = 0;
+
+
+
+export const RequestStoreGunBody = zod.object({
+  "name": zod.string().min(1).describe('Gun name.'),
+  "description": zod.string().min(1).describe('What the weapon is and why the store wants it — shown to the fixers.'),
+  "category": zod.string().optional().describe('Proposed firing class (Power\/Tech\/Smart). Fixers confirm at close.'),
+  "weaponType": zod.string().optional().describe('Proposed form factor (Pistol, SMG, ...). Fixers confirm at close.'),
+  "fireMode": zod.string().optional().describe('Proposed fire mode (Semi-Auto\/Burst\/Full-Auto). Fixers confirm at close.'),
+  "powerLevel": zod.string().optional().describe('Proposed power tier (L\/M\/H). Fixers confirm at close.'),
+  "manufacturer": zod.string().optional().describe('Optional manufacturer.'),
+  "imageUrls": zod.array(zod.string()).optional().describe('Reference images.'),
+  "buyerCharacterId": zod.number().optional().describe('Optional buyer character. On approval (with salePrice) a pending sale offer is created in their Inbox.'),
+  "salePrice": zod.number().min(requestStoreGunBodySalePriceMin).optional().describe('Optional sale price for the auto-offer; also becomes the stock price.')
+})
+
+
 export const UpdateStoreStockParams = zod.object({
   "id": zod.coerce.number(),
   "stockId": zod.coerce.number()

@@ -1344,11 +1344,11 @@ function InventoryTab({ characterId }: { characterId: number }) {
           <CardContent>
             <CatalogRequestSection
               type="item"
-              typeChoices={["item", "gun", "cyberware"]}
+              typeChoices={["item", "cyberware"]}
               presetCharacterId={characterId}
               buttonLabel="REQUEST CUSTOM ITEM"
               dialogTitle="Request Custom Item"
-              dialogDescription={`Ask staff to add a gun, cyberware, or general item to ${char?.name ?? "this character"}.`}
+              dialogDescription={`Ask staff to add cyberware or a general item to ${char?.name ?? "this character"}. Custom guns are requested through a gun store.`}
               titleLabel="Item"
               titlePlaceholder="e.g. Encrypted Agent, Med Kit, Vehicle Keys"
             />

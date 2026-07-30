@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
-import { and, desc, eq, gte, ilike, inArray, ne, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, ne, notInArray, or, sql } from "drizzle-orm";
 import {
   db,
   customRequests,
@@ -20,6 +20,7 @@ import {
   missionApplications,
   catalogRent,
   characterTagOptions,
+  saleOffers,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, sendDirectMessage, postToChannel } from "../lib/discord";
@@ -354,7 +355,10 @@ async function materializeRequest(
   reqRow: RequestSelectRow,
   c: CharacterRow,
   params: ApprovalParams,
-): Promise<{ ok: { appliedRef: string; summary: string } } | { error: { status: number; body: { error: string } } }> {
+): Promise<
+  | { ok: { appliedRef: string; summary: string; notifyBuyer?: { userId: string; buyerName: string; totalPrice: number; itemName: string; storeName: string } } }
+  | { error: { status: number; body: { error: string } } }
+> {
   if (reqRow.type === "property") {
     const monthlyRent = parseInt(String(params.monthlyRent), 10);
     if (!Number.isFinite(monthlyRent) || monthlyRent < 0) {
@@ -410,6 +414,97 @@ async function materializeRequest(
     const powerLevel = reqStr(params.powerLevel);
     if (!powerLevel) return { error: { status: 400, body: { error: "powerLevel (L/M/H) required to approve a gun request" } } };
     const manufacturer = reqStr(params.manufacturer);
+    // Store-initiated custom gun (details.storeId): the approved weapon lands
+    // in the SUBMITTING GUN STORE's stock — not a character's inventory. If the
+    // operator named a buyer + sale price, a PENDING sale offer is created in
+    // the same transaction so the buyer can approve & pay from their Inbox via
+    // the normal offer flow. Legacy in-flight player gun requests (no storeId)
+    // keep the old character-inventory path below.
+    const storeDet = (reqRow.details ?? {}) as {
+      storeId?: unknown;
+      buyerCharacterId?: unknown;
+      salePrice?: unknown;
+    };
+    const gunStoreId = Number(storeDet.storeId);
+    if (Number.isInteger(gunStoreId) && gunStoreId > 0) {
+      const [store] = await tx.select().from(stores).where(eq(stores.id, gunStoreId));
+      if (!store) {
+        return { error: { status: 400, body: { error: "The submitting store no longer exists — cannot stock the gun" } } };
+      }
+      const rawPrice = Number(storeDet.salePrice);
+      const salePrice = Number.isFinite(rawPrice) && rawPrice >= 0 ? Math.min(Math.round(rawPrice), MAX_MONEY) : null;
+      const stockNotes = [
+        manufacturer ? `Manufacturer: ${manufacturer}` : null,
+        `Type: ${weaponType}`,
+        `Fire: ${fireMode}`,
+        `Custom gun (request #${reqRow.id})`,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const [stockRow] = await tx
+        .insert(storeStock)
+        .values({
+          storeId: store.id,
+          name: reqRow.title,
+          // Gun-store stock convention: `category` holds the firing class
+          // (Power/Tech/Smart) and `powerLevel` the L/M/H tier — mirroring the
+          // staff stock editor's columns.
+          category,
+          price: salePrice ?? 0,
+          cost: 0,
+          quantity: 1,
+          powerLevel,
+          notes: stockNotes,
+          description: reqRow.description ?? null,
+        })
+        .returning();
+      let offerNote = "";
+      let notifyBuyer: { userId: string; buyerName: string; totalPrice: number } | null = null;
+      const buyerId = Number(storeDet.buyerCharacterId);
+      if (Number.isInteger(buyerId) && buyerId > 0) {
+        const [buyer] = await tx.select().from(characters).where(eq(characters.id, buyerId));
+        if (buyer && !buyer.archived && buyer.ownerId && salePrice != null) {
+          // Pending buyer-approval sale offer (mirrors createOffer minus the
+          // instant completion): nothing moves until the buyer approves from
+          // their Inbox, which debits them and moves the stock via the normal
+          // offer pipeline.
+          await tx.insert(saleOffers).values({
+            kind: "store",
+            offerType: "sale",
+            storeId: store.id,
+            stockId: stockRow.id,
+            itemName: stockRow.name,
+            itemCategory: stockRow.category,
+            unitPrice: salePrice,
+            quantity: 1,
+            totalPrice: salePrice,
+            costBasis: 0,
+            buyerCharacterId: buyer.id,
+            buyerUserId: buyer.ownerId,
+            sellerCharacterId: null,
+            sellerEmployeeId: null,
+            commissionPct: 0,
+            createdById: reqRow.requestedById,
+            memo: `Custom gun request #${reqRow.id} — ${store.name}`,
+            status: "pending",
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          });
+          offerNote = ` — sale offer sent to ${buyer.name} for €$${salePrice.toLocaleString()}`;
+          notifyBuyer = { userId: buyer.ownerId, buyerName: buyer.name, totalPrice: salePrice };
+        } else if (buyer && salePrice == null) {
+          offerNote = " — no sale price set, so no offer was created (sell it from the store page)";
+        } else {
+          offerNote = " — the named buyer is unavailable (archived/unclaimed), so no offer was created";
+        }
+      }
+      return {
+        ok: {
+          appliedRef: `store_stock:${stockRow.id}`,
+          summary: `Custom gun approved and stocked at ${store.name}: ${reqRow.title} (${category} · ${weaponType} · ${powerLevel})${offerNote}`,
+          ...(notifyBuyer ? { notifyBuyer: { ...notifyBuyer, itemName: stockRow.name, storeName: store.name } } : {}),
+        },
+      };
+    }
     const notes = [
       manufacturer ? `Manufacturer: ${manufacturer}` : null,
       `Category: ${category}`,
@@ -832,7 +927,7 @@ const MAX_REQUEST_IMAGES = 8;
 // Normalize the caller-supplied image inputs into a clean ordered array:
 // prefers the multi-image `imageUrls` array, falls back to the legacy single
 // `imageUrl` string. Trims entries, drops non-strings/empties, dedupes, caps.
-function sanitizeImageUrls(imageUrls: unknown, imageUrl?: unknown): string[] {
+export function sanitizeImageUrls(imageUrls: unknown, imageUrl?: unknown): string[] {
   const raw = Array.isArray(imageUrls)
     ? imageUrls
     : typeof imageUrl === "string"
@@ -1301,9 +1396,25 @@ router.post("/requests", requireAuth, async (req, res): Promise<void> => {
 // A player's own requests (scoped to caller). Optional ?type filter.
 router.get("/requests/mine", requireAuth, async (req, res): Promise<void> => {
   const typeFilter = req.query.type ? String(req.query.type) : null;
-  const predicate = typeFilter
-    ? and(eq(customRequests.requestedById, req.user!.id), eq(customRequests.type, typeFilter))
-    : eq(customRequests.requestedById, req.user!.id);
+  // Store-initiated gun requests name a BUYER character (the request's
+  // characterId) who may not be the submitter — the buyer must still see the
+  // ticket (and its comment thread) on My Submissions, so include gun+storeId
+  // rows targeting one of the viewer's characters alongside their own rows.
+  const myChars = await db
+    .select({ id: characters.id })
+    .from(characters)
+    .where(eq(characters.ownerId, req.user!.id));
+  const buyerPredicate =
+    myChars.length > 0
+      ? and(
+          eq(customRequests.type, "gun"),
+          inArray(customRequests.characterId, myChars.map((c) => c.id)),
+          sql`${customRequests.details} ->> 'storeId' IS NOT NULL`,
+        )
+      : null;
+  const minePredicate = eq(customRequests.requestedById, req.user!.id);
+  const base = buyerPredicate ? or(minePredicate, buyerPredicate) : minePredicate;
+  const predicate = typeFilter ? and(base, eq(customRequests.type, typeFilter)) : base;
   const rows = await selectWhere(predicate);
   res.json(await attachTallies(rows, req.user!.id, isReviewer(req.user!)));
 });
@@ -1619,13 +1730,20 @@ export async function closeRequest(req: Request, id: number, note?: string, clos
         if ("error" in norm) return { kind: "error" as const, status: 400, body: { error: norm.error } };
         params = norm.ok as ApprovalParams;
       }
+      // Store-initiated gun requests carry the operator's proposed specs on
+      // details.specs — use them as defaults so the closer isn't forced to
+      // re-type values already agreed on. Anything the closer supplies wins.
+      if (reqRow.type === "gun") {
+        const specs = ((reqRow.details ?? {}) as { specs?: Record<string, unknown> }).specs;
+        if (specs && typeof specs === "object") params = { ...specs, ...params };
+      }
       const mat = await materializeRequest(tx, reqRow, c, params);
       if ("error" in mat) return { kind: "error" as const, status: mat.error.status, body: mat.error.body };
       await tx
         .update(customRequests)
         .set({ status: "closed", closedAt: new Date(), closedBy: u.id, appliedRef: mat.ok.appliedRef, closedOutcome: reqRow.status })
         .where(eq(customRequests.id, id));
-      return { kind: "applied" as const, reqRow, c, appliedRef: mat.ok.appliedRef, summary: mat.ok.summary };
+      return { kind: "applied" as const, reqRow, c, appliedRef: mat.ok.appliedRef, summary: mat.ok.summary, notifyBuyer: mat.ok.notifyBuyer ?? null };
     }
     // Rejected / cancelled (or an already-applied approved row): archive only.
     await tx
@@ -1647,6 +1765,27 @@ export async function closeRequest(req: Request, id: number, note?: string, clos
     }
     const [row] = await selectWhere(eq(customRequests.id, id));
     await notifyRequesterOfDecision(row, result.summary, true, note ?? null);
+    // Store-initiated gun with a named buyer: tell the buyer their pending sale
+    // offer is waiting in the Inbox (bell + best-effort DM, fire-and-forget).
+    const nb = result.notifyBuyer;
+    if (nb) {
+      void createNotification({
+        userId: nb.userId,
+        type: "sale_offer",
+        title: `Sale offer: ${nb.itemName} for €$${nb.totalPrice.toLocaleString()}`,
+        body: `${nb.storeName} has your custom gun ready — approve the purchase from your Inbox.`,
+        href: "/inbox",
+      });
+      void (async () => {
+        const [buyerUser] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, nb.userId));
+        if (buyerUser?.discordId) {
+          await sendDirectMessage(
+            buyerUser.discordId,
+            `**${nb.storeName}** has your custom gun **${nb.itemName}** ready for €$${nb.totalPrice.toLocaleString()}.\nApprove or deny the purchase here: ${portalLink("/inbox")}`,
+          );
+        }
+      })().catch((err) => logger.warn({ err, requestId: id }, "custom gun buyer DM failed"));
+    }
   } else if (result.kind === "archived") {
     await recordAudit({
       req,

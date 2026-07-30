@@ -334,6 +334,7 @@ import type {
   StockPurchaseResult,
   StockUpdate,
   Store,
+  StoreGunRequestInput,
   StorePublic,
   StoreSaleInput,
   StoreUpdate,
@@ -6413,6 +6414,78 @@ export const useRequestStoreStock = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRequestStoreStockMutationOptions(options));
+    }
+
+export const getRequestStoreGunUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}/gun-requests`
+}
+
+/**
+ * @summary Gun-store operator (owner/employee/staff) submits a custom gun request with proposed specs and an optional buyer + sale price. Goes to the fixer review queue; on approve+close the gun lands in this store's stock and, when a buyer and price were named, a pending sale offer is created in the buyer's Inbox.
+ */
+export const requestStoreGun = async (id: number,
+    storeGunRequestInput: StoreGunRequestInput, options?: RequestInit): Promise<CustomRequest> => {
+
+  return customFetch<CustomRequest>(getRequestStoreGunUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      storeGunRequestInput,)
+  }
+);}
+
+
+
+
+export const getRequestStoreGunMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestStoreGun>>, TError,{id: number;data: BodyType<StoreGunRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestStoreGun>>, TError,{id: number;data: BodyType<StoreGunRequestInput>}, TContext> => {
+
+const mutationKey = ['requestStoreGun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestStoreGun>>, {id: number;data: BodyType<StoreGunRequestInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  requestStoreGun(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestStoreGunMutationResult = NonNullable<Awaited<ReturnType<typeof requestStoreGun>>>
+    export type RequestStoreGunMutationBody = BodyType<StoreGunRequestInput>
+    export type RequestStoreGunMutationError = ErrorType<void>
+
+    /**
+ * @summary Gun-store operator (owner/employee/staff) submits a custom gun request with proposed specs and an optional buyer + sale price. Goes to the fixer review queue; on approve+close the gun lands in this store's stock and, when a buyer and price were named, a pending sale offer is created in the buyer's Inbox.
+ */
+export const useRequestStoreGun = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestStoreGun>>, TError,{id: number;data: BodyType<StoreGunRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestStoreGun>>,
+        TError,
+        {id: number;data: BodyType<StoreGunRequestInput>},
+        TContext
+      > => {
+      return useMutation(getRequestStoreGunMutationOptions(options));
     }
 
 export const getUpdateStoreStockUrl = (id: number,

@@ -18,6 +18,7 @@ import {
   useGetStoreTransactions,
   useListStoreOffers,
   useRequestStoreStock,
+  useRequestStoreGun,
   useListCyberware,
   getGetStoreQueryKey,
   getGetStoreTransactionsQueryKey,
@@ -48,10 +49,14 @@ import StaffVenuePanel from "@/components/StaffVenuePanel";
 import SingleImageUpload from "@/components/SingleImageUpload";
 import VenueWalletPanel from "@/components/VenueWalletPanel";
 import SelectOrCustom from "@/components/SelectOrCustom";
+import MultiImageUpload from "@/components/MultiImageUpload";
 import {
   GUN_CATEGORIES,
   GUN_POWER_LEVELS,
   GUN_POWER_LEVEL_ALIASES,
+  GUN_WEAPON_TYPES,
+  GUN_WEAPON_TYPE_ALIASES,
+  FIRE_MODES,
 } from "@/components/catalog/gunTypes";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 
@@ -181,6 +186,34 @@ export default function MyStoreDetail() {
       },
     },
   });
+  const requestGun = useRequestStoreGun({
+    mutation: {
+      onSuccess: () => {
+        toast({
+          title: "Custom gun request submitted",
+          description: "The fixers will review it. Track it under My Submissions.",
+        });
+        setGunReqOpen(false);
+        setGunReqName("");
+        setGunReqDescription("");
+        setGunReqCategory("");
+        setGunReqWeaponType("");
+        setGunReqFireMode("");
+        setGunReqPowerLevel("");
+        setGunReqManufacturer("");
+        setGunReqImages([]);
+        setGunReqBuyer(null);
+        setGunReqPrice("");
+      },
+      onError: (err) => {
+        toast({
+          title: "Could not submit request",
+          description: err instanceof Error ? err.message : "Please try again.",
+          variant: "destructive",
+        });
+      },
+    },
+  });
   const updateEmp = useUpdateStoreEmployee({ mutation: { onSuccess: invalidate } });
   const removeEmp = useRemoveStoreEmployee({ mutation: { onSuccess: invalidate } });
   const addStock = useAddStoreStock({ mutation: { onSuccess: invalidate } });
@@ -214,6 +247,20 @@ export default function MyStoreDetail() {
   const [stockReqName, setStockReqName] = useState("");
   const [stockReqCategory, setStockReqCategory] = useState("");
   const [stockReqDescription, setStockReqDescription] = useState("");
+  // Custom gun request dialog (gun stores only). Operators propose a new
+  // weapon with specs + optional buyer/price; fixers review and, on approval,
+  // it lands in this store's stock (and the buyer gets a pending sale offer).
+  const [gunReqOpen, setGunReqOpen] = useState(false);
+  const [gunReqName, setGunReqName] = useState("");
+  const [gunReqDescription, setGunReqDescription] = useState("");
+  const [gunReqCategory, setGunReqCategory] = useState("");
+  const [gunReqWeaponType, setGunReqWeaponType] = useState("");
+  const [gunReqFireMode, setGunReqFireMode] = useState("");
+  const [gunReqPowerLevel, setGunReqPowerLevel] = useState("");
+  const [gunReqManufacturer, setGunReqManufacturer] = useState("");
+  const [gunReqImages, setGunReqImages] = useState<string[]>([]);
+  const [gunReqBuyer, setGunReqBuyer] = useState<CharacterPickerValue>(null);
+  const [gunReqPrice, setGunReqPrice] = useState("");
   // Buffered profile edits — staff change name/kind/location/purpose/description
   // freely, then commit with SAVE (no autosave-on-blur). Seeded from the loaded
   // store and re-seeded whenever a different store loads. Banner stays immediate.
@@ -437,6 +484,17 @@ export default function MyStoreDetail() {
             >
               <PackagePlus className="w-3 h-3 mr-1" /> REQUEST CUSTOM STOCK
             </Button>
+            )}
+            {isGunStore && canBuyStock && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setGunReqOpen(true)}
+                className="rounded-none font-display text-nc-magenta border-nc-magenta/50"
+                data-testid="button-open-gun-request"
+              >
+                <PackagePlus className="w-3 h-3 mr-1" /> REQUEST A CUSTOM GUN
+              </Button>
             )}
             {canBuyStock && (
               <Button
@@ -763,6 +821,159 @@ export default function MyStoreDetail() {
           }}
         />
       )}
+      <Dialog open={gunReqOpen} onOpenChange={setGunReqOpen}>
+        <DialogContent className="rounded-none border-border bg-card sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-widest text-nc-magenta">Request a Custom Gun</DialogTitle>
+            <DialogDescription className="font-mono text-xs">
+              Propose a new weapon for this store. The fixers review it; if approved it's added to your stock. Name a
+              buyer and sale price and they'll get a purchase offer in their Inbox to approve and pay.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Gun Name</Label>
+              <Input
+                value={gunReqName}
+                onChange={(e) => setGunReqName(e.target.value)}
+                placeholder="e.g. Militech M-10AF Lexington"
+                className="rounded-none font-mono"
+                data-testid="input-gun-request-name"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Description</Label>
+              <Textarea
+                value={gunReqDescription}
+                onChange={(e) => setGunReqDescription(e.target.value)}
+                placeholder="What is it, and why does the store want it? The fixers read this."
+                className="rounded-none font-mono min-h-[100px]"
+                data-testid="input-gun-request-description"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Category</Label>
+                <SelectOrCustom
+                  value={gunReqCategory}
+                  onChange={setGunReqCategory}
+                  options={GUN_CATEGORIES}
+                  placeholder="Category"
+                  emptyLabel="— Category —"
+                  allowEmpty
+                  testId="input-gun-request-category"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Weapon Type</Label>
+                <SelectOrCustom
+                  value={gunReqWeaponType}
+                  onChange={setGunReqWeaponType}
+                  options={GUN_WEAPON_TYPES}
+                  aliases={GUN_WEAPON_TYPE_ALIASES}
+                  placeholder="Weapon type"
+                  emptyLabel="— Weapon type —"
+                  allowEmpty
+                  testId="input-gun-request-weapon-type"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Fire Mode</Label>
+                <SelectOrCustom
+                  value={gunReqFireMode}
+                  onChange={setGunReqFireMode}
+                  options={FIRE_MODES}
+                  placeholder="Fire mode"
+                  emptyLabel="— Fire mode —"
+                  allowEmpty
+                  testId="input-gun-request-fire-mode"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Power Level</Label>
+                <SelectOrCustom
+                  value={gunReqPowerLevel}
+                  onChange={setGunReqPowerLevel}
+                  options={GUN_POWER_LEVELS}
+                  aliases={GUN_POWER_LEVEL_ALIASES}
+                  placeholder="Power level"
+                  emptyLabel="— Power level —"
+                  allowEmpty
+                  testId="input-gun-request-power-level"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Manufacturer (optional)</Label>
+              <Input
+                value={gunReqManufacturer}
+                onChange={(e) => setGunReqManufacturer(e.target.value)}
+                placeholder="e.g. Militech"
+                className="rounded-none font-mono"
+                data-testid="input-gun-request-manufacturer"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Reference Images (optional)</Label>
+              <MultiImageUpload value={gunReqImages} onChange={setGunReqImages} testIdPrefix="gun-request" alt="reference" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Buyer (optional)</Label>
+              <CharacterPicker value={gunReqBuyer} onChange={setGunReqBuyer} testId="input-gun-request-buyer" />
+              <p className="font-mono text-[11px] text-muted-foreground">
+                If a customer already wants this gun, name their character — on approval they'll get a purchase offer to
+                approve and pay.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Sale Price €$ (optional)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={gunReqPrice}
+                onChange={(e) => setGunReqPrice(e.target.value)}
+                placeholder="e.g. 2500"
+                className="rounded-none font-mono"
+                data-testid="input-gun-request-price"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" className="rounded-none font-display" onClick={() => setGunReqOpen(false)}>
+              CANCEL
+            </Button>
+            <Button
+              className="rounded-none font-display tracking-widest bg-nc-magenta text-background hover:bg-nc-magenta/80"
+              disabled={
+                !gunReqName.trim() ||
+                !gunReqDescription.trim() ||
+                (gunReqPrice !== "" && (!Number.isFinite(Number(gunReqPrice)) || Number(gunReqPrice) < 0)) ||
+                requestGun.isPending
+              }
+              onClick={() =>
+                requestGun.mutate({
+                  id: storeId,
+                  data: {
+                    name: gunReqName.trim(),
+                    description: gunReqDescription.trim(),
+                    category: gunReqCategory.trim() || undefined,
+                    weaponType: gunReqWeaponType.trim() || undefined,
+                    fireMode: gunReqFireMode.trim() || undefined,
+                    powerLevel: gunReqPowerLevel.trim() || undefined,
+                    manufacturer: gunReqManufacturer.trim() || undefined,
+                    imageUrls: gunReqImages.length > 0 ? gunReqImages : undefined,
+                    buyerCharacterId: gunReqBuyer?.id ?? undefined,
+                    salePrice: gunReqPrice !== "" ? Math.round(Number(gunReqPrice)) : undefined,
+                  },
+                })
+              }
+              data-testid="button-submit-gun-request"
+            >
+              {requestGun.isPending ? "SUBMITTING..." : "SUBMIT REQUEST"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={stockReqOpen} onOpenChange={setStockReqOpen}>
         <DialogContent className="rounded-none border-border bg-card sm:max-w-md">
           <DialogHeader>

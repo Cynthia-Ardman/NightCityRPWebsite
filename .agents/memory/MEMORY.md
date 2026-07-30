@@ -68,6 +68,7 @@
 - [custom_requests is character-bound](custom-request-character-bound.md) — characterId is NOT NULL; non-character proposals (new mission/cyberware catalog) need a migration — see topic.
 - [Custom-request image dual-column](custom-request-image-dual-column.md) — image_urls array is canonical, legacy image_url must stay = first; every write path dual-writes.
 - [Tag→Discord role links](tag-role-links.md) — tag options carry discordRoleId+requiresApproval; gated player adds divert to character_tag requests, staff bypass; sibling-safe role removal.
+- [Store gun request flow](store-gun-request-flow.md) — gun requests fork on details.storeId: store-stock materialize + pending (never auto-complete) sale offer; buyer/operator access spans 4 surfaces.
 - [Custom-request type wiring](custom-request-type-wiring.md) — adding a player-submit/fixer-voted type (gun template): requests.ts spots + 3 openapi enums + MyRequests own — see topic.
 - [Append-only history guards](append-only-history-guards.md) — DB triggers block UPDATE/DELETE/TRUNCATE on bot_* legacy + audit/activity tables (INSERT only); wallet_transactions deliberately NOT locked; re-applied via post-merge db:guards.
 - [Rent & meds history sources](rent-and-meds-history-sources.md) — rent = #rent-payments channel; meds full year = bot's operator-DM sweep logs (our token IS the bot, reads own DMs) — see topic.

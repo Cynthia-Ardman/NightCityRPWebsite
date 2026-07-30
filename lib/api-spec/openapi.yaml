@@ -1452,6 +1452,28 @@ paths:
         "400": { description: "Bad request or no eligible owner character" }
         "403": { description: Forbidden }
         "404": { description: Not found }
+  /stores/{id}/gun-requests:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: requestStoreGun
+      tags: [stores]
+      summary: Gun-store operator (owner/employee/staff) submits a custom gun request with proposed specs and an optional buyer + sale price. Goes to the fixer review queue; on approve+close the gun lands in this store's stock and, when a buyer and price were named, a pending sale offer is created in the buyer's Inbox.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StoreGunRequestInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomRequest" }
+        "400": { description: "Bad request, not a gun store, or no eligible owner character" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
+        "409": { description: "Buyer character is unclaimed" }
   /stores/{id}/stock/{stockId}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -9701,6 +9723,24 @@ components:
         category: { type: string, description: "Optional stock category." }
         description: { type: string, description: "Optional notes for the fixers reviewing the request." }
         source: { type: string, description: "Optional free-text source/notes carried on details.source." }
+
+    StoreGunRequestInput:
+      type: object
+      required: [name, description]
+      properties:
+        name: { type: string, minLength: 1, description: "Gun name." }
+        description: { type: string, minLength: 1, description: "What the weapon is and why the store wants it — shown to the fixers." }
+        category: { type: string, description: "Proposed firing class (Power/Tech/Smart). Fixers confirm at close." }
+        weaponType: { type: string, description: "Proposed form factor (Pistol, SMG, ...). Fixers confirm at close." }
+        fireMode: { type: string, description: "Proposed fire mode (Semi-Auto/Burst/Full-Auto). Fixers confirm at close." }
+        powerLevel: { type: string, description: "Proposed power tier (L/M/H). Fixers confirm at close." }
+        manufacturer: { type: string, description: "Optional manufacturer." }
+        imageUrls:
+          type: array
+          items: { type: string }
+          description: "Reference images."
+        buyerCharacterId: { type: integer, description: "Optional buyer character. On approval (with salePrice) a pending sale offer is created in their Inbox." }
+        salePrice: { type: integer, minimum: 0, description: "Optional sale price for the auto-offer; also becomes the stock price." }
 
     HousingLeaseInput:
       type: object

@@ -13,6 +13,8 @@ import {
   lorePendingEdits,
   loreEntries,
   users,
+  stores,
+  storeEmployees,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole, sendDirectMessage, listThreadMessages, threadWebUrl, type DiscordThreadMessage } from "../lib/discord";
@@ -80,6 +82,9 @@ type ResolvedSubject = {
   status: string;
   // Short human label used in notification DMs.
   label: string;
+  // Additional non-reviewer users granted thread access (e.g. the named buyer
+  // and fellow store operators on a store-initiated gun request).
+  extraUserIds?: string[];
 };
 
 // Resolve a review subject to its submitter + status (and a label for DMs),
@@ -105,11 +110,38 @@ async function resolveSubject(type: ThreadSubjectType, id: number): Promise<Reso
   }
   if (type === "request") {
     const [row] = await db
-      .select({ submitterId: customRequests.requestedById, status: customRequests.status, title: customRequests.title })
+      .select({
+        submitterId: customRequests.requestedById,
+        status: customRequests.status,
+        title: customRequests.title,
+        characterId: customRequests.characterId,
+        details: customRequests.details,
+      })
       .from(customRequests)
       .where(eq(customRequests.id, id));
     if (!row) return null;
-    return { submitterId: row.submitterId, status: row.status, label: `your request "${row.title}"` };
+    // Store-initiated gun requests (details.storeId) involve more than the
+    // submitter: the named BUYER (owner of the request's character) and the
+    // store's other operators (owner + employees) may all read/post the thread.
+    const extraUserIds: string[] = [];
+    const det = (row.details ?? {}) as { storeId?: unknown };
+    const storeId = Number(det.storeId);
+    if (Number.isInteger(storeId) && storeId > 0) {
+      const [buyerChar] = await db
+        .select({ ownerId: characters.ownerId })
+        .from(characters)
+        .where(eq(characters.id, row.characterId));
+      if (buyerChar?.ownerId) extraUserIds.push(buyerChar.ownerId);
+      const [store] = await db.select({ ownerId: stores.ownerId }).from(stores).where(eq(stores.id, storeId));
+      if (store) extraUserIds.push(store.ownerId);
+      const emps = await db
+        .select({ ownerId: characters.ownerId })
+        .from(storeEmployees)
+        .innerJoin(characters, eq(characters.id, storeEmployees.characterId))
+        .where(eq(storeEmployees.storeId, storeId));
+      for (const e of emps) if (e.ownerId) extraUserIds.push(e.ownerId);
+    }
+    return { submitterId: row.submitterId, status: row.status, label: `your request "${row.title}"`, extraUserIds };
   }
   if (type === "lore") {
     const [row] = await db
@@ -131,7 +163,11 @@ async function resolveSubject(type: ThreadSubjectType, id: number): Promise<Reso
 
 // Both the submitter and any reviewer may read/post on a subject's thread.
 function mayAccess(subject: ResolvedSubject, user: { id: string; roles: string[] }): boolean {
-  return subject.submitterId === user.id || isReviewer(user as never);
+  return (
+    subject.submitterId === user.id ||
+    (subject.extraUserIds?.includes(user.id) ?? false) ||
+    isReviewer(user as never)
+  );
 }
 
 function parseParams(req: { params: Record<string, unknown> }): { type: SubjectType; id: number } | null {

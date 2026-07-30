@@ -30,7 +30,7 @@ import { createOffer, createRemoveOffer, createStockAddOffer, createInstallOwned
 import { cwpForItem, parseCwp } from "../lib/cyberware";
 import { checkCwpCapacity } from "../lib/cyberware-cap";
 import { isStaffRoles as isStaff } from "../lib/roleChecks";
-import { announceRequest } from "./requests";
+import { announceRequest, sanitizeImageUrls } from "./requests";
 
 const router: IRouter = Router();
 
@@ -650,6 +650,128 @@ router.post("/stores/:id/request-stock", requireAuth, async (req, res): Promise<
   const s = await loadManageableStore(req, res);
   if (!s) return;
   await createVenueStockRequest({ req, res, kind: "store", venue: s });
+});
+
+// Gun-store operator (owner, employee, or staff) submits a CUSTOM GUN request:
+// a new weapon the store wants fabricated, with proposed mechanical specs and
+// an optional named buyer + sale price. Goes to the fixer review queue as a
+// `gun` custom request; on approve+close the weapon materializes into THIS
+// STORE's stock, and (buyer + price set) a pending sale offer lands in the
+// buyer's Inbox. Gun stores only — their catalog is regulated, and this is the
+// fixer-approved path for operators to expand it.
+router.post("/stores/:id/gun-requests", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const [s] = await db.select().from(stores).where(eq(stores.id, id));
+  if (!s) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (s.kind !== "guns") {
+    res.status(400).json({ error: "Only gun stores can submit custom gun requests" });
+    return;
+  }
+  if (!(await isVenueOperator("store", s, s.id, req.user!))) {
+    res.status(403).json({ error: "Not authorized to operate this store" });
+    return;
+  }
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const description = typeof body.description === "string" ? body.description.trim() : "";
+  if (!name || !description) {
+    res.status(400).json({ error: "name and description required" });
+    return;
+  }
+  // Proposed mechanical specs. All optional at submit — the fixers confirm (or
+  // override) them at CLOSE & APPLY — but whatever the operator supplies is
+  // carried on details.specs and pre-fills the close dialog.
+  const specStr = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+  const specs: Record<string, string> = {};
+  for (const key of ["category", "weaponType", "fireMode", "powerLevel", "manufacturer"] as const) {
+    const v = specStr(body[key]);
+    if (v) specs[key] = v;
+  }
+
+  // Optional named buyer: must be a live, claimed character (we'll need a
+  // wallet to charge on offer approval).
+  let buyer: { id: number; name: string; ownerId: string } | null = null;
+  if (body.buyerCharacterId != null && body.buyerCharacterId !== "") {
+    const bid = parseInt(String(body.buyerCharacterId), 10);
+    const [c] = await db.select().from(characters).where(eq(characters.id, bid));
+    if (!c) {
+      res.status(404).json({ error: "Buyer character not found" });
+      return;
+    }
+    if (c.archived) {
+      res.status(400).json({ error: "Buyer character is archived" });
+      return;
+    }
+    if (!c.ownerId) {
+      res.status(409).json({ error: "Buyer character is unclaimed" });
+      return;
+    }
+    buyer = { id: c.id, name: c.name, ownerId: c.ownerId };
+  }
+  // Optional sale price (required for the auto-offer; without it the gun just
+  // lands in stock). int4 columns cap money — mirror requests.ts MAX_MONEY.
+  let salePrice: number | null = null;
+  if (body.salePrice != null && body.salePrice !== "") {
+    const p = Math.round(Number(body.salePrice));
+    if (!Number.isFinite(p) || p < 0) {
+      res.status(400).json({ error: "salePrice must be a non-negative number" });
+      return;
+    }
+    salePrice = Math.min(p, 2_000_000_000);
+  }
+
+  // Attribute the request to the buyer character when named (so the buyer sees
+  // it on My Submissions), else the store owner's character (mirrors
+  // createVenueStockRequest — custom_requests.characterId is NOT NULL).
+  let characterId = buyer?.id ?? s.ownerCharacterId ?? null;
+  if (!characterId) {
+    const [owned] = await db
+      .select({ id: characters.id })
+      .from(characters)
+      .where(eq(characters.ownerId, s.ownerId))
+      .limit(1);
+    characterId = owned?.id ?? null;
+  }
+  if (!characterId) {
+    res.status(400).json({ error: "No owner character to attribute this request to" });
+    return;
+  }
+
+  const cleanedImages = sanitizeImageUrls(body.imageUrls, body.imageUrl);
+  const [inserted] = await db
+    .insert(customRequests)
+    .values({
+      type: "gun",
+      characterId,
+      requestedById: req.user!.id,
+      title: name,
+      description,
+      imageUrl: cleanedImages[0] ?? null,
+      imageUrls: cleanedImages,
+      details: {
+        storeId: s.id,
+        storeName: s.name,
+        ...(Object.keys(specs).length > 0 ? { specs } : {}),
+        ...(buyer ? { buyerCharacterId: buyer.id, buyerCharacterName: buyer.name } : {}),
+        ...(salePrice != null ? { salePrice } : {}),
+      } as never,
+    })
+    .returning();
+  // Announce to cs-approver + open the thread mirror — required at every
+  // custom-request insert site (fire-and-forget, deployment-gated).
+  const submitterName = req.user!.username;
+  void (async () => {
+    const [charRow] = await db
+      .select({ name: characters.name })
+      .from(characters)
+      .where(eq(characters.id, inserted.characterId))
+      .limit(1);
+    await announceRequest(inserted.id, "gun", name, charRow?.name ?? "(unknown)", submitterName);
+  })().catch((err) => logger.warn({ err, requestId: inserted.id }, "store gun request announce failed"));
+  res.status(201).json(shapeCustomRequest(inserted));
 });
 
 // Edit an employee's role and/or commission percentage. Owner or staff.
