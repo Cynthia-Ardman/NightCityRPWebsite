@@ -343,7 +343,28 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     if (draftId) qc.invalidateQueries({ queryKey: getGetSheetQueryKey(draftId) });
   }
 
-  async function saveDraft(opts?: { silent?: boolean }): Promise<number | null> {
+  // Serialize saves: a debounced autosave and an explicit SAVE click can
+  // otherwise run concurrently — both read the same baseUpdatedAt, the first
+  // bumps the server revision and the second gets a stale_draft 409, flipping
+  // the form into the "changed elsewhere" lock even though nothing changed
+  // elsewhere. Chaining guarantees each save sees the revision the previous
+  // one returned.
+  const saveChainRef = useRef<Promise<number | null>>(Promise.resolve(null));
+  function saveDraft(opts?: { silent?: boolean }): Promise<number | null> {
+    const next = saveChainRef.current.then(
+      () => doSaveDraft(opts),
+      () => doSaveDraft(opts),
+    );
+    saveChainRef.current = next.catch(() => null);
+    return next;
+  }
+
+  // Human-readable reason for the last failed save, surfaced next to the
+  // autosave status so silent (autosave) failures aren't a dead-end "Save
+  // failed" with no explanation.
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  async function doSaveDraft(opts?: { silent?: boolean }): Promise<number | null> {
     // Never save over a newer draft — the user must reload the latest first.
     if (conflictRef.current) return null;
     // Need at least a name to identify the draft on the server.
@@ -364,6 +385,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         lastPersistedRef.current = JSON.stringify({ fullName: draftName, payload: data });
         invalidateLists();
         setAutoSaveStatus("saved");
+        setSaveError(null);
         if (!opts?.silent) toast({ title: "Draft saved" });
         return draftId;
       } else {
@@ -382,6 +404,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         lastPersistedRef.current = JSON.stringify({ fullName: draftName, payload: data });
         invalidateLists();
         setAutoSaveStatus("saved");
+        setSaveError(null);
         if (!opts?.silent) toast({ title: "Draft saved" });
         return created.id;
       }
@@ -405,8 +428,13 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
         return null;
       }
       setAutoSaveStatus("error");
+      // Surface the server's reason (e.g. "Max 6 cyberware points (CWP) at
+      // creation") next to the status indicator so even silent autosave
+      // failures explain themselves.
+      const reason = String(e?.data?.error ?? e?.message ?? e);
+      setSaveError(reason);
       if (!opts?.silent) {
-        toast({ title: "Could not save draft", description: String(e?.message ?? e), variant: "destructive" });
+        toast({ title: "Could not save", description: reason, variant: "destructive" });
       }
       return null;
     }
@@ -456,7 +484,15 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (conflict) return;
-    if (overCap) return;
+    if (overCap) {
+      // Never fail silently — tell the player exactly why nothing saved.
+      toast({
+        title: "Over the cyberware cap",
+        description: "Total CWP is over the 6-point creation cap. Remove or downgrade an install first.",
+        variant: "destructive",
+      });
+      return;
+    }
     // A sheet already in review is saved in place — never re-submitted.
     if (isInReview) {
       await saveDraft();
@@ -525,7 +561,7 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
     : autoSaveStatus === "saved"
     ? "Draft saved"
     : autoSaveStatus === "error"
-    ? "Save failed"
+    ? `Save failed${saveError ? ` — ${saveError}` : ""}`
     : draftId ? "Draft loaded" : "";
 
   const tabTriggerClass =
@@ -558,6 +594,18 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
             >
               {statusLabel}
             </span>
+          )}
+          {conflict && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="ml-2 rounded-none font-display text-xs"
+              onClick={() => window.location.reload()}
+              data-testid="button-reload-latest"
+            >
+              RELOAD LATEST
+            </Button>
           )}
         </div>
       </div>

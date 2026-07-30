@@ -141,6 +141,7 @@
 - Edit dialog: [form-reset keys on stable character.id](dialog-reset-stable-key.md); [main SAVE must flush dirty cyberware-grid rows](edit-dialog-cyberware-flush.md) or they're silently lost.
 - [Account merge wallet retry](account-merge-wallet-retry.md) — multi-leg money move must derive amount from the first leg's ledger row (by idem key), not live balance, or a rerun after partial failure strands the credit.
 - Special access grants: [business OWNERS get per-member Discord channel overwrite](business-owner-channel-access.md); [CyberPsycho panel = ADMIN/FIXER OR users.cyberpsycho_access, /vrchat/session* stays role-only](cyberpsycho-access-grant.md).
+- [Sheet form save serialization](sheet-form-save-serialization.md) — autosave + SAVE click must share one promise chain or they self-409 into a conflict lock; save failures must show the server reason.
 - [Sheet draft optimistic concurrency](sheet-draft-optimistic-concurrency.md) — baseUpdatedAt revision token, 409 stale_draft; SQL re-check must date_trunc to ms (defaultNow() microseconds trap).
 - [Character death write paths](character-death-write-paths.md) — lifeStatus flips to dead via 3 write paths + role_sync self-heal; death side effects must wire ALL of them; statuses are active|dead|missing|loa|retired.
 - [Event ticket money legs](event-ticket-money-legs.md) — reserve capacity (pending row under lock) BEFORE debit; runner credit never unwinds a purchase (payoutStatus failed + retry); attendance UPDATE repeats status='purchased' guard.
