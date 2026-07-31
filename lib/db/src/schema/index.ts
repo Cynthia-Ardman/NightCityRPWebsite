@@ -2673,3 +2673,40 @@ export const characterWeekSnapshots = pgTable(
   }),
 );
 export type CharacterWeekSnapshot = typeof characterWeekSnapshots.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Community membership events (growth timeline)
+// ---------------------------------------------------------------------------
+// One row per observed join/leave of the Discord server or the VRChat group.
+// Discord rows are parsed from the #ncrp-welcome system messages (joins) and
+// the Dyno "Member Joined"/"Member Left" embeds in #bot-logs (both). VRChat
+// rows come from the group audit log (prod-only poller). `sourceRef` is a
+// stable per-observation key (message id / audit-log id) so ingestion is
+// idempotent; welcome-channel joins that duplicate a bot-logs join within a
+// few minutes are skipped at ingest time.
+export const membershipEvents = pgTable(
+  "membership_events",
+  {
+    id: serial("id").primaryKey(),
+    // "discord" | "vrchat"
+    source: text("source").notNull(),
+    // "join" | "leave"
+    direction: text("direction").notNull(),
+    // Discord user id or VRChat usr_ id of the member the event is about.
+    subjectId: text("subject_id").notNull(),
+    displayName: text("display_name"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    // Raw upstream event type (e.g. "welcome-system", "dyno-embed",
+    // "group.user.join") for forensics.
+    eventType: text("event_type"),
+    // Idempotency key, e.g. "discord-msg:<id>" or "vrchat-log:<id>".
+    sourceRef: text("source_ref").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    refIdx: uniqueIndex("membership_events_ref_idx").on(t.sourceRef),
+    srcTimeIdx: index("membership_events_src_time_idx").on(t.source, t.occurredAt),
+    subjectIdx: index("membership_events_subject_idx").on(t.subjectId, t.occurredAt),
+  }),
+);
+export type MembershipEvent = typeof membershipEvents.$inferSelect;

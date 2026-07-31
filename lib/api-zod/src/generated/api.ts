@@ -7037,6 +7037,32 @@ export const AdminListAuditResponse = zod.array(AdminListAuditResponseItem)
 
 
 /**
+ * @summary Community growth timeline: weekly Discord/VRChat join & leave counts.
+ */
+export const adminGetMembershipGrowthQueryRangeDefault = `3m`;
+
+export const AdminGetMembershipGrowthQueryParams = zod.object({
+  "range": zod.enum(['4w', '3m', '1y', 'all']).default(adminGetMembershipGrowthQueryRangeDefault)
+})
+
+export const AdminGetMembershipGrowthResponse = zod.object({
+  "weeks": zod.array(zod.object({
+  "weekStart": zod.string(),
+  "discordJoins": zod.number(),
+  "discordLeaves": zod.number(),
+  "vrchatJoins": zod.number(),
+  "vrchatLeaves": zod.number()
+})),
+  "coverage": zod.object({
+  "discordJoinSince": zod.string().nullable(),
+  "discordLeaveSince": zod.string().nullable(),
+  "vrchatSince": zod.string().nullable()
+}),
+  "generatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Staff analytics: server-health aggregates (economy, missions, review-queue aging, player activity).
  */
 export const adminGetAnalyticsQueryRangeDefault = `3m`;

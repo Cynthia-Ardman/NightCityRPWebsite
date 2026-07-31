@@ -38,6 +38,7 @@ import type {
   AdminGetAnalyticsParams,
   AdminGetAnalyticsVrchatInstances200,
   AdminGetAnalyticsVrchatInstancesParams,
+  AdminGetMembershipGrowthParams,
   AdminListAuditLogParams,
   AdminListAuditParams,
   AdminRecordCheckup200,
@@ -240,6 +241,7 @@ import type {
   MarkNotificationsReadBody,
   MarkReviewSeen200,
   Me,
+  MembershipGrowth,
   MissionApplicationListItem,
   MissionApplicationOutcome,
   MissionConfig,
@@ -11838,6 +11840,90 @@ export function useAdminListAudit<TData = Awaited<ReturnType<typeof adminListAud
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getAdminListAuditQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminGetMembershipGrowthUrl = (params?: AdminGetMembershipGrowthParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/membership-growth?${stringifiedParams}` : `/api/admin/membership-growth`
+}
+
+/**
+ * @summary Community growth timeline: weekly Discord/VRChat join & leave counts.
+ */
+export const adminGetMembershipGrowth = async (params?: AdminGetMembershipGrowthParams, options?: RequestInit): Promise<MembershipGrowth> => {
+
+  return customFetch<MembershipGrowth>(getAdminGetMembershipGrowthUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetMembershipGrowthQueryKey = (params?: AdminGetMembershipGrowthParams,) => {
+    return [
+    `/api/admin/membership-growth`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminGetMembershipGrowthQueryOptions = <TData = Awaited<ReturnType<typeof adminGetMembershipGrowth>>, TError = ErrorType<unknown>>(params?: AdminGetMembershipGrowthParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetMembershipGrowth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetMembershipGrowthQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetMembershipGrowth>>> = ({ signal }) => adminGetMembershipGrowth(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetMembershipGrowth>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetMembershipGrowthQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetMembershipGrowth>>>
+export type AdminGetMembershipGrowthQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Community growth timeline: weekly Discord/VRChat join & leave counts.
+ */
+
+export function useAdminGetMembershipGrowth<TData = Awaited<ReturnType<typeof adminGetMembershipGrowth>>, TError = ErrorType<unknown>>(
+ params?: AdminGetMembershipGrowthParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetMembershipGrowth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetMembershipGrowthQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

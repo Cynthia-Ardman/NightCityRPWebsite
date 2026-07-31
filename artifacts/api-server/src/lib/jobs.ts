@@ -13,6 +13,7 @@ import { isSystemLive, type LiveSystem } from "./liveMode";
 import { runEconomyReconcile, getEconomyMode, advanceSettledWalletBalance } from "./economy";
 import { pollGroupInstances } from "./vrchatInstances";
 import { vrchatCredsConfigured, maintainVrchatSession, claimVrchatPollTick } from "./vrchatClient";
+import { ingestDiscordMembershipEvents, ingestVrchatMembershipEvents } from "./membershipEvents";
 import {
   DEFAULT_BASELINE_LIVING_COST,
   DEFAULT_XANADU_GOLD_COST,
@@ -281,7 +282,7 @@ async function chargePersonalFeeWithReservation(opts: {
   return true;
 }
 
-export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile" | "discord_event_sync" | "main_session_backfill" | "mission_thread_backfill" | "notification_prune" | "character_snapshot";
+export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile" | "discord_event_sync" | "main_session_backfill" | "mission_thread_backfill" | "notification_prune" | "character_snapshot" | "membership_sync";
 
 // Retention policy for the bell-feed notifications table (append-only
 // otherwise): READ rows older than this are deleted; unread rows are kept
@@ -294,7 +295,15 @@ const NOTIFICATION_READ_RETENTION_DAYS = 90;
 // discordThreadId before creating, so two overlapping runs (e.g. a manual admin
 // trigger landing on a cron tick) can both see null and create a second forum
 // thread before either commits the link.
-const NO_OVERLAP_JOBS = new Set<JobName>(["monthly_rent", "cyberware_humanity", "mission_thread_backfill"]);
+const NO_OVERLAP_JOBS = new Set<JobName>([
+  "monthly_rent",
+  "cyberware_humanity",
+  "mission_thread_backfill",
+  // membership_sync: overlapping walkers re-read the same pages and race the
+  // shared channel cursor (writes are monotonic, but overlap wastes the
+  // Discord rate budget and can double-hit the join-dedupe window).
+  "membership_sync",
+]);
 const inFlightJobs = new Set<JobName>();
 
 export async function runJob(name: JobName): Promise<{ id: number; status: string; affectedCount: number }> {
@@ -1018,6 +1027,16 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         .where(and(isNotNull(notifications.readAt), lt(notifications.createdAt, cutoff)));
       affected = result.rowCount ?? 0;
       message = `notification prune: deleted ${affected} read notification(s) older than ${NOTIFICATION_READ_RETENTION_DAYS} days (unread kept)`;
+    } else if (name === "membership_sync") {
+      // Community growth timeline: parse Discord join/leave events out of the
+      // #ncrp-welcome (system joins) and #bot-logs (Dyno Member Joined/Left)
+      // channels into membership_events. Read-only against Discord and
+      // idempotent (sourceRef unique index), so it is safe in every
+      // environment and not Test/Live gated. Bounded pages per run; the
+      // stored cursor makes the first run a rolling full-history backfill.
+      const r = await ingestDiscordMembershipEvents({ maxPages: 40 });
+      affected = r.inserted;
+      message = `membership sync: inserted ${r.inserted} event(s), ${r.caughtUp ? "caught up" : "backfill continuing"}`;
     } else if (name === "character_snapshot") {
       // Weekly Active(60d)/Dormant character snapshot for the analytics trend.
       // One row per (week, live PC): active = any wallet movement, mission
@@ -1187,6 +1206,12 @@ export function startCron() {
     cron.schedule("10 6 * * *", () => {
       runJob("notification_prune").catch((err) => logger.error({ err }, "notification_prune cron"));
     });
+    // Discord membership ingest (growth timeline), every 10 minutes. Read-only
+    // + idempotent, so it runs in every environment; each environment fills
+    // its own database. Offset to minute 7 to avoid other */10 ticks.
+    cron.schedule("7/10 * * * *", () => {
+      runJob("membership_sync").catch((err) => logger.error({ err }, "membership_sync cron"));
+    });
     // Weekly character Active(60d)/Dormant snapshot, Mondays 06:50 UTC (after
     // the week boundary so each run finalizes the just-closed week and opens
     // the new one). Also self-heals: every run backfills any missing weeks,
@@ -1220,6 +1245,14 @@ export function startCron() {
           if (!(await claimVrchatPollTick())) return;
           if (!(await maintainVrchatSession())) return;
           await pollGroupInstances();
+          // Same claim/session as the instance poll: tail the group audit log
+          // for join/leave events (growth timeline). Best-effort — an audit
+          // failure must not mark the instance poll unhealthy.
+          try {
+            await ingestVrchatMembershipEvents();
+          } catch (err) {
+            logger.warn({ err }, "vrchat membership ingest");
+          }
         } catch (err) {
           logger.warn({ err }, "vrchat_instance_poll cron");
         }

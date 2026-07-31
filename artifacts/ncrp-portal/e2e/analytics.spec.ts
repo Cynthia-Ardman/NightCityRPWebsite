@@ -46,3 +46,16 @@ test.describe("fixer analytics drill-downs", () => {
     }
   });
 });
+
+// Community growth card: weekly Discord joins/leaves chart from the
+// membership_events ingest, with coverage caveats.
+test.describe("community growth", () => {
+  test.use({ storageState: stateFile("admin") });
+
+  test("growth card renders totals and the Discord chart", async ({ page }) => {
+    await page.goto("/fixer/analytics");
+    await expect(page.getByTestId("stat-growth-discord-joins")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("stat-growth-discord-net")).toBeVisible();
+    await expect(page.getByTestId("chart-growth-discord")).toBeVisible();
+  });
+});

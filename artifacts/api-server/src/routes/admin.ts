@@ -39,6 +39,7 @@ import { getEconomyMode, reconcileOneUser, recordSettledWalletMovement, applyWal
 import {
   computeAdminAnalytics,
   parseAnalyticsRange,
+  computeMembershipGrowth,
   parseExcludeAbove,
   parseWeekParam,
   computeCharacterTrendWeek,
@@ -225,6 +226,14 @@ router.get("/admin/fixer-activity", requireAnyRole(["ADMIN", "COORDINATOR", "ARC
 // Staff analytics: server-health aggregates (economy, missions, review-queue
 // aging, player activity). Fixer-and-up — this powers the Analytics page in
 // the staff navigation. All aggregation happens in SQL (see lib/analytics).
+// Community growth timeline: weekly Discord/VRChat join & leave counts from
+// membership_events (welcome + bot-logs ingestion, VRChat audit-log poll).
+router.get("/admin/membership-growth", adminOrFixer, async (req, res): Promise<void> => {
+  const range = parseAnalyticsRange(req.query.range);
+  const payload = await computeMembershipGrowth(range);
+  res.json(payload);
+});
+
 router.get("/admin/analytics", adminOrFixer, async (req, res): Promise<void> => {
   const range = parseAnalyticsRange(req.query.range);
   const excludeAbove = parseExcludeAbove(req.query.excludeAbove);

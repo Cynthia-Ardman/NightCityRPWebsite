@@ -7392,6 +7392,29 @@ export interface CharacterLifestyleInput {
   lifestyleTierId?: number | null;
 }
 
+export interface MembershipGrowthWeek {
+  weekStart: string;
+  discordJoins: number;
+  discordLeaves: number;
+  vrchatJoins: number;
+  vrchatLeaves: number;
+}
+
+export type MembershipGrowthCoverage = {
+  /** @nullable */
+  discordJoinSince: string | null;
+  /** @nullable */
+  discordLeaveSince: string | null;
+  /** @nullable */
+  vrchatSince: string | null;
+};
+
+export interface MembershipGrowth {
+  weeks: MembershipGrowthWeek[];
+  coverage: MembershipGrowthCoverage;
+  generatedAt: string;
+}
+
 export interface ActivityEvent {
   id: number;
   kind: string;
@@ -8295,6 +8318,20 @@ since?: string;
  */
 limit?: number;
 };
+
+export type AdminGetMembershipGrowthParams = {
+range?: AdminGetMembershipGrowthRange;
+};
+
+export type AdminGetMembershipGrowthRange = typeof AdminGetMembershipGrowthRange[keyof typeof AdminGetMembershipGrowthRange];
+
+
+export const AdminGetMembershipGrowthRange = {
+  '4w': '4w',
+  '3m': '3m',
+  '1y': '1y',
+  all: 'all',
+} as const;
 
 export type AdminGetAnalyticsParams = {
 range?: AdminGetAnalyticsRange;

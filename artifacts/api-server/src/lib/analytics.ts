@@ -17,6 +17,77 @@ export function parseAnalyticsRange(raw: unknown): AnalyticsRange {
   return raw === "4w" || raw === "1y" || raw === "all" ? raw : "3m";
 }
 
+export interface MembershipGrowthWeek {
+  weekStart: string;
+  discordJoins: number;
+  discordLeaves: number;
+  vrchatJoins: number;
+  vrchatLeaves: number;
+}
+
+export interface MembershipGrowthPayload {
+  weeks: MembershipGrowthWeek[];
+  // Earliest recorded event per (source, direction) — the chart uses these to
+  // mark where each series' coverage actually begins (e.g. Discord leave
+  // logging starts later than join history).
+  coverage: {
+    discordJoinSince: string | null;
+    discordLeaveSince: string | null;
+    vrchatSince: string | null;
+  };
+  generatedAt: string;
+}
+
+// Weekly join/leave counts per community for the growth timeline. All
+// aggregation in SQL; cumulative/net math happens client-side.
+export async function computeMembershipGrowth(range: AnalyticsRange): Promise<MembershipGrowthPayload> {
+  const weeks = RANGE_WEEKS[range];
+  const rows = await db.execute(sql`
+    SELECT date_trunc('week', occurred_at)::date::text AS week,
+           source, direction, COUNT(*)::int AS n
+    FROM membership_events
+    WHERE occurred_at >= date_trunc('week', now()) - make_interval(weeks => ${weeks})
+    GROUP BY 1, 2, 3
+    ORDER BY 1
+  `);
+  const byWeek = new Map<string, MembershipGrowthWeek>();
+  for (const r of rows.rows as Array<{ week: string; source: string; direction: string; n: number }>) {
+    let w = byWeek.get(r.week);
+    if (!w) {
+      w = { weekStart: r.week, discordJoins: 0, discordLeaves: 0, vrchatJoins: 0, vrchatLeaves: 0 };
+      byWeek.set(r.week, w);
+    }
+    if (r.source === "discord") {
+      if (r.direction === "join") w.discordJoins += r.n;
+      else w.discordLeaves += r.n;
+    } else if (r.source === "vrchat") {
+      if (r.direction === "join") w.vrchatJoins += r.n;
+      else w.vrchatLeaves += r.n;
+    }
+  }
+  const cov = await db.execute(sql`
+    SELECT source, direction, MIN(occurred_at) AS since
+    FROM membership_events
+    GROUP BY 1, 2
+  `);
+  const covRows = cov.rows as Array<{ source: string; direction: string; since: string | Date }>;
+  const findSince = (source: string, direction?: string) => {
+    const matches = covRows.filter((r) => r.source === source && (!direction || r.direction === direction));
+    if (matches.length === 0) return null;
+    const min = matches.map((r) => new Date(r.since).getTime()).sort((a, b) => a - b)[0];
+    return new Date(min).toISOString();
+  };
+  return {
+    weeks: [...byWeek.values()].sort((a, b) => a.weekStart.localeCompare(b.weekStart)),
+    coverage: {
+      discordJoinSince: findSince("discord", "join"),
+      discordLeaveSince: findSince("discord", "leave"),
+      vrchatSince: findSince("vrchat"),
+    },
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 interface EconomyWeek {
   weekStart: string;
   created: Record<string, number>;

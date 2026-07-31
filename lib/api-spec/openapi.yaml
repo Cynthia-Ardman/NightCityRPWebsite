@@ -2665,6 +2665,20 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/ActivityEvent" }
 
+  /admin/membership-growth:
+    get:
+      operationId: adminGetMembershipGrowth
+      tags: [admin]
+      summary: "Community growth timeline: weekly Discord/VRChat join & leave counts."
+      parameters:
+        - { in: query, name: range, schema: { type: string, enum: [4w, 3m, 1y, all], default: 3m } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MembershipGrowth" }
+
   /admin/analytics:
     get:
       operationId: adminGetAnalytics
@@ -11512,6 +11526,32 @@ components:
       type: object
       properties:
         lifestyleTierId: { type: ["integer", "null"] }
+
+    MembershipGrowthWeek:
+      type: object
+      required: [weekStart, discordJoins, discordLeaves, vrchatJoins, vrchatLeaves]
+      properties:
+        weekStart: { type: string }
+        discordJoins: { type: integer }
+        discordLeaves: { type: integer }
+        vrchatJoins: { type: integer }
+        vrchatLeaves: { type: integer }
+
+    MembershipGrowth:
+      type: object
+      required: [weeks, coverage, generatedAt]
+      properties:
+        weeks:
+          type: array
+          items: { $ref: "#/components/schemas/MembershipGrowthWeek" }
+        coverage:
+          type: object
+          required: [discordJoinSince, discordLeaveSince, vrchatSince]
+          properties:
+            discordJoinSince: { type: ["string", "null"] }
+            discordLeaveSince: { type: ["string", "null"] }
+            vrchatSince: { type: ["string", "null"] }
+        generatedAt: { type: string, format: date-time }
 
     ActivityEvent:
       type: object

@@ -8,6 +8,9 @@ import {
   useAdminGetAnalyticsCharacters,
   getAdminGetAnalyticsCharactersQueryKey,
   type AdminGetAnalyticsCharactersBucket,
+  useAdminGetMembershipGrowth,
+  getAdminGetMembershipGrowthQueryKey,
+  type AdminGetMembershipGrowthRange,
 } from "@workspace/api-client-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import FixerActivityTab from "@/components/admin/FixerActivityTab";
@@ -28,6 +31,7 @@ import {
   Bar,
   LineChart,
   Line,
+  ComposedChart,
   XAxis,
   YAxis,
   Tooltip,
@@ -128,6 +132,119 @@ function CharacterBucketDialog({ bucket, onClose }: { bucket: AdminGetAnalyticsC
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Community growth: weekly Discord/VRChat joins & leaves with a net-change
+// line, from membership_events (welcome + Dyno logs; VRChat group audit log).
+function GrowthCard({ range }: { range: RangeKey }) {
+  const params = { range: range as AdminGetMembershipGrowthRange };
+  const { data, isLoading } = useAdminGetMembershipGrowth(params, {
+    query: { queryKey: getAdminGetMembershipGrowthQueryKey(params) },
+  });
+  const rows = (data?.weeks ?? []).map((w) => ({
+    week: range === "1y" || range === "all" ? fmtMonth(w.weekStart) : fmtWeek(w.weekStart),
+    discordJoins: w.discordJoins,
+    discordLeaves: -w.discordLeaves,
+    discordNet: w.discordJoins - w.discordLeaves,
+    vrchatJoins: w.vrchatJoins,
+    vrchatLeaves: -w.vrchatLeaves,
+    vrchatNet: w.vrchatJoins - w.vrchatLeaves,
+  }));
+  const hasVrchat = (data?.weeks ?? []).some((w) => w.vrchatJoins || w.vrchatLeaves);
+  const totals = (data?.weeks ?? []).reduce(
+    (a, w) => ({
+      dj: a.dj + w.discordJoins,
+      dl: a.dl + w.discordLeaves,
+      vj: a.vj + w.vrchatJoins,
+      vl: a.vl + w.vrchatLeaves,
+    }),
+    { dj: 0, dl: 0, vj: 0, vl: 0 },
+  );
+  const fmtNet = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest flex items-center gap-2">
+          <Users className="w-4 h-4 text-nc-green" /> COMMUNITY GROWTH — JOINS VS LEAVES / WEEK
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <p className="font-mono text-muted-foreground italic">LOADING…</p>
+        ) : rows.length === 0 ? (
+          <p className="font-mono text-muted-foreground italic">No membership events recorded in this range yet.</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono text-sm">
+              <div className="border border-border p-3">
+                <div className="text-xs text-muted-foreground">DISCORD JOINS</div>
+                <div className="text-2xl text-nc-cyan" data-testid="stat-growth-discord-joins">{totals.dj}</div>
+              </div>
+              <div className="border border-border p-3">
+                <div className="text-xs text-muted-foreground">DISCORD LEAVES</div>
+                <div className="text-2xl text-nc-magenta" data-testid="stat-growth-discord-leaves">{totals.dl}</div>
+              </div>
+              <div className="border border-border p-3">
+                <div className="text-xs text-muted-foreground">DISCORD NET</div>
+                <div className={`text-2xl ${totals.dj - totals.dl >= 0 ? "text-nc-green" : "text-nc-magenta"}`} data-testid="stat-growth-discord-net">
+                  {fmtNet(totals.dj - totals.dl)}
+                </div>
+              </div>
+              <div className="border border-border p-3">
+                <div className="text-xs text-muted-foreground">VRCHAT NET</div>
+                <div className={`text-2xl ${totals.vj - totals.vl >= 0 ? "text-nc-green" : "text-nc-magenta"}`} data-testid="stat-growth-vrchat-net">
+                  {hasVrchat ? fmtNet(totals.vj - totals.vl) : "—"}
+                </div>
+              </div>
+            </div>
+            <div>
+              <p className="font-mono text-xs text-muted-foreground mb-1">DISCORD SERVER</p>
+              <div className="h-64" data-testid="chart-growth-discord">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={rows} stackOffset="sign">
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 20%)" />
+                    <XAxis dataKey="week" tick={{ fontSize: 11, fontFamily: "monospace" }} />
+                    <YAxis tick={{ fontSize: 11, fontFamily: "monospace" }} allowDecimals={false} />
+                    <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => [name === "leaves" ? Math.abs(v) : v, name]} />
+                    <Legend />
+                    <Bar dataKey="discordJoins" name="joins" stackId="flow" fill="#7dff6a" />
+                    <Bar dataKey="discordLeaves" name="leaves" stackId="flow" fill="#ff5a5a" />
+                    <Line type="monotone" dataKey="discordNet" name="net" stroke="#00f0ff" strokeWidth={2} dot={false} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            {hasVrchat && (
+              <div>
+                <p className="font-mono text-xs text-muted-foreground mb-1">VRCHAT GROUP</p>
+                <div className="h-64" data-testid="chart-growth-vrchat">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={rows} stackOffset="sign">
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 20%)" />
+                      <XAxis dataKey="week" tick={{ fontSize: 11, fontFamily: "monospace" }} />
+                      <YAxis tick={{ fontSize: 11, fontFamily: "monospace" }} allowDecimals={false} />
+                      <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => [name === "leaves" ? Math.abs(v) : v, name]} />
+                      <Legend />
+                      <Bar dataKey="vrchatJoins" name="joins" stackId="flow" fill="#7dff6a" />
+                      <Bar dataKey="vrchatLeaves" name="leaves" stackId="flow" fill="#ff5a5a" />
+                      <Line type="monotone" dataKey="vrchatNet" name="net" stroke="#00f0ff" strokeWidth={2} dot={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+        <p className="font-mono text-xs text-muted-foreground">
+          Discord joins come from the welcome channel and Dyno logs
+          {data?.coverage.discordLeaveSince && ` — leave tracking starts ${formatDate(data.coverage.discordLeaveSince)}`}
+          {data?.coverage.vrchatSince
+            ? `; VRChat group joins/leaves tracked from ${formatDate(data.coverage.vrchatSince)} (audit log).`
+            : "; VRChat group tracking starts once the live audit-log poller has run."}
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -428,6 +545,9 @@ export default function FixerAnalytics() {
               </p>
             </CardContent>
           </Card>
+
+          {/* --------------------------- COMMUNITY GROWTH --------------------------- */}
+          <GrowthCard range={range} />
 
           {/* ------------------------------ ECONOMY ------------------------------ */}
           <Card className="rounded-none border-border bg-card/50">

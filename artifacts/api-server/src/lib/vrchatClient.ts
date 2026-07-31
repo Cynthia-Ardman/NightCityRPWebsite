@@ -855,6 +855,29 @@ export async function fetchGroupInstances(groupId: string = NCRP_GROUP_ID): Prom
   return Array.isArray(data) ? data : [];
 }
 
+export interface RawGroupAuditLogEntry {
+  id: string;
+  created_at: string;
+  eventType?: string;
+  actorId?: string;
+  actorDisplayName?: string;
+  targetId?: string;
+  description?: string;
+}
+
+// One page of the group's audit log (joins/leaves/kicks/bans, role changes,
+// instance opens...). Requires the bot account to hold the group's
+// audit-log permission. Newest-first; page with `offset`.
+export async function fetchGroupAuditLogs(
+  opts: { n?: number; offset?: number; groupId?: string } = {},
+): Promise<RawGroupAuditLogEntry[]> {
+  const { n = 100, offset = 0, groupId = NCRP_GROUP_ID } = opts;
+  const data = await apiGet<{ results?: RawGroupAuditLogEntry[] }>(
+    `/groups/${groupId}/auditLogs?n=${n}&offset=${offset}`,
+  );
+  return Array.isArray(data?.results) ? data.results : [];
+}
+
 interface RawGroupRole {
   id?: string;
   name?: string;
