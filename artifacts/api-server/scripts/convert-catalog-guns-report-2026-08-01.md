@@ -58,3 +58,19 @@ Script: `scripts/convert-catalog-guns.ts` (dry-run default, `--apply` to write, 
       #8897 "M251s Ajax (Modified)" (notes: "Manufacturer: Custom · Category: Power · Type: Assault Rifle · Fire: Full-Auto · Power: M") → candidate "M251s Ajax" [dist=8, containment] catalog attrs: Manufacturer: Militech · Category: Power · Type: assault_rifle · Fire: Full-Auto · Power: M — needs human decision
       #8978 "Rostović DB-2 Testera" (notes: "Category: Power · Type: Shotgun · Fire: Semi-Auto · Power: L") → candidate "DB-2 Testera" [dist=7, containment] catalog attrs: Manufacturer: Rostovic · Category: Power · Type: shotgun · Fire: Semi-Auto · Power: L — needs human decision
     
+
+## Second pass — 2026-08-01 (annotation suffixes + broader category scan)
+- Scan widened to categories gun/weapon/power/tech/smart (some rows store the firing class as the category).
+- New tier: catalog name + trailing annotation like "(6 pellets)" / "[M]" converts, with the annotation preserved at the end of the notes; annotations implying real customization (modified, custom, sawn-off…) still go to human review.
+- 10 more rows converted; 21 remain flagged for staff decision.
+
+    CONVERT #8184 "M-10AF Lexington [L]" → "M-10AF Lexington" (annotation suffix ("L" kept in notes))
+    CONVERT #8220 "DB-2 Testera (6 pellets)" → "DB-2 Testera" (annotation suffix ("6 pellets" kept in notes))
+    CONVERT #8254 "M2038 Tactician (6 pellets)" → "M2038 Tactician" (annotation suffix ("6 pellets" kept in notes))
+    CONVERT #8601 "DB-2 Testera (6 pellets)" → "DB-2 Testera" (annotation suffix ("6 pellets" kept in notes))
+    CONVERT #8603 "M2038 Tactician (6 pellets)" → "M2038 Tactician" (annotation suffix ("6 pellets" kept in notes))
+    CONVERT #8605 "DB-2 Testera (6 pellets)" → "DB-2 Testera" (annotation suffix ("6 pellets" kept in notes))
+    CONVERT #8606 "Carnage (6 pellets)" → "Carnage" (annotation suffix ("6 pellets" kept in notes))
+    CONVERT #8640 "M2038 Tactician (6 pellets)" → "M2038 Tactician" (annotation suffix ("6 pellets" kept in notes))
+    CONVERT #8764 "Nowaki [M]" → "Nowaki" (annotation suffix ("M" kept in notes))
+    CONVERT #8805 "DB-2 Testera (6 pellets)" → "DB-2 Testera" (annotation suffix ("6 pellets" kept in notes))

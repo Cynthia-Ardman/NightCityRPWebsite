@@ -163,9 +163,24 @@ async function main() {
   const inv = await pool.query(
     `SELECT id, name, notes, category, character_id, owner_id, cyberware_req
      FROM inventory_items
-     WHERE lower(trim(category)) IN ('gun', 'weapon')
+     WHERE lower(trim(category)) IN ('gun', 'weapon', 'power', 'tech', 'smart')
      ORDER BY id`,
   );
+
+  // Tier: catalog name + a trailing parenthetical/bracket annotation, e.g.
+  // "M2038 Tactician (6 pellets)" or "Nue [M]". The base name must resolve via
+  // the loose or manufacturer+name key; the annotation is preserved by moving
+  // it into the notes. Annotations that signal real customization stay human.
+  const CUSTOMIZATION_WORDS = /modif|custom|sawn|sawed|shorten|engrav|convert/i;
+  function annotationMatch(name: string): { g: CatalogGun; annotation: string } | null {
+    const m = name.match(/^(.*?)\s*[\(\[]([^\)\]]+)[\)\]]\s*$/);
+    if (!m) return null;
+    const [, base, annotation] = m;
+    if (CUSTOMIZATION_WORDS.test(annotation)) return null;
+    const k = looseNameKey(base);
+    const g = byKey.get(k) ?? byMfrKey.get(k);
+    return g ? { g, annotation: annotation.trim() } : null;
+  }
 
   type Plan = { id: number; oldName: string; oldNotes: string | null; g: CatalogGun; newNotes: string | null; why: string };
   const plans: Plan[] = [];
@@ -196,6 +211,14 @@ async function main() {
     } else if (byMfrKey.has(key) && !contradictsCatalog(row.notes, byMfrKey.get(key)!)) {
       match = byMfrKey.get(key);
       why = "manufacturer+name exact";
+    } else if (annotationMatch(name) && !contradictsCatalog(row.notes, annotationMatch(name)!.g)) {
+      const am = annotationMatch(name)!;
+      match = am.g;
+      why = `annotation suffix ("${am.annotation}" kept in notes)`;
+      const anchors = extractAnchors(row.notes);
+      const body = [catalogNotes(am.g), am.annotation].filter(Boolean).join(" · ");
+      plans.push({ id: row.id, oldName: name, oldNotes: row.notes, g: am.g, newNotes: [...anchors, body].filter(Boolean).join(" ") || null, why });
+      continue;
     } else {
       // Fuzzy candidates: bounded edit distance / containment on squashed keys.
       const scored = catalog
