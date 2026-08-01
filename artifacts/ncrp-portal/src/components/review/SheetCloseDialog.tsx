@@ -31,6 +31,7 @@ import {
   GUN_WEAPON_TYPE_ALIASES,
   GUN_POWER_LEVEL_ALIASES,
 } from "@/components/catalog/gunTypes";
+import { looseGunKey } from "@/lib/gunMatch";
 
 // CLOSE & APPLY dialog specialised for character sheets. When the sheet carries
 // CUSTOM (non-catalog) cyberware or guns, the reviewer must supply the
@@ -139,10 +140,13 @@ export function SheetCloseDialog({
   }, [cyberCatalog]);
   // First-write-wins on duplicate gun names — mirrors the server's gun catalog
   // map so the read-only preview matches what gets applied.
+  // Guns key on the punctuation-tolerant loose key (mirrors the server's
+  // looseNameKey resolution at close) so a typed "M10AF lexington" still
+  // classifies as catalog here and isn't wrongly prompted for attributes.
   const gunMap = useMemo(() => {
     const m = new Map<string, CatalogGunRow["detail"]>();
     for (const g of gunCatalog ?? []) {
-      const key = norm(g.name);
+      const key = looseGunKey(String(g.name ?? ""));
       if (!key || m.has(key)) continue;
       m.set(key, gunDetail(g as Parameters<typeof gunDetail>[0]));
     }
@@ -184,7 +188,7 @@ export function SheetCloseDialog({
     guns.forEach((raw, index) => {
       const name = String(raw ?? "").trim();
       if (!name) return;
-      const detail = gunMap.get(norm(name));
+      const detail = gunMap.get(looseGunKey(name));
       if (detail !== undefined) {
         resolvedGuns.push({ name, detail }); // catalog → auto-resolves
         return;

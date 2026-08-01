@@ -24,7 +24,18 @@ import ImageEditor from "@/components/ImageEditor";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, Trash2, BookMarked, ExternalLink } from "lucide-react";
+import { Plus, Trash2, BookMarked, ExternalLink, ChevronsUpDown, Check } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { looseGunKey, bestGunSuggestion } from "@/lib/gunMatch";
 import { useToast } from "@/hooks/use-toast";
 import { CHARACTER_CREATION_LINKS, guidebookSectionHref } from "@/lib/guidebookLinks";
 
@@ -951,26 +962,19 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
           <CardTitle className="font-display tracking-widest">FIREARMS</CardTitle>
           <Button type="button" onClick={() => setGuns([...guns, ""])} className="rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display" data-testid="button-add-gun"><Plus className="w-4 h-4 mr-1" /> ADD</Button>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-3">
           <p className="text-xs font-mono text-muted-foreground">
-            Pick a weapon from the NCRP catalog, or type your own if it isn't listed.{sheetType === "PC" ? " Tech weapons aren't available as starting weapons." : ""}
+            Pick a weapon from the NCRP catalog — custom guns need staff to fill in their stats at approval, so only go custom when yours truly isn't listed.{sheetType === "PC" ? " Tech weapons aren't available as starting weapons." : ""}
           </p>
-          <datalist id="gun-catalog-options">
-            {gunNames.map((n) => (
-              <option key={n} value={n} />
-            ))}
-          </datalist>
           {guns.map((g, i) => (
-            <div key={i} className="flex gap-2">
-              <Input
-                value={g}
-                list="gun-catalog-options"
-                onChange={(e) => setGuns(guns.map((x, j) => (j === i ? e.target.value : x)))}
-                placeholder="Militech M-10AF Lexington, custom build..."
-                data-testid={`input-gun-${i}`}
-              />
-              <Button type="button" variant="ghost" size="icon" onClick={() => setGuns(guns.filter((_, j) => j !== i))} className="text-destructive" data-testid={`button-remove-gun-${i}`}><Trash2 className="w-4 h-4" /></Button>
-            </div>
+            <GunRow
+              key={i}
+              index={i}
+              value={g}
+              catalogNames={gunNames}
+              onChange={(v) => setGuns(guns.map((x, j) => (j === i ? v : x)))}
+              onRemove={() => setGuns(guns.filter((_, j) => j !== i))}
+            />
           ))}
         </CardContent>
       </Card>
@@ -1165,4 +1169,152 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div><Label className="text-xs font-mono text-muted-foreground tracking-widest">{label.toUpperCase()}</Label>{children}</div>;
+}
+
+// One firearm entry: catalog picker first, explicit custom escape hatch second.
+// The value stays a plain string (the payload shape is unchanged); whether it's
+// catalog or custom is DERIVED via the loose name key — the same key the server
+// uses at approval — so the CATALOG/CUSTOM badge here always predicts whether
+// staff will be asked for attributes.
+export function GunRow({
+  index,
+  value,
+  catalogNames,
+  onChange,
+  onRemove,
+}: {
+  index: number;
+  value: string;
+  catalogNames: string[];
+  onChange: (v: string) => void;
+  onRemove: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [customMode, setCustomMode] = useState(false);
+
+  const catalogKeys = useMemo(() => new Set(catalogNames.map(looseGunKey)), [catalogNames]);
+  const trimmed = value.trim();
+  const isCatalog = trimmed !== "" && catalogKeys.has(looseGunKey(trimmed));
+  // Near-miss nudge: only for non-catalog values (typos, partial names).
+  const suggestion = useMemo(
+    () => (trimmed && !isCatalog ? bestGunSuggestion(trimmed, catalogNames) : null),
+    [trimmed, isCatalog, catalogNames],
+  );
+
+  // A custom (non-catalog) value keeps the free-text input visible even after
+  // the player leaves custom mode, so their entry never disappears.
+  const showCustomInput = customMode || (trimmed !== "" && !isCatalog);
+
+  return (
+    <div className="space-y-1">
+      <div className="flex gap-2 items-center">
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              role="combobox"
+              aria-expanded={open}
+              className="flex-1 justify-between rounded-none font-mono text-sm min-w-0"
+              data-testid={`button-gun-picker-${index}`}
+            >
+              <span className="truncate">
+                {isCatalog ? trimmed : "SELECT FROM CATALOG..."}
+              </span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="p-0 w-[--radix-popover-trigger-width] min-w-72" align="start">
+            <Command>
+              <CommandInput
+                placeholder="Search the gun catalog..."
+                value={search}
+                onValueChange={setSearch}
+                data-testid={`input-gun-search-${index}`}
+              />
+              <CommandList>
+                <CommandEmpty>No catalog match.</CommandEmpty>
+                <CommandGroup>
+                  {catalogNames.map((n) => (
+                    <CommandItem
+                      key={n}
+                      value={n}
+                      onSelect={() => {
+                        onChange(n);
+                        setCustomMode(false);
+                        setOpen(false);
+                        setSearch("");
+                      }}
+                      data-testid={`option-gun-${index}-${looseGunKey(n).replace(/ /g, "-")}`}
+                    >
+                      <Check className={`mr-2 h-4 w-4 ${looseGunKey(n) === looseGunKey(trimmed) ? "opacity-100" : "opacity-0"}`} />
+                      {n}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+              <div className="border-t border-border p-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full justify-start rounded-none font-mono text-xs text-muted-foreground"
+                  onClick={() => {
+                    setCustomMode(true);
+                    if (search.trim()) onChange(search.trim());
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                  data-testid={`button-gun-custom-${index}`}
+                >
+                  <Plus className="w-3 h-3 mr-1" /> NOT LISTED — ADD A CUSTOM GUN
+                </Button>
+              </div>
+            </Command>
+          </PopoverContent>
+        </Popover>
+        {trimmed !== "" && (
+          <Badge
+            variant="outline"
+            className={`rounded-none font-mono text-[10px] shrink-0 ${isCatalog ? "border-nc-cyan text-nc-cyan" : "border-amber-400 text-amber-400"}`}
+            data-testid={`badge-gun-kind-${index}`}
+          >
+            {isCatalog ? "CATALOG" : "CUSTOM"}
+          </Badge>
+        )}
+        <Button type="button" variant="ghost" size="icon" onClick={onRemove} className="text-destructive" data-testid={`button-remove-gun-${index}`}><Trash2 className="w-4 h-4" /></Button>
+      </div>
+      {showCustomInput && (
+        <Input
+          value={isCatalog ? "" : value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Custom gun name (staff will fill in its stats at approval)"
+          data-testid={`input-gun-${index}`}
+        />
+      )}
+      {suggestion && (
+        <div
+          className="flex items-center gap-2 border border-amber-400/40 bg-amber-400/10 px-2 py-1 font-mono text-xs text-amber-400"
+          data-testid={`text-gun-suggestion-${index}`}
+        >
+          <span>
+            Did you mean <span className="font-bold">{suggestion}</span> from the catalog?
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 rounded-none px-2 text-xs text-nc-cyan"
+            onClick={() => {
+              onChange(suggestion);
+              setCustomMode(false);
+            }}
+            data-testid={`button-gun-adopt-${index}`}
+          >
+            USE CATALOG ENTRY
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }

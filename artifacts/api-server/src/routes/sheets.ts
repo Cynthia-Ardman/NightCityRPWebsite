@@ -5,7 +5,7 @@ import { requireAuth } from "../middlewares/auth";
 import { hasRole, addGuildMemberRole, APPROVED_CHARACTER_ROLE_ID, RIPPERDOC_ROLE_ID } from "../lib/discord";
 import { announceWithThread } from "../lib/reviewAnnounce";
 import { portalLink } from "../lib/portalUrl";
-import { normalizeName } from "../lib/strings";
+import { normalizeName, looseNameKey } from "../lib/strings";
 import { createNotification } from "../lib/notifications";
 import { logger } from "../lib/logger";
 import { recordAudit } from "../lib/audit";
@@ -350,7 +350,9 @@ async function loadGunCatalogMap(): Promise<Map<string, GunAttrs>> {
     .from(catalogGuns);
   const map = new Map<string, GunAttrs>();
   for (const r of rows) {
-    const key = normalizeName(String(r.name ?? ""));
+    // Loose key: players free-type gun names on sheets, so resolution must
+    // tolerate case/whitespace/punctuation variants ("M10AF lexington").
+    const key = looseNameKey(String(r.name ?? ""));
     if (!key || map.has(key)) continue;
     map.set(key, {
       category: r.category,
@@ -789,7 +791,7 @@ type SeededRow = { name: string; category: string; notes: string | null; equippe
 // manufacturer) — reaching parity with the standalone custom-request close flow.
 // Missing/invalid params return an `{ error }` string so the close 400s before
 // any character is created.
-function buildSheetInventoryRows(
+export function buildSheetInventoryRows(
   rawData: unknown,
   cyberCatalog: Map<string, { cwp: number; slot: string }>,
   gunCatalog: Map<string, GunAttrs>,
@@ -851,7 +853,7 @@ function buildSheetInventoryRows(
     for (let i = 0; i < data.guns.length; i++) {
       const name = String(data.guns[i] ?? "").trim();
       if (!name) continue;
-      const catalog = gunCatalog.get(name.toLowerCase());
+      const catalog = gunCatalog.get(looseNameKey(name));
       let notes: string | null;
       if (catalog) {
         // Catalog gun: auto-resolve mechanical attributes, no prompt.

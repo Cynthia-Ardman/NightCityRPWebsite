@@ -73,10 +73,13 @@ export function validateSheetFields(data: unknown, roles: string[]): string | nu
   return null;
 }
 
-// Normalize a gun name for catalog comparison: lower-case, trim, collapse
-// internal whitespace so "Militech  Widow Maker " matches the catalog entry.
+// Normalize a gun name for catalog comparison: lower-case and strip every
+// non-alphanumeric so "Militech  Widow-Maker," matches the catalog entry.
+// Mirrors the server's looseNameKey (lib/strings.ts) — the tech-gun names
+// passed in are already keyed that way (they come from the loose-keyed catalog
+// map), so both sides of the comparison must normalize identically.
 function normalizeGunName(s: string): string {
-  return s.toLowerCase().trim().replace(/\s+/g, " ");
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 // New characters may not start with Tech weapons. Given the sheet's `guns`
