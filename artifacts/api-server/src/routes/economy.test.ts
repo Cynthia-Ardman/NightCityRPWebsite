@@ -88,6 +88,51 @@ describe("POST /stores/:id/deposit & /withdraw", () => {
     expect(venueLeg[0].amount).toBe(200);
   });
 
+  it("authorizes a debit by live UB cash when the website mirror is stale-low", async () => {
+    await setMode("enabled");
+    // Mirror says 100, but live UB cash covers the full amount (bot-side
+    // earnings not yet reconciled). The debit must NOT be refused.
+    mockGetBalance.mockResolvedValue({ cash: 8000, bank: 0, total: 8000, source: "unbelievaboat" });
+    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    const owner = await createUser();
+    await db.update(users).set({ walletBalance: 100, lastSyncedUbBalance: 100 }).where(eq(users.id, owner.id));
+    const store = await makeStore(owner.id, 0);
+
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/deposit`)
+      .set("x-test-user", owner.id)
+      .send({ amount: 8000 });
+    expect(res.status).toBe(200);
+    expect(mockPatch).toHaveBeenCalledWith(owner.discordId, expect.objectContaining({ cash: -8000 }));
+
+    // The stale mirror must be self-healed (reconcile fold +7900) before the
+    // debit applies, so the stored balance and ledger stay truthful.
+    const [u] = await db.select().from(users).where(eq(users.id, owner.id));
+    expect(u.walletBalance).toBe(0); // 100 + 7900 fold - 8000 debit
+    const rows = await db
+      .select()
+      .from(walletTransactions)
+      .where(and(eq(walletTransactions.userId, owner.id), eq(walletTransactions.kind, "reconcile")));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].amount).toBe(7900);
+  });
+
+  it("still refuses a debit when live UB cash is also insufficient", async () => {
+    await setMode("enabled");
+    mockGetBalance.mockResolvedValue({ cash: 50, bank: 5000, total: 5050, source: "unbelievaboat" });
+    const owner = await createUser();
+    await db.update(users).set({ walletBalance: 50, lastSyncedUbBalance: 50 }).where(eq(users.id, owner.id));
+    const store = await makeStore(owner.id, 0);
+
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/deposit`)
+      .set("x-test-user", owner.id)
+      .send({ amount: 200 });
+    // Bank does not count — debits target UB cash only.
+    expect(res.status).toBe(400);
+    expect(mockPatch).not.toHaveBeenCalled();
+  });
+
   it("rejects overdraw when withdrawing more than the store holds", async () => {
     await setMode("enabled");
     mockGetBalance.mockResolvedValue({ cash: 1000, bank: 0, total: 1000, source: "unbelievaboat" });

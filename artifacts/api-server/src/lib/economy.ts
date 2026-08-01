@@ -130,8 +130,8 @@ async function readWalletBalance(userId: string): Promise<number> {
  */
 export async function applyWalletDelta(input: ApplyWalletDeltaInput): Promise<WalletApplyResult> {
   const mode = await getEconomyMode();
-  const prev = await readWalletBalance(input.userId);
-  const proposed = prev + input.amount;
+  let prev = await readWalletBalance(input.userId);
+  let proposed = prev + input.amount;
 
   // Idempotency: a prior row for this key short-circuits (synced => duplicate)
   // or is reused for retry (failed). Pending rows are left alone — they are
@@ -151,8 +151,32 @@ export async function applyWalletDelta(input: ApplyWalletDeltaInput): Promise<Wa
   }
 
   // Overdraw protection (debits only) — checked before any write.
+  // The website mirror (users.walletBalance) can drift BELOW the live UB cash
+  // the debit actually targets (e.g. bot-side earnings not yet reconciled). So
+  // before refusing: re-check against live UB CASH (bank never counts — debits
+  // target cash only; strict read, no stale fallback). If live cash covers it,
+  // self-heal the stale mirror by folding the external UB delta through the
+  // same guarded per-user reconcile the cron uses (writes a reconcile ledger
+  // row), then recompute from the healed mirror so this row's
+  // previousBalance/newBalance and the stored balance stay truthful. If UB is
+  // unreachable we keep the conservative mirror-based refusal; the UB write
+  // would fail anyway.
   if (!input.allowNegative && input.amount < 0 && proposed < 0) {
-    return { ok: false, status: "insufficient_funds", balance: prev, previousBalance: prev, proposedBalance: proposed };
+    const live = await getBalance(input.discordId);
+    if (!live || live.cash + input.amount < 0) {
+      return { ok: false, status: "insufficient_funds", balance: prev, previousBalance: prev, proposedBalance: proposed };
+    }
+    logger.info(
+      { userId: input.userId, amount: input.amount, mirror: prev, liveCash: live.cash, source: input.source },
+      "wallet debit covered by live UB cash despite stale mirror; reconciling before apply",
+    );
+    const rec = await reconcileOneUser(input.userId);
+    if (rec.ok) {
+      // dry_run reports the unapplied balance + would-be delta; synced/no_change
+      // report the post-fold balance directly.
+      prev = rec.status === "dry_run" ? rec.balance + rec.delta : rec.balance;
+      proposed = prev + input.amount;
+    }
   }
 
   // Overflow protection (credits only) — a balance past the int4 ceiling would
@@ -634,7 +658,7 @@ export async function reconcileOneUser(
       kind: isSeed ? "reconcile_seed" : "reconcile",
       source: "reconciliation",
       syncStatus: "reconciled",
-      memo: `Admin retry: reconciled to UnbelievaBoat (${delta > 0 ? "+" : ""}${delta})`,
+      memo: `Reconciled to UnbelievaBoat (${delta > 0 ? "+" : ""}${delta})`,
       previousBalance: appliedBalance - delta,
       newBalance: appliedBalance,
     });

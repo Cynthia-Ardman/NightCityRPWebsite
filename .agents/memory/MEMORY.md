@@ -89,7 +89,7 @@
 - [Fixer NPCs are characters](fixer-npcs-are-characters.md) — NPCs = characters kind='npc' (view /characters/:id); legacy fixer_npcs table empty, its /fixer/npcs/:id detail+create+patch endpoints are orphaned dead code.
 - [Session events always need NPCs](session-npc-derivation.md) — needsNpcs is DERIVED (manual flag OR eventType==="session"); route all view/gate reads through eventNeedsNpcs(e), not the raw column.
 - [Main Sessions are discrete weekly rows](main-sessions-discrete.md) — one event row per Sunday (own discord id), NOT recurrence_rule — see topic.
-- Wallet writes: [int4 ceiling](wallet-int4-ceiling.md) balances max 2,147,483,647, UB→website reconcile is an overflow vector; [atomic increments](wallet-atomic-increments.md) always relative SQL increments, never read-then-write.
+- Wallet writes: [debit authz = live UB cash, not mirror](wallet-debit-live-authorization.md); [int4 ceiling](wallet-int4-ceiling.md) balances max 2,147,483,647, UB→website reconcile is an overflow vector; [atomic increments](wallet-atomic-increments.md) always relative SQL increments, never read-then-write.
 - UB economy quirks: [WORK/SLUT "command failed" = economy toggled off](economy-disabled-symptom.md); [native !work/!slut have no cooldown/config API — only fix is disabling in UB dashboard](ub-native-commands.md).
 - [react-query auth gate loop](react-query-auth-loop.md) — root gate on useQuery(authMe).isLoading + errored query + retryOnMount default true = 1Hz mount/unmount loop; see topic for QueryClient defaults.
 - Calendar dup: [mission+event sharing one discord_event_id render twice, reconcile auto-heals](calendar-mission-event-dup.md); [convert = REPLACE in one tx, hand off discord_event_id](event-mission-convert-handoff.md).
