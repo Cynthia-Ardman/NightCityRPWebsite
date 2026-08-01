@@ -119,6 +119,11 @@ export default function Ledger() {
 
   const rows = (txns ?? []) as WalletTransaction[];
 
+  // source:"local" = the live UnbelievaBoat read failed and the server sent its
+  // last-synced estimate. cash/bank may be null (split unknown) — render "—"
+  // and warn before players act on estimated figures.
+  const walletStale = wallet?.source === "local";
+
   return (
     <div className="space-y-8 max-w-[1600px] mx-auto pb-12">
       <div>
@@ -164,10 +169,20 @@ export default function Ledger() {
             Transfers spend <span className="text-nc-green">cash</span> only. Withdraw from your bank to make
             those eddies spendable.
           </p>
+          {walletStale && (
+            <div
+              className="border border-amber-400/40 bg-amber-400/10 px-3 py-2 font-mono text-xs text-amber-400"
+              data-testid="text-wallet-stale-warning"
+            >
+              ESTIMATED BALANCE — couldn't reach UnbelievaBoat, showing the last synced value.
+              {typeof wallet?.cash !== "number" && " The cash/bank split is unknown right now."}
+              {" "}Your eddies are safe; this display will update automatically once the connection recovers.
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      <WithdrawDepositCard cash={wallet?.cash ?? null} bank={wallet?.bank ?? null} />
+      <WithdrawDepositCard cash={wallet?.cash ?? null} bank={wallet?.bank ?? null} stale={walletStale} />
 
       <TransferCard cash={wallet?.cash ?? null} total={wallet?.balance ?? null} />
 
@@ -683,7 +698,15 @@ function SinkCard({ cash, total }: { cash: number | null; total: number | null }
 // Withdraw to make it spendable; Deposit moves it back. Both call the new
 // /me/wallet endpoints, then refresh the balance + history. UB writes only fire
 // in the deployed environment, so in dev these no-op with a 502.
-function WithdrawDepositCard({ cash, bank }: { cash: number | null; bank: number | null }) {
+function WithdrawDepositCard({
+  cash,
+  bank,
+  stale,
+}: {
+  cash: number | null;
+  bank: number | null;
+  stale?: boolean;
+}) {
   const qc = useQueryClient();
   const [withdrawAmount, setWithdrawAmount] = useState(0);
   const [depositAmount, setDepositAmount] = useState(0);
@@ -700,10 +723,13 @@ function WithdrawDepositCard({ cash, bank }: { cash: number | null; bank: number
     mutation: { onSuccess: () => { refresh(); setDepositAmount(0); } },
   });
 
+  // Bank moves validate against the LIVE balance server-side; while the display
+  // is an estimate (stale), the shown split may be wrong or unknown, so block
+  // submits rather than let players act on figures that will bounce anyway.
   const canWithdraw =
-    withdrawAmount > 0 && !withdraw.isPending && (bank == null || withdrawAmount <= bank);
+    !stale && withdrawAmount > 0 && !withdraw.isPending && (bank == null || withdrawAmount <= bank);
   const canDeposit =
-    depositAmount > 0 && !deposit.isPending && (cash == null || depositAmount <= cash);
+    !stale && depositAmount > 0 && !deposit.isPending && (cash == null || depositAmount <= cash);
 
   const withdrawError = withdraw.error
     ? apiErrorMessage(withdraw.error, "Withdrawal failed. Try again.")
@@ -727,6 +753,14 @@ function WithdrawDepositCard({ cash, bank }: { cash: number | null; bank: number
           <span className="text-nc-green"> cash</span>. Deposit moves cash back into the bank. Your total
           never changes.
         </p>
+        {stale && (
+          <div
+            className="border border-amber-400/40 bg-amber-400/10 px-3 py-2 font-mono text-xs text-amber-400"
+            data-testid="text-bank-stale-warning"
+          >
+            Bank moves are paused while the balance is estimated — try again once the live balance is back.
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {/* Withdraw: bank -> cash */}
           <form

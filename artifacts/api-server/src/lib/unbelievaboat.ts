@@ -38,21 +38,56 @@ export interface UbBalance {
   bank: number;
   total: number;
   source: "unbelievaboat" | "local";
+  // Present (true) only on a local fallback for a user with no persisted
+  // cash/bank snapshot: cash/bank are then placeholders (total/0) and must be
+  // rendered as UNKNOWN, never as a real split — a false bank=0 reads as
+  // "the bank withdrew all my money".
+  splitUnknown?: true;
+}
+
+// Persist the last-seen cash/bank split (display-only snapshot) so the stale
+// fallback can show the real split instead of a false bank=0. Fire-and-forget:
+// never blocks or fails a balance read. Deduped in-memory so a healthy user
+// polling every 30s doesn't rewrite an unchanged row forever.
+const lastPersistedSplit = new Map<string, string>();
+function persistSplitSnapshot(discordUserId: string, cash: number, bank: number): void {
+  const sig = `${cash}:${bank}`;
+  if (lastPersistedSplit.get(discordUserId) === sig) return;
+  lastPersistedSplit.set(discordUserId, sig);
+  void db
+    .update(users)
+    .set({ lastSyncedUbCash: cash, lastSyncedUbBank: bank })
+    .where(eq(users.discordId, discordUserId))
+    .catch((err) => {
+      // Drop the dedup entry so the next read retries the write.
+      lastPersistedSplit.delete(discordUserId);
+      logger.warn({ err }, "UB split snapshot persist failed");
+    });
 }
 
 // Last value we successfully synced from UB, persisted on the user row. Used as
 // a degraded fallback (only when the caller opts in via allowStale) when the
-// live API is down. We only persist the total, so the split is unknown — surface
-// it all as `cash` (the spendable figure) and mark source:"local" so callers/UI
-// can flag it as an estimate.
+// live API is down. Prefers the persisted cash/bank snapshot; for legacy rows
+// with only a total, the split is UNKNOWN — flagged via splitUnknown so the UI
+// never renders a false bank=0.
 async function localBalanceFallback(discordUserId: string): Promise<UbBalance | null> {
   try {
     const [u] = await db
-      .select({ lastSynced: users.lastSyncedUbBalance })
+      .select({
+        lastSynced: users.lastSyncedUbBalance,
+        cash: users.lastSyncedUbCash,
+        bank: users.lastSyncedUbBank,
+      })
       .from(users)
       .where(eq(users.discordId, discordUserId));
-    if (!u || u.lastSynced == null) return null;
-    return { cash: u.lastSynced, bank: 0, total: u.lastSynced, source: "local" };
+    if (!u) return null;
+    if (u.cash != null && u.bank != null) {
+      // Snapshot total (cash+bank) is fresher than lastSyncedUbBalance, which
+      // is a reconcile baseline and can lag behind the last observed read.
+      return { cash: u.cash, bank: u.bank, total: u.cash + u.bank, source: "local" };
+    }
+    if (u.lastSynced == null) return null;
+    return { cash: u.lastSynced, bank: 0, total: u.lastSynced, source: "local", splitUnknown: true };
   } catch (err) {
     logger.error({ err }, "UB local balance fallback error");
     return null;
@@ -78,6 +113,7 @@ async function fetchLiveBalance(discordUserId: string): Promise<UbBalance | null
     if ((generation.get(discordUserId) ?? 0) === gen) {
       balanceCache.set(discordUserId, { value, expires: Date.now() + BALANCE_CACHE_TTL_MS });
     }
+    persistSplitSnapshot(discordUserId, value.cash, value.bank);
     return value;
   } catch (err) {
     logger.error({ err }, "UB getBalance error");
@@ -153,6 +189,7 @@ export async function patchBalance(
     // refresh the cache with the authoritative post-write figure.
     bumpGeneration(discordUserId);
     balanceCache.set(discordUserId, { value, expires: Date.now() + BALANCE_CACHE_TTL_MS });
+    persistSplitSnapshot(discordUserId, value.cash, value.bank);
     return value;
   } catch (err) {
     logger.error({ err }, "UB patchBalance error");

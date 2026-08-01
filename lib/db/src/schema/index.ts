@@ -73,6 +73,13 @@ export const users = pgTable(
     // detect external deltas: any difference between current UB total and this
     // value is a Discord-side change to reconcile. Null = never synced.
     lastSyncedUbBalance: integer("last_synced_ub_balance"),
+    // Last cash/bank split observed from UB (display-only snapshot, refreshed on
+    // every successful live read/write). NOT a reconcile baseline — that stays
+    // lastSyncedUbBalance. Null = never observed; the stale-fallback wallet
+    // display must then report the split as unknown rather than inventing
+    // bank=0 (players read that as "the bank withdrew all my money").
+    lastSyncedUbCash: integer("last_synced_ub_cash"),
+    lastSyncedUbBank: integer("last_synced_ub_bank"),
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
     // Outcome of the most recent sync attempt for this user: synced | failed |
     // pending. Surfaced in the admin sync dashboard. Null = never attempted.

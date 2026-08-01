@@ -445,7 +445,15 @@ router.get("/me/wallet", requireAuth, async (req, res): Promise<void> => {
     res.status(502).json({ error: "Wallet provider unavailable" });
     return;
   }
-  res.json({ balance: ub.total, cash: ub.cash, bank: ub.bank, source: ub.source });
+  // splitUnknown: stale fallback with no persisted cash/bank snapshot — the
+  // split placeholders (total/0) must NOT be surfaced as real figures, or the
+  // UI shows a false "bank emptied". Send null so clients render "unknown".
+  res.json({
+    balance: ub.total,
+    cash: ub.splitUnknown ? null : ub.cash,
+    bank: ub.splitUnknown ? null : ub.bank,
+    source: ub.source,
+  });
 });
 
 // Move eddies between the caller's UnbelievaBoat bank and cash ("on person").
@@ -493,8 +501,8 @@ async function handleWalletMove(
       const cur = await getBalance(req.user!.discordId, { allowStale: true });
       res.json({
         balance: cur?.total ?? 0,
-        cash: cur?.cash ?? 0,
-        bank: cur?.bank ?? 0,
+        cash: cur?.splitUnknown ? null : (cur?.cash ?? 0),
+        bank: cur?.splitUnknown ? null : (cur?.bank ?? 0),
         source: cur?.source ?? "unbelievaboat",
       });
       return;

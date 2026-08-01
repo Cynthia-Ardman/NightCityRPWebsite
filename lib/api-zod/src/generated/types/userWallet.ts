@@ -9,7 +9,9 @@ import type { UserWalletSource } from './userWalletSource';
 
 export interface UserWallet {
   balance: number;
-  cash?: number;
-  bank?: number;
+  /** Null when source is 'local' and the cash/bank split is unknown — render as '—', never as 0. */
+  cash?: number | null;
+  /** Null when source is 'local' and the cash/bank split is unknown — render as '—', never as 0. */
+  bank?: number | null;
   source: UserWalletSource;
 }

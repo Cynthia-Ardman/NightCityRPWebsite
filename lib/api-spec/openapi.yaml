@@ -8582,8 +8582,8 @@ components:
       required: [balance, source]
       properties:
         balance: { type: integer }
-        cash: { type: integer }
-        bank: { type: integer }
+        cash: { type: integer, nullable: true, description: "Null when source is 'local' and the cash/bank split is unknown — render as '—', never as 0." }
+        bank: { type: integer, nullable: true, description: "Null when source is 'local' and the cash/bank split is unknown — render as '—', never as 0." }
         source: { type: string, enum: [unbelievaboat, local] }
 
     WalletMoveInput:

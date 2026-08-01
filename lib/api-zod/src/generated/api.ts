@@ -11010,8 +11010,8 @@ export const VerifyVrchatSessionResponse = zod.object({
  */
 export const GetMyWalletResponse = zod.object({
   "balance": zod.number(),
-  "cash": zod.number().optional(),
-  "bank": zod.number().optional(),
+  "cash": zod.number().nullish().describe('Null when source is \'local\' and the cash\/bank split is unknown — render as \'—\', never as 0.'),
+  "bank": zod.number().nullish().describe('Null when source is \'local\' and the cash\/bank split is unknown — render as \'—\', never as 0.'),
   "source": zod.enum(['unbelievaboat', 'local'])
 })
 
@@ -11031,8 +11031,8 @@ export const WithdrawEddiesBody = zod.object({
 
 export const WithdrawEddiesResponse = zod.object({
   "balance": zod.number(),
-  "cash": zod.number().optional(),
-  "bank": zod.number().optional(),
+  "cash": zod.number().nullish().describe('Null when source is \'local\' and the cash\/bank split is unknown — render as \'—\', never as 0.'),
+  "bank": zod.number().nullish().describe('Null when source is \'local\' and the cash\/bank split is unknown — render as \'—\', never as 0.'),
   "source": zod.enum(['unbelievaboat', 'local'])
 })
 
@@ -11052,8 +11052,8 @@ export const DepositEddiesBody = zod.object({
 
 export const DepositEddiesResponse = zod.object({
   "balance": zod.number(),
-  "cash": zod.number().optional(),
-  "bank": zod.number().optional(),
+  "cash": zod.number().nullish().describe('Null when source is \'local\' and the cash\/bank split is unknown — render as \'—\', never as 0.'),
+  "bank": zod.number().nullish().describe('Null when source is \'local\' and the cash\/bank split is unknown — render as \'—\', never as 0.'),
   "source": zod.enum(['unbelievaboat', 'local'])
 })
 
