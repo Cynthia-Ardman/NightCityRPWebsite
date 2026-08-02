@@ -33,7 +33,7 @@ import {
   listGuildScheduledEvents,
   hasRole,
 } from "./discord";
-import { notifyMissionPayout, createNotification } from "./notifications";
+import { notifyMissionPayout, notifyFixerPay, createNotification } from "./notifications";
 import { getMissionContext, type MissionExternalContext } from "./missionsConfig";
 import { resolveOrProvisionUser } from "./userProvision";
 
@@ -3650,6 +3650,15 @@ export async function payStandaloneActors(
           relatedEntityType: "actor_event",
           relatedEntityId: null,
         });
+        void notifyFixerPay({
+          discordId: u.discordId,
+          userId,
+          amount,
+          reason: eventName,
+          general: true,
+          characterName: input.characterName ?? null,
+          newBalance: balance.total,
+        });
         postedLines.push(`<@${u.discordId}>${u.username ? ` (${u.username})` : ""}: +${amount.toLocaleString()} eddies`);
       }
       continue;
@@ -3720,6 +3729,14 @@ export async function payStandaloneActors(
         paymentRowId: inserted.id,
         relatedEntityType: input.eventId != null ? "event" : "actor_event",
         relatedEntityId: input.eventId ?? null,
+      });
+      void notifyFixerPay({
+        discordId: u.discordId,
+        userId,
+        amount,
+        reason: eventName,
+        general: false,
+        newBalance: balance.total,
       });
       postedLines.push(`<@${u.discordId}>${u.username ? ` (${u.username})` : ""}: +${amount.toLocaleString()} eddies`);
     }

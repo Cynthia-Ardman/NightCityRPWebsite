@@ -83,6 +83,39 @@ export async function notifyAutoCharge(opts: {
 }
 
 /**
+ * DM + bell a player that a fixer paid them via the Pay Players page
+ * (acting pay or general character-tied pay). Never throws.
+ */
+export async function notifyFixerPay(opts: {
+  discordId: string | null | undefined;
+  userId?: string | null;
+  amount: number;
+  reason: string;
+  general: boolean;
+  characterName?: string | null;
+  newBalance?: number | null;
+}): Promise<void> {
+  const who = opts.general && opts.characterName ? ` (${opts.characterName})` : "";
+  const label = opts.general ? "Fixer pay" : "Acting pay";
+  void createNotification({
+    userId: opts.userId,
+    type: "fixer_pay",
+    title: `${label} — ${fmtEddies(opts.amount)}`,
+    body: `You received ${fmtEddies(opts.amount)}${who} for "${opts.reason}".${balanceLine(opts.newBalance)}`,
+    href: "/ledger",
+  });
+  if (!opts.discordId) return;
+  try {
+    const content =
+      `**${label}** — You received ${fmtEddies(opts.amount)}${who} for "${opts.reason}".` +
+      balanceLine(opts.newBalance);
+    await sendDirectMessage(opts.discordId, content);
+  } catch (err) {
+    logger.warn({ err, discordId: opts.discordId }, "fixer pay DM failed");
+  }
+}
+
+/**
  * DM a player that they received a mission payout. Never throws.
  */
 export async function notifyMissionPayout(opts: {
