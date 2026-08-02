@@ -24,6 +24,7 @@ import { useDismissNotificationPrompt, getGetMeQueryKey } from "@workspace/api-c
 import { Bell, X } from "lucide-react";
 import ncrpBanner from "@assets/NCRP_GroupBanner_1780331827566.png";
 import ncrpLogo from "@assets/image_1780331782394.png";
+import StartHere from "@/pages/StartHere";
 
 function BrandedLoader({ label }: { label: string }) {
   return (
@@ -47,32 +48,7 @@ export default function Home() {
   }
 
   if (!user) {
-    return (
-      <div className="min-h-[80vh] flex items-center justify-center relative overflow-hidden">
-        <div className="absolute inset-0 bg-background/80 z-0" />
-        <div className="relative z-10 max-w-3xl text-center space-y-8 p-6">
-          <img
-            src={ncrpBanner}
-            alt="Night City RP"
-            className="w-full max-w-2xl mx-auto border border-nc-cyan/30 shadow-[0_0_30px_rgba(0,255,255,0.15)]"
-            data-testid="img-hero-banner"
-          />
-          <h1 className="text-6xl md:text-8xl font-display font-bold text-nc-cyan glitch-hover tracking-tighter" data-testid="text-hero-title">
-            NIGHT CITY RP
-          </h1>
-          <p className="text-xl md:text-2xl text-muted-foreground font-mono" data-testid="text-hero-subtitle">
-            The premier Cyberpunk roleplay experience. Manage your characters, eddies, and empire.
-          </p>
-          <div className="pt-8">
-            <Button asChild size="lg" className="h-16 px-12 text-xl font-display bg-nc-magenta hover:bg-nc-magenta/80 text-foreground rounded-none shadow-[0_0_20px_rgba(255,0,255,0.4)] transition-all hover:shadow-[0_0_40px_rgba(255,0,255,0.6)]" data-testid="button-login-hero">
-              <a href="/api/auth/discord/login">
-                CONNECT TO SUBNET <ArrowRight className="ml-3 h-6 w-6" />
-              </a>
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
+    return <StartHere />;
   }
 
   return <Dashboard />;
