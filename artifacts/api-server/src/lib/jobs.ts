@@ -531,7 +531,16 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         // Idempotency: if this lease is already paid past now (rolling
         // paid_through), skip. Manual rerun within the same period must not
         // double-charge.
-        if (lease.paidThrough && lease.paidThrough.getTime() > now.getTime()) continue;
+        //
+        // Compare by UTC DAY, not exact instant: paid_through lands at the
+        // second the lease happened to be processed last cycle, so an exact
+        // compare silently skips the whole month whenever the next run reaches
+        // this lease even seconds earlier (real miss: Aug 2026, a lease stamped
+        // 04:00:54 was evaluated at 04:00:2x and skipped). Day granularity
+        // still blocks same-period reruns (a successful charge advances
+        // paid_through a full month).
+        const dayUTC = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+        if (lease.paidThrough && dayUTC(lease.paidThrough) > dayUTC(now)) continue;
         const owner = await getOwner(c.ownerId);
         if (!owner) continue;
         const rent = lease.monthlyRent;

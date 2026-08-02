@@ -241,6 +241,28 @@ describe("runJob('monthly_rent')", () => {
     expect(rent).toHaveLength(0);
   });
 
+  it("charges a lease whose paidThrough is later the SAME UTC day (seconds-race regression), without double-charging on rerun", async () => {
+    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    const owner = await createUser();
+    const char = await createCharacter({ ownerId: owner.id, approved: true });
+    // Last cycle stamped paid_through a few seconds AFTER the moment this run
+    // reaches the lease — the old exact-instant compare skipped the whole month.
+    const laterToday = new Date(Date.now() + 60_000);
+    await db.insert(housing).values({
+      characterId: char.id, address: "Megabuilding H10", monthlyRent: 500, kind: "residential",
+      paidThrough: laterToday,
+    });
+
+    await runJob("monthly_rent");
+    let rent = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "rent"));
+    expect(rent).toHaveLength(1);
+
+    // Rerun in the same period: paidThrough advanced a full month, so no re-charge.
+    await runJob("monthly_rent");
+    rent = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "rent"));
+    expect(rent).toHaveLength(1);
+  });
+
   it("stamps the lease delinquent (no ledger row) when the debit fails", async () => {
     mockPatch.mockResolvedValue(null);
     const owner = await createUser();

@@ -15,7 +15,7 @@
 - Pending edits: [BEFORE snapshot at submit time](pending-edit-snapshot.md); [strip sidecar metadata before strict parse](pending-edit-strict-parse.md); [empty-/order-insensitive diff](pending-edit-empty-placeholder-diff.md).
 - [Pending-PATCH CWP cap](pending-patch-cwp-cap.md) — in-review edits skip submission validation, so PATCH must re-enforce the 6-CWP cap (custom CWP only) or it's a silent bypass.
 - Legacy claim: [auto-claim on login](auto-claim-legacy-username.md) backfill ownerId guarded isNull; [owner stub provisioning](owner-stub-provisioning.md) mint stub keyed on Discord id, adopted on first login.
-- Autobill: [kill switches](autobill-kill-switches.md) bot_config flags default OFF, manual admin runs bypass; [monthly_rent parity](autobill-parity.md) 6 line items, LOA + idempotency rules differ per item.
+- Autobill: [paid_through guards compare by DAY](paid-through-day-compare.md) second-precision stamps skip whole months; [kill switches](autobill-kill-switches.md) bot_config flags default OFF, manual admin runs bypass; [monthly_rent parity](autobill-parity.md) 6 line items, LOA + idempotency rules differ per item.
 - Drizzle traps: [`= ANY(${arr})` spreads into N params and 500s](drizzle-any-array-spread.md) use inArray; [onConflict partial index needs `where:`](drizzle-onconflict-partial-index.md) read err.cause for real PG error.
 - Character merge: [same-name ≠ same person](character-name-collisions.md) merge only if owner AND backstory match; [repoint EVERY char-id column](character-merge-repoint.md) incl. non-FK plain ints.
 - [Import-time name dedupe](import-name-dedupe.md) — (ownerId, lower(name)) misses nickname-vs-thread-title divergence ("Diesel" vs full name) → dup rows w/ orphaned FKs; needs fuzzy match or merge pass.
