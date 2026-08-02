@@ -12382,7 +12382,7 @@ export const DiscardLoreImportDraftResponse = zod.object({
 
 
 /**
- * @summary Browse the Guidebook — pages grouped into fixed sections (any signed-in user).
+ * @summary Browse the Guidebook — pages grouped into fixed sections. Signed-in users see everything; anonymous visitors only pages flagged publicRead.
  */
 export const ListGuidebookQueryParams = zod.object({
   "q": zod.coerce.string().optional()
@@ -12406,6 +12406,7 @@ export const ListGuidebookResponse = zod.object({
   "url": zod.string()
 })),
   "position": zod.number(),
+  "publicRead": zod.boolean(),
   "sourceLabel": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
   "importedAt": zod.coerce.date().nullish(),
@@ -12434,7 +12435,8 @@ export const CreateGuidebookPageBody = zod.object({
   "label": zod.string(),
   "url": zod.string()
 })).optional(),
-  "position": zod.number().optional()
+  "position": zod.number().optional(),
+  "publicRead": zod.boolean().optional()
 })
 
 
@@ -12687,7 +12689,8 @@ export const SubmitGuidebookEditBody = zod.object({
   "label": zod.string(),
   "url": zod.string()
 })).optional(),
-  "position": zod.number().optional()
+  "position": zod.number().optional(),
+  "publicRead": zod.boolean().optional()
 }),
   "updateNote": zod.string().nullish()
 })
@@ -12844,6 +12847,7 @@ export const ApplyGuidebookImportConflictResponse = zod.object({
   "url": zod.string()
 })),
   "position": zod.number(),
+  "publicRead": zod.boolean(),
   "sourceLabel": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
   "importedAt": zod.coerce.date().nullish(),
@@ -12877,6 +12881,7 @@ export const DismissGuidebookImportConflictResponse = zod.object({
   "url": zod.string()
 })),
   "position": zod.number(),
+  "publicRead": zod.boolean(),
   "sourceLabel": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
   "importedAt": zod.coerce.date().nullish(),
@@ -12891,7 +12896,7 @@ export const DismissGuidebookImportConflictResponse = zod.object({
 
 
 /**
- * @summary Guidebook page detail (any signed-in user; staff-only fields gated).
+ * @summary Guidebook page detail (staff-only fields gated; anonymous callers can only read publicRead pages, others 404).
  */
 export const GetGuidebookPageParams = zod.object({
   "id": zod.coerce.number()
@@ -12910,6 +12915,7 @@ export const GetGuidebookPageResponse = zod.object({
   "url": zod.string()
 })),
   "position": zod.number(),
+  "publicRead": zod.boolean(),
   "sourceLabel": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
   "importedAt": zod.coerce.date().nullish(),
@@ -12940,7 +12946,8 @@ export const UpdateGuidebookPageBody = zod.object({
   "label": zod.string(),
   "url": zod.string()
 })).optional(),
-  "position": zod.number().optional()
+  "position": zod.number().optional(),
+  "publicRead": zod.boolean().optional()
 })
 
 export const UpdateGuidebookPageResponse = zod.object({
@@ -12956,6 +12963,7 @@ export const UpdateGuidebookPageResponse = zod.object({
   "url": zod.string()
 })),
   "position": zod.number(),
+  "publicRead": zod.boolean(),
   "sourceLabel": zod.string().nullish(),
   "discordChannelId": zod.string().nullish(),
   "importedAt": zod.coerce.date().nullish(),

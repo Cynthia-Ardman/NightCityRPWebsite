@@ -5,14 +5,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import Markdown from "@/components/Markdown";
-import { BookMarked, Plus, Download, FileEdit, FileText, Crosshair } from "lucide-react";
+import { BookMarked, Plus, Download, FileEdit, FileText, Crosshair, Scale, Star } from "lucide-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
+import { LEGACY_SECTION_ALIASES } from "@/lib/guidebookLinks";
 
 function snippet(body: string): string {
   const text = body.replace(/[#*_`>\-]/g, "").replace(/\s+/g, " ").trim();
   return text.length > 180 ? text.slice(0, 180) + "…" : text;
 }
+
+// Slugs pinned into the MUST READ row (in this order), on top of the static
+// Rules hub card. At minimum every rules page; plus the getting-started page.
+const PINNED_SLUGS = ["getting-started-with-ncrp", "rp-rules", "avatar-restrictions"];
 
 export default function DirectoryGuidebook() {
   const { data: me } = useEffectiveMe();
@@ -30,20 +34,29 @@ export default function DirectoryGuidebook() {
     () => (data?.sections ?? []).reduce((n, s) => n + s.pages.length, 0),
     [data],
   );
+  const pinned = useMemo(() => {
+    const all = (data?.sections ?? []).flatMap((s) => s.pages);
+    return PINNED_SLUGS.map((slug) => all.find((p) => p.slug === slug)).filter(
+      (p): p is GuidebookPage => !!p,
+    );
+  }, [data]);
 
   // The Weapons reference is a code-defined page (not a DB row), so it isn't in
-  // the API sections. Surface it as a static "Reference" card, hidden only when
+  // the API sections. Surface it inside the Reference section, hidden only when
   // an active search clearly doesn't match it.
   const term = q.trim().toLowerCase();
+  const searching = !!term;
   const showWeaponsRef = !term || /gun|weapon|power|tech|smart|caliber|ammo|fire/.test(term);
 
   // Deep-link support: when arriving at /guidebook#<section-key> (e.g. from the
   // onboarding banner or the new-character help links), scroll the matching
-  // section into view once the content has loaded.
+  // section into view once the content has loaded. Legacy (pre-condensation)
+  // keys are aliased to their new section.
   useEffect(() => {
     if (isLoading) return;
-    const hash = window.location.hash.replace(/^#/, "");
+    let hash = window.location.hash.replace(/^#/, "");
     if (!hash) return;
+    hash = LEGACY_SECTION_ALIASES[hash] ?? hash;
     const el = document.getElementById(`guidebook-section-${hash}`);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [isLoading, sections]);
@@ -92,13 +105,34 @@ export default function DirectoryGuidebook() {
         />
       </div>
 
+      {/* Condensed section jump nav, in onboarding order. */}
+      {!isLoading && !searching && sections.length > 0 && (
+        <nav className="flex flex-wrap gap-2" aria-label="Sections" data-testid="nav-guidebook-sections">
+          {sections.map((s) => (
+            <a
+              key={s.key}
+              href={`#${s.key}`}
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById(`guidebook-section-${s.key}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                history.replaceState(null, "", `#${s.key}`);
+              }}
+              className="font-display text-xs tracking-widest border border-border px-3 py-1.5 text-muted-foreground hover:border-nc-cyan hover:text-nc-cyan transition-colors"
+              data-testid={`link-section-nav-${s.key}`}
+            >
+              {s.label.toUpperCase()}
+            </a>
+          ))}
+        </nav>
+      )}
+
       {isLoading ? (
         <div className="text-nc-cyan font-display animate-pulse">LOADING GUIDEBOOK...</div>
       ) : sections.length === 0 && !showWeaponsRef ? (
-        <Empty searching={!!q.trim()} />
+        <Empty searching={searching} />
       ) : (
         <div className="space-y-8">
-          {showWeaponsRef && <ReferenceSection />}
+          {!searching && <MustReadRow pinned={pinned} isStaff={isStaff} />}
           {sections.map((s) => (
             <section key={s.key} id={`guidebook-section-${s.key}`} className="scroll-mt-20" data-testid={`section-guidebook-${s.key}`}>
               <div className="border-l-2 border-nc-cyan pl-4 mb-4">
@@ -106,12 +140,26 @@ export default function DirectoryGuidebook() {
                 {s.description && <p className="font-mono text-xs text-muted-foreground mt-1">{s.description}</p>}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {s.key === "rules" && !searching && <RulesHubCard />}
                 {s.pages.map((p) => (
                   <PageCard key={p.id} page={p} isStaff={isStaff} />
                 ))}
+                {s.key === "reference" && showWeaponsRef && <WeaponsRefCard />}
               </div>
             </section>
           ))}
+          {/* Weapons card fallback when the reference section has no DB pages. */}
+          {showWeaponsRef && !sections.some((s) => s.key === "reference") && (
+            <section id="guidebook-section-reference" className="scroll-mt-20" data-testid="section-guidebook-reference">
+              <div className="border-l-2 border-nc-cyan pl-4 mb-4">
+                <h2 className="font-display text-2xl tracking-widest text-foreground">REFERENCE LIBRARY</h2>
+                <p className="font-mono text-xs text-muted-foreground mt-1">Quick-reference guides for in-game systems.</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <WeaponsRefCard />
+              </div>
+            </section>
+          )}
         </div>
       )}
 
@@ -121,6 +169,54 @@ export default function DirectoryGuidebook() {
         </p>
       )}
     </div>
+  );
+}
+
+// Pinned featured row: the pages every player must read, ahead of the full
+// directory — the Rules hub plus the getting-started and rules pages.
+function MustReadRow({ pinned, isStaff }: { pinned: GuidebookPage[]; isStaff: boolean }) {
+  return (
+    <section className="scroll-mt-20" data-testid="section-guidebook-must-read">
+      <div className="border-l-2 border-nc-magenta pl-4 mb-4">
+        <h2 className="font-display text-2xl tracking-widest text-foreground flex items-center gap-2">
+          <Star className="w-5 h-5 text-nc-magenta" /> MUST READ
+        </h2>
+        <p className="font-mono text-xs text-muted-foreground mt-1">
+          Required reading before your first session — start here.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <RulesHubCard featured />
+        {pinned.map((p) => (
+          <PageCard key={p.id} page={p} isStaff={isStaff} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RulesHubCard({ featured = false }: { featured?: boolean }) {
+  return (
+    <Link href="/guidebook/rules">
+      <Card
+        className={`rounded-none bg-card/50 hover:border-nc-magenta transition-all cursor-pointer h-full flex flex-col ${featured ? "border-nc-magenta/60" : "border-border"}`}
+        data-testid="card-guidebook-rules-hub"
+      >
+        <CardHeader>
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <Scale className="w-5 h-5 text-nc-magenta" /> Rules at a Glance
+          </CardTitle>
+          <CardDescription className="font-mono text-xs">
+            Server rules, RP rules and avatar restrictions — summarized on one page.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="mt-auto">
+          <p className="text-xs font-mono text-muted-foreground line-clamp-3">
+            The short version of every rule area, with jump links into the full pages.
+          </p>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
 
@@ -154,33 +250,25 @@ function PageCard({ page, isStaff }: { page: GuidebookPage; isStaff: boolean }) 
   );
 }
 
-function ReferenceSection() {
+function WeaponsRefCard() {
   return (
-    <section id="guidebook-section-reference" className="scroll-mt-20" data-testid="section-guidebook-reference">
-      <div className="border-l-2 border-nc-cyan pl-4 mb-4">
-        <h2 className="font-display text-2xl tracking-widest text-foreground">REFERENCE</h2>
-        <p className="font-mono text-xs text-muted-foreground mt-1">Quick-reference guides for in-game systems.</p>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Link href="/guidebook/weapons">
-          <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan transition-all cursor-pointer h-full flex flex-col" data-testid="card-guidebook-weapons">
-            <CardHeader>
-              <CardTitle className="font-display text-lg flex items-center gap-2">
-                <Crosshair className="w-5 h-5 text-nc-cyan" /> Weapons &amp; Guns
-              </CardTitle>
-              <CardDescription className="font-mono text-xs">
-                Gun types, power tiers, restrictions and calibers explained.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="mt-auto">
-              <p className="text-xs font-mono text-muted-foreground line-clamp-3">
-                How Power, Tech and Smart guns behave, what each power level means, and how to acquire restricted weapons.
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
-    </section>
+    <Link href="/guidebook/weapons">
+      <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan transition-all cursor-pointer h-full flex flex-col" data-testid="card-guidebook-weapons">
+        <CardHeader>
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <Crosshair className="w-5 h-5 text-nc-cyan" /> Weapons &amp; Guns
+          </CardTitle>
+          <CardDescription className="font-mono text-xs">
+            Gun types, power tiers, restrictions and calibers explained.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="mt-auto">
+          <p className="text-xs font-mono text-muted-foreground line-clamp-3">
+            How Power, Tech and Smart guns behave, what each power level means, and how to acquire restricted weapons.
+          </p>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
 

@@ -1140,6 +1140,7 @@ export interface GuidebookPage {
   images: string[];
   sources: GuidebookSource[];
   position: number;
+  publicRead: boolean;
   /** @nullable */
   sourceLabel?: string | null;
   /** @nullable */
@@ -1178,6 +1179,7 @@ export interface GuidebookPageInput {
   images?: string[];
   sources?: GuidebookSource[];
   position?: number;
+  publicRead?: boolean;
 }
 
 export interface GuidebookPageUpdate {
@@ -1189,6 +1191,7 @@ export interface GuidebookPageUpdate {
   images?: string[];
   sources?: GuidebookSource[];
   position?: number;
+  publicRead?: boolean;
 }
 
 export type GuidebookEditProposalInputKind = typeof GuidebookEditProposalInputKind[keyof typeof GuidebookEditProposalInputKind];

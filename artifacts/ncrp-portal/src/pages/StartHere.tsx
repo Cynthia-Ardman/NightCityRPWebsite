@@ -9,6 +9,7 @@ import {
   FileText,
   Network
 } from "lucide-react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ncrpBanner from "@assets/NCRP_GroupBanner_1780331827566.png";
@@ -252,9 +253,14 @@ export default function StartHere() {
                 </div>
               </div>
 
-              <div className="mt-8 pt-6 border-t border-destructive/20 font-mono text-sm text-destructive/80 flex items-center gap-2">
+              <div className="mt-8 pt-6 border-t border-destructive/20 font-mono text-sm text-destructive/80 flex items-center gap-2 flex-wrap">
                 <FileText className="h-4 w-4 shrink-0" />
-                The full, comprehensive rulebook is available inside the members' Guidebook after login.
+                <span>
+                  Read the complete rules now — no login needed:{" "}
+                  <Link href="/guidebook/rules" className="text-nc-cyan underline hover:text-nc-cyan/80" data-testid="link-start-rules">
+                    Rules at a Glance
+                  </Link>
+                </span>
               </div>
             </div>
           </div>

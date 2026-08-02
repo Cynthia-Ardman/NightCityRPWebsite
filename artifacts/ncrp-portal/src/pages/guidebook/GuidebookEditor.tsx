@@ -17,6 +17,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import MarkdownEditor from "@/components/MarkdownEditor";
@@ -71,6 +72,7 @@ export default function GuidebookEditor() {
   const [body, setBody] = useState("");
   const [sourcesText, setSourcesText] = useState("");
   const [note, setNote] = useState("");
+  const [publicRead, setPublicRead] = useState(false);
 
   // Seed the form from the loaded page. Keyed on the page id so navigating
   // between two /guidebook/:id/edit routes (which reuses this component) re-seeds.
@@ -83,6 +85,7 @@ export default function GuidebookEditor() {
     setExtraImages((existing.images ?? []).slice(1));
     setBody(existing.body ?? "");
     setSourcesText(sourcesToText(existing.sources ?? []));
+    setPublicRead(!!existing.publicRead);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit, existing?.id]);
 
@@ -148,8 +151,9 @@ export default function GuidebookEditor() {
     if (!valid) return;
     const diff = buildDiff();
     if (isAdmin) {
-      if (isEdit) updatePage.mutate({ id: editingId!, data: diff });
-      else createPage.mutate({ data: { ...diff, section, title: title.trim() } });
+      // publicRead is admin-only; fixer proposals never carry it.
+      if (isEdit) updatePage.mutate({ id: editingId!, data: { ...diff, publicRead } });
+      else createPage.mutate({ data: { ...diff, section, title: title.trim(), publicRead } });
     } else {
       submitEdit.mutate({
         data: {
@@ -196,6 +200,15 @@ export default function GuidebookEditor() {
               </Select>
             </Field>
           </div>
+          {isAdmin && (
+            <label className="flex items-center gap-3 border border-border bg-background/40 p-3 cursor-pointer">
+              <Switch checked={publicRead} onCheckedChange={setPublicRead} data-testid="switch-guidebook-public" />
+              <span className="font-mono text-xs">
+                <span className="text-foreground font-semibold">Public page</span>{" "}
+                <span className="text-muted-foreground">— readable without logging in (rules pages, onboarding).</span>
+              </span>
+            </label>
+          )}
           <Field label="Short description (optional)">
             <Input value={description} onChange={(e) => setDescription(e.target.value)} className="rounded-none font-mono" data-testid="input-guidebook-description" />
           </Field>

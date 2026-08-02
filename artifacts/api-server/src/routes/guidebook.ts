@@ -31,16 +31,16 @@ type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 // Fixed section catalogue: key -> display label + blurb + ordering. The browse
 // page renders one card per section in this order.
+// Ordered top-down in onboarding order: Start Here → Rules → Setup → Systems →
+// Reference. Legacy keys (getting_started, faq, schedule, character_creation,
+// npc_acting, library) were merged into these five; existing rows are remapped
+// by scripts/src/migrate-guidebook-sections.ts (idempotent, runs post-merge).
 export const GUIDEBOOK_SECTIONS: Array<{ key: string; label: string; description: string }> = [
-  { key: "getting_started", label: "Getting Started", description: "New here? Start with the basics of joining and playing on NCRP." },
-  { key: "faq", label: "FAQ", description: "Answers to the questions players ask most often." },
-  { key: "rules", label: "Rules & Restrictions", description: "The roleplay rules and avatar restrictions everyone must follow." },
-  { key: "schedule", label: "Schedule & Events", description: "When sessions run and what's coming up." },
-  { key: "systems", label: "Systems", description: "How the in-world systems — jobs, housing, cyberware and more — work." },
-  { key: "character_creation", label: "Character Creation Help", description: "Guidance and cross-links for building your character." },
+  { key: "start_here", label: "Start Here", description: "New to NCRP? The basics of joining and playing, plus the FAQ." },
+  { key: "rules", label: "Rules & Restrictions", description: "Server rules, RP rules and avatar restrictions — required reading." },
   { key: "setup", label: "VRChat / Discord Setup", description: "Get VRChat and Discord linked and ready to play." },
-  { key: "npc_acting", label: "NPC Acting", description: "Tips and expectations for playing NPCs." },
-  { key: "library", label: "Reference Library", description: "Guides and reference tables snapshotted from the community docs." },
+  { key: "systems", label: "Systems & Playing", description: "How the in-world systems work — jobs, housing, cyberware, NPC acting and the schedule." },
+  { key: "reference", label: "Reference Library", description: "Character-creation help, guides and reference tables from the community docs." },
 ];
 const SECTION_KEYS = GUIDEBOOK_SECTIONS.map((s) => s.key) as [string, ...string[]];
 const SECTION_ORDER = new Map(GUIDEBOOK_SECTIONS.map((s, i) => [s.key, i]));
@@ -58,6 +58,10 @@ const pageInputSchema = z.object({
   position: z.number().int().optional(),
 });
 const pageUpdateSchema = pageInputSchema.partial();
+// publicRead is admin-only (direct create/edit routes), deliberately excluded
+// from the fixer proposal diff schema so proposals can't flip page visibility.
+const adminPageInputSchema = pageInputSchema.extend({ publicRead: z.boolean().optional() });
+const adminPageUpdateSchema = adminPageInputSchema.partial();
 
 function slugify(s: string): string {
   return (
@@ -109,6 +113,7 @@ function shapePage(row: GuidebookPage, isStaff: boolean): Record<string, unknown
     images: imagesOf(row.images),
     sources: sourcesOf(row.sources),
     position: row.position,
+    publicRead: row.publicRead,
     sourceLabel: row.sourceLabel ?? null,
     discordChannelId: isStaff ? (row.discordChannelId ?? null) : null,
     importedAt: row.importedAt ? row.importedAt.toISOString() : null,
@@ -150,28 +155,32 @@ async function notifyFixerOfDecision(
 // ---- Public read -----------------------------------------------------------
 
 // Browse the Guidebook: all pages grouped into the fixed sections, in order.
-// Any signed-in user. Optional free-text `q` filters across public-safe fields
-// (title, description, body, source name) so staff-only content can be excluded
-// later without changing the contract.
-router.get("/guidebook", requireAuth, async (req, res): Promise<void> => {
+// Signed-in users see everything; anonymous visitors see only pages flagged
+// publicRead (so the logged-out Start Here page and Discord links can point at
+// the rules). Optional free-text `q` filters across public-safe fields
+// (title, description, body, source name).
+router.get("/guidebook", async (req, res): Promise<void> => {
   const q = req.query.q ? String(req.query.q).trim() : "";
-  let where = undefined;
+  const filters = [];
   if (q) {
     const like = `%${q}%`;
-    where = or(
-      ilike(guidebookPages.title, like),
-      ilike(guidebookPages.description, like),
-      ilike(guidebookPages.body, like),
-      ilike(guidebookPages.sourceLabel, like),
+    filters.push(
+      or(
+        ilike(guidebookPages.title, like),
+        ilike(guidebookPages.description, like),
+        ilike(guidebookPages.body, like),
+        ilike(guidebookPages.sourceLabel, like),
+      ),
     );
   }
+  if (!req.user) filters.push(eq(guidebookPages.publicRead, true));
   const rows = (await db
     .select()
     .from(guidebookPages)
-    .where(where)
+    .where(filters.length ? and(...filters) : undefined)
     .orderBy(asc(guidebookPages.position), asc(guidebookPages.title))) as GuidebookPage[];
 
-  const isStaff = isFixerOrAdmin(req.user!);
+  const isStaff = !!req.user && isFixerOrAdmin(req.user);
   const bySection = new Map<string, GuidebookPage[]>();
   for (const row of rows) {
     const arr = bySection.get(row.section) ?? [];
@@ -201,8 +210,8 @@ router.get("/guidebook", requireAuth, async (req, res): Promise<void> => {
 });
 
 // Section catalogue (key/label/description), used to populate the editor's
-// section picker. Any signed-in user.
-router.get("/guidebook/sections", requireAuth, (_req, res): void => {
+// section picker. Open (static metadata, nothing sensitive).
+router.get("/guidebook/sections", (_req, res): void => {
   res.json(GUIDEBOOK_SECTIONS);
 });
 
@@ -736,18 +745,20 @@ router.post("/guidebook/import/review/:id/dismiss", requireAuth, async (req, res
 
 // ---- Detail + admin mutations (param routes last) --------------------------
 
-router.get("/guidebook/:id", requireAuth, async (req, res): Promise<void> => {
+// Page detail. Anonymous visitors can only read pages flagged publicRead;
+// non-public pages 404 for them (existence not revealed).
+router.get("/guidebook/:id", async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   if (!Number.isFinite(id)) {
     res.status(404).json({ error: "Not found" });
     return;
   }
   const [row] = await db.select().from(guidebookPages).where(eq(guidebookPages.id, id));
-  if (!row) {
+  if (!row || (!req.user && !(row as GuidebookPage).publicRead)) {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  res.json(shapePage(row as GuidebookPage, isFixerOrAdmin(req.user!)));
+  res.json(shapePage(row as GuidebookPage, !!req.user && isFixerOrAdmin(req.user)));
 });
 
 // Create a page (admin only — publishes directly).
@@ -756,7 +767,7 @@ router.post("/guidebook", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Requires admin role" });
     return;
   }
-  const parsed = pageInputSchema.safeParse(req.body ?? {});
+  const parsed = adminPageInputSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues.map((i) => i.message).join("; ") });
     return;
@@ -774,6 +785,7 @@ router.post("/guidebook", requireAuth, async (req, res): Promise<void> => {
       images: (d.images ?? []) as never,
       sources: (d.sources ?? []) as never,
       position: d.position ?? 0,
+      publicRead: d.publicRead ?? false,
       editedSinceImport: false,
       createdById: req.user!.id,
       updatedById: req.user!.id,
@@ -798,16 +810,38 @@ router.patch("/guidebook/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const id = parseInt(String(req.params.id), 10);
-  const parsed = pageUpdateSchema.safeParse(req.body ?? {});
+  const parsed = adminPageUpdateSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues.map((i) => i.message).join("; ") });
     return;
   }
   const d = parsed.data;
+  const [current] = await db
+    .select()
+    .from(guidebookPages)
+    .where(eq(guidebookPages.id, id))
+    .limit(1);
+  if (!current) {
+    res.status(404).json({ error: "Page not found" });
+    return;
+  }
+  // Only a real content change flips editedSinceImport — a visibility-only
+  // toggle (publicRead) or a save that re-sends unchanged fields must not, or
+  // a later re-import would needlessly stash a conflict. Compare each supplied
+  // field against the persisted value.
+  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  const contentTouched =
+    (d.section !== undefined && d.section !== current.section) ||
+    (d.title !== undefined && d.title !== current.title) ||
+    (d.description !== undefined && !same(d.description, current.description)) ||
+    (d.body !== undefined && d.body !== current.body) ||
+    (d.images !== undefined && !same(d.images, current.images ?? [])) ||
+    (d.sources !== undefined && !same(d.sources, current.sources ?? [])) ||
+    (d.position !== undefined && d.position !== current.position);
   const set: Record<string, unknown> = {
     updatedById: req.user!.id,
     updatedAt: new Date(),
-    editedSinceImport: true,
+    ...(contentTouched ? { editedSinceImport: true } : {}),
   };
   if (d.section !== undefined) set.section = d.section;
   if (d.title !== undefined) set.title = d.title;
@@ -816,6 +850,7 @@ router.patch("/guidebook/:id", requireAuth, async (req, res): Promise<void> => {
   if (d.images !== undefined) set.images = d.images;
   if (d.sources !== undefined) set.sources = d.sources;
   if (d.position !== undefined) set.position = d.position;
+  if (d.publicRead !== undefined) set.publicRead = d.publicRead;
   const [updated] = await db
     .update(guidebookPages)
     .set(set)

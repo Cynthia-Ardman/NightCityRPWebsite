@@ -5402,7 +5402,7 @@ paths:
     get:
       operationId: listGuidebook
       tags: [guidebook]
-      summary: Browse the Guidebook — pages grouped into fixed sections (any signed-in user).
+      summary: Browse the Guidebook — pages grouped into fixed sections. Signed-in users see everything; anonymous visitors only pages flagged publicRead.
       parameters:
         - in: query
           name: q
@@ -5636,7 +5636,7 @@ paths:
     get:
       operationId: getGuidebookPage
       tags: [guidebook]
-      summary: Guidebook page detail (any signed-in user; staff-only fields gated).
+      summary: Guidebook page detail (staff-only fields gated; anonymous callers can only read publicRead pages, others 404).
       responses:
         "200":
           description: Page
@@ -7524,7 +7524,7 @@ components:
 
     GuidebookPage:
       type: object
-      required: [id, section, title, slug, body, images, sources, position, createdAt, updatedAt]
+      required: [id, section, title, slug, body, images, sources, position, publicRead, createdAt, updatedAt]
       properties:
         id: { type: integer }
         section: { type: string }
@@ -7539,6 +7539,8 @@ components:
           type: array
           items: { $ref: "#/components/schemas/GuidebookSource" }
         position: { type: integer }
+        # Readable without login (admin-toggled; default false).
+        publicRead: { type: boolean }
         sourceLabel: { type: ["string", "null"] }
         # Staff-only fields (null/false for non-staff callers).
         discordChannelId: { type: ["string", "null"] }
@@ -7585,6 +7587,8 @@ components:
           type: array
           items: { $ref: "#/components/schemas/GuidebookSource" }
         position: { type: integer }
+        # Admin-only; ignored in fixer proposals.
+        publicRead: { type: boolean }
 
     GuidebookPageUpdate:
       type: object
@@ -7600,6 +7604,8 @@ components:
           type: array
           items: { $ref: "#/components/schemas/GuidebookSource" }
         position: { type: integer }
+        # Admin-only; ignored in fixer proposals.
+        publicRead: { type: boolean }
 
     GuidebookEditProposalInput:
       type: object

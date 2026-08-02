@@ -18,6 +18,7 @@ export interface GuidebookPage {
   images: string[];
   sources: GuidebookSource[];
   position: number;
+  publicRead: boolean;
   /** @nullable */
   sourceLabel?: string | null;
   /** @nullable */

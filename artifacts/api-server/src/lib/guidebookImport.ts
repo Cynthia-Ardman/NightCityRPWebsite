@@ -41,16 +41,16 @@ export interface GuidebookSource {
 // Creation Help has no source channel (it is curated cross-links authored in
 // the app), so it is intentionally absent here.
 export const GUIDEBOOK_SOURCES: GuidebookSource[] = [
-  { channelId: "1386132844258267156", section: "getting_started", title: "Getting Started with NCRP", sourceLabel: "getting-started-with-ncrp", position: 0 },
-  { channelId: "1354586004601835700", section: "faq", title: "FAQ", sourceLabel: "faq", position: 0 },
+  { channelId: "1386132844258267156", section: "start_here", title: "Getting Started with NCRP", sourceLabel: "getting-started-with-ncrp", position: 0 },
+  { channelId: "1354586004601835700", section: "start_here", title: "FAQ", sourceLabel: "faq", position: 1 },
   { channelId: "1349207148659478538", section: "rules", title: "RP Rules", sourceLabel: "rp-rules", position: 0 },
   { channelId: "1349482890051981462", section: "rules", title: "Avatar Restrictions", sourceLabel: "avatar-restrictions", position: 1 },
-  { channelId: "1348654324124880926", section: "schedule", title: "Schedule & Events", sourceLabel: "schedule", position: 0 },
+  { channelId: "1348654324124880926", section: "systems", title: "Schedule & Events", sourceLabel: "schedule", position: 5 },
   { channelId: "1384036684760616980", section: "systems", title: "Detailed Systems Explanation", sourceLabel: "detailed-systems-explanation", position: 0 },
   { channelId: "1349139640128376913", section: "setup", title: "VRChat Group Link", sourceLabel: "vrc-group-link", position: 0 },
   { channelId: "1351682248453259264", section: "setup", title: "Discord Invite Link", sourceLabel: "discord-invite-link", position: 1 },
   { channelId: "1351049157875339274", section: "setup", title: "Link VRChat & Discord", sourceLabel: "link-vrc-and-discord", position: 2 },
-  { channelId: "1386137184486293644", section: "npc_acting", title: "NPC Acting", sourceLabel: "npc-acting", position: 0 },
+  { channelId: "1386137184486293644", section: "systems", title: "NPC Acting", sourceLabel: "npc-acting", position: 4 },
 ];
 
 export interface GuidebookSourceRef {
@@ -274,7 +274,7 @@ export async function buildChannelLinkMap(): Promise<ChannelLinkMap> {
 // Section bucket the converted Google Docs/Sheets pages live in. Only pages in
 // this section are valid link targets for buildDocLinkMap (so an unrelated page
 // that happens to carry a Google url in its sources can't hijack a mapping).
-export const LIBRARY_SECTION = "library";
+export const LIBRARY_SECTION = "reference";
 
 // A resolved Google-file-id -> portal-target lookup for a single import run.
 // `label` is used when turning a bare (non-markdown) Google url into a link.

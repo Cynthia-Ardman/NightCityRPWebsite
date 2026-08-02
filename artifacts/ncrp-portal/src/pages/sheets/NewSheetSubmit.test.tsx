@@ -195,7 +195,7 @@ describe("NewSheet top-of-page guidebook help", () => {
     expect(banner).toBeInTheDocument();
     expect(within(banner).getByRole("link", { name: /character creation help/i })).toHaveAttribute(
       "href",
-      "/guidebook#character_creation",
+      "/guidebook#reference",
     );
     expect(within(banner).getByRole("link", { name: /rules & restrictions/i })).toHaveAttribute(
       "href",

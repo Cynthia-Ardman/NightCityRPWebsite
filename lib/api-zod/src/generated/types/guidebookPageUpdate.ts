@@ -16,4 +16,5 @@ export interface GuidebookPageUpdate {
   images?: string[];
   sources?: GuidebookSource[];
   position?: number;
+  publicRead?: boolean;
 }

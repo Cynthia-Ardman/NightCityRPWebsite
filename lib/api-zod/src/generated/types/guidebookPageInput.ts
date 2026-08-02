@@ -16,4 +16,5 @@ export interface GuidebookPageInput {
   images?: string[];
   sources?: GuidebookSource[];
   position?: number;
+  publicRead?: boolean;
 }

@@ -4,6 +4,8 @@ import { Link } from "wouter";
 import remarkColor from "@/lib/remarkColor";
 import remarkDiscordTime from "@/lib/remarkDiscordTime";
 import { toDiscordAppUrl, handleDiscordLinkClick } from "@/lib/discordDeepLink";
+import { makeSlugDeduper, slugifyHeading } from "@/lib/markdownToc";
+import type { ReactNode } from "react";
 
 // Render a unix-seconds moment in the viewer's local timezone, mirroring the
 // Discord <t:...> style letters (t/T/d/D/f/F/R). Used by the `time` element the
@@ -62,18 +64,45 @@ function formatRelative(d: Date): string {
   return "";
 }
 
-export default function Markdown({ children, className }: { children?: string | null; className?: string }) {
+// Flatten a rendered heading's children into plain text for anchor slugging.
+function flattenText(node: ReactNode): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(flattenText).join("");
+  if (typeof node === "object" && "props" in node) {
+    return flattenText((node as { props: { children?: ReactNode } }).props.children);
+  }
+  return "";
+}
+
+export default function Markdown({
+  children,
+  className,
+  headingAnchors = false,
+}: {
+  children?: string | null;
+  className?: string;
+  // When true, h1-h4 get stable `id` anchors derived from their text (same
+  // slugify + dedupe rules as lib/markdownToc extractToc), enabling table-of-
+  // contents jump links and #hash deep links into long pages.
+  headingAnchors?: boolean;
+}) {
   const text = (children ?? "").trim();
   if (!text) return null;
+  // Fresh per render so ids stay deterministic across re-renders.
+  const dedupe = makeSlugDeduper();
+  const anchorProps = (children: ReactNode): { id?: string; className?: string } =>
+    headingAnchors ? { id: dedupe(slugifyHeading(flattenText(children))) } : {};
+  const scrollPad = headingAnchors ? " scroll-mt-24" : "";
   return (
     <div className={`${className ?? ""} break-words [overflow-wrap:anywhere]`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkDiscordTime, remarkColor]}
         components={{
-          h1: ({ children }) => <h1 className="text-2xl font-display mt-4 mb-2 first:mt-0">{children}</h1>,
-          h2: ({ children }) => <h2 className="text-xl font-display mt-4 mb-2 first:mt-0">{children}</h2>,
-          h3: ({ children }) => <h3 className="text-lg font-semibold mt-3 mb-1 first:mt-0">{children}</h3>,
-          h4: ({ children }) => <h4 className="text-base font-semibold mt-2 mb-1 first:mt-0">{children}</h4>,
+          h1: ({ children }) => <h1 {...anchorProps(children)} className={`text-2xl font-display mt-4 mb-2 first:mt-0${scrollPad}`}>{children}</h1>,
+          h2: ({ children }) => <h2 {...anchorProps(children)} className={`text-xl font-display mt-4 mb-2 first:mt-0${scrollPad}`}>{children}</h2>,
+          h3: ({ children }) => <h3 {...anchorProps(children)} className={`text-lg font-semibold mt-3 mb-1 first:mt-0${scrollPad}`}>{children}</h3>,
+          h4: ({ children }) => <h4 {...anchorProps(children)} className={`text-base font-semibold mt-2 mb-1 first:mt-0${scrollPad}`}>{children}</h4>,
           p: ({ children }) => (
             <p className="mb-3 last:mb-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{children}</p>
           ),

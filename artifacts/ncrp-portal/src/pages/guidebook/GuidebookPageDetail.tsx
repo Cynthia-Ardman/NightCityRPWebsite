@@ -1,5 +1,7 @@
 import { Link, useParams, useLocation, Redirect } from "wouter";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { extractToc } from "@/lib/markdownToc";
+import { List } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGetGuidebookPage, useDeleteGuidebookPage, getListGuidebookQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +45,23 @@ export default function GuidebookPageDetail() {
         toast({ title: "Could not delete", description: err instanceof Error ? err.message : "Try again.", variant: "destructive" }),
     },
   });
+
+  // Table of contents from the page's markdown headings; anchors are rendered
+  // by <Markdown headingAnchors> with the same slug rules, so ids always match.
+  const toc = useMemo(() => extractToc(data?.body ?? ""), [data?.body]);
+  const showToc = toc.length >= 3 && data?.slug !== "faq";
+
+  // Deep-link support: /guidebook/:id#<heading-id> scrolls to that heading once
+  // the body has rendered.
+  useEffect(() => {
+    if (!data) return;
+    const hash = window.location.hash.replace(/^#/, "");
+    if (!hash) return;
+    const t = window.setTimeout(() => {
+      document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+    return () => window.clearTimeout(t);
+  }, [data]);
 
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>;
   if (!data) return <div className="font-display text-destructive">GUIDEBOOK PAGE NOT FOUND</div>;
@@ -113,23 +132,54 @@ export default function GuidebookPageDetail() {
         </div>
       )}
 
-      <Card className="rounded-none border-border bg-card/50">
-        <CardContent className="py-6">
-          {data.body?.trim() ? (
-            <div data-testid="text-guidebook-body">
-              {data.slug === "faq" ? (
-                <FaqAccordion body={data.body} />
-              ) : (
-                <Markdown className="font-mono text-sm leading-relaxed text-foreground/90">
-                  {data.body}
-                </Markdown>
-              )}
-            </div>
-          ) : (
-            <span className="font-mono text-sm text-muted-foreground italic">No content recorded.</span>
-          )}
-        </CardContent>
-      </Card>
+      <div className={showToc ? "lg:grid lg:grid-cols-[minmax(0,1fr)_260px] lg:gap-6 lg:items-start" : undefined}>
+        {showToc && (
+          <nav
+            aria-label="On this page"
+            className="mb-4 lg:mb-0 lg:order-2 lg:sticky lg:top-20 border border-nc-cyan/30 bg-card/40 p-4"
+            data-testid="nav-guidebook-toc"
+          >
+            <p className="font-display text-xs tracking-widest text-nc-cyan flex items-center gap-2 mb-2">
+              <List className="w-3.5 h-3.5" /> ON THIS PAGE
+            </p>
+            <ul className="space-y-1">
+              {toc.map((h) => (
+                <li key={h.id} style={{ paddingLeft: `${Math.max(0, h.level - 1) * 12}px` }}>
+                  <a
+                    href={`#${h.id}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      document.getElementById(h.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      history.replaceState(null, "", `#${h.id}`);
+                    }}
+                    className="font-mono text-xs text-muted-foreground hover:text-nc-cyan transition-colors block"
+                    data-testid={`link-toc-${h.id}`}
+                  >
+                    {h.text}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
+        <Card className="rounded-none border-border bg-card/50 lg:order-1 min-w-0">
+          <CardContent className="py-6">
+            {data.body?.trim() ? (
+              <div data-testid="text-guidebook-body">
+                {data.slug === "faq" ? (
+                  <FaqAccordion body={data.body} />
+                ) : (
+                  <Markdown headingAnchors className="font-mono text-sm leading-relaxed text-foreground/90">
+                    {data.body}
+                  </Markdown>
+                )}
+              </div>
+            ) : (
+              <span className="font-mono text-sm text-muted-foreground italic">No content recorded.</span>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {isStaff && sources.length > 0 && (
         <Card className="rounded-none border-border bg-card/50">

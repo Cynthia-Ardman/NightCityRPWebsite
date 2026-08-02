@@ -23851,7 +23851,7 @@ export const getListGuidebookUrl = (params?: ListGuidebookParams,) => {
 }
 
 /**
- * @summary Browse the Guidebook — pages grouped into fixed sections (any signed-in user).
+ * @summary Browse the Guidebook — pages grouped into fixed sections. Signed-in users see everything; anonymous visitors only pages flagged publicRead.
  */
 export const listGuidebook = async (params?: ListGuidebookParams, options?: RequestInit): Promise<GuidebookBrowse> => {
 
@@ -23898,7 +23898,7 @@ export type ListGuidebookQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Browse the Guidebook — pages grouped into fixed sections (any signed-in user).
+ * @summary Browse the Guidebook — pages grouped into fixed sections. Signed-in users see everything; anonymous visitors only pages flagged publicRead.
  */
 
 export function useListGuidebook<TData = Awaited<ReturnType<typeof listGuidebook>>, TError = ErrorType<unknown>>(
@@ -24887,7 +24887,7 @@ export const getGetGuidebookPageUrl = (id: number,) => {
 }
 
 /**
- * @summary Guidebook page detail (any signed-in user; staff-only fields gated).
+ * @summary Guidebook page detail (staff-only fields gated; anonymous callers can only read publicRead pages, others 404).
  */
 export const getGuidebookPage = async (id: number, options?: RequestInit): Promise<GuidebookPage> => {
 
@@ -24934,7 +24934,7 @@ export type GetGuidebookPageQueryError = ErrorType<void>
 
 
 /**
- * @summary Guidebook page detail (any signed-in user; staff-only fields gated).
+ * @summary Guidebook page detail (staff-only fields gated; anonymous callers can only read publicRead pages, others 404).
  */
 
 export function useGetGuidebookPage<TData = Awaited<ReturnType<typeof getGuidebookPage>>, TError = ErrorType<void>>(

@@ -2079,6 +2079,9 @@ export const guidebookPages = pgTable("guidebook_pages", {
   // Flipped true on any admin/approved-fixer body edit; controls whether a
   // re-import overwrites in place or stashes a conflict in pendingImport.
   editedSinceImport: boolean("edited_since_import").notNull().default(false),
+  // Publicly readable without login (admin-toggled, default off). Lets the
+  // logged-out Start Here page and Discord links point at e.g. the rules.
+  publicRead: boolean("public_read").notNull().default(false),
   // Fresh imported content awaiting admin review when the page was edited after
   // import: { title, description, body, images, sources, sourceLabel }.
   pendingImport: jsonb("pending_import"),

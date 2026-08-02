@@ -48,6 +48,7 @@ import MyGuidebookSubmissions from "@/pages/guidebook/MyGuidebookSubmissions";
 import GuidebookEditor from "@/pages/guidebook/GuidebookEditor";
 import GuidebookImportReview from "@/pages/guidebook/GuidebookImportReview";
 import GuidebookWeapons from "@/pages/guidebook/GuidebookWeapons";
+import RulesHub from "@/pages/guidebook/RulesHub";
 import CatalogGuns from "@/pages/catalog/CatalogGuns";
 import CatalogCyberware from "@/pages/catalog/CatalogCyberware";
 import CatalogRent from "@/pages/catalog/CatalogRent";
@@ -305,6 +306,7 @@ function AppRoutes() {
             <AdminGuard><GuidebookImportReview /></AdminGuard>
           </Route>
           <Route path="/guidebook/weapons" component={GuidebookWeapons} />
+          <Route path="/guidebook/rules" component={RulesHub} />
           <Route path="/guidebook/:id/edit">
             <StaffArchiveGuard><GuidebookEditor /></StaffArchiveGuard>
           </Route>

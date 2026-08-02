@@ -23,9 +23,51 @@ async function makePage(section = "rules", title = "House Rules") {
 }
 
 describe("GET /guidebook", () => {
-  it("401s when unauthenticated", async () => {
+  it("anonymous callers only see publicRead pages", async () => {
+    await makePage("rules", "Members Only Rules");
+    const [pub] = await db
+      .insert(guidebookPages)
+      .values({ section: "rules", title: "Public Rules", slug: "public-rules", body: "Be cool.", publicRead: true })
+      .returning();
+
     const res = await request(app).get("/api/guidebook");
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
+    const titles = res.body.sections.flatMap((s: { pages: Array<{ title: string }> }) =>
+      s.pages.map((p) => p.title),
+    );
+    expect(titles).toContain("Public Rules");
+    expect(titles).not.toContain("Members Only Rules");
+
+    // Detail: public page readable, non-public 404s for anonymous callers.
+    const detail = await request(app).get(`/api/guidebook/${pub.id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.publicRead).toBe(true);
+    const [priv] = await db.select().from(guidebookPages).where(eq(guidebookPages.title, "Members Only Rules"));
+    const hidden = await request(app).get(`/api/guidebook/${priv.id}`);
+    expect(hidden.status).toBe(404);
+  });
+
+  it("admins can toggle publicRead without marking the page edited-since-import", async () => {
+    const admin = await createAdmin();
+    const page = await makePage("rules", "Toggle Me");
+    const res = await request(app)
+      .patch(`/api/guidebook/${page.id}`)
+      .set("x-test-user", admin.id)
+      .send({ publicRead: true, title: page.title, body: page.body });
+    expect(res.status).toBe(200);
+    expect(res.body.publicRead).toBe(true);
+    const [row] = await db.select().from(guidebookPages).where(eq(guidebookPages.id, page.id));
+    expect(row.publicRead).toBe(true);
+    // Re-sent-but-unchanged content fields must not flip editedSinceImport.
+    expect(row.editedSinceImport).toBe(false);
+
+    // A real content change still flips it.
+    await request(app)
+      .patch(`/api/guidebook/${page.id}`)
+      .set("x-test-user", admin.id)
+      .send({ body: "Changed body." });
+    const [after] = await db.select().from(guidebookPages).where(eq(guidebookPages.id, page.id));
+    expect(after.editedSinceImport).toBe(true);
   });
 
   it("returns the fixed section catalogue with pages grouped in", async () => {
@@ -59,7 +101,7 @@ describe("fixer-proposed guidebook edits", () => {
     const propose = await request(app)
       .post("/api/guidebook/edits")
       .set("x-test-user", player.id)
-      .send({ kind: "create", diff: { section: "faq", title: "Q" } });
+      .send({ kind: "create", diff: { section: "start_here", title: "Q" } });
     expect(propose.status).toBe(403);
   });
 
@@ -75,7 +117,7 @@ describe("fixer-proposed guidebook edits", () => {
     const ok = await request(app)
       .post("/api/guidebook/edits")
       .set("x-test-user", fixer.id)
-      .send({ kind: "create", diff: { section: "faq", title: "How do I play?", body: "Join." } });
+      .send({ kind: "create", diff: { section: "start_here", title: "How do I play?", body: "Join." } });
     expect(ok.status).toBe(201);
     expect(ok.body.status).toBe("pending");
   });
@@ -87,7 +129,7 @@ describe("fixer-proposed guidebook edits", () => {
     const proposal = await request(app)
       .post("/api/guidebook/edits")
       .set("x-test-user", fixer.id)
-      .send({ kind: "create", diff: { section: "faq", title: "Approved Page", body: "Hi." } });
+      .send({ kind: "create", diff: { section: "start_here", title: "Approved Page", body: "Hi." } });
     const editId = proposal.body.id;
 
     const denied = await request(app)
@@ -118,7 +160,7 @@ describe("fixer-proposed guidebook edits", () => {
     const proposal = await request(app)
       .post("/api/guidebook/edits")
       .set("x-test-user", fixer.id)
-      .send({ kind: "create", diff: { section: "faq", title: "Twice", body: "x" } });
+      .send({ kind: "create", diff: { section: "start_here", title: "Twice", body: "x" } });
     const editId = proposal.body.id;
 
     await request(app).post(`/api/guidebook/edits/${editId}/reject`).set("x-test-user", admin.id);
