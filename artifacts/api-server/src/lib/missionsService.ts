@@ -3491,6 +3491,11 @@ export async function payStandaloneActors(
     occurrenceStartAt?: Date | null;
     userIds: string[];
     amount: number;
+    // General (non-acting) fixer pay: ties the payout to a specific character
+    // of the (single) recipient. Set together with eventType='general'; the
+    // route validates ownership before we get here.
+    characterId?: number | null;
+    characterName?: string | null;
   },
   opts: { req?: Request; actorId?: string | null; actorName?: string | null },
 ): Promise<PayActorsResult> {
@@ -3568,6 +3573,8 @@ export async function payStandaloneActors(
       eventType: input.eventType ?? null,
       userId,
       userName: u?.username ?? null,
+      characterId: input.characterId ?? null,
+      characterName: input.characterName ?? null,
       fixerId: payerId,
       fixerName: payerName,
       missionDate: eventDate,
@@ -3577,6 +3584,76 @@ export async function payStandaloneActors(
       attendanceCreditedAt: now,
       paidAt: now,
     };
+
+    // General (character-tied) fixer pay has no eventId, so the event-bound
+    // dedupe below never applies. Guard against double-click/retry minting:
+    // serialize per recipient with an advisory lock and skip when an identical
+    // payout (same reason/amount/character) landed within the last 2 minutes.
+    // Deliberate repeat payments later remain possible.
+    if (input.eventType === "general") {
+      const row = await db.transaction(async (tx) => {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`general_pay:${userId}`}))`);
+        const [dup] = await tx
+          .select({ id: missionActorPayments.id })
+          .from(missionActorPayments)
+          .where(
+            and(
+              isNull(missionActorPayments.missionId),
+              eq(missionActorPayments.eventType, "general"),
+              eq(missionActorPayments.userId, userId),
+              eq(missionActorPayments.amount, amount),
+              eq(missionActorPayments.missionName, eventName),
+              inArray(missionActorPayments.paymentStatus, ["paid", "simulated"]),
+              sql`${missionActorPayments.createdAt} > now() - interval '2 minutes'`,
+            ),
+          );
+        if (dup) return null;
+        const rows = await tx
+          .insert(missionActorPayments)
+          .values({ ...base, paymentStatus: ctx.live ? "paid" : "simulated" })
+          .returning({ id: missionActorPayments.id });
+        return rows[0] ?? null;
+      });
+      if (!row) {
+        result.skipped++;
+        continue;
+      }
+      if (!ctx.live) {
+        result.simulated++;
+        continue;
+      }
+      // Live: fall through to the shared UB-credit path with this row.
+      if (!u?.discordId) {
+        await db
+          .update(missionActorPayments)
+          .set({ paymentStatus: "failed", paymentError: "No Discord id for actor", paidAt: null })
+          .where(eq(missionActorPayments.id, row.id));
+        result.failed++;
+        continue;
+      }
+      const payLabel = "Fixer pay";
+      const balance = amount > 0 ? await patchBalance(u.discordId, { cash: amount, reason: `${payLabel}: ${eventName}` }) : { cash: 0, bank: 0, total: 0, source: "local" as const };
+      if (balance == null) {
+        await db
+          .update(missionActorPayments)
+          .set({ paymentStatus: "failed", paymentError: "UnbelievaBoat payout failed", paidAt: null })
+          .where(eq(missionActorPayments.id, row.id));
+        result.failed++;
+      } else {
+        result.paid++;
+        await recordActorPayoutLedger({
+          userId,
+          amount,
+          ubTotalAfter: balance.total,
+          memo: `Fixer pay: ${eventName}`,
+          paymentRowId: row.id,
+          relatedEntityType: "actor_event",
+          relatedEntityId: null,
+        });
+        postedLines.push(`<@${u.discordId}>${u.username ? ` (${u.username})` : ""}: +${amount.toLocaleString()} eddies`);
+      }
+      continue;
+    }
 
     if (!ctx.live) {
       await db.insert(missionActorPayments).values({ ...base, paymentStatus: "simulated" });
@@ -3624,7 +3701,9 @@ export async function payStandaloneActors(
       result.failed++;
       continue;
     }
-    const balance = amount > 0 ? await patchBalance(u.discordId, { cash: amount, reason: `Actor pay: ${eventName}` }) : { cash: 0, bank: 0, total: 0, source: "local" as const };
+    // General (non-acting) fixer pay reads differently in UB history / ledger.
+    const payLabel = input.eventType === "general" ? "Fixer pay" : "Actor pay";
+    const balance = amount > 0 ? await patchBalance(u.discordId, { cash: amount, reason: `${payLabel}: ${eventName}` }) : { cash: 0, bank: 0, total: 0, source: "local" as const };
     if (balance == null) {
       await db
         .update(missionActorPayments)
@@ -3637,7 +3716,7 @@ export async function payStandaloneActors(
         userId,
         amount,
         ubTotalAfter: balance.total,
-        memo: `Actor payout: ${eventName}`,
+        memo: `${payLabel === "Fixer pay" ? "Fixer pay" : "Actor payout"}: ${eventName}`,
         paymentRowId: inserted.id,
         relatedEntityType: input.eventId != null ? "event" : "actor_event",
         relatedEntityId: input.eventId ?? null,
@@ -3648,7 +3727,7 @@ export async function payStandaloneActors(
 
   // Actor payouts are NPC spending — post ONLY to #npc-spending.
   if (ctx.live && postedLines.length > 0) {
-    const body = [`**Actor payout** — ${eventName}`, ...postedLines].join("\n");
+    const body = [`**${input.eventType === "general" ? "Fixer pay" : "Actor payout"}** — ${eventName}`, ...postedLines].join("\n");
     await postToChannel(ctx.npcSpendingChannelId, body).catch((err) =>
       logger.warn({ err, eventName }, "npc spending post failed (standalone actors)"),
     );
@@ -3690,7 +3769,7 @@ export async function getStandaloneActorPayouts() {
     fixerName: string | null;
     totalPaid: number;
     actorCount: number;
-    actors: Array<{ id: number; userId: string; userName: string | null; amount: number; paymentStatus: string; paymentError: string | null }>;
+    actors: Array<{ id: number; userId: string; userName: string | null; characterName: string | null; amount: number; paymentStatus: string; paymentError: string | null }>;
   }>();
   for (const r of rows) {
     // Group by the per-batch timestamp written once to attendanceCreditedAt for
@@ -3726,6 +3805,7 @@ export async function getStandaloneActorPayouts() {
       id: r.id,
       userId: r.userId,
       userName: r.userName,
+      characterName: r.characterName,
       amount: r.amount,
       paymentStatus: r.paymentStatus,
       paymentError: r.paymentError,

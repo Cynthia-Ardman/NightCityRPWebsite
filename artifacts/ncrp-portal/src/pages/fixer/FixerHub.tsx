@@ -74,9 +74,9 @@ const FIXER_TOOLS: FixerTool[] = [
     href: "/fixer/pay-actors",
     testId: "link-fixer-pay-actors",
     icon: Coins,
-    title: "Pay Actors",
-    description: "Issue payouts to the actors who ran a scene, tracking who has been paid.",
-    cta: "Pay actors",
+    title: "Pay Players",
+    description: "Pay players for acting in a scene, or issue general payouts tied to a character.",
+    cta: "Pay players",
     accent: "magenta",
   },
   {

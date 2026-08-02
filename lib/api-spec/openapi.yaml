@@ -3501,6 +3501,28 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/PlayerSearchResult" }
+  /fixer/players/{userId}/characters:
+    parameters:
+      - { in: path, name: userId, required: true, schema: { type: string } }
+    get:
+      operationId: getFixerPlayerCharacters
+      tags: [fixer]
+      summary: "Non-archived characters owned by a player (drives the general-pay character picker). FIXER/ADMIN."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [id, name, kind]
+                  properties:
+                    id: { type: integer }
+                    name: { type: string }
+                    kind: { type: string }
+        "403": { description: Insufficient role. }
   /fixer/players/{userId}/activity:
     parameters:
       - { in: path, name: userId, required: true, schema: { type: string } }
@@ -11281,6 +11303,7 @@ components:
         eventId: { type: ["integer", "null"], description: "Optional portal event id. When set, payouts are deduped per (eventId, userId) so an NPC can't be paid twice for the same event." }
         userIds: { type: array, items: { type: string }, minItems: 1 }
         amount: { type: integer, minimum: 0 }
+        characterId: { type: ["integer", "null"], description: "General (non-acting) fixer pay: the recipient's character this payout is tied to. Requires exactly one userId; must belong to that player. Required when eventType='general'." }
 
     ActorPayoutLine:
       type: object
@@ -11289,6 +11312,7 @@ components:
         id: { type: integer }
         userId: { type: string }
         userName: { type: ["string", "null"] }
+        characterName: { type: ["string", "null"], description: "Set for general (non-acting) fixer pay — the character the payout was tied to." }
         amount: { type: integer }
         paymentStatus: { type: string }
         paymentError: { type: ["string", "null"] }

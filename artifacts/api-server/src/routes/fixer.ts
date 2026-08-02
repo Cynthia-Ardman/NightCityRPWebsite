@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, or, ilike, inArray, isNotNull, sql } from "drizzle-orm";
+import { eq, and, asc, desc, or, ilike, inArray, isNotNull, sql } from "drizzle-orm";
 import {
   db,
   fixerNpcs,
@@ -257,6 +257,18 @@ router.get("/fixer/players", requireAuth, requireAnyRole(["FIXER", "ADMIN"]), as
 // audit-log edits, attendance/mission participation, wallet transactions,
 // owned stores/ripperdocs, and notable activity events into one response so a
 // fixer can audit everything a player has done from a single page.
+// Lightweight character list for a player — drives the character picker in the
+// fixer "general pay" flow (pay must be tied to a specific character).
+router.get("/fixer/players/:userId/characters", requireAuth, requireAnyRole(["FIXER", "ADMIN"]), async (req, res): Promise<void> => {
+  const userId = String(req.params.userId);
+  const rows = await db
+    .select({ id: characters.id, name: characters.name, kind: characters.kind, archived: characters.archived })
+    .from(characters)
+    .where(eq(characters.ownerId, userId))
+    .orderBy(asc(characters.name));
+  res.json(rows.filter((c) => !c.archived).map(({ id, name, kind }) => ({ id, name, kind })));
+});
+
 router.get("/fixer/players/:userId/activity", requireAuth, requireAnyRole(["FIXER", "ADMIN"]), async (req, res): Promise<void> => {
   const userId = String(req.params.userId);
   const [u] = await db.select().from(users).where(eq(users.id, userId));

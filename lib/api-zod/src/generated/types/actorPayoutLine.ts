@@ -11,6 +11,11 @@ export interface ActorPayoutLine {
   userId: string;
   /** @nullable */
   userName?: string | null;
+  /**
+     * Set for general (non-acting) fixer pay — the character the payout was tied to.
+     * @nullable
+     */
+  characterName?: string | null;
   amount: number;
   paymentStatus: string;
   /** @nullable */

@@ -7181,6 +7181,11 @@ export interface StandaloneActorPayInput {
   userIds: string[];
   /** @minimum 0 */
   amount: number;
+  /**
+     * General (non-acting) fixer pay: the recipient's character this payout is tied to. Requires exactly one userId; must belong to that player. Required when eventType='general'.
+     * @nullable
+     */
+  characterId?: number | null;
 }
 
 export interface ActorPayoutLine {
@@ -7188,6 +7193,11 @@ export interface ActorPayoutLine {
   userId: string;
   /** @nullable */
   userName?: string | null;
+  /**
+     * Set for general (non-acting) fixer pay — the character the payout was tied to.
+     * @nullable
+     */
+  characterName?: string | null;
   amount: number;
   paymentStatus: string;
   /** @nullable */
@@ -8477,6 +8487,12 @@ export type SearchFixerPlayersParams = {
  * Name fragment matched against username, global name, and owned character names (ILIKE)
  */
 q?: string;
+};
+
+export type GetFixerPlayerCharacters200Item = {
+  id: number;
+  name: string;
+  kind: string;
 };
 
 export type SearchFixerVrchatPlayersParams = {

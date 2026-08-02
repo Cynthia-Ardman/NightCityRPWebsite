@@ -880,8 +880,46 @@ router.post("/missions/actor-payouts", requireAuth, async (req, res): Promise<vo
     res.status(400).json({ error: "Amount must be a non-negative number" });
     return;
   }
+  // General (non-acting) fixer pay: tied to a specific character of a SINGLE
+  // recipient. Validate the character exists and belongs to that player before
+  // any money moves.
+  const rawCharacterId = Number(b.characterId);
+  let characterId: number | null = null;
+  let characterName: string | null = null;
+  if (b.characterId != null) {
+    if (eventType !== "general") {
+      res.status(400).json({ error: "Character-tied pay is only for general payouts" });
+      return;
+    }
+    if (!Number.isInteger(rawCharacterId) || rawCharacterId <= 0) {
+      res.status(400).json({ error: "Invalid character" });
+      return;
+    }
+    if (userIds.length !== 1) {
+      res.status(400).json({ error: "Character-tied pay must target exactly one player" });
+      return;
+    }
+    const [ch] = await db
+      .select({ id: characters.id, name: characters.name, ownerId: characters.ownerId })
+      .from(characters)
+      .where(eq(characters.id, rawCharacterId));
+    if (!ch) {
+      res.status(400).json({ error: "Character not found" });
+      return;
+    }
+    if (ch.ownerId !== userIds[0]) {
+      res.status(400).json({ error: "Character does not belong to the selected player" });
+      return;
+    }
+    characterId = ch.id;
+    characterName = ch.name;
+  }
+  if (eventType === "general" && characterId == null) {
+    res.status(400).json({ error: "General pay must be tied to a character" });
+    return;
+  }
   const result = await payStandaloneActors(
-    { eventName, eventType, eventDate, eventId, userIds, amount },
+    { eventName, eventType, eventDate, eventId, userIds, amount, characterId, characterName },
     { req, actorId: viewerOf(req).id },
   );
   res.json({ result, payouts: await getStandaloneActorPayouts() });

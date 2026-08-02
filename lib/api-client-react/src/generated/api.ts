@@ -162,6 +162,7 @@ import type {
   GetCharacterMedical200,
   GetCharacterPendingEdit200,
   GetEventParams,
+  GetFixerPlayerCharacters200Item,
   GetGunMechanicsOverrides200,
   GetMyBreachPendingCount200,
   GetNotificationsUnreadCount200,
@@ -15570,6 +15571,83 @@ export function useSearchFixerPlayers<TData = Awaited<ReturnType<typeof searchFi
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getSearchFixerPlayersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetFixerPlayerCharactersUrl = (userId: string,) => {
+
+
+
+
+  return `/api/fixer/players/${userId}/characters`
+}
+
+/**
+ * @summary Non-archived characters owned by a player (drives the general-pay character picker). FIXER/ADMIN.
+ */
+export const getFixerPlayerCharacters = async (userId: string, options?: RequestInit): Promise<GetFixerPlayerCharacters200Item[]> => {
+
+  return customFetch<GetFixerPlayerCharacters200Item[]>(getGetFixerPlayerCharactersUrl(userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFixerPlayerCharactersQueryKey = (userId: string,) => {
+    return [
+    `/api/fixer/players/${userId}/characters`
+    ] as const;
+    }
+
+
+export const getGetFixerPlayerCharactersQueryOptions = <TData = Awaited<ReturnType<typeof getFixerPlayerCharacters>>, TError = ErrorType<void>>(userId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFixerPlayerCharacters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFixerPlayerCharactersQueryKey(userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFixerPlayerCharacters>>> = ({ signal }) => getFixerPlayerCharacters(userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(userId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFixerPlayerCharacters>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFixerPlayerCharactersQueryResult = NonNullable<Awaited<ReturnType<typeof getFixerPlayerCharacters>>>
+export type GetFixerPlayerCharactersQueryError = ErrorType<void>
+
+
+/**
+ * @summary Non-archived characters owned by a player (drives the general-pay character picker). FIXER/ADMIN.
+ */
+
+export function useGetFixerPlayerCharacters<TData = Awaited<ReturnType<typeof getFixerPlayerCharacters>>, TError = ErrorType<void>>(
+ userId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFixerPlayerCharacters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFixerPlayerCharactersQueryOptions(userId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

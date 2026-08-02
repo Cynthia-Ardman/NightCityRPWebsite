@@ -3736,6 +3736,7 @@ export const GetActorPayoutsResponseItem = zod.object({
   "id": zod.number(),
   "userId": zod.string(),
   "userName": zod.string().nullish(),
+  "characterName": zod.string().nullish().describe('Set for general (non-acting) fixer pay — the character the payout was tied to.'),
   "amount": zod.number(),
   "paymentStatus": zod.string(),
   "paymentError": zod.string().nullish()
@@ -3759,7 +3760,8 @@ export const CreateActorPayoutBody = zod.object({
   "eventDate": zod.coerce.date().nullish().describe('Date the session\/lobby took place; defaults to now.'),
   "eventId": zod.number().nullish().describe('Optional portal event id. When set, payouts are deduped per (eventId, userId) so an NPC can\'t be paid twice for the same event.'),
   "userIds": zod.array(zod.string()).min(1),
-  "amount": zod.number().min(createActorPayoutBodyAmountMin)
+  "amount": zod.number().min(createActorPayoutBodyAmountMin),
+  "characterId": zod.number().nullish().describe('General (non-acting) fixer pay: the recipient\'s character this payout is tied to. Requires exactly one userId; must belong to that player. Required when eventType=\'general\'.')
 })
 
 export const CreateActorPayoutResponse = zod.object({
@@ -3783,6 +3785,7 @@ export const CreateActorPayoutResponse = zod.object({
   "id": zod.number(),
   "userId": zod.string(),
   "userName": zod.string().nullish(),
+  "characterName": zod.string().nullish().describe('Set for general (non-acting) fixer pay — the character the payout was tied to.'),
   "amount": zod.number(),
   "paymentStatus": zod.string(),
   "paymentError": zod.string().nullish()
@@ -8467,6 +8470,21 @@ export const SearchFixerPlayersResponseItem = zod.object({
   "characterNames": zod.array(zod.string())
 })
 export const SearchFixerPlayersResponse = zod.array(SearchFixerPlayersResponseItem)
+
+
+/**
+ * @summary Non-archived characters owned by a player (drives the general-pay character picker). FIXER/ADMIN.
+ */
+export const GetFixerPlayerCharactersParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const GetFixerPlayerCharactersResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "kind": zod.string()
+})
+export const GetFixerPlayerCharactersResponse = zod.array(GetFixerPlayerCharactersResponseItem)
 
 
 /**

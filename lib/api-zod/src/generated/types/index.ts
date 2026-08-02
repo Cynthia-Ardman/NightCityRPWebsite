@@ -289,6 +289,7 @@ export * from './getCharacterMedical200InstalledItem';
 export * from './getCharacterMedical200MedsPaymentsItem';
 export * from './getCharacterPendingEdit200';
 export * from './getEventParams';
+export * from './getFixerPlayerCharacters200Item';
 export * from './getGunMechanicsOverrides200';
 export * from './getMyBreachPendingCount200';
 export * from './getNotificationsUnreadCount200';

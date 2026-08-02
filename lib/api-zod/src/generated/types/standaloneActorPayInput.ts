@@ -31,4 +31,9 @@ export interface StandaloneActorPayInput {
   userIds: string[];
   /** @minimum 0 */
   amount: number;
+  /**
+     * General (non-acting) fixer pay: the recipient's character this payout is tied to. Requires exactly one userId; must belong to that player. Required when eventType='general'.
+     * @nullable
+     */
+  characterId?: number | null;
 }
