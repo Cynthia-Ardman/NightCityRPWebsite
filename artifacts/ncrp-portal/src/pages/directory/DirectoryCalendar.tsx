@@ -86,8 +86,10 @@ export default function DirectoryCalendar() {
   const { data: me } = useEffectiveMe();
   const isStaff = !!me && (me.isFixer || me.isAdmin);
 
+  // Missions stay behind login (they can carry private details); events are
+  // public, so logged-out visitors still get a working calendar of events.
   const missionsQ = useListMissions(undefined, {
-    query: { queryKey: getListMissionsQueryKey() },
+    query: { queryKey: getListMissionsQueryKey(), enabled: !!me },
   });
   const eventsQ = useListEvents(undefined, {
     query: { queryKey: getListEventsQueryKey() },
@@ -148,7 +150,7 @@ export default function DirectoryCalendar() {
           href: `/missions/${m.id}`,
           subtype: `Tier ${m.tier}`,
           myStatus: isPlayer ? "player" : isNpc ? "npc" : null,
-          npcOpen: m.npcSignupOpen === true,
+          npcOpen: !!me && m.npcSignupOpen === true,
           occMs: start.getTime(),
         });
       }
@@ -172,14 +174,14 @@ export default function DirectoryCalendar() {
             subtype: EVENT_TYPE_LABEL[e.eventType] ?? "Event",
             eventType: e.eventType,
             myStatus: myOccs.has(occ.getTime()) ? "npc" : null,
-            npcOpen: e.needsNpcs === true,
+            npcOpen: !!me && e.needsNpcs === true,
             occMs: occ.getTime(),
           });
         }
       }
     }
     return out;
-  }, [missionsQ.data, eventsQ.data, filter, rangeStart, rangeEnd]);
+  }, [missionsQ.data, eventsQ.data, filter, rangeStart, rangeEnd, me]);
 
   // Bucket items by local-day key for O(1) lookup while rendering the grid.
   const byDay = useMemo(() => {
@@ -224,7 +226,7 @@ export default function DirectoryCalendar() {
     setView("week");
   };
 
-  const loading = missionsQ.isLoading || eventsQ.isLoading;
+  const loading = (!!me && missionsQ.isLoading) || eventsQ.isLoading;
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-6 pb-12">
@@ -234,24 +236,28 @@ export default function DirectoryCalendar() {
             <CalendarDays className="w-7 h-7" /> CALENDAR
           </h1>
           <p className="text-muted-foreground font-mono text-sm mt-1">
-            Every scheduled mission and event in Night City, shown in your local time.
+            {me
+              ? "Every scheduled mission and event in Night City, shown in your local time."
+              : "Every public event in Night City, shown in your local time. Log in to see missions and sign up."}
           </p>
         </div>
 
         {/* Controls sit to the left of CREATE EVENT: a type filter and the
             month/week view toggle. */}
         <div className="flex flex-wrap items-center gap-2">
-          <Segmented
-            ariaLabel="Filter calendar"
-            value={filter}
-            onChange={(v) => setFilter(v as CalFilter)}
-            options={[
-              { value: "all", label: "All" },
-              { value: "mission", label: "Missions" },
-              { value: "event", label: "Events" },
-            ]}
-            testIdPrefix="filter"
-          />
+          {me && (
+            <Segmented
+              ariaLabel="Filter calendar"
+              value={filter}
+              onChange={(v) => setFilter(v as CalFilter)}
+              options={[
+                { value: "all", label: "All" },
+                { value: "mission", label: "Missions" },
+                { value: "event", label: "Events" },
+              ]}
+              testIdPrefix="filter"
+            />
+          )}
           <Segmented
             ariaLabel="Calendar view"
             value={view}
@@ -323,7 +329,7 @@ export default function DirectoryCalendar() {
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block w-3 h-3 bg-nc-orange/30 border border-nc-orange/60" /> Social
         </span>
-        <span className="inline-flex items-center gap-1.5">
+        {me && (<><span className="inline-flex items-center gap-1.5">
           <span className="inline-block px-1 text-[0.6875rem] font-display tracking-wider bg-nc-green/20 border border-nc-green/60 text-nc-green">
             PLAYER
           </span>{" "}
@@ -334,7 +340,7 @@ export default function DirectoryCalendar() {
             NPC
           </span>{" "}
           You're an NPC
-        </span>
+        </span></>)}
       </div>
 
       {loading ? (

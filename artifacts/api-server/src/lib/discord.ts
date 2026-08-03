@@ -457,6 +457,13 @@ export type NotificationRoleKey = (typeof NOTIFICATION_ROLES)[number]["key"];
  * 204 on success and also 204 if the member already has the role, so this is
  * idempotent. Returns a discriminated result instead of throwing.
  */
+// Discord requires the X-Audit-Log-Reason header to be URI-encoded — fetch's
+// header validation rejects raw non-Latin-1 characters (e.g. an em-dash threw
+// "Cannot convert argument to a ByteString" in prod). Discord decodes it.
+function auditReason(reason: string): string {
+  return encodeURIComponent(reason);
+}
+
 export async function addGuildMemberRole(
   discordUserId: string,
   roleId: string,
@@ -482,7 +489,7 @@ export async function addGuildMemberRole(
         method: "PUT",
         headers: {
           Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-          "X-Audit-Log-Reason": reason,
+          "X-Audit-Log-Reason": auditReason(reason),
         },
         signal: AbortSignal.timeout(15_000),
       },
@@ -562,7 +569,7 @@ export async function removeGuildMemberRole(
         method: "DELETE",
         headers: {
           Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-          "X-Audit-Log-Reason": reason,
+          "X-Audit-Log-Reason": auditReason(reason),
         },
         signal: AbortSignal.timeout(15_000),
       },
@@ -636,7 +643,7 @@ export async function grantChannelViewAccess(
       headers: {
         Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
         "Content-Type": "application/json",
-        "X-Audit-Log-Reason": reason,
+        "X-Audit-Log-Reason": auditReason(reason),
       },
       body: JSON.stringify({ type: 1, allow: CHANNEL_VIEW_ACCESS_BITS, deny: "0" }),
       signal: AbortSignal.timeout(15_000),
@@ -684,7 +691,7 @@ export async function revokeChannelViewAccess(
       method: "DELETE",
       headers: {
         Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-        "X-Audit-Log-Reason": reason,
+        "X-Audit-Log-Reason": auditReason(reason),
       },
       signal: AbortSignal.timeout(15_000),
     });

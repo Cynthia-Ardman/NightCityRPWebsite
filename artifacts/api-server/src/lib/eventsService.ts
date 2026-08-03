@@ -915,10 +915,15 @@ export async function getEventDetail(
     view.paidActorUserIds = [...new Set(paidRows.map((r) => r.userId))];
   }
   // ---- Tickets ----
+  // Anonymous viewers (public event detail, viewer.id === "") get no personal
+  // ticket state and can never check in — skip the lookups entirely rather
+  // than relying on an empty id matching nothing.
   const [allTypes, myTickets, viewerIsStaff] = await Promise.all([
     listTicketTypeViews(id),
-    listMyTickets(viewer.id).then((ts) => ts.filter((t) => t.eventId === id)),
-    viewer.isManager ? Promise.resolve(false) : isCheckinStaff(id, viewer.id),
+    viewer.id
+      ? listMyTickets(viewer.id).then((ts) => ts.filter((t) => t.eventId === id))
+      : Promise.resolve([]),
+    viewer.isManager || !viewer.id ? Promise.resolve(false) : isCheckinStaff(id, viewer.id),
   ]);
   // Non-managers only see live (non-archived) tiers — archived ones are off
   // sale, but managers still need them in the edit form / roster context.

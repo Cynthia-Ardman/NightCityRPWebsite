@@ -2326,7 +2326,7 @@ paths:
     get:
       operationId: listEvents
       tags: [events]
-      summary: "List non-cancelled events (sessions/socials). All authenticated users."
+      summary: "List non-cancelled events (sessions/socials). PUBLIC — no login required (backs the public calendar); viewer-specific fields are empty for anonymous callers."
       parameters:
         - { in: query, name: limit, schema: { type: integer, default: 500, maximum: 1000 } }
       responses:
@@ -2377,7 +2377,7 @@ paths:
     get:
       operationId: getEvent
       tags: [events]
-      summary: "Event detail. Manager-only fields (sign-up roster, sync error) populated for fixers/admins. For recurring events, occurrenceStartAt scopes dates and the NPC roster to that occurrence."
+      summary: "Event detail. PUBLIC — no login required. Manager-only fields (sign-up roster, sync error) populated for fixers/admins. For recurring events, occurrenceStartAt scopes dates and the NPC roster to that occurrence."
       parameters:
         - in: query
           name: occurrenceStartAt

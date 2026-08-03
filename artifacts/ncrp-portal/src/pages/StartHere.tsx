@@ -71,6 +71,36 @@ export default function StartHere() {
       </section>
 
       <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-32">
+        {/* Events every day — public calendar callout */}
+        <section>
+          <div className="border border-nc-yellow/40 bg-nc-yellow/5 p-8 md:p-12 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-nc-yellow/80 to-transparent" />
+            <div className="absolute -right-10 -bottom-10 text-nc-yellow/5 -rotate-12 pointer-events-none">
+              <CalendarDays className="w-64 h-64" />
+            </div>
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-8">
+              <div className="flex-1 space-y-4">
+                <p className="font-mono text-xs uppercase tracking-widest text-nc-yellow">LIVE FEED // CITY SCHEDULE</p>
+                <h2 className="text-3xl md:text-5xl font-display font-bold text-foreground">
+                  EVENTS <span className="text-nc-yellow">EVERY DAY</span>
+                </h2>
+                <p className="font-mono text-sm md:text-base text-muted-foreground max-w-xl">
+                  Night City never sleeps. Socials, missions, and our headline Sunday sessions — something is happening
+                  every single day. The full calendar is public, no login needed: see what's on before you ever set foot
+                  in the city.
+                </p>
+              </div>
+              <div className="shrink-0">
+                <Button asChild size="lg" className="h-16 px-10 text-lg font-display bg-nc-yellow hover:bg-nc-yellow/80 text-background rounded-none shadow-[0_0_20px_rgba(255,255,0,0.3)]" data-testid="button-view-calendar">
+                  <Link href="/directory/calendar">
+                    VIEW THE CALENDAR <CalendarDays className="ml-3 h-6 w-6" />
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* What is NCRP */}
         <section>
           <div className="text-center mb-16 space-y-4">

@@ -38,7 +38,10 @@ import {
 const router: IRouter = Router();
 
 function viewerOf(req: Request): EventViewer {
-  const u = req.user!;
+  const u = req.user;
+  // Anonymous viewer (public calendar): no id matches any signup/ticket, no
+  // manager fields. Only the two public GET routes reach here without a user.
+  if (!u) return { id: "", isManager: false, isAdmin: false };
   const isAdmin = hasRole(u.roles, "ADMIN");
   return { id: u.id, isManager: isAdmin || hasRole(u.roles, "FIXER"), isAdmin };
 }
@@ -63,7 +66,10 @@ function eventIdParam(req: Request, res: Response): number | null {
   return id;
 }
 
-router.get("/events", requireAuth, async (req, res): Promise<void> => {
+// PUBLIC (no auth): the calendar is visible to logged-out visitors so they can
+// see what's happening before joining. listEvents exposes no viewer-specific
+// or manager-only data for an anonymous viewer.
+router.get("/events", async (req, res): Promise<void> => {
   const limit = Math.min(1000, parseInt(String(req.query.limit ?? "500"), 10) || 500);
   res.json(await listEvents(viewerOf(req), { limit }));
 });
@@ -87,7 +93,9 @@ router.get("/events/conflicts", requireAuth, async (req, res): Promise<void> => 
   res.json(await checkEventConflict({ startAt, endAt, excludeEventId }));
 });
 
-router.get("/events/:id", requireAuth, async (req, res): Promise<void> => {
+// PUBLIC (no auth): event detail backs the public calendar's chip links.
+// Manager-only fields (roster, sync errors) stay null for anonymous viewers.
+router.get("/events/:id", async (req, res): Promise<void> => {
   const id = eventIdParam(req, res);
   if (id == null) return;
   // Optional occurrence deep link (?occurrenceStartAt=ISO) for recurring

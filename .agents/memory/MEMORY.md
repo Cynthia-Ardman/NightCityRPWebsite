@@ -3,6 +3,7 @@
 - [OpenAPI list-only fields](openapi-list-only-fields.md) — a field only some endpoints of a reused schema (CustomRequest shape()) return must stay OPTIONAL in OpenAPI, never required.
 - Timeouts: [long-running scripts](long-running-scripts.md) SDK calls/fetches/pagination need explicit AbortSignal.timeout; [Anthropic SDK defaults](anthropic-sdk-timeouts.md) 10-min per-call + silent 429 retries stall batches.
 - [Background process suspension](bash-background-suspension.md) — detached/nohup processes started in one bash tool call freeze/die before the next; don't run long jobs that way — see topic.
+- [Discord audit-reason header](discord-audit-log-reason-header.md) — X-Audit-Log-Reason must be encodeURIComponent'd; raw em-dash crashes fetch with a ByteString TypeError.
 - Discord content traps: [forwarded messages](discord-forwarded-messages.md) resolve via referenced_message; [CDN URLs 401 after ~24h](discord-cdn-url-expiry.md) re-host via ObjectStorageService.uploadBuffer; [deep-link fallback](discord-deeplink-fallback.md) window.location.assign, not window.open.
 - Object storage: [public images](object-storage-public-images.md) treat absent ACL policy as public-read; [URL prefix](object-storage-url-prefix.md) store `/api/storage/objects/<id>`, SPA owns bare `/objects/*`.
 - Importers: [upsert idempotency](importer-upsert-idempotency.md) never clobber admin ownerId, coalesce; [reconciliation](sheet-importer-reconciliation.md) source-of-truth must DELETE vacated rows — see topics.

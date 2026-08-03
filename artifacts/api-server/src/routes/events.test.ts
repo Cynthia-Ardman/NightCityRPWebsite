@@ -18,9 +18,32 @@ async function createValidEvent(actorId: string, overrides: Record<string, unkno
 }
 
 describe("GET /events", () => {
-  it("401s when unauthenticated", async () => {
+  it("is public: anonymous callers get the list with no viewer-specific or manager data", async () => {
+    const admin = await createAdmin();
+    const created = await createValidEvent(admin.id);
+    expect(created.status).toBe(201);
+
     const res = await request(app).get("/api/events");
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    const mine = res.body.find((e: any) => e.id === created.body.id);
+    expect(mine).toBeTruthy();
+    expect(mine.canManage).toBe(false);
+    expect(mine.signups).toBeUndefined();
+    expect(mine.mySignup ?? null).toBeNull();
+  });
+
+  it("is public: anonymous event detail hides manager-only fields", async () => {
+    const admin = await createAdmin();
+    const created = await createValidEvent(admin.id);
+    const res = await request(app).get(`/api/events/${created.body.id}`);
+    expect(res.status).toBe(200);
+    expect(res.body.canManage).toBe(false);
+    expect(res.body.canCheckIn).toBe(false);
+    expect(res.body.signups ?? undefined).toBeUndefined();
+    expect(res.body.discordSyncError ?? null).toBeNull();
+    expect(res.body.myTickets).toEqual([]);
+    expect(res.body.mySignup ?? null).toBeNull();
   });
 
   it("returns a list for any signed-in user", async () => {

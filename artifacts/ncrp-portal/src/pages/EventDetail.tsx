@@ -2,6 +2,7 @@ import { useState } from "react";
 import { formatEddies, formatDateTime } from "@/lib/format";
 import { Link, useParams, useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
+import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import {
   useGetEvent,
   useSignUpAsEventNpc,
@@ -360,6 +361,9 @@ export default function EventDetail() {
 
 function EventDetailView({ data }: { data: EventView }) {
   const cancelled = data.status === "cancelled";
+  // The event detail is public (calendar visitors), but every interactive
+  // section (tickets, NPC sign-up) needs a logged-in viewer.
+  const { data: me } = useEffectiveMe();
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <Link
@@ -486,7 +490,7 @@ function EventDetailView({ data }: { data: EventView }) {
       )}
 
       {/* Tickets — buy + your own tickets (everyone), when the event sells any. */}
-      <TicketSection data={data} />
+      {me && <TicketSection data={data} />}
 
       {/* Check-in roster — managers and designated check-in staff. */}
       {data.canCheckIn && <CheckInRoster event={data} />}
@@ -495,8 +499,22 @@ function EventDetailView({ data }: { data: EventView }) {
       {data.canManage && (data.ticketTypes ?? []).length > 0 && <CheckinStaffEditor event={data} />}
 
       {/* NPC sign-up — only when the event needs NPCs and isn't cancelled, OR the
-          viewer already signed up (so they can see/withdraw their status). */}
-      <NpcSignupSection data={data} />
+          viewer already signed up (so they can see/withdraw their status).
+          Logged-out visitors get a login prompt instead. */}
+      {me ? (
+        <NpcSignupSection data={data} />
+      ) : (
+        <Card className="rounded-none border-border bg-card/50" data-testid="block-login-cta">
+          <CardContent className="py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="font-mono text-sm text-muted-foreground">
+              Want in? Log in with Discord to sign up and take part.
+            </p>
+            <Button asChild className="rounded-none font-display tracking-widest bg-nc-cyan text-background hover:bg-nc-cyan/80">
+              <a href="/api/auth/discord/login" data-testid="button-event-login">CONNECT TO SUBNET</a>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Roster — managers only (mirrors the server, which only returns the full
           signups list to fixers/admins). */}
