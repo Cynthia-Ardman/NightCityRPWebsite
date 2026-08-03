@@ -209,4 +209,27 @@ describe("reconcileDiscordEvents — recurring social edits propagate via the si
     const [row] = await db.select().from(events).where(eq(events.id, id));
     expect(row.title).toBe("Heywood Social — Website Edit");
   });
+
+  it("pushes NEXT-occurrence times for a recurring event whose base start is past", async () => {
+    // Seed with the fixed 2026-06-11 base, which is in the past relative to
+    // "now" for any run after that date; guard the premise explicitly.
+    expect(START.getTime()).toBeLessThan(Date.now());
+    const id = await seedSyncedRecurringSocial();
+
+    // Website-side edit triggers the push branch.
+    await db.update(events).set({ title: "Heywood Social — Rolled" }).where(eq(events.id, id));
+    mockList.mockResolvedValue({ ok: true, events: [discordEvent()] });
+
+    const result = await reconcileDiscordEvents(true);
+    expect(result.pushed).toBe(1);
+    expect(mockModify).toHaveBeenCalledTimes(1);
+    const input = mockModify.mock.calls[0][1] as { startAt: Date; endAt: Date };
+    // Discord rejects past start times — the push must target the next
+    // occurrence: in the future, a whole number of weeks after the base, with
+    // the series' 4h duration preserved.
+    expect(input.startAt.getTime()).toBeGreaterThanOrEqual(Date.now() - 60_000);
+    const weeks = (input.startAt.getTime() - START.getTime()) / (7 * 86400000);
+    expect(weeks).toBeCloseTo(Math.round(weeks), 6);
+    expect(input.endAt.getTime() - input.startAt.getTime()).toBe(END.getTime() - START.getTime());
+  });
 });

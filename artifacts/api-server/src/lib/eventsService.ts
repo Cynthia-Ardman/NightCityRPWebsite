@@ -29,6 +29,7 @@ import {
   fetchDiscordUser,
   type GuildScheduledEvent,
 } from "./discord";
+import { expandOccurrences } from "./eventRecurrence";
 import { getMissionContext } from "./missionsConfig";
 import { checkDiscordEventConflict, payStandaloneActors } from "./missionsService";
 import { recordAudit } from "./audit";
@@ -266,6 +267,31 @@ function recurrenceEqual(
   );
 }
 
+// A recurring event's stored base startAt slips into the past once an
+// occurrence begins (Discord rolls its copy forward; ours lags until the next
+// reconcile pull). Both mirrors (Discord modify + VRChat calendar) reject past
+// start times, so pushes must target the NEXT upcoming occurrence. Returns the
+// event with startAt/endAt shifted onto that occurrence (duration preserved,
+// split-out occurrences skipped), or the event unchanged when it isn't
+// recurring, hasn't started, or the series has ended.
+function withUpcomingOccurrenceTimes(event: Event): Event {
+  if (!event.recurrenceRule) return event;
+  const base = new Date(event.startAt);
+  const now = new Date();
+  if (Number.isNaN(base.getTime()) || base.getTime() >= now.getTime()) return event;
+  const horizon = new Date(now.getTime() + 400 * 86400000);
+  const next = expandOccurrences(
+    base,
+    event.recurrenceRule,
+    now,
+    horizon,
+    event.excludedOccurrences,
+  ).find((d) => d.getTime() >= now.getTime());
+  if (!next) return event;
+  const durMs = new Date(event.endAt).getTime() - base.getTime();
+  return { ...event, startAt: next, endAt: new Date(next.getTime() + Math.max(durMs, 0)) };
+}
+
 // Discord external events always carry an end time; defend against a missing
 // one (non-external types) by assuming a 2h window so the row stays valid.
 function discordEventContent(d: GuildScheduledEvent): EventContent {
@@ -304,12 +330,16 @@ export async function syncEventDiscordEvent(
       ? { discordEventId: null, discordSyncError: null, discordSyncedHash: null, discordSyncedAt: new Date() }
       : { discordEventId: event.discordEventId, discordSyncError: res.error };
   }
+  // Recurring events with a past base start push the NEXT occurrence's times
+  // (Discord rejects past start times). The synced hash below still records the
+  // stored row, so the reconcile pull keeps rolling the row forward as usual.
+  const pushTimes = withUpcomingOccurrenceTimes(event);
   const input = {
     name: event.title,
     description: event.description ?? null,
     location: event.location ?? "Night City",
-    startAt: event.startAt,
-    endAt: event.endAt,
+    startAt: pushTimes.startAt,
+    endAt: pushTimes.endAt,
     imageUrl: resolveAbsoluteImageUrl(event.imageUrl),
   };
   const res = event.discordEventId
@@ -499,13 +529,16 @@ export async function syncEventVrchatCalendar(
     }
   }
 
-  const content = buildVrchatContent(event);
+  // VRChat also rejects past start times, so recurring events with a past base
+  // start push next-occurrence times. The hash stays keyed on the stored row so
+  // the sweep doesn't churn.
+  const content = buildVrchatContent(withUpcomingOccurrenceTimes(event));
   const hash = vrchatContentHash(event);
   try {
     if (!event.vrchatCalendarId) {
       // Never backfill past events on create (e.g. when the switch is first
       // flipped on with historical rows present).
-      if (new Date(event.endAt).getTime() < Date.now()) {
+      if (new Date(content.endsAt).getTime() < Date.now()) {
         return { vrchatCalendarId: null, vrchatSyncError: null };
       }
       const id = await createGroupCalendarEvent(toVrchatInput(content, { notify: notifyOnCreate }));
@@ -609,7 +642,10 @@ export async function reconcileVrchatCalendar(): Promise<{ synced: number; faile
       // ones whose START is still in the future — VRChat rejects any write
       // with 400 "Calendar Entry must start in the future" once startAt has
       // passed, so retrying an in-progress event just fails every cycle.
-      if (new Date(row.startAt).getTime() < now) continue;
+      // Recurring rows use the NEXT occurrence's start (the push shifts times
+      // the same way), so a series with a past base but future occurrences
+      // still gets repaired/backfilled.
+      if (new Date(withUpcomingOccurrenceTimes(row).startAt).getTime() < now) continue;
       const needs = !row.vrchatCalendarId || row.vrchatSyncedHash !== vrchatContentHash(row);
       if (!needs) continue;
     } else {
