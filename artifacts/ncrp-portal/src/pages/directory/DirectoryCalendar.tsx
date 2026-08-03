@@ -86,10 +86,11 @@ export default function DirectoryCalendar() {
   const { data: me } = useEffectiveMe();
   const isStaff = !!me && (me.isFixer || me.isAdmin);
 
-  // Missions stay behind login (they can carry private details); events are
-  // public, so logged-out visitors still get a working calendar of events.
+  // Both sources are public: anonymous visitors get posted+public missions
+  // (private ones are filtered server-side) and every event. Sign-up
+  // affordances still require login.
   const missionsQ = useListMissions(undefined, {
-    query: { queryKey: getListMissionsQueryKey(), enabled: !!me },
+    query: { queryKey: getListMissionsQueryKey() },
   });
   const eventsQ = useListEvents(undefined, {
     query: { queryKey: getListEventsQueryKey() },
@@ -147,7 +148,10 @@ export default function DirectoryCalendar() {
           id: m.id,
           title: m.title,
           start,
-          href: `/missions/${m.id}`,
+          // Mission DETAIL stays login-gated (it can carry private context), so
+          // anonymous chips render unlinked — visible on the calendar, not
+          // clickable through to a page that would 401.
+          href: me ? `/missions/${m.id}` : "",
           subtype: `Tier ${m.tier}`,
           myStatus: isPlayer ? "player" : isNpc ? "npc" : null,
           npcOpen: !!me && m.npcSignupOpen === true,
@@ -226,7 +230,7 @@ export default function DirectoryCalendar() {
     setView("week");
   };
 
-  const loading = (!!me && missionsQ.isLoading) || eventsQ.isLoading;
+  const loading = missionsQ.isLoading || eventsQ.isLoading;
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-6 pb-12">
@@ -238,26 +242,24 @@ export default function DirectoryCalendar() {
           <p className="text-muted-foreground font-mono text-sm mt-1">
             {me
               ? "Every scheduled mission and event in Night City, shown in your local time."
-              : "Every public event in Night City, shown in your local time. Log in to see missions and sign up."}
+              : "Every mission and public event in Night City, shown in your local time. Log in to sign up."}
           </p>
         </div>
 
         {/* Controls sit to the left of CREATE EVENT: a type filter and the
             month/week view toggle. */}
         <div className="flex flex-wrap items-center gap-2">
-          {me && (
-            <Segmented
-              ariaLabel="Filter calendar"
-              value={filter}
-              onChange={(v) => setFilter(v as CalFilter)}
-              options={[
-                { value: "all", label: "All" },
-                { value: "mission", label: "Missions" },
-                { value: "event", label: "Events" },
-              ]}
-              testIdPrefix="filter"
-            />
-          )}
+          <Segmented
+            ariaLabel="Filter calendar"
+            value={filter}
+            onChange={(v) => setFilter(v as CalFilter)}
+            options={[
+              { value: "all", label: "All" },
+              { value: "mission", label: "Missions" },
+              { value: "event", label: "Events" },
+            ]}
+            testIdPrefix="filter"
+          />
           <Segmented
             ariaLabel="Calendar view"
             value={view}
@@ -556,33 +558,46 @@ function CalChip({
       className={`relative border rounded-none transition-colors ${cls}`}
       data-testid={`chip-${item.kind}-${item.id}`}
     >
-      <Link
-        href={item.href}
-        className={`block ${dense ? "px-1 py-0.5" : "px-1.5 py-1"} ${canQuickNpc ? "pr-7 md:pr-5" : ""}`}
-        title={`${item.title} · ${item.subtype} · ${time}${statusLabel ? ` · ${statusLabel}` : ""}`}
-      >
-        <div className={`flex items-center gap-1 font-mono leading-tight text-[0.8125rem]`}>
-          <Icon className={`shrink-0 w-3 h-3`} />
-          <span className="font-semibold tabular-nums tracking-tight text-foreground">{time}</span>
-          {item.myStatus && (
-            <span
-              className={`ml-auto shrink-0 px-1 font-display tracking-wider border text-[0.625rem] ${
-                item.myStatus === "player"
-                  ? "bg-nc-green/20 border-nc-green/60 text-nc-green"
-                  : "bg-nc-yellow/20 border-nc-yellow/60 text-nc-yellow"
-              }`}
-              data-testid={`chip-status-${item.kind}-${item.id}`}
+      {(() => {
+        const body = (
+          <>
+            <div className={`flex items-center gap-1 font-mono leading-tight text-[0.8125rem]`}>
+              <Icon className={`shrink-0 w-3 h-3`} />
+              <span className="font-semibold tabular-nums tracking-tight text-foreground">{time}</span>
+              {item.myStatus && (
+                <span
+                  className={`ml-auto shrink-0 px-1 font-display tracking-wider border text-[0.625rem] ${
+                    item.myStatus === "player"
+                      ? "bg-nc-green/20 border-nc-green/60 text-nc-green"
+                      : "bg-nc-yellow/20 border-nc-yellow/60 text-nc-yellow"
+                  }`}
+                  data-testid={`chip-status-${item.kind}-${item.id}`}
+                >
+                  {item.myStatus === "player" ? "PLAYER" : "NPC"}
+                </span>
+              )}
+            </div>
+            <div
+              className={`font-mono leading-tight text-foreground break-words text-[0.8125rem]`}
             >
-              {item.myStatus === "player" ? "PLAYER" : "NPC"}
-            </span>
-          )}
-        </div>
-        <div
-          className={`font-mono leading-tight text-foreground break-words text-[0.8125rem]`}
-        >
-          {item.title}
-        </div>
-      </Link>
+              {item.title}
+            </div>
+          </>
+        );
+        const innerCls = `block ${dense ? "px-1 py-0.5" : "px-1.5 py-1"} ${canQuickNpc ? "pr-7 md:pr-5" : ""}`;
+        const tooltip = `${item.title} · ${item.subtype} · ${time}${statusLabel ? ` · ${statusLabel}` : ""}`;
+        // Anonymous mission chips have no destination (mission detail is
+        // login-gated), so they render as a plain block instead of a link.
+        return item.href ? (
+          <Link href={item.href} className={innerCls} title={tooltip}>
+            {body}
+          </Link>
+        ) : (
+          <div className={innerCls} title={tooltip}>
+            {body}
+          </div>
+        );
+      })()}
       {canQuickNpc && (
         <button
           type="button"

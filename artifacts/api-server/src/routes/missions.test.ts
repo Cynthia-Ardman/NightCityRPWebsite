@@ -119,6 +119,8 @@ async function seedMission(opts: Partial<typeof missions.$inferInsert> = {}) {
       // Real missions always have a Job Type; the submit gate now requires one,
       // so default to a valid value unless a test overrides it.
       jobType: opts.jobType ?? "combat",
+      // Default visibility to the schema default unless a test overrides it.
+      ...(opts.visibility !== undefined ? { visibility: opts.visibility } : {}),
       requestedSkills: opts.requestedSkills ?? null,
       fixerId: opts.fixerId ?? null,
       startAt: opts.startAt ?? null,
@@ -1533,6 +1535,45 @@ describe("Mission visibility for non-managers", () => {
     const titles = (res.body as Array<{ title: string }>).map((m) => m.title);
     expect(titles).not.toContain("Hidden Draft");
     expect(titles).not.toContain("Hidden Proposal");
+  });
+
+  it("anonymous callers get only posted PUBLIC missions with viewer fields empty and rosters redacted", async () => {
+    await seedMission({ title: "Anon Draft", workflowState: "draft", status: "open" });
+    const priv = await seedMission({ title: "Anon Private", workflowState: "posted", status: "open", visibility: "private" });
+    const pub = await seedMission({ title: "Anon Public", workflowState: "posted", status: "open" });
+    // Give the mission internal Discord ops metadata so the redaction assert
+    // below is meaningful (seedMission leaves these null).
+    await db
+      .update(missions)
+      .set({ discordEventId: "evt-anon-1", discordSyncError: "upstream 403: secret ops detail" })
+      .where(eq(missions.id, pub.id));
+    // Put someone on the public mission's roster so we can assert redaction.
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    await db.insert(missionAssignments).values({ missionId: pub.id, userId: player.id, characterId: char.id });
+
+    const res = await request(app).get("/api/missions"); // no x-test-user header
+    expect(res.status).toBe(200);
+    const rows = res.body as Array<{ id: number; title: string; players: unknown[]; myApplication: unknown; mySignup: unknown; myCharacterId: unknown }>;
+    const ids = rows.map((m) => m.id);
+    expect(ids).toContain(pub.id);
+    expect(ids).not.toContain(priv.id);
+    expect(rows.map((m) => m.title)).not.toContain("Anon Draft");
+    const row = rows.find((m) => m.id === pub.id)!;
+    expect(row.players).toEqual([]);
+    expect(row.myApplication ?? null).toBeNull();
+    expect(row.mySignup ?? null).toBeNull();
+    expect(row.myCharacterId ?? null).toBeNull();
+    // Internal Discord ops metadata must not be publicly enumerable.
+    for (const r of rows as Array<{ discordEventId?: unknown; discordSyncError?: unknown }>) {
+      expect(r.discordEventId ?? null).toBeNull();
+      expect(r.discordSyncError ?? null).toBeNull();
+    }
+  });
+
+  it("mission detail still requires login", async () => {
+    const posted = await seedMission({ workflowState: "posted" });
+    expect((await request(app).get(`/api/missions/${posted.id}`)).status).toBe(401);
   });
 
   it("a manager's owned board shows missions across every workflow state", async () => {

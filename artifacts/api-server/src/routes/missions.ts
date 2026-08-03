@@ -62,7 +62,14 @@ import { convertEventToMission } from "../lib/eventsService";
 const router: IRouter = Router();
 
 function viewerOf(req: Request): MissionViewer {
-  const u = req.user!;
+  const u = req.user;
+  // Anonymous viewer (public mission board/calendar): the empty id matches no
+  // roster assignment, application, or sign-up, and every role flag is false,
+  // so the shared visibility filter reduces to posted+public missions with no
+  // viewer-specific data.
+  if (!u) {
+    return { id: "", isManager: false, isAdmin: false, isArchivist: false, isTrialAuthor: false };
+  }
   const isAdmin = hasRole(u.roles, "ADMIN");
   const isManagerRole = isAdmin || hasRole(u.roles, "FIXER");
   return {
@@ -388,7 +395,10 @@ async function createParticipationRequests(
 }
 
 // ---------------- LIST / CREATE ----------------
-router.get("/missions", requireAuth, async (req, res): Promise<void> => {
+// PUBLIC — no login required. Anonymous visitors (public calendar) get only
+// posted, public missions with viewer fields empty and rosters redacted; all
+// richer views stay behind requireAuth.
+router.get("/missions", async (req, res): Promise<void> => {
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
   const limit = Math.min(1000, parseInt(String(req.query.limit ?? "200"), 10) || 200);
   const rows = await listMissionSummaries({ viewer: viewerOf(req), status, limit });

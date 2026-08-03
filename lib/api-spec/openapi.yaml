@@ -1658,7 +1658,7 @@ paths:
     get:
       operationId: listMissions
       tags: [missions]
-      summary: List missions (compact summaries).
+      summary: List missions (compact summaries). PUBLIC — no login required; anonymous callers get only posted, public missions with viewer fields empty and rosters redacted.
       parameters:
         - { in: query, name: status, schema: { type: string } }
         - { in: query, name: limit, schema: { type: integer, default: 200 } }

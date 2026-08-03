@@ -508,13 +508,25 @@ export async function listMissionSummaries(opts: {
   const rows = await loadMissions(where, opts.limit ?? 200);
   const ids = rows.map((r) => r.id);
   const byMission = await loadAssignments(ids);
+  // Anonymous viewers (public calendar, viewer.id === "") get no personal
+  // state and no roster identities — skip the lookups and redact players
+  // rather than relying on an empty id matching nothing.
+  const anonymous = !opts.viewer.id;
   // Batch-load the viewer's own application + NPC sign-up per mission so the
   // Open-tab cards can render inline apply/withdraw and sign-up/remove buttons.
-  const myApps = await loadMyApplicationsForMissions(ids, opts.viewer.id);
-  const mySignups = await loadMySignupsForMissions(ids, opts.viewer.id);
-  return rows.map((m) =>
-    toSummary(m, byMission.get(m.id) ?? [], opts.viewer.id, myApps.get(m.id) ?? null, mySignups.get(m.id) ?? null),
-  );
+  const myApps = anonymous ? new Map() : await loadMyApplicationsForMissions(ids, opts.viewer.id);
+  const mySignups = anonymous ? new Map() : await loadMySignupsForMissions(ids, opts.viewer.id);
+  return rows.map((m) => {
+    const s = toSummary(m, byMission.get(m.id) ?? [], opts.viewer.id, myApps.get(m.id) ?? null, mySignups.get(m.id) ?? null);
+    if (anonymous) {
+      s.players = [];
+      // Internal Discord ops metadata (sync errors can embed upstream response
+      // text) is not for the public calendar.
+      s.discordEventId = null;
+      s.discordSyncError = null;
+    }
+    return s;
+  });
 }
 
 /**
