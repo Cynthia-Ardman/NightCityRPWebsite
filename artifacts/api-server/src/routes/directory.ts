@@ -23,7 +23,8 @@ import {
   inventoryItems,
 } from "@workspace/db";
 import { requireAuth, requireAnyRole } from "../middlewares/auth";
-import { addGuildMemberRole, grantDeadCharacterRole, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { grantDeadCharacterRole, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { grantRoleDurable } from "../lib/roleGrants";
 import { isStaffRoles } from "../lib/roleChecks";
 import { sumCwpByCharacter } from "../lib/cyberware";
 import { deriveCyberwareBand } from "../lib/jobs";
@@ -648,19 +649,11 @@ router.patch("/directory/archive/:id", staffOnly, async (req, res): Promise<void
   // approval grants. Fire-and-forget + gated/idempotent in addGuildMemberRole;
   // the role_sync cron re-injects the website "ripperdoc" flag from the role id.
   if (edit.sheetData?.ripperDoc === true && updated.ownerId) {
-    void addGuildMemberRole(
+    void grantRoleDurable(
       updated.ownerId,
       RIPPERDOC_ROLE_ID,
       `RipperDoc — character "${updated.name}" archive edit`,
-    ).then((r) => {
-      if (!r.ok) {
-        console.warn("[archive] RipperDoc role grant did not apply", {
-          characterId: id,
-          ownerId: updated.ownerId,
-          error: r.error,
-        });
-      }
-    });
+    );
   }
 
   // Staff marking a PC dead grants its owner the Dead Character role

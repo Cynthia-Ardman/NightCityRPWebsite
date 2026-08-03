@@ -2,12 +2,12 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { db, characterSheets, characters, characterStatus, inventoryItems, inventoryEvents, users, activityEvents, catalogCyberware, catalogGuns, type User } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole, addGuildMemberRole, APPROVED_CHARACTER_ROLE_ID, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { hasRole, APPROVED_CHARACTER_ROLE_ID, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { grantRoleDurable } from "../lib/roleGrants";
 import { announceWithThread } from "../lib/reviewAnnounce";
 import { portalLink } from "../lib/portalUrl";
 import { normalizeName, looseNameKey } from "../lib/strings";
 import { createNotification } from "../lib/notifications";
-import { logger } from "../lib/logger";
 import { recordAudit } from "../lib/audit";
 import { collectCyberware, buildCyberwareCostMap, entryPoints, validateCyberware } from "../lib/cyberware-cap";
 import { validateSheetFields, findTechStartingGun } from "../lib/sheet-validation";
@@ -1212,39 +1212,26 @@ export async function closeSheet(
       message: `Closed & materialized sheet "${result.sheet.name}"${note ? ` — note: ${note}` : ""}`,
     });
     // Grant the "Approved Character" Discord role to the submitter. The portal
-    // user id IS the Discord snowflake. Fire-and-forget + gated/idempotent in
-    // addGuildMemberRole, so a failure here must not fail the approval.
+    // user id IS the Discord snowflake. Durable at-least-once: a pending row is
+    // persisted first and the hourly role_sync retries (with a staff alert on
+    // repeated failure), so a Discord hiccup can never silently drop the role.
     if (result.sheet.ownerId) {
-      void addGuildMemberRole(
+      void grantRoleDurable(
         result.sheet.ownerId,
         APPROVED_CHARACTER_ROLE_ID,
         `Character sheet "${result.sheet.name}" approved`,
-      ).then((r) => {
-        if (!r.ok) {
-          logger.warn(
-            { sheetId: id, ownerId: result.sheet.ownerId, error: r.error },
-            "Approved-character role grant did not apply",
-          );
-        }
-      });
+      );
     }
     // Grant the "RipperDoc" Discord role when the submitter flagged this
-    // character as a ripper doc on the sheet. Same fire-and-forget,
-    // gated/idempotent pattern as the approved-character role above — the
-    // role_sync cron re-injects the website "ripperdoc" flag from the role id.
+    // character as a ripper doc on the sheet. Same durable at-least-once
+    // pattern — the role_sync cron re-injects the website "ripperdoc" flag
+    // from the role id once it lands.
     if (result.sheet.ownerId && sheetWantsRipperdoc(result.sheet.data)) {
-      void addGuildMemberRole(
+      void grantRoleDurable(
         result.sheet.ownerId,
         RIPPERDOC_ROLE_ID,
         `RipperDoc — character "${result.sheet.name}" approved`,
-      ).then((r) => {
-        if (!r.ok) {
-          logger.warn(
-            { sheetId: id, ownerId: result.sheet.ownerId, error: r.error },
-            "RipperDoc role grant did not apply",
-          );
-        }
-      });
+      );
     }
   } else if (result.kind === "archived") {
     await recordAudit({

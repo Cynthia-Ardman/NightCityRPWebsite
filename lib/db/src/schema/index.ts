@@ -2720,3 +2720,37 @@ export const membershipEvents = pgTable(
   }),
 );
 export type MembershipEvent = typeof membershipEvents.$inferSelect;
+
+// Durable at-least-once Discord role grants. A row is created when an
+// approval-time grant is owed (e.g. RipperDoc on sheet approval); it stays
+// `pending` until a grant attempt succeeds, retried by the hourly role_sync
+// cron. Once `granted`, no further action is ever taken — a staff member
+// manually removing the role later is respected (we never re-grant).
+export const pendingRoleGrants = pgTable(
+  "pending_role_grants",
+  {
+    id: serial("id").primaryKey(),
+    // Discord snowflake (portal users.id IS the Discord id).
+    userId: text("user_id").notNull(),
+    roleId: text("role_id").notNull(),
+    // Human context for the audit-log reason + staff alert message.
+    reason: text("reason").notNull().default(""),
+    // "pending" | "granted"
+    status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    // Set once the repeated-failure staff alert has been posted (alert once).
+    alertedAt: timestamp("alerted_at", { withTimezone: true }),
+    grantedAt: timestamp("granted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // At most one PENDING row per (user, role); repeat requests while one is
+    // in flight are no-ops (partial unique + onConflictDoNothing).
+    pendingUq: uniqueIndex("pending_role_grants_pending_uq")
+      .on(t.userId, t.roleId)
+      .where(sql`status = 'pending'`),
+  }),
+);
+export type PendingRoleGrant = typeof pendingRoleGrants.$inferSelect;

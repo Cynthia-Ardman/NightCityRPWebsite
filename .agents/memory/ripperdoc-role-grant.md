@@ -31,6 +31,17 @@ a character they submitted is **approved AND finalized** (sheet close), gated on
 - Idempotent / re-runnable. On a successful Discord grant it also `array_append`s the
   "ripperdoc" website role immediately.
 
+**Durable at-least-once grants (2026-08-02, USER decision):** approval-time role grants
+(RipperDoc + Approved Character in closeSheet, RipperDoc in pending-edit close + archive PATCH)
+go through `grantRoleDurable()` (`lib/roleGrants.ts`), NOT bare `addGuildMemberRole`. It persists
+a `pending_role_grants` row first (partial unique on user+role WHERE pending), attempts
+immediately (read-before-write: if the member already holds the role, finalize without a Discord
+write — heals crash windows and never re-grants after a manual removal), and the hourly role_sync
+retries pending rows until success, posting ONE alert to CS_APPROVAL_CHANNEL_ID after 3 real
+failed attempts (atomic alerted_at claim). Once `granted`, no action ever again — staff removing
+the role later is respected. Off-deployment: rows wait without burning attempts or alerting.
+Any NEW approval-time role grant should use `grantRoleDurable`.
+
 **Gotcha:** Discord writes are gated by `externalWritesAllowed()` (REPLIT_DEPLOYMENT=1 or
 ALLOW_EXTERNAL_WRITES=1) — in dev/test the grant no-ops (returns `ok:false`). The backfill must
 be run from the PUBLISHED app to actually grant Discord roles; the UI surfaces this warning.

@@ -4,6 +4,7 @@ import { logger } from "./logger";
 import { recordAudit } from "./audit";
 import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchAllGuildMemberRoles, VERIFIED_18_ROLE_ID, RULES_ROLE_ID, DEAD_CHARACTER_ROLE_ID, applyRoleIdGrants, addGuildMemberRole, postToChannel } from "./discord";
 import { reconcileBusinessChannelAccess } from "./businessChannelAccess";
+import { retryPendingRoleGrants } from "./roleGrants";
 import { notifyAutoCharge } from "./notifications";
 import { patchBalance } from "./unbelievaboat";
 import { sumCwpByCharacter } from "./cyberware";
@@ -441,6 +442,19 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         } catch (err) {
           logger.warn({ err, userId: u.id }, "role sync user failed");
         }
+      }
+      // Retry durable at-least-once role grants (e.g. RipperDoc / Approved
+      // Character owed at approval time whose Discord write failed). Alerts
+      // the CS approval channel after repeated failures, keeps retrying until
+      // the grant lands, and never re-grants after success.
+      try {
+        const g = await retryPendingRoleGrants();
+        if (g.retried) {
+          logger.info(g, "role sync: pending role grants retried");
+          affected += g.granted;
+        }
+      } catch (err) {
+        logger.warn({ err }, "role sync: pending role grant retry failed");
       }
       // Catch-all for the business-owners Discord channel: grant access to any
       // current store/ripperdoc owner who is missing it and revoke anyone who no

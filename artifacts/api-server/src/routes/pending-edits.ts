@@ -14,11 +14,11 @@ import {
 } from "@workspace/db";
 import type { Request } from "express";
 import { requireAuth } from "../middlewares/auth";
-import { hasRole, addGuildMemberRole, grantDeadCharacterRole, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { hasRole, grantDeadCharacterRole, RIPPERDOC_ROLE_ID } from "../lib/discord";
+import { grantRoleDurable } from "../lib/roleGrants";
 import { announceWithThread } from "../lib/reviewAnnounce";
 import { portalLink } from "../lib/portalUrl";
 import { createNotification } from "../lib/notifications";
-import { logger } from "../lib/logger";
 import { isReviewer, isEligibleReviewer, listEligibleReviewerIds, listEligibleReviewers, loadLastActivityBySubject, majorityOf, countVotes, type ReviewActionResult } from "../lib/review";
 import { recordAudit } from "../lib/audit";
 
@@ -1152,16 +1152,12 @@ export async function closeEdit(req: Request, id: number, note?: string): Promis
       message: `Closed character edit (${result.status})${note ? ` — note: ${note}` : ""}`,
     });
     // Mirror the sheet-approval grant: when the applied edit flagged the
-    // character as a ripper doc, push the RipperDoc Discord role. Fire-and-forget
-    // + gated/idempotent in addGuildMemberRole; the role_sync cron re-injects the
-    // website "ripperdoc" flag from the role id.
+    // character as a ripper doc, push the RipperDoc Discord role. Durable
+    // at-least-once (pending row + hourly retry + staff alert on repeated
+    // failure); the role_sync cron re-injects the website "ripperdoc" flag.
     if (result.ripperGrant) {
       const { ownerId, name } = result.ripperGrant;
-      void addGuildMemberRole(ownerId, RIPPERDOC_ROLE_ID, `RipperDoc — character "${name}" edit approved`).then((r) => {
-        if (!r.ok) {
-          logger.warn({ editId: id, ownerId, error: r.error }, "RipperDoc role grant (edit) did not apply");
-        }
-      });
+      void grantRoleDurable(ownerId, RIPPERDOC_ROLE_ID, `RipperDoc — character "${name}" edit approved`);
     }
     // Approved edit marked the PC dead → owner gets the Dead Character role
     // (afterlife-drinks access). Same fire-and-forget pattern as above; the
