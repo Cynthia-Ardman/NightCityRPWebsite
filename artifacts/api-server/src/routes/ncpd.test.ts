@@ -384,6 +384,34 @@ describe("NCPD fines", () => {
     expect(mine.body[0]).toMatchObject({ id: created.body.id, characterName: c.name });
   });
 
+  it("officer fine ledger lists all fines with character + owner names; players are blocked", async () => {
+    const officer = await createOfficer();
+    const owner = await createUser();
+    const player = await createUser();
+    const c = await createCharacter({ ownerId: owner.id });
+    const unclaimed = await createCharacter({ ownerId: null });
+
+    await request(app)
+      .post("/api/ncpd/fines")
+      .set("x-test-user", officer.id)
+      .send({ characterId: c.id, amount: 500, reason: "Speeding" });
+    await request(app)
+      .post("/api/ncpd/fines")
+      .set("x-test-user", officer.id)
+      .send({ characterId: unclaimed.id, amount: 250, reason: "Loitering" });
+
+    const list = await request(app).get("/api/ncpd/fines").set("x-test-user", officer.id);
+    expect(list.status).toBe(200);
+    expect(list.body).toHaveLength(2);
+    const byChar = Object.fromEntries(list.body.map((f: any) => [f.characterId, f]));
+    expect(byChar[c.id]).toMatchObject({ characterName: c.name, amount: 500, status: "unpaid" });
+    expect(byChar[c.id].ownerName).toBeTruthy();
+    expect(byChar[unclaimed.id].ownerName).toBeNull();
+
+    const denied = await request(app).get("/api/ncpd/fines").set("x-test-user", player.id);
+    expect(denied.status).toBe(403);
+  });
+
   it("rejects non-positive and non-integer amounts", async () => {
     const officer = await createOfficer();
     const c = await createCharacter();

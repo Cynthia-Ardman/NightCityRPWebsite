@@ -8,6 +8,8 @@ import {
   useListNcpdOfficers,
   useCreateNcpdWarrant,
   useCreateNcpdFine,
+  useListNcpdFines,
+  getListNcpdFinesQueryKey,
   getGetNcpdRecordQueryKey,
   type NcpdCharacterSummary,
   type NcpdOfficerCharacter,
@@ -392,6 +394,7 @@ function IssueFineSection() {
                       onSuccess: () => {
                         // Refresh the character's dossier record (fines list) if cached.
                         void queryClient.invalidateQueries({ queryKey: getGetNcpdRecordQueryKey(selected.id) });
+                        void queryClient.invalidateQueries({ queryKey: getListNcpdFinesQueryKey() });
                         toast({ title: "Fine issued", description: `Fine of €$${amt.toLocaleString()} issued to ${name}.` });
                         reset();
                       },
@@ -412,7 +415,78 @@ function IssueFineSection() {
           )}
         </CardContent>
       </Card>
+      <FineHistorySection />
     </div>
+  );
+}
+
+// Full fine ledger below the issue form: every fine ever issued, newest first,
+// with subject (character + player), amount, memo and payment status.
+function FineHistorySection() {
+  const { data, isLoading, isError } = useListNcpdFines();
+  const fines = data ?? [];
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardContent className="py-5 space-y-4">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="font-display tracking-widest text-nc-cyan">FINE HISTORY</p>
+          <p className="font-mono text-xs text-muted-foreground">{fines.length} FINE{fines.length === 1 ? "" : "S"} ON RECORD</p>
+        </div>
+        {isLoading ? (
+          <p className="font-mono text-sm text-muted-foreground animate-pulse">LOADING LEDGER...</p>
+        ) : isError ? (
+          <p className="font-mono text-sm text-destructive">Could not load the fine ledger. Try again shortly.</p>
+        ) : fines.length === 0 ? (
+          <p className="font-mono text-sm text-muted-foreground">No fines have been issued yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {fines.map((f) => (
+              <div
+                key={f.id}
+                className="border border-border bg-black/20 p-3 flex items-start justify-between gap-3 flex-wrap"
+                data-testid={`row-fine-${f.id}`}
+              >
+                <div className="min-w-0 space-y-1">
+                  <p className="font-display tracking-wider text-foreground break-words">
+                    <Link href={`/ncpd/characters/${f.characterId}`} className="hover:text-nc-cyan">
+                      {f.characterName ?? `Character #${f.characterId}`}
+                    </Link>
+                    {f.ownerName ? (
+                      <span className="font-mono text-xs text-muted-foreground"> · Player: {f.ownerName}</span>
+                    ) : (
+                      <span className="font-mono text-xs text-muted-foreground"> · Unclaimed character</span>
+                    )}
+                  </p>
+                  <p className="font-mono text-sm text-muted-foreground break-words">{f.reason}</p>
+                  <p className="font-mono text-xs text-muted-foreground">
+                    Issued {fmtDate(f.createdAt)}
+                    {f.officerName ? ` by ${f.officerName}` : ""}
+                    {f.status === "paid" && f.paidAt ? ` · Paid ${fmtDate(f.paidAt)}` : ""}
+                  </p>
+                </div>
+                <div className="text-right space-y-1 shrink-0">
+                  <p className="font-display text-nc-cyan">€${f.amount.toLocaleString()}</p>
+                  <Badge
+                    variant="outline"
+                    className={
+                      "rounded-none font-mono text-[10px] uppercase " +
+                      (f.status === "paid"
+                        ? "border-nc-green/60 text-nc-green"
+                        : f.status === "void"
+                          ? "border-muted-foreground/50 text-muted-foreground"
+                          : "border-destructive/60 text-destructive")
+                    }
+                    data-testid={`badge-fine-status-${f.id}`}
+                  >
+                    {f.status === "paid" ? "PAID" : f.status === "void" ? "VOIDED" : "UNPAID"}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

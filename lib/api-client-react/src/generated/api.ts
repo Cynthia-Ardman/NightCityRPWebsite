@@ -27651,6 +27651,83 @@ export const useDeleteNcpdReport = <TError = ErrorType<void>,
       return useMutation(getDeleteNcpdReportMutationOptions(options));
     }
 
+export const getListNcpdFinesUrl = () => {
+
+
+
+
+  return `/api/ncpd/fines`
+}
+
+/**
+ * @summary Full fine history across all characters (NCPD/fixer/admin only).
+ */
+export const listNcpdFines = async ( options?: RequestInit): Promise<NcpdFine[]> => {
+
+  return customFetch<NcpdFine[]>(getListNcpdFinesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListNcpdFinesQueryKey = () => {
+    return [
+    `/api/ncpd/fines`
+    ] as const;
+    }
+
+
+export const getListNcpdFinesQueryOptions = <TData = Awaited<ReturnType<typeof listNcpdFines>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNcpdFines>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListNcpdFinesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNcpdFines>>> = ({ signal }) => listNcpdFines({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listNcpdFines>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListNcpdFinesQueryResult = NonNullable<Awaited<ReturnType<typeof listNcpdFines>>>
+export type ListNcpdFinesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Full fine history across all characters (NCPD/fixer/admin only).
+ */
+
+export function useListNcpdFines<TData = Awaited<ReturnType<typeof listNcpdFines>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNcpdFines>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListNcpdFinesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getCreateNcpdFineUrl = () => {
 
 

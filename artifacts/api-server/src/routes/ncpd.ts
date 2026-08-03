@@ -453,6 +453,22 @@ router.get("/ncpd/fines/mine", requireAuth, async (req, res): Promise<void> => {
   res.json(rows.map((r) => ({ ...r.fine, characterName: r.characterName })));
 });
 
+// Officer-facing: full fine history across all characters (paid, unpaid and
+// voided), newest first, with the character and current-owner names joined in.
+router.get("/ncpd/fines", requireAuth, requireNcpd, async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      fine: ncpdFines,
+      characterName: characters.name,
+      ownerName: sql<string | null>`coalesce(${users.globalName}, ${users.username})`,
+    })
+    .from(ncpdFines)
+    .innerJoin(characters, eq(characters.id, ncpdFines.characterId))
+    .leftJoin(users, eq(users.id, characters.ownerId))
+    .orderBy(desc(ncpdFines.createdAt));
+  res.json(rows.map((r) => ({ ...r.fine, characterName: r.characterName, ownerName: r.ownerName })));
+});
+
 // Officer issues a fine. Amount is always positive eddies.
 router.post("/ncpd/fines", requireAuth, requireNcpd, async (req, res): Promise<void> => {
   const { characterId, amount, reason } = req.body ?? {};

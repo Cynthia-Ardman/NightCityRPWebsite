@@ -6287,6 +6287,20 @@ paths:
         "403": { description: NCPD/fixer/admin only }
         "404": { description: Report not found }
   /ncpd/fines:
+    get:
+      operationId: listNcpdFines
+      tags: [ncpd]
+      summary: Full fine history across all characters (NCPD/fixer/admin only).
+      responses:
+        "200":
+          description: All fines (paid, unpaid, voided), newest first, with character and owner names
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NcpdFine" }
+        "401": { description: Authentication required }
+        "403": { description: NCPD/fixer/admin only }
     post:
       operationId: createNcpdFine
       tags: [ncpd]
@@ -12107,7 +12121,8 @@ components:
       properties:
         id: { type: integer }
         characterId: { type: integer }
-        characterName: { type: string, description: "Joined character name — present on the player 'my fines' endpoint." }
+        characterName: { type: string, description: "Joined character name — present on the 'my fines' and officer list endpoints." }
+        ownerName: { type: ["string", "null"], description: "Character's current owner display name — present on the officer list endpoint." }
         issuedById: { type: ["string", "null"] }
         officerName: { type: ["string", "null"] }
         amount: { type: integer, description: "Fine amount in eddies (positive)." }

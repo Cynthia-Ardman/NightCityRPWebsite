@@ -10,8 +10,13 @@ import type { NcpdFineStatus } from './ncpdFineStatus';
 export interface NcpdFine {
   id: number;
   characterId: number;
-  /** Joined character name — present on the player 'my fines' endpoint. */
+  /** Joined character name — present on the 'my fines' and officer list endpoints. */
   characterName?: string;
+  /**
+     * Character's current owner display name — present on the officer list endpoint.
+     * @nullable
+     */
+  ownerName?: string | null;
   /** @nullable */
   issuedById?: string | null;
   /** @nullable */
