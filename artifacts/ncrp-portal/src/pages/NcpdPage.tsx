@@ -7,6 +7,8 @@ import {
   getListNcpdWarrantsQueryKey,
   useListNcpdOfficers,
   useCreateNcpdWarrant,
+  useCreateNcpdFine,
+  getGetNcpdRecordQueryKey,
   type NcpdCharacterSummary,
   type NcpdOfficerCharacter,
 } from "@workspace/api-client-react";
@@ -24,7 +26,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, FileText, AlertTriangle, Search, Users, Star, UserSearch, FolderOpen, Plus, X } from "lucide-react";
+import { Shield, FileText, AlertTriangle, Search, Users, Star, UserSearch, FolderOpen, Plus, X, Banknote } from "lucide-react";
 
 function fmtDate(iso?: string | null): string {
   if (!iso) return "—";
@@ -75,6 +77,9 @@ export default function NcpdPage() {
           <TabsTrigger value="cases" className={TAB_TRIGGER_CLASS} data-testid="tab-ncpd-cases">
             <FolderOpen className="w-4 h-4 mr-2 hidden sm:inline" /> Cases
           </TabsTrigger>
+          <TabsTrigger value="fines" className={TAB_TRIGGER_CLASS} data-testid="tab-ncpd-fines">
+            <Banknote className="w-4 h-4 mr-2 hidden sm:inline" /> Fines
+          </TabsTrigger>
           <TabsTrigger value="lookup" className={TAB_TRIGGER_CLASS} data-testid="tab-ncpd-lookup">
             <Search className="w-4 h-4 mr-2 hidden sm:inline" /> Lookup
           </TabsTrigger>
@@ -91,6 +96,9 @@ export default function NcpdPage() {
           </TabsContent>
           <TabsContent value="cases" className="outline-none focus:ring-0">
             <NcpdCaseBoard />
+          </TabsContent>
+          <TabsContent value="fines" className="outline-none focus:ring-0">
+            <IssueFineSection />
           </TabsContent>
           <TabsContent value="lookup" className="outline-none focus:ring-0">
             <CharacterLookup />
@@ -288,6 +296,123 @@ function NewWarrantDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Fines tab on the NCPD hub: pick a subject via the shared character/player
+// search (a player-name match lists all their characters), then enter an
+// amount + memo. Uses the same create-fine endpoint as the character dossier,
+// so the fine lands on the character's record and the owner pays it from
+// their Inbox exactly like a dossier-issued fine.
+function IssueFineSection() {
+  const [selected, setSelected] = useState<NcpdCharacterSummary | null>(null);
+  const [amount, setAmount] = useState("");
+  const [memo, setMemo] = useState("");
+  const create = useCreateNcpdFine();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const amt = Number(amount);
+  const amtValid = Number.isSafeInteger(amt) && amt > 0;
+
+  const reset = () => {
+    setSelected(null);
+    setAmount("");
+    setMemo("");
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="rounded-none border-border bg-card/50">
+        <CardContent className="py-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Banknote className="w-5 h-5 text-nc-cyan" />
+            <p className="font-display tracking-widest text-nc-cyan">ISSUE FINE</p>
+          </div>
+          {!selected ? (
+            <div className="space-y-3">
+              <p className="font-mono text-sm text-muted-foreground">
+                Search for the subject by character name, player name, or character number. A fine is always issued
+                against a specific character.
+              </p>
+              <NcpdCharacterSearch onSelect={(c) => setSelected(c)} />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3 border border-border bg-black/20 p-3 flex-wrap">
+                <div>
+                  <p className="font-display tracking-wider text-foreground" data-testid="text-fine-subject">
+                    {selected.name}
+                  </p>
+                  <p className="font-mono text-xs text-muted-foreground">
+                    {selected.kind.toUpperCase()}
+                    {selected.archetype ? ` · ${selected.archetype}` : ""}
+                    {selected.ownerName ? ` · Player: ${selected.ownerName}` : ""}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-none font-display text-xs"
+                  onClick={() => setSelected(null)}
+                  data-testid="button-fine-change-subject"
+                >
+                  <X className="w-4 h-4 mr-1" /> CHANGE
+                </Button>
+              </div>
+              <div className="space-y-1">
+                <Label className="font-mono text-xs uppercase">Amount (€$)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="rounded-none"
+                  data-testid="input-hub-fine-amount"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="font-mono text-xs uppercase">Memo</Label>
+                <Input
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value)}
+                  placeholder="e.g. Illegal weapon possession"
+                  className="rounded-none"
+                  data-testid="input-hub-fine-memo"
+                />
+              </div>
+              <Button
+                className="rounded-none font-display w-full"
+                disabled={!amtValid || !memo.trim() || create.isPending}
+                onClick={() => {
+                  const name = selected.name;
+                  create.mutate(
+                    { data: { characterId: selected.id, amount: amt, reason: memo.trim() } },
+                    {
+                      onSuccess: () => {
+                        // Refresh the character's dossier record (fines list) if cached.
+                        void queryClient.invalidateQueries({ queryKey: getGetNcpdRecordQueryKey(selected.id) });
+                        toast({ title: "Fine issued", description: `Fine of €$${amt.toLocaleString()} issued to ${name}.` });
+                        reset();
+                      },
+                      onError: (e: any) =>
+                        toast({
+                          title: "Could not issue fine",
+                          description: String(e?.data?.error ?? e?.message ?? e),
+                          variant: "destructive",
+                        }),
+                    },
+                  );
+                }}
+                data-testid="button-hub-fine-submit"
+              >
+                {create.isPending ? "ISSUING..." : "ISSUE FINE"}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
