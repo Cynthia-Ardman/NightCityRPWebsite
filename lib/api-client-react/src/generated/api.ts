@@ -338,6 +338,7 @@ import type {
   StockUpdate,
   Store,
   StoreGunRequestInput,
+  StoreGunRequestItem,
   StorePublic,
   StoreSaleInput,
   StoreUpdate,
@@ -6418,6 +6419,83 @@ export const useRequestStoreStock = <TError = ErrorType<void>,
       > => {
       return useMutation(getRequestStoreStockMutationOptions(options));
     }
+
+export const getListStoreGunRequestsUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}/gun-requests`
+}
+
+/**
+ * @summary List open/in-flight custom gun requests for this store (operators only). Returns pending, draft, and changes_requested rows; terminal statuses (approved, rejected, closed, cancelled) are excluded. Gated on isVenueOperator (owner, staff, or employee).
+ */
+export const listStoreGunRequests = async (id: number, options?: RequestInit): Promise<StoreGunRequestItem[]> => {
+
+  return customFetch<StoreGunRequestItem[]>(getListStoreGunRequestsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStoreGunRequestsQueryKey = (id: number,) => {
+    return [
+    `/api/stores/${id}/gun-requests`
+    ] as const;
+    }
+
+
+export const getListStoreGunRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listStoreGunRequests>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStoreGunRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStoreGunRequestsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStoreGunRequests>>> = ({ signal }) => listStoreGunRequests(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStoreGunRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStoreGunRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listStoreGunRequests>>>
+export type ListStoreGunRequestsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List open/in-flight custom gun requests for this store (operators only). Returns pending, draft, and changes_requested rows; terminal statuses (approved, rejected, closed, cancelled) are excluded. Gated on isVenueOperator (owner, staff, or employee).
+ */
+
+export function useListStoreGunRequests<TData = Awaited<ReturnType<typeof listStoreGunRequests>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStoreGunRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStoreGunRequestsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getRequestStoreGunUrl = (id: number,) => {
 

@@ -1455,6 +1455,20 @@ paths:
   /stores/{id}/gun-requests:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: listStoreGunRequests
+      tags: [stores]
+      summary: "List open/in-flight custom gun requests for this store (operators only). Returns pending, draft, and changes_requested rows; terminal statuses (approved, rejected, closed, cancelled) are excluded. Gated on isVenueOperator (owner, staff, or employee)."
+      responses:
+        "200":
+          description: In-flight gun requests for this store
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StoreGunRequestItem" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
     post:
       operationId: requestStoreGun
       tags: [stores]
@@ -9779,6 +9793,17 @@ components:
         category: { type: string, description: "Optional stock category." }
         description: { type: string, description: "Optional notes for the fixers reviewing the request." }
         source: { type: string, description: "Optional free-text source/notes carried on details.source." }
+
+    StoreGunRequestItem:
+      type: object
+      required: [id, title, status, createdAt, requestedById]
+      properties:
+        id: { type: integer }
+        title: { type: string, description: "Gun name as submitted." }
+        status: { type: string, enum: [draft, pending, changes_requested], description: "Current in-flight status." }
+        createdAt: { type: string, format: date-time }
+        requestedById: { type: string, description: "Discord user id of the submitter." }
+        requestedByName: { type: ["string", "null"], description: "Display name of the submitter." }
 
     StoreGunRequestInput:
       type: object

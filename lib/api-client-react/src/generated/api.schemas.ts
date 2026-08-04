@@ -4502,6 +4502,34 @@ export interface VenueStockRequestInput {
   source?: string;
 }
 
+/**
+ * Current in-flight status.
+ */
+export type StoreGunRequestItemStatus = typeof StoreGunRequestItemStatus[keyof typeof StoreGunRequestItemStatus];
+
+
+export const StoreGunRequestItemStatus = {
+  draft: 'draft',
+  pending: 'pending',
+  changes_requested: 'changes_requested',
+} as const;
+
+export interface StoreGunRequestItem {
+  id: number;
+  /** Gun name as submitted. */
+  title: string;
+  /** Current in-flight status. */
+  status: StoreGunRequestItemStatus;
+  createdAt: string;
+  /** Discord user id of the submitter. */
+  requestedById: string;
+  /**
+     * Display name of the submitter.
+     * @nullable
+     */
+  requestedByName?: string | null;
+}
+
 export interface StoreGunRequestInput {
   /**
      * Gun name.

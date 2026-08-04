@@ -1,5 +1,5 @@
 import { useParams, Redirect, useLocation } from "wouter";
-import { formatEddies } from "@/lib/format";
+import { formatEddies, formatDate } from "@/lib/format";
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -20,6 +20,8 @@ import {
   useRequestStoreStock,
   useRequestStoreGun,
   useListCyberware,
+  useListStoreGunRequests,
+  getListStoreGunRequestsQueryKey,
   getGetStoreQueryKey,
   getGetStoreTransactionsQueryKey,
   getListStoreOffersQueryKey,
@@ -59,6 +61,7 @@ import {
   FIRE_MODES,
 } from "@/components/catalog/gunTypes";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
+import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
 
 const STORE_KINDS = ["guns", "gear", "clothing", "mixed", "other"] as const;
 
@@ -193,6 +196,9 @@ export default function MyStoreDetail() {
           title: "Custom gun request submitted",
           description: "The fixers will review it. Track it under My Submissions.",
         });
+        // Refresh the in-page pending-requests panel so the new submission
+        // appears immediately for all operators without a manual reload.
+        qc.invalidateQueries({ queryKey: getListStoreGunRequestsQueryKey(storeId) });
         setGunReqOpen(false);
         setGunReqName("");
         setGunReqDescription("");
@@ -222,6 +228,12 @@ export default function MyStoreDetail() {
   const { data: txns } = useGetStoreTransactions(storeId);
   const { data: offers } = useListStoreOffers(storeId);
   const { data: cyberCatalog } = useListCyberware();
+  // Gun-request list: only fetched for gun stores; operators see all in-flight
+  // requests so the crew stays informed, not just whoever submitted each one.
+  const isGunStoreForQuery = store?.kind === "guns";
+  const { data: gunRequests } = useListStoreGunRequests(storeId, {
+    query: { enabled: isGunStoreForQuery, queryKey: getListStoreGunRequestsQueryKey(storeId) },
+  });
   const invalidateWallet = () => {
     invalidate();
     qc.invalidateQueries({ queryKey: getGetStoreTransactionsQueryKey(storeId) });
@@ -734,6 +746,33 @@ export default function MyStoreDetail() {
           )}
         </CardContent>
       </Card>
+      {/* Pending gun requests — visible to all operators so the crew stays informed */}
+      {isGunStore && canBuyStock && (gunRequests ?? []).length > 0 && (
+        <Card className="rounded-none border-border bg-card/50" data-testid="panel-gun-requests">
+          <CardHeader>
+            <CardTitle className="font-display tracking-widest text-nc-magenta">PENDING GUN REQUESTS</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-0">
+            {(gunRequests ?? []).map((r) => (
+              <div
+                key={r.id}
+                className="flex items-center justify-between gap-3 border-b border-border/30 py-2 last:border-0"
+                data-testid={`row-gun-request-${r.id}`}
+              >
+                <div className="min-w-0">
+                  <div className="font-mono text-sm text-foreground truncate">{r.title}</div>
+                  <div className="font-mono text-[11px] text-muted-foreground">
+                    {r.requestedByName ?? "Unknown"} · {formatDate(r.createdAt)}
+                  </div>
+                </div>
+                <div className="shrink-0">
+                  <RequestStatusBadge status={r.status} stagedApproval />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
       <VenueOffersPanel offers={offers ?? []} />
       {isOwner && !isStaff && (
         <Card className="rounded-none border-destructive/40 bg-card/50" data-testid="panel-owner-danger">

@@ -2137,6 +2137,24 @@ export const RequestStoreStockBody = zod.object({
 
 
 /**
+ * @summary List open/in-flight custom gun requests for this store (operators only). Returns pending, draft, and changes_requested rows; terminal statuses (approved, rejected, closed, cancelled) are excluded. Gated on isVenueOperator (owner, staff, or employee).
+ */
+export const ListStoreGunRequestsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListStoreGunRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string().describe('Gun name as submitted.'),
+  "status": zod.enum(['draft', 'pending', 'changes_requested']).describe('Current in-flight status.'),
+  "createdAt": zod.coerce.date(),
+  "requestedById": zod.string().describe('Discord user id of the submitter.'),
+  "requestedByName": zod.string().nullish().describe('Display name of the submitter.')
+})
+export const ListStoreGunRequestsResponse = zod.array(ListStoreGunRequestsResponseItem)
+
+
+/**
  * @summary Gun-store operator (owner/employee/staff) submits a custom gun request with proposed specs and an optional buyer + sale price. Goes to the fixer review queue; on approve+close the gun lands in this store's stock and, when a buyer and price were named, a pending sale offer is created in the buyer's Inbox.
  */
 export const RequestStoreGunParams = zod.object({

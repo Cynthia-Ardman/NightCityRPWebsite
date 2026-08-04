@@ -663,6 +663,8 @@ export * from './stockPurchaseResult';
 export * from './stockUpdate';
 export * from './store';
 export * from './storeGunRequestInput';
+export * from './storeGunRequestItem';
+export * from './storeGunRequestItemStatus';
 export * from './storeKind';
 export * from './storePublic';
 export * from './storePublicKind';

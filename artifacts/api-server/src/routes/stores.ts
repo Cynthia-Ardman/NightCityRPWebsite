@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import type { Request, Response } from "express";
-import { eq, and, desc, sql, gte } from "drizzle-orm";
+import { eq, and, desc, sql, gte, notInArray } from "drizzle-orm";
 import {
   db,
   stores,
@@ -772,6 +772,54 @@ router.post("/stores/:id/gun-requests", requireAuth, async (req, res): Promise<v
     await announceRequest(inserted.id, "gun", name, charRow?.name ?? "(unknown)", submitterName);
   })().catch((err) => logger.warn({ err, requestId: inserted.id }, "store gun request announce failed"));
   res.status(201).json(shapeCustomRequest(inserted));
+});
+
+// Operator-visible list of open/in-flight custom gun requests for this store.
+// Gated on isVenueOperator (owner | staff | employee) so the whole crew stays
+// informed — not just the individual submitter who sees it under My Submissions.
+// Terminal statuses (approved / rejected / closed / cancelled) are excluded to
+// match the CatalogRequestSection "Your Requests" banner pattern.
+router.get("/stores/:id/gun-requests", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const [s] = await db.select().from(stores).where(eq(stores.id, id));
+  if (!s) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (!(await isVenueOperator("store", s, s.id, req.user!))) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const TERMINAL = ["approved", "rejected", "closed", "cancelled"];
+  const rows = await db
+    .select({
+      id: customRequests.id,
+      title: customRequests.title,
+      status: customRequests.status,
+      createdAt: customRequests.createdAt,
+      requestedById: customRequests.requestedById,
+      requestedByName: users.username,
+    })
+    .from(customRequests)
+    .leftJoin(users, eq(users.id, customRequests.requestedById))
+    .where(
+      and(
+        eq(customRequests.type, "gun"),
+        sql`${customRequests.details}->>'storeId' = ${String(id)}`,
+        notInArray(customRequests.status, TERMINAL),
+      ),
+    )
+    .orderBy(desc(customRequests.createdAt));
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      status: r.status,
+      createdAt: r.createdAt.toISOString(),
+      requestedById: r.requestedById,
+      requestedByName: r.requestedByName ?? null,
+    })),
+  );
 });
 
 // Edit an employee's role and/or commission percentage. Owner or staff.
