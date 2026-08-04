@@ -323,16 +323,22 @@ export default function CityMap() {
         <p className="font-mono text-xs text-muted-foreground">
           Hover a district to highlight it. Hover a neighborhood name to highlight just that area. Click to open its lore entry.
         </p>
-        <div className="font-mono text-xs border border-border bg-card/50 px-3 py-2 min-w-[220px]" data-testid="text-map-hover-info">
+        {/* Fixed single-line box: long lore names truncate instead of
+            wrapping, so hovering never changes the header height and the
+            map below stays put. */}
+        <div
+          className="font-mono text-xs border border-border bg-card/50 px-3 min-w-[220px] max-w-full h-8 flex items-center overflow-hidden whitespace-nowrap"
+          data-testid="text-map-hover-info"
+        >
           {hoveredSubShape || hovered ? (
-            <>
+            <span className="truncate">
               <span className="font-display tracking-widest text-nc-cyan">
                 {hoveredSubShape ? hoveredSubShape.label : districtLabel(hovered)}
               </span>
               <span className="text-muted-foreground ml-2">
                 {hoveredEntry ? `→ ${hoveredEntry.name}` : isLoading ? "Loading lore..." : "No lore entry tagged yet"}
               </span>
-            </>
+            </span>
           ) : (
             <span className="text-muted-foreground">Hover a district...</span>
           )}
