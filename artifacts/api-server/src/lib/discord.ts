@@ -1133,6 +1133,13 @@ export interface ScheduledEventInput {
   endAt: Date;
   /** Optional http(s) image URL; fetched and inlined as a data URI. */
   imageUrl?: string | null;
+  /**
+   * Recurrence rule to push to Discord. Omit (undefined) to leave Discord's
+   * existing rule untouched. Null explicitly clears it (single-occurrence).
+   * Only weekly (frequency=2) is safe for guild scheduled events.
+   * Discord field names differ from our stored shape: byWeekday→by_weekday, until→end.
+   */
+  recurrenceRule?: DiscordRecurrence | null;
 }
 
 const DISCORD_EVENT_PRIVACY_GUILD_ONLY = 2;
@@ -1199,6 +1206,23 @@ async function buildEventBody(input: ScheduledEventInput): Promise<Record<string
   };
   const image = await imageUrlToDataUri(input.imageUrl);
   if (image) body.image = image;
+  // Include recurrence_rule when explicitly provided (null clears it; object sets it).
+  // `undefined` means "omit" so Discord preserves whatever rule it already has.
+  if (input.recurrenceRule !== undefined) {
+    if (input.recurrenceRule === null) {
+      body.recurrence_rule = null;
+    } else {
+      const r = input.recurrenceRule;
+      const rule: Record<string, unknown> = {
+        frequency: r.frequency,
+        interval: r.interval,
+      };
+      if (r.byWeekday && r.byWeekday.length > 0) rule.by_weekday = r.byWeekday;
+      if (r.count != null) rule.count = r.count;
+      if (r.until) rule.end = r.until;
+      body.recurrence_rule = rule;
+    }
+  }
   return body;
 }
 

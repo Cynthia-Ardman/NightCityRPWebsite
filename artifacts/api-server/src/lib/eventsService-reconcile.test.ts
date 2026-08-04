@@ -174,19 +174,47 @@ describe("reconcileDiscordEvents — recurring social edits propagate via the si
     expect(row.recurrenceRule).toEqual(WEEKLY_THU);
   });
 
-  it("mirrors a Discord-side recurrence-rule change (weekday shift) onto the row", async () => {
+  it("does NOT clobber a non-null site rule when Discord reports a different one (site is authoritative)", async () => {
+    // The site already has WEEKLY_THU set (seeded by seedSyncedRecurringSocial).
+    // If Discord reports a different rule the reconcile must NOT overwrite the
+    // site rule — instead it should push the site rule back to Discord (live only).
     const id = await seedSyncedRecurringSocial();
 
-    // Operator changes the weekly social from Thursday to Friday on Discord.
+    // Discord claims a Friday rule (e.g. the push failed on last cycle).
     const weeklyFri: DiscordRecurrence = { ...WEEKLY_THU, byWeekday: [4] };
     mockList.mockResolvedValue({ ok: true, events: [discordEvent({ recurrence: weeklyFri })] });
 
-    // Recurrence is backfilled independently of the content hash, so even a pure
-    // rule change (no title/time edit) is mirrored down in Test mode.
+    // In TEST mode: site rule non-null and differs → deferred, no push, no clobber.
     await reconcileDiscordEvents(false);
+    const [rowTest] = await db.select().from(events).where(eq(events.id, id));
+    expect(rowTest.recurrenceRule).toEqual(WEEKLY_THU); // site rule preserved
+    expect(mockModify).not.toHaveBeenCalled();
 
+    // In LIVE mode: push site rule back to Discord (self-heal).
+    const result = await reconcileDiscordEvents(true);
+    expect(result.pushed).toBeGreaterThanOrEqual(1);
+    expect(mockModify).toHaveBeenCalledTimes(1);
+    const [rowLive] = await db.select().from(events).where(eq(events.id, id));
+    // Site rule still WEEKLY_THU — not overwritten by the Discord (wrong) value.
+    expect(rowLive.recurrenceRule).toEqual(WEEKLY_THU);
+  });
+
+  it("backfills Discord rule when site rule is null (legacy import flow)", async () => {
+    // Seed a row with no site-side recurrence rule, but Discord reports one.
+    // This simulates a legacy event that was linked before the feature shipped.
+    const id = await seedSyncedRecurringSocial();
+    // Wipe the site rule to simulate the legacy-null state.
+    await db.update(events).set({ recurrenceRule: null }).where(eq(events.id, id));
+
+    const weeklyFri: DiscordRecurrence = { ...WEEKLY_THU, byWeekday: [4] };
+    mockList.mockResolvedValue({ ok: true, events: [discordEvent({ recurrence: weeklyFri })] });
+
+    // Test mode: backfill is allowed (website-only write, no Discord mutation).
+    await reconcileDiscordEvents(false);
     const [row] = await db.select().from(events).where(eq(events.id, id));
+    // The site now has the Discord rule — backfilled.
     expect(row.recurrenceRule).toEqual(weeklyFri);
+    expect(mockModify).not.toHaveBeenCalled();
   });
 
   it("both sides changed: website edit is authoritative and pushes back to Discord (documented policy)", async () => {

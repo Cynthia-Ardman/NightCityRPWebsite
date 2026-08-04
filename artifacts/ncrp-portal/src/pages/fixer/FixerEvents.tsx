@@ -17,6 +17,7 @@ import {
   type EventCreateInputTicketPayoutMode,
   type EventTicketTypeInput,
   type EventUpdateInput,
+  type EventRecurrence,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { expandOccurrences, type RecurrenceRule } from "@/lib/eventRecurrence";
-import { PartyPopper, Trash2, Ticket, Plus, X } from "lucide-react";
+import { PartyPopper, Trash2, Ticket, Plus, X, RefreshCw } from "lucide-react";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import SingleImageUpload from "@/components/SingleImageUpload";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
@@ -184,6 +185,11 @@ type FormValues = {
   endAt: string;
   needsNpcs: boolean;
   npcBlurb: string;
+  // Repeat / recurrence. repeatMode === "weekly" means the event recurs every
+  // repeatInterval weeks (anchored on the startAt weekday; no end date).
+  // "none" = single occurrence. Disabled for sessions (those are discrete rows).
+  repeatMode: "none" | "weekly";
+  repeatInterval: number;
   ticketPayoutMode: EventCreateInputTicketPayoutMode;
   ticketRunnerUserId: string | null;
   ticketRunnerName: string;
@@ -200,6 +206,8 @@ const EMPTY: FormValues = {
   endAt: "",
   needsNpcs: false,
   npcBlurb: "",
+  repeatMode: "none",
+  repeatInterval: 1,
   ticketPayoutMode: "runner",
   ticketRunnerUserId: null,
   ticketRunnerName: "",
@@ -284,6 +292,7 @@ function EditEventForm({ eventId, onSaved }: { eventId: number; onSaved: () => v
   const { data, isLoading } = useGetEvent(eventId);
   if (isLoading) return <div className="font-mono text-nc-cyan animate-pulse">Loading event...</div>;
   if (!data) return <div className="font-mono text-destructive">Event not found.</div>;
+  const existingRule = data.recurrence ?? null;
   const initial: FormValues = {
     title: data.title,
     eventType: data.eventType as EventCreateInputEventType,
@@ -294,6 +303,9 @@ function EditEventForm({ eventId, onSaved }: { eventId: number; onSaved: () => v
     endAt: toLocalInputValue(data.endAt),
     needsNpcs: data.needsNpcs,
     npcBlurb: data.npcBlurb ?? "",
+    // Prefill repeat control from the stored recurrence rule.
+    repeatMode: existingRule ? "weekly" : "none",
+    repeatInterval: existingRule?.interval ?? 1,
     ticketPayoutMode: (data.ticketPayoutMode ?? "runner") as EventCreateInputTicketPayoutMode,
     ticketRunnerUserId: data.ticketRunnerUserId ?? null,
     ticketRunnerName: data.ticketRunnerName ?? "",
@@ -415,9 +427,9 @@ function EventForm({
     // chosen occurrence by the same delta the fixer applied to the base.
     const startDelta = new Date(pendingPayload.startAt!).getTime() - base.getTime();
     const endDelta = new Date(pendingPayload.endAt!).getTime() - base.getTime();
-    // Ticket tiers stay series-wide — the server rejects tier edits in
-    // occurrence scope, so they are stripped from the occurrence payload.
-    const { ticketTypes: _tt, ...rest } = pendingPayload;
+    // Ticket tiers and recurrenceRule stay series-wide — the server rejects
+    // both in occurrence scope, so strip them from the occurrence payload.
+    const { ticketTypes: _tt, recurrenceRule: _rr, ...rest } = pendingPayload;
     update.mutate(
       {
         id: eventId,
@@ -472,6 +484,13 @@ function EventForm({
       price: Math.max(0, Math.floor(Number(t.price) || 0)),
       quantity: Math.max(0, Math.floor(Number(t.quantity) || 0)),
     }));
+    // Build the recurrenceRule payload value.
+    // sessions are always discrete rows — never set recurrence on them.
+    const recurrenceRule: EventRecurrence | null =
+      v.eventType !== "session" && v.repeatMode === "weekly"
+        ? { frequency: 2, interval: Math.max(1, v.repeatInterval), byWeekday: null, count: null, until: null }
+        : null;
+
     const payload = {
       ticketPayoutMode: v.ticketPayoutMode,
       ticketRunnerUserId: v.ticketPayoutMode === "runner" ? v.ticketRunnerUserId : null,
@@ -485,6 +504,7 @@ function EventForm({
       endAt: new Date(v.endAt).toISOString(),
       needsNpcs: v.needsNpcs,
       npcBlurb: v.needsNpcs ? v.npcBlurb || null : null,
+      recurrenceRule,
     };
     if (eventId != null) {
       // Recurring event: ask whether the edit applies to the whole series or
@@ -586,6 +606,51 @@ function EventForm({
               data-testid="input-event-location"
             />
           </div>
+
+          {/* ---- Repeat / recurrence control ---- */}
+          <div className="md:col-span-4">
+            <Label className="text-xs flex items-center gap-1">
+              <RefreshCw className="w-3 h-3" />
+              REPEAT
+              {v.eventType === "session" && (
+                <span className="text-muted-foreground normal-case tracking-normal ml-1">
+                  (sessions use discrete rows — not applicable)
+                </span>
+              )}
+            </Label>
+            <select
+              value={v.eventType === "session" ? "none" : v.repeatMode}
+              onChange={(e) => set("repeatMode", e.target.value as "none" | "weekly")}
+              disabled={v.eventType === "session"}
+              className="w-full h-10 bg-background border border-border px-2 font-mono text-sm disabled:opacity-50"
+              data-testid="select-repeat-mode"
+            >
+              <option value="none">NONE (single occurrence)</option>
+              <option value="weekly">WEEKLY</option>
+            </select>
+          </div>
+          {v.repeatMode === "weekly" && v.eventType !== "session" && (
+            <div className="md:col-span-4">
+              <Label className="text-xs">REPEAT EVERY (weeks)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={52}
+                step={1}
+                value={v.repeatInterval}
+                onChange={(e) => {
+                  const n = Math.max(1, Math.min(52, Math.floor(Number(e.target.value) || 1)));
+                  set("repeatInterval", n);
+                }}
+                className="rounded-none"
+                data-testid="input-repeat-interval"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Anchors to the start time's weekday. Runs open-ended; each occurrence is
+                pushed to Discord automatically.
+              </p>
+            </div>
+          )}
 
           {conflict && conflict.conflicts.length > 0 && (
             <div

@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq } from "drizzle-orm";
-import { db, events } from "@workspace/db";
+import { db, events, type EventRecurrenceRule } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { hasRole } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
@@ -128,6 +128,37 @@ function parseBody(b: Record<string, unknown>) {
   return { title, eventType, location, description, imageUrl, needsNpcs, npcBlurb };
 }
 
+/**
+ * Parse and validate an inbound recurrenceRule value. Returns:
+ *   - An EventRecurrenceRule object when valid (frequency=2/weekly, interval 1-52).
+ *   - null when explicitly cleared.
+ *   - undefined when not provided in the request (leave existing rule alone).
+ *   - { error: string } when the value is present but invalid.
+ */
+function parseRecurrenceRuleInput(
+  raw: unknown,
+  key: string,
+): EventRecurrenceRule | null | undefined | { error: string } {
+  if (!(key in (raw as Record<string, unknown>))) return undefined;
+  const v = (raw as Record<string, unknown>)[key];
+  if (v === null) return null;
+  if (typeof v !== "object" || Array.isArray(v)) {
+    return { error: "recurrenceRule must be null or an object with frequency and interval" };
+  }
+  const r = v as Record<string, unknown>;
+  const frequency = typeof r.frequency === "number" ? r.frequency : NaN;
+  const interval = typeof r.interval === "number" ? Math.floor(r.interval) : NaN;
+  if (frequency !== 2) {
+    return { error: "recurrenceRule.frequency must be 2 (weekly — the only supported value)" };
+  }
+  if (!Number.isInteger(interval) || interval < 1 || interval > 52) {
+    return { error: "recurrenceRule.interval must be an integer between 1 and 52" };
+  }
+  // byWeekday, count, until are intentionally ignored from input — the rule
+  // anchors to the start time's weekday and runs open-ended.
+  return { frequency: 2, interval, byWeekday: null, count: null, until: null };
+}
+
 router.post("/events", requireAuth, async (req, res): Promise<void> => {
   if (!isManager(req)) {
     res.status(403).json({ error: "Fixer or admin role required" });
@@ -149,6 +180,13 @@ router.post("/events", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: "End time must be after start time" });
     return;
   }
+  // Recurrence rule (optional; null = no recurrence).
+  const recurrenceRuleResult = parseRecurrenceRuleInput(b, "recurrenceRule");
+  if (recurrenceRuleResult && typeof recurrenceRuleResult === "object" && "error" in recurrenceRuleResult) {
+    res.status(400).json({ error: recurrenceRuleResult.error });
+    return;
+  }
+  const recurrenceRule = recurrenceRuleResult as EventRecurrenceRule | null | undefined;
   // Ticket configuration (optional).
   const ticketPayoutMode = isTicketPayoutMode(b.ticketPayoutMode) ? b.ticketPayoutMode : undefined;
   const ticketRunnerUserId =
@@ -162,7 +200,7 @@ router.post("/events", requireAuth, async (req, res): Promise<void> => {
     }
   }
   const created = await createEvent(
-    { ...parsed, startAt, endAt, ticketPayoutMode, ticketRunnerUserId },
+    { ...parsed, startAt, endAt, recurrenceRule: recurrenceRule ?? null, ticketPayoutMode, ticketRunnerUserId },
     req.user!.id,
   );
   if (Array.isArray(ticketTypes) && ticketTypes.length) {
@@ -290,9 +328,17 @@ router.patch("/events/:id", requireAuth, async (req, res): Promise<void> => {
     patch.ticketRunnerUserId =
       typeof b.ticketRunnerUserId === "string" && b.ticketRunnerUserId.trim() ? b.ticketRunnerUserId.trim() : null;
   }
+  // Recurrence rule: parse and validate if provided.
+  const recurrenceRuleResult = parseRecurrenceRuleInput(b, "recurrenceRule");
+  if (recurrenceRuleResult && typeof recurrenceRuleResult === "object" && "error" in recurrenceRuleResult) {
+    res.status(400).json({ error: recurrenceRuleResult.error });
+    return;
+  }
+  const patchRecurrenceRule = recurrenceRuleResult as EventRecurrenceRule | null | undefined;
+  if (patchRecurrenceRule !== undefined) patch.recurrenceRule = patchRecurrenceRule;
   // ---- "Just this occurrence" scope: split the occurrence out of the series
-  // instead of editing the parent row. Ticket-tier edits stay series-wide and
-  // are rejected here so a validation surface can't silently no-op.
+  // instead of editing the parent row. Ticket-tier edits and recurrenceRule
+  // changes stay series-wide and are rejected here so they can't silently no-op.
   if (b.applyScope !== undefined && b.applyScope !== "series" && b.applyScope !== "occurrence") {
     res.status(400).json({ error: "applyScope must be 'series' or 'occurrence'" });
     return;
@@ -307,7 +353,14 @@ router.patch("/events/:id", requireAuth, async (req, res): Promise<void> => {
       res.status(400).json({ error: "Ticket tiers can only be edited on the whole series" });
       return;
     }
-    const split = await splitEventOccurrence(id, occ, patch);
+    if (patchRecurrenceRule !== undefined) {
+      res.status(400).json({ error: "recurrenceRule can only be changed on the whole series, not a single occurrence" });
+      return;
+    }
+    // Strip recurrenceRule from the patch before passing to splitEventOccurrence
+    // (child events are always single-occurrence).
+    const { recurrenceRule: _rr, ...occPatch } = patch;
+    const split = await splitEventOccurrence(id, occ, occPatch);
     if (!split.ok || !split.child) {
       res.status(split.httpStatus ?? 500).json({ error: split.error ?? "Split failed" });
       return;

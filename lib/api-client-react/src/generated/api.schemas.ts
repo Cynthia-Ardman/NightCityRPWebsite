@@ -6885,6 +6885,8 @@ export interface EventCreateInput {
   needsNpcs?: boolean;
   /** @nullable */
   npcBlurb?: string | null;
+  /** Recurrence rule (null = single occurrence). Only weekly (frequency=2) with interval 1-52 is supported. byWeekday, count, and until are ignored on input — the rule anchors open-ended to the start time's weekday. */
+  recurrenceRule?: EventRecurrence | null;
   ticketPayoutMode?: EventCreateInputTicketPayoutMode;
   /**
      * Credited user in runner mode; null = event creator.
@@ -6938,6 +6940,8 @@ export interface EventUpdateInput {
   needsNpcs?: boolean;
   /** @nullable */
   npcBlurb?: string | null;
+  /** Recurrence rule update. Omit to leave the existing rule unchanged. Null explicitly clears recurrence (also clears excludedOccurrences). Cannot be set on occurrence-scoped edits. */
+  recurrenceRule?: EventRecurrence | null;
   ticketPayoutMode?: EventUpdateInputTicketPayoutMode;
   /** @nullable */
   ticketRunnerUserId?: string | null;
@@ -9072,4 +9076,3 @@ export type MarkNotificationsReadBody = {
 export type MarkNotificationsRead200 = {
   updated: number;
 };
-

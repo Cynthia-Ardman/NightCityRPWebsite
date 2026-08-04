@@ -7,6 +7,7 @@
  */
 import type { EventCreateInputEventType } from './eventCreateInputEventType';
 import type { EventCreateInputTicketPayoutMode } from './eventCreateInputTicketPayoutMode';
+import type { EventRecurrence } from './eventRecurrence';
 import type { EventTicketTypeInput } from './eventTicketTypeInput';
 
 export interface EventCreateInput {
@@ -24,6 +25,8 @@ export interface EventCreateInput {
   needsNpcs?: boolean;
   /** @nullable */
   npcBlurb?: string | null;
+  /** Recurrence rule (null = single occurrence). Only weekly (frequency=2) with interval 1-52 is supported. byWeekday, count, and until are ignored on input — the rule anchors open-ended to the start time's weekday. */
+  recurrenceRule?: EventRecurrence | null;
   ticketPayoutMode?: EventCreateInputTicketPayoutMode;
   /**
      * Credited user in runner mode; null = event creator.

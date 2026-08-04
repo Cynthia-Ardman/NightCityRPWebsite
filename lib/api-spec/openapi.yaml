@@ -11258,6 +11258,11 @@ components:
         endAt: { type: string, format: date-time }
         needsNpcs: { type: boolean, default: false }
         npcBlurb: { type: ["string", "null"] }
+        recurrenceRule:
+          oneOf:
+            - $ref: "#/components/schemas/EventRecurrence"
+            - type: "null"
+          description: "Recurrence rule (null = single occurrence). Only weekly (frequency=2) with interval 1-52 is supported. byWeekday, count, and until are ignored on input — the rule anchors open-ended to the start time's weekday."
         ticketPayoutMode: { type: string, enum: [runner, sink], default: runner }
         ticketRunnerUserId: { type: ["string", "null"], description: "Credited user in runner mode; null = event creator." }
         ticketTypes:
@@ -11276,6 +11281,11 @@ components:
         endAt: { type: string, format: date-time }
         needsNpcs: { type: boolean }
         npcBlurb: { type: ["string", "null"] }
+        recurrenceRule:
+          oneOf:
+            - $ref: "#/components/schemas/EventRecurrence"
+            - type: "null"
+          description: "Recurrence rule update. Omit to leave the existing rule unchanged. Null explicitly clears recurrence (also clears excludedOccurrences). Cannot be set on occurrence-scoped edits."
         ticketPayoutMode: { type: string, enum: [runner, sink] }
         ticketRunnerUserId: { type: ["string", "null"] }
         ticketTypes:

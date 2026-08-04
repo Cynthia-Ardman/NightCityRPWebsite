@@ -5,6 +5,7 @@
  * Night City RP Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { EventRecurrence } from './eventRecurrence';
 import type { EventTicketTypeInput } from './eventTicketTypeInput';
 import type { EventUpdateInputApplyScope } from './eventUpdateInputApplyScope';
 import type { EventUpdateInputEventType } from './eventUpdateInputEventType';
@@ -25,6 +26,8 @@ export interface EventUpdateInput {
   needsNpcs?: boolean;
   /** @nullable */
   npcBlurb?: string | null;
+  /** Recurrence rule update. Omit to leave the existing rule unchanged. Null explicitly clears recurrence (also clears excludedOccurrences). Cannot be set on occurrence-scoped edits. */
+  recurrenceRule?: EventRecurrence | null;
   ticketPayoutMode?: EventUpdateInputTicketPayoutMode;
   /** @nullable */
   ticketRunnerUserId?: string | null;

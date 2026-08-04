@@ -360,6 +360,10 @@ export async function syncEventDiscordEvent(
     startAt: pushTimes.startAt,
     endAt: pushTimes.endAt,
     imageUrl: resolveAbsoluteImageUrl(event.imageUrl),
+    // Always include recurrenceRule so Discord mirrors the site's intent.
+    // null = single-occurrence (clears any existing Discord rule).
+    // Non-null = set the weekly rule on Discord so it recurs there too.
+    recurrenceRule: event.recurrenceRule ?? null,
   };
   const res = event.discordEventId
     ? await modifyGuildScheduledEvent(event.discordEventId, input)
@@ -1026,6 +1030,10 @@ export interface EventInput {
   ticketPayoutMode?: TicketPayoutMode;
   // Credited user in 'runner' mode; null falls back to the creator.
   ticketRunnerUserId?: string | null;
+  // Recurrence rule (null = single occurrence). Only weekly (frequency=2) is
+  // supported from the website UI. Setting null on an update explicitly clears
+  // any existing rule (and also clears excludedOccurrences).
+  recurrenceRule?: EventRecurrenceRule | null;
 }
 
 export async function createEvent(input: EventInput, createdById: string): Promise<Event> {
@@ -1043,6 +1051,7 @@ export async function createEvent(input: EventInput, createdById: string): Promi
       npcBlurb: input.needsNpcs ? input.npcBlurb : null,
       ticketPayoutMode: input.ticketPayoutMode ?? "runner",
       ticketRunnerUserId: input.ticketRunnerUserId ?? null,
+      recurrenceRule: input.recurrenceRule ?? null,
       createdById,
     })
     .returning();
@@ -1067,6 +1076,13 @@ export async function updateEvent(id: number, patch: Partial<EventInput>): Promi
   if (patch.npcBlurb !== undefined) set.npcBlurb = patch.npcBlurb;
   if (patch.ticketPayoutMode !== undefined) set.ticketPayoutMode = patch.ticketPayoutMode;
   if (patch.ticketRunnerUserId !== undefined) set.ticketRunnerUserId = patch.ticketRunnerUserId;
+  if (patch.recurrenceRule !== undefined) {
+    set.recurrenceRule = patch.recurrenceRule;
+    // Clearing the rule makes excludedOccurrences meaningless (they referenced
+    // occurrences of the now-deleted series). Drop them so the event behaves as
+    // a plain single-occurrence row.
+    if (patch.recurrenceRule === null) set.excludedOccurrences = [];
+  }
   // If NPCs were turned off, clear the now-meaningless blurb.
   if (patch.needsNpcs === false) set.npcBlurb = null;
   const [updated] = Object.keys(set).length
@@ -1678,15 +1694,37 @@ export async function reconcileDiscordEvents(live: boolean): Promise<ReconcileRe
       continue;
     }
 
-    // Recurrence isn't part of the content hash (it never round-trips to Discord
-    // from us), so backfill it independently on every run for active linked rows
-    // — this is what lets an existing weekly event start expanding on the
-    // calendar without waiting for an unrelated title/time edit.
+    // Recurrence is not part of the content hash so it is handled here,
+    // independently of the title/time/location hash comparison below.
+    //
+    // Policy (website-authoritative for recurrence, same as content):
+    //   • Site rule is null  → backfill from Discord (legacy/fresh-import flow).
+    //     Website-only write; runs even in Test mode so the calendar starts
+    //     expanding occurrences without waiting for a Live run.
+    //   • Site rule is non-null but differs from Discord → push site rule back
+    //     to Discord (best-effort, same error handling as content pushes).
+    //     Discord mutation → Live only; deferred in Test mode.
+    //
+    // This keeps the site authoritative once a rule has been set, so a failed
+    // initial push self-heals on the next reconcile cycle instead of being
+    // clobbered by Discord's (wrong) value.
     if (!recurrenceEqual(row.recurrenceRule, d.recurrence)) {
-      await db
-        .update(events)
-        .set({ recurrenceRule: d.recurrence ?? null })
-        .where(eq(events.id, row.id));
+      if (row.recurrenceRule == null) {
+        // Backfill: site has no rule yet; accept whatever Discord reports.
+        await db
+          .update(events)
+          .set({ recurrenceRule: d.recurrence ?? null })
+          .where(eq(events.id, row.id));
+      } else if (live) {
+        // Site has a rule that differs: push it back to Discord.
+        const recSync = await syncEventDiscordEvent(row, true);
+        await applyEventSync(row.id, row, recSync);
+        if (!recSync.discordSyncError) result.pushed++;
+        // The push already covered all content fields, so skip the hash-based
+        // push below — it would be a redundant second call.
+        continue; // eslint-disable-line no-continue
+      }
+      // Test mode + non-null site rule: defer push until next Live run.
     }
 
     // Self-heal Main Sessions that were imported as "social" (see
