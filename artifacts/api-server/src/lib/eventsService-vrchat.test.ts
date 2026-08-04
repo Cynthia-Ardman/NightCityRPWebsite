@@ -35,7 +35,19 @@ import {
   updateGroupCalendarEvent,
   deleteGroupCalendarEvent,
 } from "./vrchatClient";
-import { reconcileVrchatCalendar, createEvent, updateEvent, VRCHAT_SYNC_FLAG } from "./eventsService";
+import {
+  reconcileVrchatCalendar,
+  createEvent,
+  updateEvent,
+  syncEventVrchatCalendar,
+  syncEventDiscordEvent,
+  VRCHAT_SYNC_FLAG,
+} from "./eventsService";
+import {
+  createGuildScheduledEvent,
+  modifyGuildScheduledEvent,
+  deleteGuildScheduledEvent,
+} from "./discord";
 import { truncateAll, createAdmin } from "../test/testDb";
 
 const mockCreate = vi.mocked(createGroupCalendarEvent);
@@ -242,6 +254,37 @@ describe("reconcileVrchatCalendar — backfill + teardown", () => {
     expect(after.vrchatCalendarId).toBe("winner-cal"); // winner preserved, not clobbered
   });
 
+  it("pushes NEXT-occurrence times for a recurring event whose base start is past", async () => {
+    await setSyncFlag(true);
+    const admin = await createAdmin();
+    // Weekly open-ended series whose base start slipped into the past — the
+    // mirror must push the next FUTURE occurrence, not the stale base times.
+    const base = new Date(Date.now() - 10 * 86400000);
+    const end = new Date(base.getTime() + 4 * 3600_000);
+    await db.insert(events).values({
+      title: "Weekly Social",
+      eventType: "social",
+      startAt: base,
+      endAt: end,
+      status: "scheduled",
+      needsNpcs: false,
+      createdById: admin.id,
+      recurrenceRule: { frequency: 2, interval: 1, byWeekday: null, count: null, until: null },
+    });
+
+    const res = await reconcileVrchatCalendar();
+    expect(res).toEqual({ synced: 1, failed: 0 });
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    const input = mockCreate.mock.calls[0][0] as { startsAt: string; endsAt: string };
+    // Future start, a whole number of weeks after the base, duration preserved.
+    expect(new Date(input.startsAt).getTime()).toBeGreaterThanOrEqual(Date.now() - 60_000);
+    const weeks = (new Date(input.startsAt).getTime() - base.getTime()) / (7 * 86400000);
+    expect(weeks).toBeCloseTo(Math.round(weeks), 6);
+    expect(new Date(input.endsAt).getTime() - new Date(input.startsAt).getTime()).toBe(
+      end.getTime() - base.getTime(),
+    );
+  });
+
   it("is a no-op when the kill-switch is OFF", async () => {
     await setSyncFlag(false);
     const admin = await createAdmin();
@@ -258,5 +301,75 @@ describe("reconcileVrchatCalendar — backfill + teardown", () => {
     const res = await reconcileVrchatCalendar();
     expect(res).toEqual({ synced: 0, failed: 0 });
     expect(mockCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("ended recurring series — sync skips the doomed external write", () => {
+  // A weekly series whose count is fully exhausted: base 5 weeks in the past,
+  // only 2 occurrences. There is no upcoming occurrence to shift onto, so any
+  // external write would carry past times and 400 against both mirrors.
+  function endedSeriesRow(admin: { id: string }, extra: Record<string, unknown> = {}) {
+    const base = new Date(Date.now() - 35 * 86400000);
+    return {
+      title: "Finished Series",
+      eventType: "social" as const,
+      startAt: base,
+      endAt: new Date(base.getTime() + 2 * 3600_000),
+      status: "scheduled" as const,
+      needsNpcs: false,
+      createdById: admin.id,
+      recurrenceRule: {
+        frequency: 2,
+        interval: 1,
+        byWeekday: null,
+        count: 2,
+        until: null,
+      },
+      ...extra,
+    };
+  }
+
+  it("VRChat: skips the write and clears a stale sync error", async () => {
+    await setSyncFlag(true);
+    const admin = await createAdmin();
+    const [row] = await db
+      .insert(events)
+      .values(
+        endedSeriesRow(admin, {
+          vrchatCalendarId: "cal-ended",
+          vrchatSyncedHash: "stale",
+          vrchatSyncError: "400 Calendar Entry must start in the future",
+        }),
+      )
+      .returning();
+
+    const sync = await syncEventVrchatCalendar(row);
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockDelete).not.toHaveBeenCalled();
+    // The mirror entry is left alone; the stale error is cleared.
+    expect(sync).toEqual({ vrchatCalendarId: "cal-ended", vrchatSyncError: null });
+  });
+
+  it("Discord: skips the write and clears a stale sync error", async () => {
+    vi.mocked(createGuildScheduledEvent).mockClear();
+    vi.mocked(modifyGuildScheduledEvent).mockClear();
+    vi.mocked(deleteGuildScheduledEvent).mockClear();
+    const admin = await createAdmin();
+    const [row] = await db
+      .insert(events)
+      .values(
+        endedSeriesRow(admin, {
+          discordEventId: "disc-ended",
+          discordSyncError: "400 cannot schedule event in the past",
+        }),
+      )
+      .returning();
+
+    const sync = await syncEventDiscordEvent(row, true);
+    expect(vi.mocked(createGuildScheduledEvent)).not.toHaveBeenCalled();
+    expect(vi.mocked(modifyGuildScheduledEvent)).not.toHaveBeenCalled();
+    expect(vi.mocked(deleteGuildScheduledEvent)).not.toHaveBeenCalled();
+    expect(sync).toEqual({ discordEventId: "disc-ended", discordSyncError: null });
   });
 });

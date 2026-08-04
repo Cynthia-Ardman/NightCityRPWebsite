@@ -274,11 +274,13 @@ function recurrenceEqual(
 // event with startAt/endAt shifted onto that occurrence (duration preserved,
 // split-out occurrences skipped), or the event unchanged when it isn't
 // recurring, hasn't started, or the series has ended.
-function withUpcomingOccurrenceTimes(event: Event): Event {
-  if (!event.recurrenceRule) return event;
+function upcomingOccurrenceShift(event: Event): { times: Event; seriesEnded: boolean } {
+  if (!event.recurrenceRule) return { times: event, seriesEnded: false };
   const base = new Date(event.startAt);
   const now = new Date();
-  if (Number.isNaN(base.getTime()) || base.getTime() >= now.getTime()) return event;
+  if (Number.isNaN(base.getTime()) || base.getTime() >= now.getTime()) {
+    return { times: event, seriesEnded: false };
+  }
   const horizon = new Date(now.getTime() + 400 * 86400000);
   const next = expandOccurrences(
     base,
@@ -287,9 +289,19 @@ function withUpcomingOccurrenceTimes(event: Event): Event {
     horizon,
     event.excludedOccurrences,
   ).find((d) => d.getTime() >= now.getTime());
-  if (!next) return event;
+  // A recurring series with a past base and NO upcoming occurrence has fully
+  // exhausted its count/until — there is no valid future time to push, and any
+  // external write would carry past times and 400.
+  if (!next) return { times: event, seriesEnded: true };
   const durMs = new Date(event.endAt).getTime() - base.getTime();
-  return { ...event, startAt: next, endAt: new Date(next.getTime() + Math.max(durMs, 0)) };
+  return {
+    times: { ...event, startAt: next, endAt: new Date(next.getTime() + Math.max(durMs, 0)) },
+    seriesEnded: false,
+  };
+}
+
+function withUpcomingOccurrenceTimes(event: Event): Event {
+  return upcomingOccurrenceShift(event).times;
 }
 
 // Discord external events always carry an end time; defend against a missing
@@ -333,7 +345,14 @@ export async function syncEventDiscordEvent(
   // Recurring events with a past base start push the NEXT occurrence's times
   // (Discord rejects past start times). The synced hash below still records the
   // stored row, so the reconcile pull keeps rolling the row forward as usual.
-  const pushTimes = withUpcomingOccurrenceTimes(event);
+  const shift = upcomingOccurrenceShift(event);
+  // Series fully ended (count/until exhausted): any push would carry past
+  // times and 400 against Discord. Skip the doomed write and clear any stale
+  // sync error; leave the mirror alone (Discord removes finished events itself).
+  if (shift.seriesEnded) {
+    return { discordEventId: event.discordEventId, discordSyncError: null };
+  }
+  const pushTimes = shift.times;
   const input = {
     name: event.title,
     description: event.description ?? null,
@@ -532,7 +551,14 @@ export async function syncEventVrchatCalendar(
   // VRChat also rejects past start times, so recurring events with a past base
   // start push next-occurrence times. The hash stays keyed on the stored row so
   // the sweep doesn't churn.
-  const content = buildVrchatContent(withUpcomingOccurrenceTimes(event));
+  const shift = upcomingOccurrenceShift(event);
+  // Series fully ended: no valid future time exists, so any write would 400.
+  // Skip the doomed write and clear any stale sync error; leave the mirror
+  // entry alone (past entries simply age off the VRChat calendar).
+  if (shift.seriesEnded) {
+    return { vrchatCalendarId: event.vrchatCalendarId, vrchatSyncError: null };
+  }
+  const content = buildVrchatContent(shift.times);
   const hash = vrchatContentHash(event);
   try {
     if (!event.vrchatCalendarId) {
