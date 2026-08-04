@@ -308,7 +308,7 @@ export default function MyClinicDetail() {
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
           <CardTitle className="font-display tracking-widest">CYBERWARE STOCK</CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               size="sm"
               variant="outline"
@@ -407,9 +407,9 @@ export default function MyClinicDetail() {
             )}
             <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest">Add custom cyberware</p>
             <div className="grid grid-cols-12 gap-2">
-              <Input className="col-span-6" placeholder="Cyberware name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-cyber-name" />
+              <Input className="col-span-12 sm:col-span-6 min-w-0" placeholder="Cyberware name" value={stockName} onChange={(e) => setStockName(e.target.value)} data-testid="input-add-cyber-name" />
               <SelectOrCustom
-                className="col-span-6"
+                className="col-span-12 sm:col-span-6 min-w-0"
                 value={stockSlot}
                 onChange={setStockSlot}
                 options={CYBERWARE_SLOTS}
@@ -418,10 +418,10 @@ export default function MyClinicDetail() {
                 customPlaceholder="Custom slot"
                 testId="input-add-cyber-slot"
               />
-              <Input className="col-span-4" type="number" min={0} placeholder="CWP" value={stockCwp || ""} onChange={(e) => setStockCwp(Number(e.target.value))} data-testid="input-add-cyber-cwp" />
-              <Input className="col-span-4" type="number" min={0} title="Sale price" placeholder="Price" value={stockPrice || ""} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-cyber-price" />
-              <Input className="col-span-4" type="number" min={0} title="Shop cost (commission comes out of price − cost)" placeholder="Cost" value={stockCost || ""} onChange={(e) => setStockCost(Number(e.target.value))} data-testid="input-add-cyber-cost" />
-              <Input className="col-span-6" placeholder="Description (optional)" value={stockDescription} onChange={(e) => setStockDescription(e.target.value)} data-testid="input-add-cyber-description" />
+              <Input className="col-span-4 min-w-0" type="number" min={0} placeholder="CWP" value={stockCwp || ""} onChange={(e) => setStockCwp(Number(e.target.value))} data-testid="input-add-cyber-cwp" />
+              <Input className="col-span-4 min-w-0" type="number" min={0} title="Sale price" placeholder="Price" value={stockPrice || ""} onChange={(e) => setStockPrice(Number(e.target.value))} data-testid="input-add-cyber-price" />
+              <Input className="col-span-4 min-w-0" type="number" min={0} title="Shop cost (commission comes out of price − cost)" placeholder="Cost" value={stockCost || ""} onChange={(e) => setStockCost(Number(e.target.value))} data-testid="input-add-cyber-cost" />
+              <Input className="col-span-12 sm:col-span-6 min-w-0" placeholder="Description (optional)" value={stockDescription} onChange={(e) => setStockDescription(e.target.value)} data-testid="input-add-cyber-description" />
               <Button
                 disabled={!stockName.trim() || !stockSlot.trim() || stockPrice < 0 || addStock.isPending}
                 onClick={() => {

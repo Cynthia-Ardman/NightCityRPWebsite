@@ -5205,6 +5205,28 @@ export interface PendingEditSummary {
   voters: PendingEditSummaryVotersItem[];
 }
 
+export interface TraumaStatus {
+  eligible: boolean;
+  /**
+     * Best held tier (Diamond > Platinum > Gold > Silver), null when not subscribed.
+     * @nullable
+     */
+  tier: string | null;
+  /** False when the Discord role lookup failed — hide the button rather than guessing. */
+  determined: boolean;
+}
+
+export interface TraumaCallResult {
+  ok: boolean;
+  tier: string;
+  /** Members holding the Trauma Team role. */
+  responders: number;
+  /** How many responder DMs were actually delivered. */
+  notified: number;
+  /** True when external Discord writes are suppressed (dev/preview) — no real DMs were sent. */
+  simulated: boolean;
+}
+
 export type PendingEditVoteRecordVote = typeof PendingEditVoteRecordVote[keyof typeof PendingEditVoteRecordVote];
 
 
@@ -8804,6 +8826,10 @@ export type RunIncomeWork429 = {
 export type RunIncomeSlut429 = {
   error?: string;
   cooldownEndsAt?: string | null;
+};
+
+export type CallTraumaTeamBody = {
+  characterId: number;
 };
 
 export type RevokeVrchatAgent200 = {

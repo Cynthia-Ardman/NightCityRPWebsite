@@ -73,6 +73,7 @@ import type {
   BreachResult,
   BreachResultInput,
   BusinessLease,
+  CallTraumaTeamBody,
   CancelEvent200,
   CancelPendingEdit200,
   CatalogCyberware,
@@ -346,6 +347,8 @@ import type {
   TagOptionInput,
   TagOptionUpdate,
   TransferInput,
+  TraumaCallResult,
+  TraumaStatus,
   UpcomingBills,
   UpdateCharacter409,
   UpdateCharacterTags200,
@@ -20670,6 +20673,154 @@ export const useRunIncomeSlut = <TError = ErrorType<void | RunIncomeSlut429>,
         TContext
       > => {
       return useMutation(getRunIncomeSlutMutationOptions(options));
+    }
+
+export const getGetTraumaStatusUrl = () => {
+
+
+
+
+  return `/api/trauma/status`
+}
+
+/**
+ * @summary Whether the signed-in user holds a Trauma Team subscription role, and at which tier
+ */
+export const getTraumaStatus = async ( options?: RequestInit): Promise<TraumaStatus> => {
+
+  return customFetch<TraumaStatus>(getGetTraumaStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTraumaStatusQueryKey = () => {
+    return [
+    `/api/trauma/status`
+    ] as const;
+    }
+
+
+export const getGetTraumaStatusQueryOptions = <TData = Awaited<ReturnType<typeof getTraumaStatus>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTraumaStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTraumaStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTraumaStatus>>> = ({ signal }) => getTraumaStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTraumaStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTraumaStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getTraumaStatus>>>
+export type GetTraumaStatusQueryError = ErrorType<void>
+
+
+/**
+ * @summary Whether the signed-in user holds a Trauma Team subscription role, and at which tier
+ */
+
+export function useGetTraumaStatus<TData = Awaited<ReturnType<typeof getTraumaStatus>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTraumaStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTraumaStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCallTraumaTeamUrl = () => {
+
+
+
+
+  return `/api/trauma/call`
+}
+
+/**
+ * @summary Page every Trauma Team responder via Discord DM for one of the caller's characters
+ */
+export const callTraumaTeam = async (callTraumaTeamBody: CallTraumaTeamBody, options?: RequestInit): Promise<TraumaCallResult> => {
+
+  return customFetch<TraumaCallResult>(getCallTraumaTeamUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      callTraumaTeamBody,)
+  }
+);}
+
+
+
+
+export const getCallTraumaTeamMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof callTraumaTeam>>, TError,{data: BodyType<CallTraumaTeamBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof callTraumaTeam>>, TError,{data: BodyType<CallTraumaTeamBody>}, TContext> => {
+
+const mutationKey = ['callTraumaTeam'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof callTraumaTeam>>, {data: BodyType<CallTraumaTeamBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  callTraumaTeam(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CallTraumaTeamMutationResult = NonNullable<Awaited<ReturnType<typeof callTraumaTeam>>>
+    export type CallTraumaTeamMutationBody = BodyType<CallTraumaTeamBody>
+    export type CallTraumaTeamMutationError = ErrorType<void>
+
+    /**
+ * @summary Page every Trauma Team responder via Discord DM for one of the caller's characters
+ */
+export const useCallTraumaTeam = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof callTraumaTeam>>, TError,{data: BodyType<CallTraumaTeamBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof callTraumaTeam>>,
+        TError,
+        {data: BodyType<CallTraumaTeamBody>},
+        TContext
+      > => {
+      return useMutation(getCallTraumaTeamMutationOptions(options));
     }
 
 export const getGetVrchatStatusUrl = () => {

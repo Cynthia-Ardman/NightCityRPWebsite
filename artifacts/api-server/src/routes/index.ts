@@ -27,6 +27,7 @@ import vrchatRouter from "./vrchat";
 import ncpdRouter from "./ncpd";
 import searchRouter from "./search";
 import notificationsRouter from "./notifications";
+import traumaRouter from "./trauma";
 
 import { requireVerified, requireSiteAccess } from "../middlewares/auth";
 
@@ -77,5 +78,6 @@ router.use(vrchatRouter);
 router.use(ncpdRouter);
 router.use(searchRouter);
 router.use(notificationsRouter);
+router.use(traumaRouter);
 
 export default router;

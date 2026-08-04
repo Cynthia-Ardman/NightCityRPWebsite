@@ -10912,6 +10912,32 @@ export const RunIncomeSlutResponse = zod.object({
 
 
 /**
+ * @summary Whether the signed-in user holds a Trauma Team subscription role, and at which tier
+ */
+export const GetTraumaStatusResponse = zod.object({
+  "eligible": zod.boolean(),
+  "tier": zod.string().nullable().describe('Best held tier (Diamond > Platinum > Gold > Silver), null when not subscribed.'),
+  "determined": zod.boolean().describe('False when the Discord role lookup failed — hide the button rather than guessing.')
+})
+
+
+/**
+ * @summary Page every Trauma Team responder via Discord DM for one of the caller's characters
+ */
+export const CallTraumaTeamBody = zod.object({
+  "characterId": zod.number()
+})
+
+export const CallTraumaTeamResponse = zod.object({
+  "ok": zod.boolean(),
+  "tier": zod.string(),
+  "responders": zod.number().describe('Members holding the Trauma Team role.'),
+  "notified": zod.number().describe('How many responder DMs were actually delivered.'),
+  "simulated": zod.boolean().describe('True when external Discord writes are suppressed (dev\/preview) — no real DMs were sent.')
+})
+
+
+/**
  * @summary The requesting staffer's VRChat agent meta, latest status snapshot, and recent commands
  */
 export const GetVrchatStatusResponse = zod.object({

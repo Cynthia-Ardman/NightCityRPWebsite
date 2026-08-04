@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpCircle } from "lucide-react";
 import BecomeNpcButton from "@/components/BecomeNpcButton";
+import TraumaCallButton from "@/components/TraumaCallButton";
 import LiveInstances from "@/components/LiveInstances";
 import { useDismissNotificationPrompt, getGetMeQueryKey } from "@workspace/api-client-react";
 import { Bell, X } from "lucide-react";
@@ -121,6 +122,8 @@ function Dashboard() {
       </div>
 
       <BecomeNpcButton variant="dashboard" />
+
+      <TraumaCallButton />
 
       <NotificationPrefsPrompt />
 

@@ -4657,6 +4657,44 @@ paths:
                   error: { type: string }
                   cooldownEndsAt: { type: string, format: date-time, nullable: true }
         "502": { description: Wallet provider unavailable }
+  /trauma/status:
+    get:
+      operationId: getTraumaStatus
+      tags: [dashboard]
+      summary: Whether the signed-in user holds a Trauma Team subscription role, and at which tier
+      responses:
+        "200":
+          description: Subscription status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TraumaStatus" }
+        "401": { description: Not signed in }
+  /trauma/call:
+    post:
+      operationId: callTraumaTeam
+      tags: [dashboard]
+      summary: Page every Trauma Team responder via Discord DM for one of the caller's characters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [characterId]
+              properties:
+                characterId: { type: integer }
+      responses:
+        "200":
+          description: Responders paged
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TraumaCallResult" }
+        "400": { description: Missing characterId }
+        "401": { description: Not signed in }
+        "403": { description: No Trauma Team subscription role }
+        "404": { description: Character not found or not owned by caller }
+        "429": { description: Called too recently }
+        "502": { description: Discord unavailable }
   /vrchat/status:
     get:
       operationId: getVrchatStatus
@@ -10249,6 +10287,24 @@ components:
               name: { type: ["string", "null"] }
               avatarUrl: { type: ["string", "null"] }
               vote: { type: string, enum: [approve, reject, pause] }
+
+    TraumaStatus:
+      type: object
+      required: [eligible, tier, determined]
+      properties:
+        eligible: { type: boolean }
+        tier: { type: ["string", "null"], description: "Best held tier (Diamond > Platinum > Gold > Silver), null when not subscribed." }
+        determined: { type: boolean, description: "False when the Discord role lookup failed — hide the button rather than guessing." }
+
+    TraumaCallResult:
+      type: object
+      required: [ok, tier, responders, notified, simulated]
+      properties:
+        ok: { type: boolean }
+        tier: { type: string }
+        responders: { type: integer, description: "Members holding the Trauma Team role." }
+        notified: { type: integer, description: "How many responder DMs were actually delivered." }
+        simulated: { type: boolean, description: "True when external Discord writes are suppressed (dev/preview) — no real DMs were sent." }
 
     PendingEditVoteRecord:
       type: object

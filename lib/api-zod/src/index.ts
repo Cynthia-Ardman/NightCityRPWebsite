@@ -16,6 +16,8 @@ export { SetEventCheckinStaffBody } from "./generated/api";
 export type { SetEventCheckinStaffBody as SetEventCheckinStaffBodyType } from "./generated/types";
 export { MarkNotificationsReadBody } from "./generated/api";
 export type { MarkNotificationsReadBody as MarkNotificationsReadBodyType } from "./generated/types";
+export { CallTraumaTeamBody } from "./generated/api";
+export type { CallTraumaTeamBody as CallTraumaTeamBodyType } from "./generated/types";
 export { SetTextScalePreferenceBody } from "./generated/api";
 export type { SetTextScalePreferenceBody as SetTextScalePreferenceBodyType } from "./generated/types";
 export { UpdateCharacterTagsBody } from "./generated/api";
