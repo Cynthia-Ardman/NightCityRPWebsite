@@ -81,6 +81,8 @@ function fmtMonth(iso: string): string {
 
 const tooltipStyle = {
   backgroundColor: "hsl(240 10% 8%)",
+  // Recharts tooltip labels default to black — force light text on the dark panel.
+  color: "hsl(var(--foreground))",
   border: "1px solid hsl(240 6% 25%)",
   borderRadius: 0,
   fontFamily: "monospace",

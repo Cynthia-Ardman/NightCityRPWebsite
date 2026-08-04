@@ -196,6 +196,8 @@ function FixerActivityChart({
               <Tooltip
                 cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
                 contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", fontFamily: "monospace", fontSize: 12 }}
+                labelStyle={{ color: "hsl(var(--foreground))" }}
+                itemStyle={{ color: "hsl(var(--foreground))" }}
                 formatter={(v: number) => [v, metricLabel]}
                 labelFormatter={(l: string) => `Week ending ${l}`}
               />
@@ -209,6 +211,8 @@ function FixerActivityChart({
               <Tooltip
                 cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
                 contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", fontFamily: "monospace", fontSize: 12 }}
+                labelStyle={{ color: "hsl(var(--foreground))" }}
+                itemStyle={{ color: "hsl(var(--foreground))" }}
                 formatter={(v: number) => [v, metricLabel]}
               />
               <Bar dataKey="value" onClick={(d: { payload?: { userId?: string } }) => {
