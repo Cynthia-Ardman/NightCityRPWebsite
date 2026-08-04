@@ -4,6 +4,7 @@ import { and, eq, or, isNull, sql, arrayOverlaps } from "drizzle-orm";
 import { logger } from "./logger";
 import { ROLE_NAMES, sendDirectMessage } from "./discord";
 import { createNotification } from "./notifications";
+import { hrefAdmin } from "./notificationHrefs";
 import { recordAudit } from "./audit";
 
 // ---------------------------------------------------------------------------
@@ -644,7 +645,7 @@ async function notifyAdminsVrchatDisconnected(): Promise<void> {
       .from(users)
       .where(arrayOverlaps(users.roles, ROLE_NAMES.ADMIN));
     for (const a of admins) {
-      void createNotification({ userId: a.id, type: "vrchat_session", title, body, href: "/admin" });
+      void createNotification({ userId: a.id, type: "vrchat_session", title, body, href: hrefAdmin() });
       if (a.discordId) {
         // Best-effort; sendDirectMessage is deployment-gated internally.
         sendDirectMessage(a.discordId, `⚠️ ${title}\n${body}`).catch((err) =>

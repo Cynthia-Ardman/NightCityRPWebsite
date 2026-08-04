@@ -27,6 +27,7 @@ import { logger } from "./logger";
 import { normalizeName } from "./strings";
 import { portalLink } from "./portalUrl";
 import { createNotification } from "./notifications";
+import { hrefInbox } from "./notificationHrefs";
 
 // Offer kinds beyond a plain sale. `sale` is the historic default.
 //   stock_add — an admin proposes ADDING a cyberware piece to a venue's stock
@@ -244,7 +245,7 @@ export async function createOffer(opts: {
     type: "sale_offer",
     title: `${offerType === "install" ? "Install offer" : offerType === "give" ? "Item offer" : "Sale offer"}: ${item.name} x${qty} ${priceLabel}`,
     body: `${buyer.name} has a new ${verb} offer.${memo ? ` Memo: ${memo}` : ""}`,
-    href: "/inbox",
+    href: hrefInbox(),
   });
 
   const [offer] = await db

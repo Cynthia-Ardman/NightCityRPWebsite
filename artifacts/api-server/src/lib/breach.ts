@@ -27,6 +27,7 @@ import { recordInventoryEvent } from "./inventoryEvents";
 import { logger } from "./logger";
 import { portalLink } from "./portalUrl";
 import { createNotification } from "./notifications";
+import { hrefBreachPlay } from "./notificationHrefs";
 
 // A puzzle as serialized over the API. The stored row keeps grid/daemons/
 // selection as jsonb; we surface them as typed arrays plus a few joined display
@@ -281,7 +282,7 @@ export async function createPuzzle(
     type: "breach_challenge",
     title: `Breach Protocol — incoming ICE for ${character.name}`,
     body: `Difficulty: ${difficulty} · Time limit: ${timeLimitSeconds}s.${contextLabel ? ` Context: ${contextLabel}.` : ""}`,
-    href: `/breach/play/${row.id}`,
+    href: hrefBreachPlay(row.id),
   });
 
   // DM the player a play link (best-effort; record delivery).

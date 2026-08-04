@@ -19,6 +19,7 @@ import { grantRoleDurable } from "../lib/roleGrants";
 import { announceWithThread } from "../lib/reviewAnnounce";
 import { portalLink } from "../lib/portalUrl";
 import { createNotification } from "../lib/notifications";
+import { hrefCharacter } from "../lib/notificationHrefs";
 import { isReviewer, isEligibleReviewer, listEligibleReviewerIds, listEligibleReviewers, loadLastActivityBySubject, majorityOf, countVotes, type ReviewActionResult } from "../lib/review";
 import { recordAudit } from "../lib/audit";
 
@@ -1140,7 +1141,7 @@ export async function closeEdit(req: Request, id: number, note?: string): Promis
         type: "edit_decision",
         title: `Character edit ${result.status}`,
         body: note ?? null,
-        href: `/characters/${result.characterId}`,
+        href: hrefCharacter(result.characterId),
       });
     }
     await recordAudit({

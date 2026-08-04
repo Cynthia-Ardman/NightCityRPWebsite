@@ -8,6 +8,7 @@ import { announceWithThread } from "../lib/reviewAnnounce";
 import { portalLink } from "../lib/portalUrl";
 import { normalizeName, looseNameKey } from "../lib/strings";
 import { createNotification } from "../lib/notifications";
+import { hrefCharacter, hrefSheet } from "../lib/notificationHrefs";
 import { recordAudit } from "../lib/audit";
 import { collectCyberware, buildCyberwareCostMap, entryPoints, validateCyberware } from "../lib/cyberware-cap";
 import { validateSheetFields, findTechStartingGun } from "../lib/sheet-validation";
@@ -1191,7 +1192,7 @@ export async function closeSheet(
           ? `Character sheet "${result.sheet.name}" approved`
           : `Character sheet "${result.sheet.name}" rejected`,
         body: note ?? null,
-        href: approved && result.sheet.characterId ? `/characters/${result.sheet.characterId}` : `/sheets/${id}`,
+        href: approved && result.sheet.characterId ? hrefCharacter(result.sheet.characterId) : hrefSheet(id),
       });
     }
   }

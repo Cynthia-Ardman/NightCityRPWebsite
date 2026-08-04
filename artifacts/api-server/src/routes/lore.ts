@@ -13,6 +13,7 @@ import {
 import { requireAuth } from "../middlewares/auth";
 import { sendDirectMessage } from "../lib/discord";
 import { createNotification } from "../lib/notifications";
+import { hrefLoreEntry, hrefLoreMine } from "../lib/notificationHrefs";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
 import { runLoreImport, type LoreSourceRef } from "../lib/loreImport";
@@ -240,10 +241,10 @@ async function notifyFixerOfLoreDecision(
       title: `${status === "approved" ? "Approved" : "Rejected"}: ${what} "${name}"`,
       body: summary ? `${status === "approved" ? "Note" : "Reason"}: ${summary}` : null,
       href: edit.appliedEntryId
-        ? `/directory/lore/${edit.appliedEntryId}`
+        ? hrefLoreEntry(edit.appliedEntryId)
         : edit.loreEntryId
-          ? `/directory/lore/${edit.loreEntryId}`
-          : "/directory/lore/mine",
+          ? hrefLoreEntry(edit.loreEntryId)
+          : hrefLoreMine(),
     });
   }
   try {

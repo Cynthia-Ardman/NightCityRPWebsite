@@ -32,6 +32,7 @@ import {
   normalizeSlot,
 } from "../lib/cyberwareSlots";
 import { createNotification } from "../lib/notifications";
+import { hrefCharacter } from "../lib/notificationHrefs";
 import { sendDirectMessage } from "../lib/discord";
 
 const router: IRouter = Router();
@@ -1048,9 +1049,11 @@ router.post(
         `Only one item per capped slot is allowed — please visit the character page and remove the duplicate.`;
 
       // Determine notification href: single character → link directly.
+      // Use the player-facing /characters/:id route (NOT /directory/characters/:id
+      // which is staff-only and would bounce a player back to the home page).
       const href =
         group.characters.length === 1
-          ? `/directory/characters/${group.characters[0].characterId}`
+          ? hrefCharacter(group.characters[0].characterId)
           : null;
 
       // Bell notification (never gated on Test/Live or discordId).

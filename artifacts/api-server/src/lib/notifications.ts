@@ -1,6 +1,7 @@
 import { db, notifications } from "@workspace/db";
 import { sendDirectMessage } from "./discord";
 import { logger } from "./logger";
+import { hrefLedger, hrefMissionOrLedger } from "./notificationHrefs";
 
 // ---------------------------------------------------------------------------
 // In-portal notification feed. Writes a row to `notifications` for the bell
@@ -69,7 +70,7 @@ export async function notifyAutoCharge(opts: {
     type: "auto_charge",
     title: `Automatic charge — ${fmtEddies(opts.amount)}`,
     body: `${opts.label}${who}.${balanceLine(opts.newBalance)}`,
-    href: "/ledger",
+    href: hrefLedger(),
   });
   if (!opts.discordId) return;
   try {
@@ -102,7 +103,7 @@ export async function notifyFixerPay(opts: {
     type: "fixer_pay",
     title: `${label} — ${fmtEddies(opts.amount)}`,
     body: `You received ${fmtEddies(opts.amount)}${who} for "${opts.reason}".${balanceLine(opts.newBalance)}`,
-    href: "/ledger",
+    href: hrefLedger(),
   });
   if (!opts.discordId) return;
   try {
@@ -133,7 +134,7 @@ export async function notifyMissionPayout(opts: {
     type: "mission_payout",
     title: `Mission payout — ${fmtEddies(opts.amount)}`,
     body: `You received ${fmtEddies(opts.amount)} for "${opts.missionTitle}".${balanceLine(opts.newBalance)}`,
-    href: opts.missionId != null ? `/missions/${opts.missionId}` : "/ledger",
+    href: hrefMissionOrLedger(opts.missionId),
   });
   if (!opts.discordId) return;
   try {

@@ -34,6 +34,7 @@ import {
   hasRole,
 } from "./discord";
 import { notifyMissionPayout, notifyFixerPay, createNotification } from "./notifications";
+import { hrefMission } from "./notificationHrefs";
 import { getMissionContext, type MissionExternalContext } from "./missionsConfig";
 import { resolveOrProvisionUser } from "./userProvision";
 
@@ -2216,7 +2217,7 @@ async function notifyApplicantOfReview(opts: {
           ? `Accepted for mission "${opts.missionTitle}"`
           : `Application declined — "${opts.missionTitle}"`,
       body: content,
-      href: `/missions/${opts.missionId}`,
+      href: hrefMission(opts.missionId),
     });
     if (ctx.live) {
       await sendDirectMessage(opts.userId, content);

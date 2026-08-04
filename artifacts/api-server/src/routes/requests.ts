@@ -27,6 +27,7 @@ import { hasRole, sendDirectMessage, postToChannel } from "../lib/discord";
 import { announceWithThread } from "../lib/reviewAnnounce";
 import { portalLink } from "../lib/portalUrl";
 import { createNotification } from "../lib/notifications";
+import { hrefSubmissions, hrefInbox } from "../lib/notificationHrefs";
 import { reconcileBusinessChannelAccess } from "../lib/businessChannelAccess";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
 import { isListingReserved } from "../lib/listingReservations";
@@ -1182,7 +1183,7 @@ async function notifyRequesterOfDecision(
       body: approved
         ? [summary, closingMessage].filter(Boolean).join("\n") || `Your ${typeLabel} request for ${who} was approved.`
         : (closingMessage ?? row.reviewerNote ?? `Your ${typeLabel} request for ${who} was rejected.`),
-      href: "/submissions",
+      href: hrefSubmissions(),
     });
   }
   try {
@@ -1774,7 +1775,7 @@ export async function closeRequest(req: Request, id: number, note?: string, clos
         type: "sale_offer",
         title: `Sale offer: ${nb.itemName} for €$${nb.totalPrice.toLocaleString()}`,
         body: `${nb.storeName} has your custom gun ready — approve the purchase from your Inbox.`,
-        href: "/inbox",
+        href: hrefInbox(),
       });
       void (async () => {
         const [buyerUser] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, nb.userId));
