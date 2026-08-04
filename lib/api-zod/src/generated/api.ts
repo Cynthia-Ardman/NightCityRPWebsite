@@ -2626,7 +2626,7 @@ export const DenyOfferResponse = zod.object({
 
 
 /**
- * @summary List missions (compact summaries).
+ * @summary List missions (compact summaries). PUBLIC — no login required; anonymous callers get only posted, public missions with viewer fields empty and rosters redacted.
  */
 export const listMissionsQueryLimitDefault = 200;
 
@@ -6002,7 +6002,7 @@ export const ConfirmNpcSignupResponse = zod.object({
 
 
 /**
- * @summary List non-cancelled events (sessions/socials). All authenticated users.
+ * @summary List non-cancelled events (sessions/socials). PUBLIC — no login required (backs the public calendar); viewer-specific fields are empty for anonymous callers.
  */
 export const listEventsQueryLimitDefault = 500;
 export const listEventsQueryLimitMax = 1000;
@@ -6176,7 +6176,7 @@ export const CheckEventConflictsResponse = zod.object({
 
 
 /**
- * @summary Event detail. Manager-only fields (sign-up roster, sync error) populated for fixers/admins. For recurring events, occurrenceStartAt scopes dates and the NPC roster to that occurrence.
+ * @summary Event detail. PUBLIC — no login required. Manager-only fields (sign-up roster, sync error) populated for fixers/admins. For recurring events, occurrenceStartAt scopes dates and the NPC roster to that occurrence.
  */
 export const GetEventParams = zod.object({
   "id": zod.coerce.number()
@@ -9726,13 +9726,15 @@ export const AdminFixerActivityResponse = zod.object({
   "globalName": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
   "roles": zod.array(zod.string()),
+  "isFixer": zod.boolean().describe('Holds the Fixer (or Trial Fixer) role. Fixer metrics (missions\/events\/NPC payouts) are only counted for fixers.'),
+  "isCsApprover": zod.boolean().describe('Holds the CS Approver role. Review-queue metrics (votes\/comments) are only counted for CS approvers.'),
   "isTrialFixer": zod.boolean(),
   "lastSeenAt": zod.coerce.date().nullish().describe('Last website visit (any page).'),
   "lastFixerActionAt": zod.coerce.date().nullish().describe('Most recent fixer-attributable action across all tracked sources (all time, not window-limited).'),
   "missionsCreated": zod.number().describe('Missions created in the window (missions.fixerId).'),
   "missionsCompleted": zod.number().describe('Missions this user marked completed in the window.'),
-  "reviewVotes": zod.number(),
-  "reviewComments": zod.number(),
+  "reviewVotes": zod.number().describe('Review-queue votes in the window. Always 0 for users without the CS Approver role — review work is CS-approver work.'),
+  "reviewComments": zod.number().describe('Review-queue comments in the window. Always 0 for users without the CS Approver role.'),
   "eventsCreated": zod.number(),
   "actorPayments": zod.number().describe('Manual NPC\/actor payouts issued in the window.'),
   "auditActions": zod.number().describe('All staff actions recorded in the audit log in the window.'),

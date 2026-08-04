@@ -71,12 +71,18 @@ const adminOrFixer = requireAnyRole(["ADMIN", "FIXER"]);
 // mint one keyed on their Discord id, which their first login then adopts.
 const resolveOrProvisionOwner = resolveOrProvisionUser;
 
-// Fixer activity report: every FIXER / TRIAL_FIXER with counts of
-// fixer-attributable actions inside the requested window plus an all-time
-// "last fixer action" timestamp, so leadership can spot fixers who have gone
-// idle. ADMIN / COORDINATOR / ARCHIVIST — rank-and-file fixers do NOT see each
+// Staff activity report: every FIXER / TRIAL_FIXER / CS APPROVER with counts
+// of role-attributable actions inside the requested window plus an all-time
+// "last action" timestamp, so leadership can spot staff who have gone idle.
+// ADMIN / COORDINATOR / ARCHIVIST — rank-and-file staff do NOT see each
 // other's activity numbers. Powers the FIXER tab on the Analytics page.
 // All aggregation happens in SQL — one grouped query per activity source.
+//
+// Role attribution: fixers and CS approvers do DIFFERENT jobs even when one
+// person holds both roles. Review-queue metrics (votes/comments) are only
+// counted for CS approvers, and fixer metrics (missions/events/NPC payouts)
+// only for fixers — a fixer without the CS role shows no review numbers and
+// vice versa, so neither group is judged on the other group's tasks.
 router.get("/admin/fixer-activity", requireAnyRole(["ADMIN", "COORDINATOR", "ARCHIVIST"]), async (req, res): Promise<void> => {
   const days = Math.min(365, Math.max(7, parseInt(String(req.query.days ?? "90"), 10) || 90));
   const since = new Date(Date.now() - days * 86_400_000);
@@ -93,8 +99,10 @@ router.get("/admin/fixer-activity", requireAnyRole(["ADMIN", "COORDINATOR", "ARC
     })
     .from(users)
     // Roles are stored as LOWERCASE Discord role names (see ROLE_NAMES in
-    // lib/discord.ts) — match every name in the FIXER/TRIAL_FIXER groups.
-    .where(arrayOverlaps(users.roles, [...ROLE_NAMES.FIXER, ...ROLE_NAMES.TRIAL_FIXER]));
+    // lib/discord.ts) — match every name in the FIXER/TRIAL_FIXER/CS_APPROVER groups.
+    .where(arrayOverlaps(users.roles, [
+      ...ROLE_NAMES.FIXER, ...ROLE_NAMES.TRIAL_FIXER, ...ROLE_NAMES.CS_APPROVER,
+    ]));
   if (fixers.length === 0) {
     res.json({ days, weeks, generatedAt: new Date().toISOString(), fixers: [] });
     return;
@@ -185,32 +193,53 @@ router.get("/admin/fixer-activity", requireAnyRole(["ADMIN", "COORDINATOR", "ARC
     return Number.isNaN(t) ? null : t;
   };
 
+  // Which report columns belong to which role. auditActions is an all-staff
+  // metric and stays unmasked for everyone.
+  const FIXER_KEYS = new Set(["missionsCreated", "missionsCompleted", "eventsCreated", "actorPayments"]);
+  const CS_KEYS = new Set(["reviewVotes", "reviewComments"]);
+
   const report = fixers.map((f) => {
-    const sources = [mCreated, mCompleted, mVotes, mComments, mEvents, mPayments, mAudits];
+    const isFixer = hasRole(f.roles, "FIXER") || hasRole(f.roles, "TRIAL_FIXER");
+    const isCsApprover = hasRole(f.roles, "CS_APPROVER");
+    // Only count sources that belong to a role this user actually holds —
+    // a fixer's stray review comments (or a CS approver's old mission rows)
+    // must not pad or damn the wrong report column.
+    const allowed = (key: string): boolean =>
+      (FIXER_KEYS.has(key) && isFixer) || (CS_KEYS.has(key) && isCsApprover) || key === "auditActions";
+    const sourceMaps: Array<[string, Map<string, Agg>]> = [
+      ["missionsCreated", mCreated], ["missionsCompleted", mCompleted],
+      ["reviewVotes", mVotes], ["reviewComments", mComments],
+      ["eventsCreated", mEvents], ["actorPayments", mPayments], ["auditActions", mAudits],
+    ];
     let lastMs: number | null = null;
-    for (const m of sources) {
+    for (const [key, m] of sourceMaps) {
+      if (!allowed(key)) continue;
       const t = asTime(m.get(f.id)?.last ?? null);
       if (t !== null && (lastMs === null || t > lastMs)) lastMs = t;
     }
+    const cnt = (key: string, m: Map<string, Agg>): number =>
+      allowed(key) ? (m.get(f.id)?.cnt ?? 0) : 0;
     return {
       userId: f.id,
       username: f.username,
       globalName: f.globalName,
       avatarUrl: f.avatarUrl,
       roles: f.roles,
+      isFixer,
+      isCsApprover,
       isTrialFixer: hasRole(f.roles, "TRIAL_FIXER") && !hasRole(f.roles, "FIXER"),
       lastSeenAt: f.lastSeenAt ? new Date(f.lastSeenAt).toISOString() : null,
       lastFixerActionAt: lastMs !== null ? new Date(lastMs).toISOString() : null,
-      missionsCreated: mCreated.get(f.id)?.cnt ?? 0,
-      missionsCompleted: mCompleted.get(f.id)?.cnt ?? 0,
-      reviewVotes: mVotes.get(f.id)?.cnt ?? 0,
-      reviewComments: mComments.get(f.id)?.cnt ?? 0,
-      eventsCreated: mEvents.get(f.id)?.cnt ?? 0,
-      actorPayments: mPayments.get(f.id)?.cnt ?? 0,
-      auditActions: mAudits.get(f.id)?.cnt ?? 0,
+      missionsCreated: cnt("missionsCreated", mCreated),
+      missionsCompleted: cnt("missionsCompleted", mCompleted),
+      reviewVotes: cnt("reviewVotes", mVotes),
+      reviewComments: cnt("reviewComments", mComments),
+      eventsCreated: cnt("eventsCreated", mEvents),
+      actorPayments: cnt("actorPayments", mPayments),
+      auditActions: cnt("auditActions", mAudits),
       weekly: audits.weekly.get(f.id) ?? zeros(),
       weeklyBySource: Object.fromEntries(
-        weeklySources.map(([key, src]) => [key, src.weekly.get(f.id) ?? zeros()]),
+        weeklySources.map(([key, src]) => [key, allowed(key) ? (src.weekly.get(f.id) ?? zeros()) : zeros()]),
       ),
     };
   });

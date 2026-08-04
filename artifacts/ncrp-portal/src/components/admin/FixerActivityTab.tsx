@@ -59,14 +59,27 @@ function totalActivity(f: FixerActivityRow): number {
   );
 }
 
-// Metrics selectable in the chart. "overall" sums the 7 fixer-work sources
+// Fixers and CS approvers do different jobs: review metrics only apply to CS
+// approvers, fixer metrics only to fixers. The API already zeroes the
+// non-applicable counts; the UI shows "—" and keeps each chart metric scoped
+// to the users the metric applies to.
+const FIXER_METRICS = new Set(["missionsCreated", "missionsCompleted", "eventsCreated", "actorPayments"]);
+const CS_METRICS = new Set(["reviewVotes", "reviewComments"]);
+
+function metricApplies(f: FixerActivityRow, metric: string): boolean {
+  if (FIXER_METRICS.has(metric)) return f.isFixer;
+  if (CS_METRICS.has(metric)) return f.isCsApprover;
+  return true;
+}
+
+// Metrics selectable in the chart. "overall" sums the role-scoped sources
 // (auditActions overlaps them, so it stays a separate metric of its own).
 const METRICS = [
-  { key: "overall", label: "Overall fixer work" },
+  { key: "overall", label: "Overall staff work" },
   { key: "missionsCreated", label: "Missions created" },
   { key: "missionsCompleted", label: "Missions completed" },
-  { key: "reviewVotes", label: "Review votes" },
-  { key: "reviewComments", label: "Comments" },
+  { key: "reviewVotes", label: "Review votes (CS)" },
+  { key: "reviewComments", label: "Review comments (CS)" },
   { key: "eventsCreated", label: "Events created" },
   { key: "actorPayments", label: "NPC payouts" },
   { key: "auditActions", label: "All staff actions" },
@@ -122,6 +135,10 @@ function FixerActivityChart({
   const allData = useMemo(
     () =>
       [...fixers]
+        // Role-scoped metrics only chart the users they apply to — a fixer
+        // without the CS role is not a zero on the review chart, they simply
+        // aren't on it (and vice versa).
+        .filter((f) => metricApplies(f, metric))
         .map((f) => ({
           name: f.globalName || f.username,
           userId: f.userId,
@@ -160,7 +177,7 @@ function FixerActivityChart({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all" className="font-mono">All fixers</SelectItem>
+            <SelectItem value="all" className="font-mono">All staff</SelectItem>
             {fixers.map((f) => (
               <SelectItem key={f.userId} value={f.userId} className="font-mono">
                 {f.globalName || f.username}
@@ -208,7 +225,7 @@ function FixerActivityChart({
       <p className="text-muted-foreground font-mono text-xs mt-2">
         {selected
           ? `${selected.globalName || selected.username} — ${metricLabel.toLowerCase()} per week in the selected window.`
-          : "One bar per fixer for the selected action and window. Click a bar to drill into that fixer's week-by-week activity."}
+          : "One bar per staff member the selected metric applies to (review metrics: CS approvers; mission/event metrics: fixers). Click a bar to drill into their week-by-week activity."}
       </p>
     </div>
   );
@@ -223,9 +240,9 @@ export default function FixerActivityTab() {
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <CardTitle className="font-display uppercase tracking-widest">Fixer Activity</CardTitle>
+            <CardTitle className="font-display uppercase tracking-widest">Staff Activity</CardTitle>
             <CardDescription className="font-mono mt-1">
-              Fixer-attributable actions in the selected window. Idle fixers (no fixer action in {IDLE_DAYS}+ days) are listed first and flagged.
+              Fixers and CS approvers, each measured only on their own duties — review votes/comments count for CS approvers, missions/events/payouts for fixers. Idle staff (no attributable action in {IDLE_DAYS}+ days) are listed first and flagged.
             </CardDescription>
           </div>
           <div className="flex gap-1">
@@ -258,13 +275,13 @@ export default function FixerActivityTab() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Fixer</TableHead>
-                  <TableHead>Last fixer action</TableHead>
+                  <TableHead>Staff</TableHead>
+                  <TableHead>Last action</TableHead>
                   <TableHead>Last on site</TableHead>
                   <TableHead className="text-right">Missions created</TableHead>
                   <TableHead className="text-right">Missions completed</TableHead>
                   <TableHead className="text-right">Review votes</TableHead>
-                  <TableHead className="text-right">Comments</TableHead>
+                  <TableHead className="text-right">Review comments</TableHead>
                   <TableHead className="text-right">Events</TableHead>
                   <TableHead className="text-right">NPC payouts</TableHead>
                   <TableHead className="text-right">All staff actions</TableHead>
@@ -276,6 +293,10 @@ export default function FixerActivityTab() {
                   const idleDays = daysAgo(f.lastFixerActionAt);
                   const isIdle = idleDays === null || idleDays >= IDLE_DAYS;
                   const quiet = totalActivity(f) === 0;
+                  // Role-scoped cells: show a dash (not a zero) when the
+                  // metric simply doesn't apply to this person's role.
+                  const cell = (metric: string, value: number) =>
+                    metricApplies(f, metric) ? value : <span className="text-muted-foreground">—</span>;
                   return (
                     <TableRow key={f.userId} data-testid={`row-fixer-${f.userId}`} className={isIdle ? "bg-destructive/5" : undefined}>
                       <TableCell>
@@ -288,14 +309,17 @@ export default function FixerActivityTab() {
                           <div className="min-w-0">
                             <div className="font-medium truncate">{f.globalName || f.username}</div>
                             <div className="flex gap-1 mt-0.5">
-                              {f.isTrialFixer && (
-                                <Badge variant="outline" className="rounded-none text-[0.65rem] font-mono">TRIAL</Badge>
+                              {f.isFixer && (
+                                <Badge variant="outline" className="rounded-none text-[0.65rem] font-mono">{f.isTrialFixer ? "TRIAL FIXER" : "FIXER"}</Badge>
+                              )}
+                              {f.isCsApprover && (
+                                <Badge variant="outline" className="rounded-none text-[0.65rem] font-mono text-nc-cyan border-nc-cyan/50">CS APPROVER</Badge>
                               )}
                               {isIdle && (
                                 <Badge variant="destructive" className="rounded-none text-[0.65rem] font-mono">IDLE</Badge>
                               )}
                               {!isIdle && quiet && (
-                                <Badge variant="outline" className="rounded-none text-[0.65rem] font-mono text-yellow-500 border-yellow-500/50">NO FIXER WORK</Badge>
+                                <Badge variant="outline" className="rounded-none text-[0.65rem] font-mono text-yellow-500 border-yellow-500/50">NO STAFF WORK</Badge>
                               )}
                             </div>
                           </div>
@@ -307,12 +331,12 @@ export default function FixerActivityTab() {
                       <TableCell className="font-mono whitespace-nowrap text-muted-foreground">
                         {relativeLabel(f.lastSeenAt)}
                       </TableCell>
-                      <TableCell className="text-right font-mono">{f.missionsCreated}</TableCell>
-                      <TableCell className="text-right font-mono">{f.missionsCompleted}</TableCell>
-                      <TableCell className="text-right font-mono">{f.reviewVotes}</TableCell>
-                      <TableCell className="text-right font-mono">{f.reviewComments}</TableCell>
-                      <TableCell className="text-right font-mono">{f.eventsCreated}</TableCell>
-                      <TableCell className="text-right font-mono">{f.actorPayments}</TableCell>
+                      <TableCell className="text-right font-mono">{cell("missionsCreated", f.missionsCreated)}</TableCell>
+                      <TableCell className="text-right font-mono">{cell("missionsCompleted", f.missionsCompleted)}</TableCell>
+                      <TableCell className="text-right font-mono">{cell("reviewVotes", f.reviewVotes)}</TableCell>
+                      <TableCell className="text-right font-mono">{cell("reviewComments", f.reviewComments)}</TableCell>
+                      <TableCell className="text-right font-mono">{cell("eventsCreated", f.eventsCreated)}</TableCell>
+                      <TableCell className="text-right font-mono">{cell("actorPayments", f.actorPayments)}</TableCell>
                       <TableCell className="text-right font-mono">{f.auditActions}</TableCell>
                       <TableCell><Sparkline weekly={f.weekly} /></TableCell>
                     </TableRow>

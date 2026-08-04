@@ -10415,7 +10415,8 @@ components:
     FixerActivityRow:
       type: object
       required:
-        [userId, username, roles, isTrialFixer, missionsCreated, missionsCompleted,
+        [userId, username, roles, isFixer, isCsApprover, isTrialFixer,
+         missionsCreated, missionsCompleted,
          reviewVotes, reviewComments, eventsCreated, actorPayments,
          auditActions, weekly, weeklyBySource]
       properties:
@@ -10426,13 +10427,15 @@ components:
         roles:
           type: array
           items: { type: string }
+        isFixer: { type: boolean, description: "Holds the Fixer (or Trial Fixer) role. Fixer metrics (missions/events/NPC payouts) are only counted for fixers." }
+        isCsApprover: { type: boolean, description: "Holds the CS Approver role. Review-queue metrics (votes/comments) are only counted for CS approvers." }
         isTrialFixer: { type: boolean }
         lastSeenAt: { type: ["string", "null"], format: date-time, description: "Last website visit (any page)." }
         lastFixerActionAt: { type: ["string", "null"], format: date-time, description: "Most recent fixer-attributable action across all tracked sources (all time, not window-limited)." }
         missionsCreated: { type: integer, description: "Missions created in the window (missions.fixerId)." }
         missionsCompleted: { type: integer, description: "Missions this user marked completed in the window." }
-        reviewVotes: { type: integer }
-        reviewComments: { type: integer }
+        reviewVotes: { type: integer, description: "Review-queue votes in the window. Always 0 for users without the CS Approver role — review work is CS-approver work." }
+        reviewComments: { type: integer, description: "Review-queue comments in the window. Always 0 for users without the CS Approver role." }
         eventsCreated: { type: integer }
         actorPayments: { type: integer, description: "Manual NPC/actor payouts issued in the window." }
         auditActions: { type: integer, description: "All staff actions recorded in the audit log in the window." }

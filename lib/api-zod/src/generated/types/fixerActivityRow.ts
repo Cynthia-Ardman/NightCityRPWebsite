@@ -15,6 +15,10 @@ export interface FixerActivityRow {
   /** @nullable */
   avatarUrl?: string | null;
   roles: string[];
+  /** Holds the Fixer (or Trial Fixer) role. Fixer metrics (missions/events/NPC payouts) are only counted for fixers. */
+  isFixer: boolean;
+  /** Holds the CS Approver role. Review-queue metrics (votes/comments) are only counted for CS approvers. */
+  isCsApprover: boolean;
   isTrialFixer: boolean;
   /**
      * Last website visit (any page).
@@ -30,7 +34,9 @@ export interface FixerActivityRow {
   missionsCreated: number;
   /** Missions this user marked completed in the window. */
   missionsCompleted: number;
+  /** Review-queue votes in the window. Always 0 for users without the CS Approver role — review work is CS-approver work. */
   reviewVotes: number;
+  /** Review-queue comments in the window. Always 0 for users without the CS Approver role. */
   reviewComments: number;
   eventsCreated: number;
   /** Manual NPC/actor payouts issued in the window. */

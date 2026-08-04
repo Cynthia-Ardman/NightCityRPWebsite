@@ -7425,7 +7425,7 @@ export const getListMissionsUrl = (params?: ListMissionsParams,) => {
 }
 
 /**
- * @summary List missions (compact summaries).
+ * @summary List missions (compact summaries). PUBLIC — no login required; anonymous callers get only posted, public missions with viewer fields empty and rosters redacted.
  */
 export const listMissions = async (params?: ListMissionsParams, options?: RequestInit): Promise<MissionSummary[]> => {
 
@@ -7472,7 +7472,7 @@ export type ListMissionsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List missions (compact summaries).
+ * @summary List missions (compact summaries). PUBLIC — no login required; anonymous callers get only posted, public missions with viewer fields empty and rosters redacted.
  */
 
 export function useListMissions<TData = Awaited<ReturnType<typeof listMissions>>, TError = ErrorType<unknown>>(
@@ -10497,7 +10497,7 @@ export const getListEventsUrl = (params?: ListEventsParams,) => {
 }
 
 /**
- * @summary List non-cancelled events (sessions/socials). All authenticated users.
+ * @summary List non-cancelled events (sessions/socials). PUBLIC — no login required (backs the public calendar); viewer-specific fields are empty for anonymous callers.
  */
 export const listEvents = async (params?: ListEventsParams, options?: RequestInit): Promise<EventView[]> => {
 
@@ -10544,7 +10544,7 @@ export type ListEventsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List non-cancelled events (sessions/socials). All authenticated users.
+ * @summary List non-cancelled events (sessions/socials). PUBLIC — no login required (backs the public calendar); viewer-specific fields are empty for anonymous callers.
  */
 
 export function useListEvents<TData = Awaited<ReturnType<typeof listEvents>>, TError = ErrorType<unknown>>(
@@ -10737,7 +10737,7 @@ export const getGetEventUrl = (id: number,
 }
 
 /**
- * @summary Event detail. Manager-only fields (sign-up roster, sync error) populated for fixers/admins. For recurring events, occurrenceStartAt scopes dates and the NPC roster to that occurrence.
+ * @summary Event detail. PUBLIC — no login required. Manager-only fields (sign-up roster, sync error) populated for fixers/admins. For recurring events, occurrenceStartAt scopes dates and the NPC roster to that occurrence.
  */
 export const getEvent = async (id: number,
     params?: GetEventParams, options?: RequestInit): Promise<EventView> => {
@@ -10787,7 +10787,7 @@ export type GetEventQueryError = ErrorType<void>
 
 
 /**
- * @summary Event detail. Manager-only fields (sign-up roster, sync error) populated for fixers/admins. For recurring events, occurrenceStartAt scopes dates and the NPC roster to that occurrence.
+ * @summary Event detail. PUBLIC — no login required. Manager-only fields (sign-up roster, sync error) populated for fixers/admins. For recurring events, occurrenceStartAt scopes dates and the NPC roster to that occurrence.
  */
 
 export function useGetEvent<TData = Awaited<ReturnType<typeof getEvent>>, TError = ErrorType<void>>(
