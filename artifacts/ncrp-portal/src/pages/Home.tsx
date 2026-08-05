@@ -107,7 +107,10 @@ function Dashboard() {
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
       </div>
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-4xl font-display font-bold text-foreground" data-testid="text-dashboard-title">SYS_OVERVIEW</h1>
+        <div className="flex items-center gap-4 flex-wrap">
+          <h1 className="text-4xl font-display font-bold text-foreground" data-testid="text-dashboard-title">SYS_OVERVIEW</h1>
+          <TraumaCallButton />
+        </div>
         {user?.vrchat ? (
           <a
             href={user.vrchat.vrchatUrl}
@@ -122,8 +125,6 @@ function Dashboard() {
       </div>
 
       <BecomeNpcButton variant="dashboard" />
-
-      <TraumaCallButton />
 
       <NotificationPrefsPrompt />
 
