@@ -459,6 +459,22 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Wallet" }
+  /wallet/transfer:
+    post:
+      operationId: transferEddiesFromAccount
+      tags: [wallet]
+      summary: Account-level transfer for players with no approved character.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TransferInput" }
+      responses:
+        "200":
+          description: Transferred
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccountWallet" }
   /characters/{id}/wallet/transfer:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -4241,6 +4257,21 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/PublicCharacterSummary" }
+  /directory/players:
+    get:
+      operationId: listPublicPlayers
+      tags: [directory]
+      summary: Players with no active character (for recipient pickers).
+      parameters:
+        - { in: query, name: q, schema: { type: string }, description: "Username / display-name filter (min 1 char)." }
+      responses:
+        "200":
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PublicPlayerSummary" }
   /directory/character-tags:
     get:
       operationId: listPublicCharacterTags
@@ -4462,7 +4493,7 @@ paths:
     post:
       operationId: adminAdjustWallet
       tags: [admin]
-      summary: Manual eddie adjustment (admin only)
+      summary: Manual eddie adjustment (admin or fixer)
       requestBody:
         required: true
         content:
@@ -7909,6 +7940,15 @@ components:
         ncpd: { type: boolean, description: "Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role)." }
         organic: { type: boolean, description: "Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect." }
 
+    PublicPlayerSummary:
+      type: object
+      required: [id, username]
+      properties:
+        id: { type: string }
+        username: { type: string }
+        globalName: { type: ["string", "null"] }
+        avatarUrl: { type: ["string", "null"] }
+
     PublicCharacterSummary:
       type: object
       required: [id, name, kind, claimed, archived]
@@ -8671,6 +8711,15 @@ components:
         source: { type: string, enum: [unbelievaboat, local] }
         updatedAt: { type: string, format: date-time }
 
+    AccountWallet:
+      type: object
+      required: [balance, source]
+      properties:
+        balance: { type: integer }
+        bank: { type: integer }
+        cash: { type: integer }
+        source: { type: string, enum: [unbelievaboat, local] }
+
     UserWallet:
       type: object
       required: [balance, source]
@@ -8689,9 +8738,11 @@ components:
 
     TransferInput:
       type: object
-      required: [toCharacterId, amount]
+      required: [amount]
+      description: "Exactly one of toCharacterId / toUserId must be provided. toUserId targets a player account directly (for players with no approved character)."
       properties:
         toCharacterId: { type: integer }
+        toUserId: { type: string, description: "Recipient user id — used when the recipient has no approved character." }
         amount: { type: integer, minimum: 1 }
         memo: { type: string }
         idempotencyKey: { type: string, maxLength: 100, description: "Client-generated key (e.g. a UUID created once per submit) so a network retry / double-click of the same transfer doesn't move eddies twice." }
@@ -10561,11 +10612,14 @@ components:
 
     WalletAdjustmentInput:
       type: object
-      required: [characterId, amount, reason]
+      required: [amount, reason]
+      description: "Exactly one of characterId / userId must be provided. userId targets a player account directly (for players with no approved character)."
       properties:
         characterId: { type: integer }
+        userId: { type: string, description: "Target user id — used when the player has no approved character." }
         amount: { type: integer, description: "positive or negative" }
         reason: { type: string, minLength: 1 }
+        idempotencyKey: { type: string, maxLength: 100, description: "Client-generated key so a retry / double-click doesn't apply the same adjustment twice." }
 
     JobRunInput:
       type: object

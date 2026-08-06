@@ -1223,8 +1223,11 @@ router.get("/admin/characters/:id/medical", requireAuth, async (req, res): Promi
   });
 });
 
-router.post("/admin/wallet/adjust", adminOnly, async (req, res): Promise<void> => {
-  const { characterId, amount, memo, reason } = req.body ?? {};
+// Admin OR fixer: fixers adjust player wallets from the Fixer Hub player
+// lookup. Accepts either a characterId (ledger attributed to that character)
+// or a bare userId (players with no approved character — account-level row).
+router.post("/admin/wallet/adjust", adminOrFixer, async (req, res): Promise<void> => {
+  const { characterId, userId, amount, memo, reason } = req.body ?? {};
   // The portal sends `reason`; older callers may send `memo`. Accept either.
   const note =
     typeof memo === "string" && memo.trim()
@@ -1232,23 +1235,48 @@ router.post("/admin/wallet/adjust", adminOnly, async (req, res): Promise<void> =
       : typeof reason === "string" && reason.trim()
         ? reason.trim()
         : null;
-  if (!characterId || typeof amount !== "number") {
-    res.status(400).json({ error: "characterId and amount required" });
+  if (typeof amount !== "number" || (!characterId && !userId) || (characterId && userId)) {
+    res.status(400).json({ error: "amount and exactly one of characterId / userId required" });
     return;
   }
-  const [c] = await db.select().from(characters).where(eq(characters.id, characterId));
-  if (!c) {
-    res.status(404).json({ error: "Character not found" });
-    return;
+  let c: typeof characters.$inferSelect | null = null;
+  let owner: typeof users.$inferSelect | undefined;
+  if (characterId) {
+    const [row] = await db.select().from(characters).where(eq(characters.id, characterId));
+    if (!row) {
+      res.status(404).json({ error: "Character not found" });
+      return;
+    }
+    if (!row.ownerId) {
+      res.status(400).json({ error: "Character has no owner (unclaimed)" });
+      return;
+    }
+    c = row;
+    [owner] = await db.select().from(users).where(eq(users.id, row.ownerId));
+  } else {
+    [owner] = await db.select().from(users).where(eq(users.id, String(userId)));
   }
-  if (!c.ownerId) {
-    res.status(400).json({ error: "Character has no owner (unclaimed)" });
-    return;
-  }
-  const [owner] = await db.select().from(users).where(eq(users.id, c.ownerId));
   if (!owner) {
-    res.status(404).json({ error: "Character owner not found" });
+    res.status(404).json({ error: "Target account not found" });
     return;
+  }
+  // Optional client idempotencyKey dedupes accidental double-submits of the
+  // same adjustment. Check it BEFORE the UB write — the settled-movement
+  // dedupe alone only protects the local ledger; a keyed retry that reaches
+  // patchBalance would move real money twice.
+  const idempotencyKey =
+    typeof req.body?.idempotencyKey === "string" && req.body.idempotencyKey.trim()
+      ? `admin_adjust:${req.body.idempotencyKey.trim().slice(0, 80)}`
+      : null;
+  if (idempotencyKey) {
+    const [done] = await db
+      .select({ id: walletTransactions.id })
+      .from(walletTransactions)
+      .where(eq(walletTransactions.idempotencyKey, idempotencyKey));
+    if (done) {
+      res.json({ success: true });
+      return;
+    }
   }
   // UB is authoritative — do not write a local ledger entry unless UB write succeeds.
   const ubResult = await patchBalance(owner.discordId, { cash: amount, reason: note ?? "Admin adjustment" });
@@ -1258,12 +1286,7 @@ router.post("/admin/wallet/adjust", adminOnly, async (req, res): Promise<void> =
   }
   // Record the settled movement through the shared bridge so the website wallet
   // balance (users.walletBalance) advances immediately instead of drifting until
-  // the next reconcile. Optional client idempotencyKey dedupes accidental
-  // double-submits of the same adjustment.
-  const idempotencyKey =
-    typeof req.body?.idempotencyKey === "string" && req.body.idempotencyKey.trim()
-      ? `admin_adjust:${req.body.idempotencyKey.trim().slice(0, 80)}`
-      : null;
+  // the next reconcile.
   await recordSettledWalletMovement({
     userId: owner.id,
     amount,
@@ -1271,18 +1294,19 @@ router.post("/admin/wallet/adjust", adminOnly, async (req, res): Promise<void> =
     source: "admin",
     kind: "admin",
     memo: note,
-    characterId,
+    characterId: c?.id ?? null,
     counterpartyName: req.user!.username,
     idempotencyKey,
   });
+  const targetLabel = c ? c.name : owner.globalName || owner.username;
   await recordAudit({
     req,
     category: "wallet",
     action: "admin_adjust",
-    targetType: "character",
-    targetId: characterId,
-    message: `${req.user!.username} adjusted ${c.name} by ${amount >= 0 ? "+" : ""}${amount}`,
-    after: { amount, memo: note, ownerDiscordId: owner.discordId },
+    targetType: c ? "character" : "user",
+    targetId: c?.id ?? null,
+    message: `${req.user!.username} adjusted ${targetLabel} by ${amount >= 0 ? "+" : ""}${amount}`,
+    after: { amount, memo: note, ownerDiscordId: owner.discordId, userId: owner.id },
   });
   res.json({ success: true });
 });

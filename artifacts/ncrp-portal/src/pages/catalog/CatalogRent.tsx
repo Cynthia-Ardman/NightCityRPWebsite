@@ -919,7 +919,7 @@ function PropertyHistoryDialog({
                         lease.mutate({
                           data: {
                             catalogRentId: listing.id,
-                            characterId: assignPick.id,
+                            characterId: assignPick.id!,
                             kind: isBusinessListing(listing) ? "business" : "residential",
                           },
                         });

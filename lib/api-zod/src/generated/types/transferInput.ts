@@ -6,8 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Exactly one of toCharacterId / toUserId must be provided. toUserId targets a player account directly (for players with no approved character).
+ */
 export interface TransferInput {
-  toCharacterId: number;
+  toCharacterId?: number;
+  /** Recipient user id — used when the recipient has no approved character. */
+  toUserId?: string;
   /** @minimum 1 */
   amount: number;
   memo?: string;

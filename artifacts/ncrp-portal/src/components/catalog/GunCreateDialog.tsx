@@ -123,7 +123,7 @@ export default function GunCreateDialog({
     }
     createCustom.mutate({
       data: {
-        characterId: customChar.id,
+        characterId: customChar.id!,
         name: customName.trim(),
         description: customDesc.trim() || null,
         imageUrl: customImage.trim() || null,

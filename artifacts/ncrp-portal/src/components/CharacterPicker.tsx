@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { useListPublicCharacters, getListPublicCharactersQueryKey } from "@workspace/api-client-react";
+import {
+  useListPublicCharacters,
+  getListPublicCharactersQueryKey,
+  useListPublicPlayers,
+  getListPublicPlayersQueryKey,
+} from "@workspace/api-client-react";
 import type { PublicCharacterSummary } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
-import { Check, Search, X } from "lucide-react";
+import { Check, Search, User, X } from "lucide-react";
 
+// Either a character (id set) or a bare player account (userId set — players
+// with no approved character, only offered when `allowPlayers` is on).
 export type CharacterPickerValue = {
-  id: number;
+  id?: number;
+  userId?: string;
   name: string;
   ownerName?: string | null;
 } | null;
@@ -17,6 +25,8 @@ type Props = {
   scope?: "all" | "active" | "pc" | "npc";
   testId?: string;
   disabled?: boolean;
+  /** Also surface players who have no active character as selectable targets. */
+  allowPlayers?: boolean;
 };
 
 export default function CharacterPicker({
@@ -26,6 +36,7 @@ export default function CharacterPicker({
   scope = "active",
   testId,
   disabled,
+  allowPlayers = false,
 }: Props) {
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -50,6 +61,11 @@ export default function CharacterPicker({
   const { data: results, isFetching } = useListPublicCharacters(
     params,
     { query: { enabled, queryKey: getListPublicCharactersQueryKey(params) } },
+  );
+  const playerParams = { q: debounced };
+  const { data: playerResults, isFetching: isFetchingPlayers } = useListPublicPlayers(
+    playerParams,
+    { query: { enabled: enabled && allowPlayers, queryKey: getListPublicPlayersQueryKey(playerParams) } },
   );
 
   if (value) {
@@ -82,6 +98,9 @@ export default function CharacterPicker({
   }
 
   const list = (results ?? []).slice(0, 25);
+  const players = allowPlayers ? (playerResults ?? []).slice(0, 10) : [];
+  const anyFetching = isFetching || (allowPlayers && isFetchingPlayers);
+  const empty = list.length === 0 && players.length === 0;
 
   return (
     <div ref={wrapRef} className="relative">
@@ -103,12 +122,13 @@ export default function CharacterPicker({
       </div>
       {open && debounced.length >= 1 && (
         <div className="absolute z-50 mt-1 w-full max-h-72 overflow-auto border border-nc-cyan/60 bg-card font-mono text-sm shadow-xl">
-          {isFetching && list.length === 0 ? (
+          {anyFetching && empty ? (
             <div className="px-3 py-2 text-muted-foreground">Searching...</div>
-          ) : list.length === 0 ? (
+          ) : empty ? (
             <div className="px-3 py-2 text-muted-foreground">No matches.</div>
           ) : (
-            list.map((c: PublicCharacterSummary) => (
+            <>
+            {list.map((c: PublicCharacterSummary) => (
               <button
                 key={c.id}
                 type="button"
@@ -130,7 +150,25 @@ export default function CharacterPicker({
                   <span className="text-muted-foreground text-xs ml-auto italic">unclaimed</span>
                 )}
               </button>
-            ))
+            ))}
+            {players.map((p) => (
+              <button
+                key={`player-${p.id}`}
+                type="button"
+                onClick={() => {
+                  onChange({ userId: p.id, name: p.globalName || p.username, ownerName: p.username });
+                  setQuery("");
+                  setOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-nc-cyan/10 flex items-center gap-2 border-b border-border/40 last:border-b-0"
+                data-testid={testId ? `${testId}-player-${p.id}` : undefined}
+              >
+                <User className="w-3.5 h-3.5 text-nc-magenta" />
+                <span className="text-foreground">{p.globalName || p.username}</span>
+                <span className="text-muted-foreground text-xs ml-auto italic">player · no character</span>
+              </button>
+            ))}
+            </>
           )}
         </div>
       )}

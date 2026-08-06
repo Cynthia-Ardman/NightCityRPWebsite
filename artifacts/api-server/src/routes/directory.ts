@@ -104,6 +104,38 @@ function cleanBackground(s: string | null | undefined): string | null {
   return cleaned.length > 0 ? cleaned : null;
 }
 
+// Players who have NO active character — surfaced in recipient pickers so
+// money can be sent to (or adjusted for) a player before their first
+// character is approved. Auth-only like the character roster; only the same
+// identity fields already exposed via ownerName leak here.
+router.get("/directory/players", requireAuth, async (req, res): Promise<void> => {
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  if (q.length < 1) {
+    res.json([]);
+    return;
+  }
+  const like = `%${q}%`;
+  const rows = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      globalName: users.globalName,
+      avatarUrl: users.avatarUrl,
+    })
+    .from(users)
+    .where(
+      and(
+        or(ilike(users.username, like), ilike(users.globalName, like)),
+        // "no approved character" = no non-archived characters row owned by
+        // this user. Archived-only owners still show (nothing to attribute to).
+        sql`NOT EXISTS (SELECT 1 FROM ${characters} WHERE ${characters.ownerId} = ${users.id} AND ${characters.archived} = false)`,
+      ),
+    )
+    .orderBy(asc(users.username))
+    .limit(20);
+  res.json(rows);
+});
+
 // Roster of all character sheets. Auth-only so anonymous scrapers can't
 // crawl the player list, but open to any logged-in player — every recipient
 // picker in the portal (transfers, sells, missions) calls this. The

@@ -167,6 +167,7 @@ export const ListMyCharactersResponse = zod.array(ListMyCharactersResponseItem)
 export const createCharacterBodyNameMax = 64;
 
 
+
 export const CreateCharacterBody = zod.object({
   "name": zod.string().min(1).max(createCharacterBodyNameMax),
   "kind": zod.enum(['pc', 'npc']),
@@ -250,6 +251,7 @@ export const UpdateCharacterParams = zod.object({
 export const updateCharacterBodyNameMax = 64;
 
 export const updateCharacterBodyUpdateNoteMax = 2000;
+
 
 
 export const UpdateCharacterBody = zod.object({
@@ -363,6 +365,7 @@ export const UpdateCharacterTagsParams = zod.object({
 export const updateCharacterTagsBodyTagsMax = 30;
 
 
+
 export const UpdateCharacterTagsBody = zod.object({
   "tags": zod.array(zod.string()).max(updateCharacterTagsBodyTagsMax)
 })
@@ -443,6 +446,8 @@ export const AddInventoryItemParams = zod.object({
 export const addInventoryItemBodyNameMax = 500;
 
 
+
+
 export const AddInventoryItemBody = zod.object({
   "name": zod.string().min(1).max(addInventoryItemBodyNameMax),
   "category": zod.string().optional(),
@@ -461,6 +466,7 @@ export const UpdateInventoryItemParams = zod.object({
 export const updateInventoryItemBodyNameMax = 500;
 
 export const updateInventoryItemBodyQuantityMin = 0;
+
 
 
 export const UpdateInventoryItemBody = zod.object({
@@ -498,6 +504,9 @@ export const TransferInventoryItemParams = zod.object({
   "id": zod.coerce.number(),
   "itemId": zod.coerce.number()
 })
+
+
+
 
 
 export const TransferInventoryItemBody = zod.object({
@@ -581,6 +590,30 @@ export const GetWalletResponse = zod.object({
 })
 
 
+/**
+ * @summary Account-level transfer for players with no approved character.
+ */
+
+export const transferEddiesFromAccountBodyIdempotencyKeyMax = 100;
+
+
+
+export const TransferEddiesFromAccountBody = zod.object({
+  "toCharacterId": zod.number().optional(),
+  "toUserId": zod.string().optional().describe('Recipient user id — used when the recipient has no approved character.'),
+  "amount": zod.number().min(1),
+  "memo": zod.string().optional(),
+  "idempotencyKey": zod.string().max(transferEddiesFromAccountBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so a network retry \/ double-click of the same transfer doesn\'t move eddies twice.')
+}).describe('Exactly one of toCharacterId \/ toUserId must be provided. toUserId targets a player account directly (for players with no approved character).')
+
+export const TransferEddiesFromAccountResponse = zod.object({
+  "balance": zod.number(),
+  "bank": zod.number().optional(),
+  "cash": zod.number().optional(),
+  "source": zod.enum(['unbelievaboat', 'local'])
+})
+
+
 export const TransferEddiesParams = zod.object({
   "id": zod.coerce.number()
 })
@@ -589,12 +622,14 @@ export const TransferEddiesParams = zod.object({
 export const transferEddiesBodyIdempotencyKeyMax = 100;
 
 
+
 export const TransferEddiesBody = zod.object({
-  "toCharacterId": zod.number(),
+  "toCharacterId": zod.number().optional(),
+  "toUserId": zod.string().optional().describe('Recipient user id — used when the recipient has no approved character.'),
   "amount": zod.number().min(1),
   "memo": zod.string().optional(),
   "idempotencyKey": zod.string().max(transferEddiesBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so a network retry \/ double-click of the same transfer doesn\'t move eddies twice.')
-})
+}).describe('Exactly one of toCharacterId \/ toUserId must be provided. toUserId targets a player account directly (for players with no approved character).')
 
 export const TransferEddiesResponse = zod.object({
   "characterId": zod.number(),
@@ -615,6 +650,7 @@ export const SinkEddiesParams = zod.object({
 
 
 export const sinkEddiesBodyIdempotencyKeyMax = 100;
+
 
 
 export const SinkEddiesBody = zod.object({
@@ -1160,6 +1196,7 @@ export const ListDistrictsResponse = zod.array(ListDistrictsResponseItem)
 export const createDistrictBodyNameMax = 64;
 
 
+
 export const CreateDistrictBody = zod.object({
   "name": zod.string().min(1).max(createDistrictBodyNameMax)
 })
@@ -1453,6 +1490,7 @@ export const UpdateHousingLeaseParams = zod.object({
 export const updateHousingLeaseBodyMonthlyRentMin = 0;
 
 
+
 export const UpdateHousingLeaseBody = zod.object({
   "kind": zod.enum(['residential', 'business']).optional(),
   "notes": zod.string().nullish(),
@@ -1553,6 +1591,7 @@ export const listMyStoresResponseEmployeesItemCommissionPctMin = 0;
 export const listMyStoresResponseEmployeesItemCommissionPctMax = 100;
 
 
+
 export const ListMyStoresResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -1604,6 +1643,7 @@ export const GetStoreParams = zod.object({
 
 export const getStoreResponseEmployeesItemCommissionPctMin = 0;
 export const getStoreResponseEmployeesItemCommissionPctMax = 100;
+
 
 
 export const GetStoreResponse = zod.object({
@@ -1670,6 +1710,7 @@ export const updateStoreResponseEmployeesItemCommissionPctMin = 0;
 export const updateStoreResponseEmployeesItemCommissionPctMax = 100;
 
 
+
 export const UpdateStoreResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -1734,6 +1775,7 @@ export const addStoreEmployeeBodyCommissionPctMin = 0;
 export const addStoreEmployeeBodyCommissionPctMax = 100;
 
 
+
 export const AddStoreEmployeeBody = zod.object({
   "characterId": zod.number(),
   "role": zod.string().min(1),
@@ -1754,6 +1796,7 @@ export const updateStoreEmployeeBodyCommissionPctMin = 0;
 export const updateStoreEmployeeBodyCommissionPctMax = 100;
 
 
+
 export const UpdateStoreEmployeeBody = zod.object({
   "role": zod.string().min(1).optional(),
   "commissionPct": zod.number().min(updateStoreEmployeeBodyCommissionPctMin).max(updateStoreEmployeeBodyCommissionPctMax).optional()
@@ -1761,6 +1804,7 @@ export const UpdateStoreEmployeeBody = zod.object({
 
 export const updateStoreEmployeeResponseCommissionPctMin = 0;
 export const updateStoreEmployeeResponseCommissionPctMax = 100;
+
 
 
 export const UpdateStoreEmployeeResponse = zod.object({
@@ -1784,6 +1828,8 @@ export const RemoveStoreEmployeeParams = zod.object({
 export const SellStoreItemParams = zod.object({
   "id": zod.coerce.number()
 })
+
+
 
 
 export const SellStoreItemBody = zod.object({
@@ -1861,6 +1907,7 @@ export const purchaseStoreStockBodyRetailPriceMin = 0;
 export const purchaseStoreStockBodyUnitCostMin = 0;
 
 
+
 export const PurchaseStoreStockBody = zod.object({
   "catalogId": zod.number().describe('Catalog gun (store) or cyberware (ripperdoc) id.'),
   "qty": zod.number().min(1).optional().describe('Defaults to 1.'),
@@ -1925,6 +1972,7 @@ export const depositToStoreBodyIdempotencyKeyMax = 100;
 export const depositToStoreBodyMemoMax = 200;
 
 
+
 export const DepositToStoreBody = zod.object({
   "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.'),
   "idempotencyKey": zod.string().max(depositToStoreBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.'),
@@ -1952,6 +2000,7 @@ export const WithdrawFromStoreParams = zod.object({
 export const withdrawFromStoreBodyIdempotencyKeyMax = 100;
 
 export const withdrawFromStoreBodyMemoMax = 200;
+
 
 
 export const WithdrawFromStoreBody = zod.object({
@@ -1983,6 +2032,7 @@ export const grantStoreBalanceBodyIdempotencyKeyMax = 100;
 export const grantStoreBalanceBodyMemoMax = 200;
 
 
+
 export const GrantStoreBalanceBody = zod.object({
   "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.'),
   "idempotencyKey": zod.string().max(grantStoreBalanceBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.'),
@@ -2010,6 +2060,7 @@ export const GiveToStoreParams = zod.object({
 export const giveToStoreBodyIdempotencyKeyMax = 100;
 
 export const giveToStoreBodyMemoMax = 200;
+
 
 
 export const GiveToStoreBody = zod.object({
@@ -2076,6 +2127,7 @@ export const addStoreStockBodyQuantityMin = 0;
 export const addStoreStockBodyCwpMin = 0;
 
 
+
 export const AddStoreStockBody = zod.object({
   "name": zod.string().min(1),
   "category": zod.string().optional(),
@@ -2097,6 +2149,8 @@ export const AddStoreStockBody = zod.object({
 export const RequestStoreStockParams = zod.object({
   "id": zod.coerce.number()
 })
+
+
 
 
 export const RequestStoreStockBody = zod.object({
@@ -2133,7 +2187,9 @@ export const RequestStoreGunParams = zod.object({
 })
 
 
+
 export const requestStoreGunBodySalePriceMin = 0;
+
 
 
 export const RequestStoreGunBody = zod.object({
@@ -2161,6 +2217,7 @@ export const updateStoreStockBodyPriceMin = 0;
 export const updateStoreStockBodyCostMin = 0;
 
 export const updateStoreStockBodyQuantityMin = 0;
+
 
 
 export const UpdateStoreStockBody = zod.object({
@@ -2197,6 +2254,7 @@ export const RemoveStoreStockParams = zod.object({
 
 export const listMyRipperdocsResponseEmployeesItemCommissionPctMin = 0;
 export const listMyRipperdocsResponseEmployeesItemCommissionPctMax = 100;
+
 
 
 export const ListMyRipperdocsResponseItem = zod.object({
@@ -2249,6 +2307,7 @@ export const GetRipperdocParams = zod.object({
 
 export const getRipperdocResponseEmployeesItemCommissionPctMin = 0;
 export const getRipperdocResponseEmployeesItemCommissionPctMax = 100;
+
 
 
 export const GetRipperdocResponse = zod.object({
@@ -2311,6 +2370,7 @@ export const UpdateRipperdocBody = zod.object({
 
 export const updateRipperdocResponseEmployeesItemCommissionPctMin = 0;
 export const updateRipperdocResponseEmployeesItemCommissionPctMax = 100;
+
 
 
 export const UpdateRipperdocResponse = zod.object({
@@ -2376,6 +2436,7 @@ export const addRipperdocEmployeeBodyCommissionPctMin = 0;
 export const addRipperdocEmployeeBodyCommissionPctMax = 100;
 
 
+
 export const AddRipperdocEmployeeBody = zod.object({
   "characterId": zod.number(),
   "role": zod.string().min(1),
@@ -2396,6 +2457,7 @@ export const updateRipperdocEmployeeBodyCommissionPctMin = 0;
 export const updateRipperdocEmployeeBodyCommissionPctMax = 100;
 
 
+
 export const UpdateRipperdocEmployeeBody = zod.object({
   "role": zod.string().min(1).optional(),
   "commissionPct": zod.number().min(updateRipperdocEmployeeBodyCommissionPctMin).max(updateRipperdocEmployeeBodyCommissionPctMax).optional()
@@ -2403,6 +2465,7 @@ export const UpdateRipperdocEmployeeBody = zod.object({
 
 export const updateRipperdocEmployeeResponseCommissionPctMin = 0;
 export const updateRipperdocEmployeeResponseCommissionPctMax = 100;
+
 
 
 export const UpdateRipperdocEmployeeResponse = zod.object({
@@ -3076,6 +3139,7 @@ export const listMissionHistoryQueryOffsetDefault = 0;
 export const listMissionHistoryQueryOffsetMin = 0;
 
 
+
 export const ListMissionHistoryQueryParams = zod.object({
   "limit": zod.coerce.number().min(1).max(listMissionHistoryQueryLimitMax).default(listMissionHistoryQueryLimitDefault).describe('Page size (1-100, default 20).'),
   "offset": zod.coerce.number().min(listMissionHistoryQueryOffsetMin).default(listMissionHistoryQueryOffsetDefault).describe('Number of rows to skip (default 0).')
@@ -3521,6 +3585,7 @@ export const updateMissionBodySlotsMin = 0;
 export const updateMissionBodyMaxPlayersMin = 0;
 
 
+
 export const UpdateMissionBody = zod.object({
   "title": zod.string().min(1).optional(),
   "tier": zod.union([zod.literal(1),zod.literal(2),zod.literal(3),zod.literal(4)]).optional(),
@@ -3731,6 +3796,7 @@ export const GetActorPayoutsResponse = zod.array(GetActorPayoutsResponseItem)
 export const createActorPayoutBodyAmountMin = 0;
 
 
+
 export const CreateActorPayoutBody = zod.object({
   "eventName": zod.string().min(1).describe('Free-form event label, e.g. \"Sunday Session\" or \"Open Social Lobby\".'),
   "eventType": zod.string().nullish().describe('Preset category: session | social_lobby | other.'),
@@ -3796,6 +3862,7 @@ export const PayMissionActorsParams = zod.object({
 
 
 export const payMissionActorsBodyAmountMin = 0;
+
 
 
 export const PayMissionActorsBody = zod.object({
@@ -4857,6 +4924,8 @@ export const convertEventToMissionBodySlotsMin = 0;
 
 export const convertEventToMissionBodyMaxPlayersDefault = 0;
 export const convertEventToMissionBodyMaxPlayersMin = 0;
+
+
 
 
 export const ConvertEventToMissionBody = zod.object({
@@ -5982,6 +6051,7 @@ export const listEventsQueryLimitDefault = 500;
 export const listEventsQueryLimitMax = 1000;
 
 
+
 export const ListEventsQueryParams = zod.object({
   "limit": zod.coerce.number().max(listEventsQueryLimitMax).default(listEventsQueryLimitDefault)
 })
@@ -6102,6 +6172,7 @@ export const createEventBodyTicketTypesItemPriceMin = 0;
 
 export const createEventBodyTicketTypesItemQuantityDefault = 0;
 export const createEventBodyTicketTypesItemQuantityMin = 0;
+
 
 
 export const CreateEventBody = zod.object({
@@ -6277,10 +6348,12 @@ export const UpdateEventParams = zod.object({
 })
 
 
+
 export const updateEventBodyTicketTypesItemPriceMin = 0;
 
 export const updateEventBodyTicketTypesItemQuantityDefault = 0;
 export const updateEventBodyTicketTypesItemQuantityMin = 0;
+
 
 
 export const UpdateEventBody = zod.object({
@@ -6886,6 +6959,7 @@ export const ConfirmEventNpcSignupParams = zod.object({
 export const confirmEventNpcSignupBodyAmountMin = 0;
 
 
+
 export const ConfirmEventNpcSignupBody = zod.object({
   "action": zod.enum(['attended', 'no_show']).describe('attended pays the supplied amount; no_show resolves with no payout.'),
   "amount": zod.number().min(confirmEventNpcSignupBodyAmountMin).optional().describe('Per-person payout for attended (€$); required when action is attended.')
@@ -7002,6 +7076,7 @@ export const adminListAuditQueryLimitDefault = 100;
 export const adminListAuditQueryLimitMax = 500;
 
 
+
 export const AdminListAuditQueryParams = zod.object({
   "kind": zod.coerce.string().optional(),
   "actorId": zod.coerce.string().optional(),
@@ -7052,6 +7127,7 @@ export const AdminGetMembershipGrowthResponse = zod.object({
  */
 export const adminGetAnalyticsQueryRangeDefault = `3m`;
 export const adminGetAnalyticsQueryExcludeAboveMin = 0;
+
 
 
 export const AdminGetAnalyticsQueryParams = zod.object({
@@ -7259,6 +7335,7 @@ export const adminGetAnalyticsEconomyTransactionsQueryDirectionDefault = `create
 export const adminGetAnalyticsEconomyTransactionsQueryExcludeAboveMin = 0;
 
 
+
 export const AdminGetAnalyticsEconomyTransactionsQueryParams = zod.object({
   "week": zod.coerce.string().describe('Any instant inside the target week.'),
   "category": zod.coerce.string(),
@@ -7287,6 +7364,7 @@ export const AdminGetAnalyticsEconomyTransactionsResponse = zod.object({
  */
 export const adminListAuditLogQueryLimitDefault = 200;
 export const adminListAuditLogQueryLimitMax = 500;
+
 
 
 export const AdminListAuditLogQueryParams = zod.object({
@@ -7611,6 +7689,7 @@ export const depositToRipperdocBodyIdempotencyKeyMax = 100;
 export const depositToRipperdocBodyMemoMax = 200;
 
 
+
 export const DepositToRipperdocBody = zod.object({
   "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.'),
   "idempotencyKey": zod.string().max(depositToRipperdocBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.'),
@@ -7640,6 +7719,7 @@ export const giveToRipperdocBodyIdempotencyKeyMax = 100;
 export const giveToRipperdocBodyMemoMax = 200;
 
 
+
 export const GiveToRipperdocBody = zod.object({
   "amount": zod.number().min(1).describe('Whole eddies to move between the owner\'s personal wallet and the venue account.'),
   "idempotencyKey": zod.string().max(giveToRipperdocBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so network retries \/ double-clicks of the same move don\'t debit or credit twice.'),
@@ -7667,6 +7747,7 @@ export const WithdrawFromRipperdocParams = zod.object({
 export const withdrawFromRipperdocBodyIdempotencyKeyMax = 100;
 
 export const withdrawFromRipperdocBodyMemoMax = 200;
+
 
 
 export const WithdrawFromRipperdocBody = zod.object({
@@ -7725,6 +7806,8 @@ export const GetRipperdocTransactionsResponse = zod.array(GetRipperdocTransactio
 export const SellRipperdocItemParams = zod.object({
   "id": zod.coerce.number()
 })
+
+
 
 
 export const SellRipperdocItemBody = zod.object({
@@ -7802,6 +7885,7 @@ export const installRipperdocCyberwareBodyPriceMin = 0;
 export const installRipperdocCyberwareBodyCwpMin = 0;
 
 
+
 export const InstallRipperdocCyberwareBody = zod.object({
   "stockId": zod.number(),
   "buyerCharacterId": zod.number(),
@@ -7874,6 +7958,8 @@ export const GiveRipperdocItemParams = zod.object({
 })
 
 
+
+
 export const GiveRipperdocItemBody = zod.object({
   "stockId": zod.number(),
   "buyerCharacterId": zod.number(),
@@ -7944,6 +8030,7 @@ export const RemoveRipperdocCyberwareParams = zod.object({
 })
 
 export const removeRipperdocCyberwareBodyFeeMin = 0;
+
 
 
 export const RemoveRipperdocCyberwareBody = zod.object({
@@ -8021,6 +8108,7 @@ export const createInstallOwnedOfferBodyPriceMin = 0;
 export const createInstallOwnedOfferBodyCwpMin = 0;
 
 
+
 export const CreateInstallOwnedOfferBody = zod.object({
   "installItemId": zod.number().describe('The buyer-owned uninstalled cyberware inventory item to fit.'),
   "buyerCharacterId": zod.number(),
@@ -8039,6 +8127,7 @@ export const SendRipperdocBillParams = zod.object({
 
 
 export const sendRipperdocBillBodyNoteMax = 200;
+
 
 
 export const SendRipperdocBillBody = zod.object({
@@ -8090,6 +8179,7 @@ export const PurchaseRipperdocStockParams = zod.object({
 export const purchaseRipperdocStockBodyRetailPriceMin = 0;
 
 export const purchaseRipperdocStockBodyUnitCostMin = 0;
+
 
 
 export const PurchaseRipperdocStockBody = zod.object({
@@ -8157,6 +8247,7 @@ export const addRipperdocStockBodyQuantityMin = 0;
 export const addRipperdocStockBodyCwpMin = 0;
 
 
+
 export const AddRipperdocStockBody = zod.object({
   "name": zod.string().min(1),
   "category": zod.string().optional(),
@@ -8178,6 +8269,8 @@ export const AddRipperdocStockBody = zod.object({
 export const RequestRipperdocStockParams = zod.object({
   "id": zod.coerce.number()
 })
+
+
 
 
 export const RequestRipperdocStockBody = zod.object({
@@ -8202,6 +8295,7 @@ export const updateRipperdocStockBodyPriceMin = 0;
 export const updateRipperdocStockBodyCostMin = 0;
 
 export const updateRipperdocStockBodyQuantityMin = 0;
+
 
 
 export const UpdateRipperdocStockBody = zod.object({
@@ -8250,6 +8344,7 @@ export const createRipperdocStockOfferBodyUnitPriceMin = 0;
 export const createRipperdocStockOfferBodyCwpMin = 0;
 
 
+
 export const CreateRipperdocStockOfferBody = zod.object({
   "itemName": zod.string().min(1),
   "unitPrice": zod.number().min(createRipperdocStockOfferBodyUnitPriceMin).describe('Per-unit price billed to the venue account.'),
@@ -8271,6 +8366,7 @@ export const createStoreStockOfferBodyUnitPriceMin = 0;
 
 
 export const createStoreStockOfferBodyCwpMin = 0;
+
 
 
 export const CreateStoreStockOfferBody = zod.object({
@@ -8316,6 +8412,9 @@ export const ListAllFixerNpcsResponseItem = zod.object({
   "createdAt": zod.coerce.date()
 })
 export const ListAllFixerNpcsResponse = zod.array(ListAllFixerNpcsResponseItem)
+
+
+
 
 
 export const CreateFixerNpcBody = zod.object({
@@ -8676,6 +8775,8 @@ export const UpdateFixerNpcParams = zod.object({
 })
 
 
+
+
 export const UpdateFixerNpcBody = zod.object({
   "name": zod.string().min(1).optional(),
   "archetype": zod.string().optional(),
@@ -8705,6 +8806,7 @@ export const UpdateFixerNpcResponse = zod.object({
 export const listMySheetsResponseDataTagsMax = 30;
 
 export const listMySheetsResponseDataCyberwarePointsSpentMax = 6;
+
 
 
 export const ListMySheetsResponseItem = zod.object({
@@ -8805,6 +8907,7 @@ export const submitSheetBodyDataTagsMax = 30;
 export const submitSheetBodyDataCyberwarePointsSpentMax = 6;
 
 
+
 export const SubmitSheetBody = zod.object({
   "name": zod.string().min(1).max(submitSheetBodyNameMax),
   "characterId": zod.number().nullish(),
@@ -8902,6 +9005,7 @@ export const GetSheetParams = zod.object({
 export const getSheetResponseDataTagsMax = 30;
 
 export const getSheetResponseDataCyberwarePointsSpentMax = 6;
+
 
 
 export const GetSheetResponse = zod.object({
@@ -9008,6 +9112,7 @@ export const updateSheetBodyDataTagsMax = 30;
 export const updateSheetBodyDataCyberwarePointsSpentMax = 6;
 
 
+
 export const UpdateSheetBody = zod.object({
   "name": zod.string().min(1).max(updateSheetBodyNameMax).optional(),
   "characterId": zod.number().nullish(),
@@ -9058,6 +9163,7 @@ export const UpdateSheetBody = zod.object({
 export const updateSheetResponseDataTagsMax = 30;
 
 export const updateSheetResponseDataCyberwarePointsSpentMax = 6;
+
 
 
 export const UpdateSheetResponse = zod.object({
@@ -9170,6 +9276,7 @@ export const submitDraftSheetResponseDataTagsMax = 30;
 export const submitDraftSheetResponseDataCyberwarePointsSpentMax = 6;
 
 
+
 export const SubmitDraftSheetResponse = zod.object({
   "id": zod.number(),
   "ownerId": zod.string(),
@@ -9270,6 +9377,7 @@ export const VoteSheetParams = zod.object({
 export const voteSheetBodyNoteMax = 2000;
 
 
+
 export const VoteSheetBody = zod.object({
   "vote": zod.enum(['approve', 'reject', 'pause']).describe('Pause is a visible marker only — it never counts toward the decision threshold.'),
   "note": zod.string().max(voteSheetBodyNoteMax).optional()
@@ -9299,6 +9407,7 @@ export const OverrideSheetBody = zod.object({
 export const overrideSheetResponseDataTagsMax = 30;
 
 export const overrideSheetResponseDataCyberwarePointsSpentMax = 6;
+
 
 
 export const OverrideSheetResponse = zod.object({
@@ -9400,6 +9509,7 @@ export const RequestChangesSheetParams = zod.object({
 })
 
 export const requestChangesSheetBodyCommentMax = 2000;
+
 
 
 export const RequestChangesSheetBody = zod.object({
@@ -9525,6 +9635,7 @@ export const VotePendingEditParams = zod.object({
 export const votePendingEditBodyNoteMax = 2000;
 
 
+
 export const VotePendingEditBody = zod.object({
   "vote": zod.enum(['approve', 'reject', 'pause']).describe('Pause is a visible marker only — it never counts toward the decision threshold.'),
   "note": zod.string().max(votePendingEditBodyNoteMax).optional()
@@ -9567,6 +9678,7 @@ export const RequestChangesPendingEditParams = zod.object({
 })
 
 export const requestChangesPendingEditBodyCommentMax = 2000;
+
 
 
 export const RequestChangesPendingEditBody = zod.object({
@@ -9617,6 +9729,7 @@ export const GetCharacterPendingEditResponse = zod.object({
 export const rollDiceBodyExpressionMax = 64;
 
 
+
 export const RollDiceBody = zod.object({
   "expression": zod.string().min(1).max(rollDiceBodyExpressionMax).describe('e.g. 1d20+5, 4d6kh3'),
   "label": zod.string().optional(),
@@ -9653,6 +9766,7 @@ export const GetDiceHistoryResponse = zod.array(GetDiceHistoryResponseItem)
 export const adminFixerActivityQueryDaysDefault = 90;
 export const adminFixerActivityQueryDaysMin = 7;
 export const adminFixerActivityQueryDaysMax = 365;
+
 
 
 export const AdminFixerActivityQueryParams = zod.object({
@@ -10002,6 +10116,7 @@ export const adminCreateCharacterBodyCyberwareItemPointsDefault = 0;
 export const adminCreateCharacterBodyCyberwareItemPointsMin = 0;
 
 
+
 export const AdminCreateCharacterBody = zod.object({
   "name": zod.string().describe('Character name (required).'),
   "kind": zod.enum(['pc', 'npc']).default(adminCreateCharacterBodyKindDefault).describe('Player character or NPC.'),
@@ -10252,6 +10367,22 @@ export const ListPublicCharactersResponse = zod.array(ListPublicCharactersRespon
 
 
 /**
+ * @summary Players with no active character (for recipient pickers).
+ */
+export const ListPublicPlayersQueryParams = zod.object({
+  "q": zod.coerce.string().optional().describe('Username \/ display-name filter (min 1 char).')
+})
+
+export const ListPublicPlayersResponseItem = zod.object({
+  "id": zod.string(),
+  "username": zod.string(),
+  "globalName": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+})
+export const ListPublicPlayersResponse = zod.array(ListPublicPlayersResponseItem)
+
+
+/**
  * @summary Distinct Discord forum tag names across all imported characters.
  */
 export const ListPublicCharacterTagsResponseItem = zod.string()
@@ -10477,6 +10608,9 @@ export const UpdateArchiveCharacterParams = zod.object({
 })
 
 
+
+
+
 export const UpdateArchiveCharacterBody = zod.object({
   "commitMessage": zod.string().min(1).describe('Required non-empty rationale; written to the audit log and changelog.'),
   "name": zod.string().min(1).optional(),
@@ -10521,11 +10655,18 @@ export const UpdateArchiveCharacterResponse = zod.object({
  */
 
 
+
+
+
 export const RequestUploadUrlBody = zod.object({
   "name": zod.string().min(1),
   "size": zod.number().min(1),
   "contentType": zod.string().min(1)
 })
+
+
+
+
 
 
 export const RequestUploadUrlResponse = zod.object({
@@ -10556,15 +10697,20 @@ export const GetStorageObjectParams = zod.object({
 
 
 /**
- * @summary Manual eddie adjustment (admin only)
+ * @summary Manual eddie adjustment (admin or fixer)
  */
+
+export const adminAdjustWalletBodyIdempotencyKeyMax = 100;
+
 
 
 export const AdminAdjustWalletBody = zod.object({
-  "characterId": zod.number(),
+  "characterId": zod.number().optional(),
+  "userId": zod.string().optional().describe('Target user id — used when the player has no approved character.'),
   "amount": zod.number().describe('positive or negative'),
-  "reason": zod.string().min(1)
-})
+  "reason": zod.string().min(1),
+  "idempotencyKey": zod.string().max(adminAdjustWalletBodyIdempotencyKeyMax).optional().describe('Client-generated key so a retry \/ double-click doesn\'t apply the same adjustment twice.')
+}).describe('Exactly one of characterId \/ userId must be provided. userId targets a player account directly (for players with no approved character).')
 
 export const AdminAdjustWalletResponse = zod.object({
   "characterId": zod.number(),
@@ -10581,6 +10727,7 @@ export const AdminAdjustWalletResponse = zod.object({
  */
 
 export const adminSinkWalletBodyIdempotencyKeyMax = 100;
+
 
 
 export const AdminSinkWalletBody = zod.object({
@@ -10725,7 +10872,9 @@ export const AdminListLifestyleTiersResponseItem = zod.object({
 export const AdminListLifestyleTiersResponse = zod.array(AdminListLifestyleTiersResponseItem)
 
 
+
 export const adminCreateLifestyleTierBodyMonthlyCostMin = 0;
+
 
 
 export const AdminCreateLifestyleTierBody = zod.object({
@@ -10741,6 +10890,7 @@ export const AdminUpdateLifestyleTierParams = zod.object({
 
 
 export const adminUpdateLifestyleTierBodyMonthlyCostMin = 0;
+
 
 
 export const AdminUpdateLifestyleTierBody = zod.object({
@@ -10996,6 +11146,7 @@ export const GetMyWalletResponse = zod.object({
 export const withdrawEddiesBodyIdempotencyKeyMax = 100;
 
 
+
 export const WithdrawEddiesBody = zod.object({
   "amount": zod.number().min(1).describe('Positive number of eddies to move between bank and cash.'),
   "idempotencyKey": zod.string().max(withdrawEddiesBodyIdempotencyKeyMax).optional().describe('Client-generated key (e.g. a UUID created once per submit) so a network retry \/ double-click of the same withdraw or deposit doesn\'t move eddies twice.')
@@ -11014,6 +11165,7 @@ export const WithdrawEddiesResponse = zod.object({
  */
 
 export const depositEddiesBodyIdempotencyKeyMax = 100;
+
 
 
 export const DepositEddiesBody = zod.object({
@@ -11199,6 +11351,8 @@ export const voteCustomRequestBodyUnitCostMin = 0;
 export const voteCustomRequestBodyRetailMin = 0;
 
 
+
+
 export const VoteCustomRequestBody = zod.object({
   "vote": zod.enum(['approve', 'reject', 'pause']).describe('Pause is a visible marker only — it never counts toward the decision threshold.'),
   "note": zod.string().max(voteCustomRequestBodyNoteMax).optional(),
@@ -11270,6 +11424,8 @@ export const overrideCustomRequestBodyUnitCostMin = 0;
 export const overrideCustomRequestBodyRetailMin = 0;
 
 
+
+
 export const OverrideCustomRequestBody = zod.object({
   "decision": zod.enum(['approve', 'deny']).optional().describe('Override outcome. Defaults to approve; deny rejects the ticket and ignores the mechanical params below.'),
   "reviewerNote": zod.string().optional(),
@@ -11332,6 +11488,7 @@ export const RequestChangesCustomRequestParams = zod.object({
 })
 
 export const requestChangesCustomRequestBodyCommentMax = 2000;
+
 
 
 export const RequestChangesCustomRequestBody = zod.object({
@@ -12037,6 +12194,7 @@ export const VoteLoreEditParams = zod.object({
 export const voteLoreEditBodyNoteMax = 2000;
 
 
+
 export const VoteLoreEditBody = zod.object({
   "vote": zod.enum(['approve', 'reject']),
   "note": zod.string().max(voteLoreEditBodyNoteMax).optional()
@@ -12096,6 +12254,7 @@ export const OverrideLoreEditParams = zod.object({
 
 export const overrideLoreEditBodyDecisionDefault = `approve`;
 export const overrideLoreEditBodyReviewerNoteMax = 2000;
+
 
 
 export const OverrideLoreEditBody = zod.object({
@@ -12435,6 +12594,7 @@ export const getGunMechanicsOverridesResponseOverridesMiscRulesItemMax = 1000;
 export const getGunMechanicsOverridesResponseOverridesMiscRulesMax = 40;
 
 
+
 export const GetGunMechanicsOverridesResponse = zod.object({
   "overrides": zod.object({
   "categories": zod.object({
@@ -12500,6 +12660,7 @@ export const updateGunMechanicsOverridesBodyMiscRulesItemMax = 1000;
 export const updateGunMechanicsOverridesBodyMiscRulesMax = 40;
 
 
+
 export const UpdateGunMechanicsOverridesBody = zod.object({
   "categories": zod.object({
   "Power": zod.string().min(1).max(updateGunMechanicsOverridesBodyCategoriesPowerMax).optional(),
@@ -12557,6 +12718,7 @@ export const updateGunMechanicsOverridesResponseOverridesCalibersHMax = 40;
 export const updateGunMechanicsOverridesResponseOverridesMiscRulesItemMax = 1000;
 
 export const updateGunMechanicsOverridesResponseOverridesMiscRulesMax = 40;
+
 
 
 export const UpdateGunMechanicsOverridesResponse = zod.object({
@@ -12961,6 +13123,7 @@ export const PostReviewCommentParams = zod.object({
 export const postReviewCommentBodyBodyMax = 4000;
 
 
+
 export const PostReviewCommentBody = zod.object({
   "body": zod.string().min(1).max(postReviewCommentBodyBodyMax)
 })
@@ -13094,6 +13257,7 @@ export const closeReviewTicketBodySheetGunsItemPowerLevelMax = 60;
 export const closeReviewTicketBodySheetGunsItemManufacturerMax = 120;
 
 
+
 export const CloseReviewTicketBody = zod.object({
   "note": zod.string().max(closeReviewTicketBodyNoteMax).optional().describe('Optional closing message recorded with the close\/apply action. For custom requests it is also DM\'d to the player along with the approve\/reject decision (Tickety-style closing comment); for edits and sheets it is recorded in the audit trail only.'),
   "monthlyRent": zod.number().optional().describe('Custom request (property) only. Monthly rent applied to the new lease at CLOSE & APPLY.'),
@@ -13196,6 +13360,7 @@ export const createBreachPuzzleBodyTimeLimitSecondsMin = 10;
 export const createBreachPuzzleBodyTimeLimitSecondsMax = 600;
 
 export const createBreachPuzzleBodyRewardEddiesMin = 0;
+
 
 
 export const CreateBreachPuzzleBody = zod.object({
@@ -13541,6 +13706,7 @@ export const getBreachPracticeStatsResponseNightmareAttemptsMin = 0;
 export const getBreachPracticeStatsResponseNightmareSolvesMin = 0;
 
 
+
 export const GetBreachPracticeStatsResponse = zod.object({
   "easy": zod.object({
   "attempts": zod.number().min(getBreachPracticeStatsResponseEasyAttemptsMin),
@@ -13594,6 +13760,7 @@ export const clearBreachPracticeStatsResponseNightmareAttemptsMin = 0;
 export const clearBreachPracticeStatsResponseNightmareSolvesMin = 0;
 
 
+
 export const ClearBreachPracticeStatsResponse = zod.object({
   "easy": zod.object({
   "attempts": zod.number().min(clearBreachPracticeStatsResponseEasyAttemptsMin),
@@ -13636,6 +13803,7 @@ export const getBreachPracticeLeaderboardResponseHardItemClearMsMin = 0;
 export const getBreachPracticeLeaderboardResponseVeryHardItemClearMsMin = 0;
 
 export const getBreachPracticeLeaderboardResponseNightmareItemClearMsMin = 0;
+
 
 
 export const GetBreachPracticeLeaderboardResponse = zod.object({
@@ -13683,6 +13851,7 @@ export const GetBreachPracticeLeaderboardResponse = zod.object({
 export const recordBreachPracticeAttemptBodyElapsedMsMin = 0;
 
 
+
 export const RecordBreachPracticeAttemptBody = zod.object({
   "difficulty": zod.enum(['easy', 'medium', 'hard', 'very_hard', 'nightmare']),
   "success": zod.boolean(),
@@ -13708,6 +13877,7 @@ export const recordBreachPracticeAttemptResponseVeryHardSolvesMin = 0;
 export const recordBreachPracticeAttemptResponseNightmareAttemptsMin = 0;
 
 export const recordBreachPracticeAttemptResponseNightmareSolvesMin = 0;
+
 
 
 export const RecordBreachPracticeAttemptResponse = zod.object({
@@ -13764,6 +13934,7 @@ export const mergeBreachPracticeStatsBodyStatsNightmareAttemptsMin = 0;
 export const mergeBreachPracticeStatsBodyStatsNightmareSolvesMin = 0;
 
 
+
 export const MergeBreachPracticeStatsBody = zod.object({
   "stats": zod.object({
   "easy": zod.object({
@@ -13813,6 +13984,7 @@ export const mergeBreachPracticeStatsResponseVeryHardSolvesMin = 0;
 export const mergeBreachPracticeStatsResponseNightmareAttemptsMin = 0;
 
 export const mergeBreachPracticeStatsResponseNightmareSolvesMin = 0;
+
 
 
 export const MergeBreachPracticeStatsResponse = zod.object({
@@ -13983,6 +14155,8 @@ export const CreateNcpdNoteParams = zod.object({
 })
 
 
+
+
 export const CreateNcpdNoteBody = zod.object({
   "note": zod.string().min(1)
 })
@@ -14024,6 +14198,8 @@ export const ListNcpdReportsResponse = zod.array(ListNcpdReportsResponseItem)
  */
 
 
+
+
 export const CreateNcpdReportBody = zod.object({
   "characterId": zod.number(),
   "title": zod.string().min(1),
@@ -14039,6 +14215,9 @@ export const CreateNcpdReportBody = zod.object({
 export const UpdateNcpdReportParams = zod.object({
   "id": zod.coerce.number()
 })
+
+
+
 
 
 export const UpdateNcpdReportBody = zod.object({
@@ -14099,6 +14278,8 @@ export const ListNcpdFinesResponse = zod.array(ListNcpdFinesResponseItem)
 /**
  * @summary Issue a fine against a character (NCPD/fixer/admin only).
  */
+
+
 
 
 export const CreateNcpdFineBody = zod.object({
@@ -14204,6 +14385,7 @@ export const ListNcpdWarrantsResponse = zod.array(ListNcpdWarrantsResponseItem)
  */
 
 
+
 export const CreateNcpdWarrantBody = zod.object({
   "characterId": zod.number(),
   "reason": zod.string().min(1),
@@ -14217,6 +14399,8 @@ export const CreateNcpdWarrantBody = zod.object({
 export const UpdateNcpdWarrantParams = zod.object({
   "id": zod.coerce.number()
 })
+
+
 
 
 export const UpdateNcpdWarrantBody = zod.object({
@@ -14276,6 +14460,7 @@ export const ListNcpdCasesResponse = zod.array(ListNcpdCasesResponseItem)
  */
 
 
+
 export const CreateNcpdCaseBody = zod.object({
   "title": zod.string().min(1),
   "body": zod.string().optional().describe('Optional starting body — defaults to blank.')
@@ -14307,6 +14492,8 @@ export const GetNcpdCaseResponse = zod.object({
 export const UpdateNcpdCaseParams = zod.object({
   "id": zod.coerce.number()
 })
+
+
 
 
 export const UpdateNcpdCaseBody = zod.object({
@@ -14361,6 +14548,8 @@ export const ListNcpdLawsResponse = zod.array(ListNcpdLawsResponseItem)
  */
 
 
+
+
 export const CreateNcpdLawBody = zod.object({
   "title": zod.string().min(1),
   "body": zod.string().min(1),
@@ -14377,6 +14566,9 @@ export const CreateNcpdLawBody = zod.object({
 export const UpdateNcpdLawParams = zod.object({
   "id": zod.coerce.number()
 })
+
+
+
 
 
 export const UpdateNcpdLawBody = zod.object({
@@ -14473,6 +14665,7 @@ export const listNotificationsQueryLimitDefault = 20;
 export const listNotificationsQueryLimitMax = 100;
 
 
+
 export const ListNotificationsQueryParams = zod.object({
   "limit": zod.coerce.number().min(1).max(listNotificationsQueryLimitMax).default(listNotificationsQueryLimitDefault),
   "before": zod.coerce.number().optional().describe('Return rows with id strictly less than this cursor.')
@@ -14512,4 +14705,5 @@ export const MarkNotificationsReadBody = zod.object({
 export const MarkNotificationsReadResponse = zod.object({
   "updated": zod.number()
 })
+
 

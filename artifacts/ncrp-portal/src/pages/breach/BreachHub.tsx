@@ -139,7 +139,7 @@ export default function BreachHub() {
     try {
       const puzzle = await createMut.mutateAsync({
         data: {
-          assignedCharacterId: target.id,
+          assignedCharacterId: target.id!,
           difficulty,
           timeLimitSeconds,
           contextLabel: missionContext?.label.trim() || undefined,

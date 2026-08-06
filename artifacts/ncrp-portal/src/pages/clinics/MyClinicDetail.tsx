@@ -571,7 +571,7 @@ export default function MyClinicDetail() {
             onClick={() =>
               sendBill.mutate({
                 id: rid,
-                data: { buyerCharacterId: billChar!.id, amount: billAmount, note: billNote.trim() },
+                data: { buyerCharacterId: billChar!.id!, amount: billAmount, note: billNote.trim() },
               })
             }
             data-testid="button-send-bill"

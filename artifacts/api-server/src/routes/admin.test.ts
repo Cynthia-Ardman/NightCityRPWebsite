@@ -320,3 +320,69 @@ describe("bot-config flags", () => {
     expect(del.status).toBe(204);
   });
 });
+
+describe("POST /admin/wallet/adjust — fixer access + user targets", () => {
+  it("allows a FIXER to adjust via a bare userId (no character)", async () => {
+    mockPatch.mockResolvedValue({ cash: 1100, bank: 0, total: 1100, source: "unbelievaboat" });
+    const fixer = await createUser({ roles: ["fixer"] });
+    const player = await createUser();
+    const res = await request(app)
+      .post("/api/admin/wallet/adjust")
+      .set("x-test-user", fixer.id)
+      .send({ userId: player.id, amount: 250, reason: "starter funds" });
+    expect(res.status).toBe(200);
+    expect(mockPatch).toHaveBeenCalledWith(player.discordId, expect.objectContaining({ cash: 250 }));
+    const txns = await db.select().from(walletTransactions).where(eq(walletTransactions.userId, player.id));
+    expect(txns).toHaveLength(1);
+    expect(txns[0].characterId).toBeNull();
+    expect(txns[0].amount).toBe(250);
+  });
+
+  it("400 when both characterId and userId are supplied", async () => {
+    const admin = await createAdmin();
+    const player = await createUser();
+    const char = await createCharacter({ ownerId: player.id });
+    const res = await request(app)
+      .post("/api/admin/wallet/adjust")
+      .set("x-test-user", admin.id)
+      .send({ characterId: char.id, userId: player.id, amount: 10, reason: "x" });
+    expect(res.status).toBe(400);
+    expect(mockPatch).not.toHaveBeenCalled();
+  });
+
+  it("404 for an unknown userId", async () => {
+    const admin = await createAdmin();
+    const res = await request(app)
+      .post("/api/admin/wallet/adjust")
+      .set("x-test-user", admin.id)
+      .send({ userId: "nope", amount: 10, reason: "x" });
+    expect(res.status).toBe(404);
+    expect(mockPatch).not.toHaveBeenCalled();
+  });
+
+  it("still 403s a plain user", async () => {
+    const user = await createUser();
+    const res = await request(app)
+      .post("/api/admin/wallet/adjust")
+      .set("x-test-user", user.id)
+      .send({ userId: user.id, amount: 10, reason: "x" });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("POST /admin/wallet/adjust — idempotency replay", () => {
+  it("does not hit the wallet provider again for a repeated key", async () => {
+    mockPatch.mockResolvedValue({ cash: 1100, bank: 0, total: 1100, source: "unbelievaboat" });
+    const admin = await createAdmin();
+    const player = await createUser();
+    const body = { userId: player.id, amount: 100, reason: "grant", idempotencyKey: "adj-key-1" };
+    const first = await request(app).post("/api/admin/wallet/adjust").set("x-test-user", admin.id).send(body);
+    expect(first.status).toBe(200);
+    expect(mockPatch).toHaveBeenCalledTimes(1);
+    const second = await request(app).post("/api/admin/wallet/adjust").set("x-test-user", admin.id).send(body);
+    expect(second.status).toBe(200);
+    expect(mockPatch).toHaveBeenCalledTimes(1);
+    const txns = await db.select().from(walletTransactions).where(eq(walletTransactions.userId, player.id));
+    expect(txns).toHaveLength(1);
+  });
+});

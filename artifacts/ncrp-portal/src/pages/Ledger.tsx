@@ -4,6 +4,7 @@ import {
   useGetMyWalletTransactions,
   useListMyCharacters,
   useTransferEddies,
+  useTransferEddiesFromAccount,
   useSinkEddies,
   useWithdrawEddies,
   useDepositEddies,
@@ -333,32 +334,42 @@ export default function Ledger() {
 function TransferCard({ cash, total }: { cash: number | null; total: number | null }) {
   const qc = useQueryClient();
   const { data: myChars } = useListMyCharacters();
-  const [fromId, setFromId] = useState<number | null>(null);
+  const [fromId, setFromId] = useState<number | "account" | null>(null);
   const [to, setTo] = useState<CharacterPickerValue>(null);
   const [amount, setAmount] = useState(0);
   const [memo, setMemo] = useState("");
 
-  const transfer = useTransferEddies({
-    mutation: {
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
-        qc.invalidateQueries({ queryKey: getGetMyWalletTransactionsQueryKey() });
-        setTo(null);
-        setAmount(0);
-        setMemo("");
-      },
+  const onDone = {
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
+      qc.invalidateQueries({ queryKey: getGetMyWalletTransactionsQueryKey() });
+      setTo(null);
+      setAmount(0);
+      setMemo("");
     },
-  });
+  };
+  const transfer = useTransferEddies({ mutation: onDone });
+  const accountTransfer = useTransferEddiesFromAccount({ mutation: onDone });
 
   const chars = myChars ?? [];
-  const canSubmit = !!fromId && !!to?.id && amount > 0 && fromId !== to.id && !transfer.isPending;
+  // Players with no approved character can still send — money is
+  // account-level; offer an account-only "from" option in that case.
+  const noChars = chars.length === 0 && myChars !== undefined;
+  const active = fromId === "account" ? accountTransfer : transfer;
+  const canSubmit =
+    !!fromId &&
+    (!!to?.id || !!to?.userId) &&
+    amount > 0 &&
+    fromId !== to?.id &&
+    !transfer.isPending &&
+    !accountTransfer.isPending;
 
   // When a transfer fails, prefer the server's specific message. If it failed
   // for lack of cash but the bank would cover it, add a withdraw nudge so the
   // player isn't left with the old generic "check funds" dead end.
   let transferError: string | null = null;
-  if (transfer.error) {
-    transferError = apiErrorMessage(transfer.error, "Transfer failed. Check funds or try again.");
+  if (active.error) {
+    transferError = apiErrorMessage(active.error, "Transfer failed. Check funds or try again.");
     // Only enhance the message when the server actually reported a cash/funds
     // problem — otherwise we'd mask unrelated errors (e.g. a recipient issue)
     // with a misleading withdraw nudge.
@@ -389,29 +400,39 @@ function TransferCard({ cash, total }: { cash: number | null; total: number | nu
           className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end"
           onSubmit={(e) => {
             e.preventDefault();
-            if (!canSubmit || !to?.id || !fromId) return;
-            transfer.mutate({ id: fromId, data: { toCharacterId: to.id, amount, memo: memo || undefined, idempotencyKey: crypto.randomUUID() } });
+            if (!canSubmit || !to || !fromId) return;
+            const data = {
+              ...(to.id ? { toCharacterId: to.id } : { toUserId: to.userId }),
+              amount,
+              memo: memo || undefined,
+              idempotencyKey: crypto.randomUUID(),
+            };
+            if (fromId === "account") accountTransfer.mutate({ data });
+            else transfer.mutate({ id: fromId, data });
           }}
         >
           <div className="sm:col-span-3">
             <Label className="text-xs font-mono">FROM</Label>
             <select
               value={fromId ?? ""}
-              onChange={(e) => setFromId(e.target.value ? Number(e.target.value) : null)}
+              onChange={(e) =>
+                setFromId(e.target.value === "account" ? "account" : e.target.value ? Number(e.target.value) : null)
+              }
               className="w-full h-10 bg-background border border-border rounded-none px-2 font-mono text-sm text-foreground"
               data-testid="select-transfer-from"
             >
-              <option value="">Select character…</option>
+              <option value="">{noChars ? "Select…" : "Select character…"}</option>
               {chars.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
+              {noChars && <option value="account">My account (no character)</option>}
             </select>
           </div>
           <div className="sm:col-span-3">
             <Label className="text-xs font-mono">TO</Label>
-            <CharacterPicker value={to} onChange={setTo} testId="input-transfer-to" />
+            <CharacterPicker value={to} onChange={setTo} allowPlayers testId="input-transfer-to" />
           </div>
           <div className="sm:col-span-2">
             <Label className="text-xs font-mono">AMOUNT (€$)</Label>
@@ -434,7 +455,7 @@ function TransferCard({ cash, total }: { cash: number | null; total: number | nu
               className="w-full rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
               data-testid="button-transfer"
             >
-              {transfer.isPending ? "SENDING..." : "SEND"}
+              {active.isPending ? "SENDING..." : "SEND"}
             </Button>
           </div>
         </form>

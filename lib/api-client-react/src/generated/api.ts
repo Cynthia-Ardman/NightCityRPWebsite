@@ -21,6 +21,7 @@ import type {
 
 import type {
   AcceptRules200,
+  AccountWallet,
   ActingEntry,
   ActivityEvent,
   ActorHistoryRow,
@@ -224,6 +225,7 @@ import type {
   ListPendingEditsParams,
   ListPendingSheetsParams,
   ListPublicCharactersParams,
+  ListPublicPlayersParams,
   ListingHistory,
   LiveModeState,
   LiveModeUpdate,
@@ -294,6 +296,7 @@ import type {
   PlayerSearchResult,
   PublicCharacter,
   PublicCharacterSummary,
+  PublicPlayerSummary,
   PurchaseEventTicketBody,
   ReactivateCharacter200,
   RefreshVrchatInstances200,
@@ -2206,6 +2209,77 @@ export function useGetWallet<TData = Awaited<ReturnType<typeof getWallet>>, TErr
 
 
 
+
+export const getTransferEddiesFromAccountUrl = () => {
+
+
+
+
+  return `/api/wallet/transfer`
+}
+
+/**
+ * @summary Account-level transfer for players with no approved character.
+ */
+export const transferEddiesFromAccount = async (transferInput: TransferInput, options?: RequestInit): Promise<AccountWallet> => {
+
+  return customFetch<AccountWallet>(getTransferEddiesFromAccountUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      transferInput,)
+  }
+);}
+
+
+
+
+export const getTransferEddiesFromAccountMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transferEddiesFromAccount>>, TError,{data: BodyType<TransferInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof transferEddiesFromAccount>>, TError,{data: BodyType<TransferInput>}, TContext> => {
+
+const mutationKey = ['transferEddiesFromAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof transferEddiesFromAccount>>, {data: BodyType<TransferInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  transferEddiesFromAccount(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TransferEddiesFromAccountMutationResult = NonNullable<Awaited<ReturnType<typeof transferEddiesFromAccount>>>
+    export type TransferEddiesFromAccountMutationBody = BodyType<TransferInput>
+    export type TransferEddiesFromAccountMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Account-level transfer for players with no approved character.
+ */
+export const useTransferEddiesFromAccount = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transferEddiesFromAccount>>, TError,{data: BodyType<TransferInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof transferEddiesFromAccount>>,
+        TError,
+        {data: BodyType<TransferInput>},
+        TContext
+      > => {
+      return useMutation(getTransferEddiesFromAccountMutationOptions(options));
+    }
 
 export const getTransferEddiesUrl = (id: number,) => {
 
@@ -18691,6 +18765,90 @@ export function useListPublicCharacters<TData = Awaited<ReturnType<typeof listPu
 
 
 
+export const getListPublicPlayersUrl = (params?: ListPublicPlayersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/directory/players?${stringifiedParams}` : `/api/directory/players`
+}
+
+/**
+ * @summary Players with no active character (for recipient pickers).
+ */
+export const listPublicPlayers = async (params?: ListPublicPlayersParams, options?: RequestInit): Promise<PublicPlayerSummary[]> => {
+
+  return customFetch<PublicPlayerSummary[]>(getListPublicPlayersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPublicPlayersQueryKey = (params?: ListPublicPlayersParams,) => {
+    return [
+    `/api/directory/players`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPublicPlayersQueryOptions = <TData = Awaited<ReturnType<typeof listPublicPlayers>>, TError = ErrorType<unknown>>(params?: ListPublicPlayersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPublicPlayers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPublicPlayersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPublicPlayers>>> = ({ signal }) => listPublicPlayers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPublicPlayers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPublicPlayersQueryResult = NonNullable<Awaited<ReturnType<typeof listPublicPlayers>>>
+export type ListPublicPlayersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Players with no active character (for recipient pickers).
+ */
+
+export function useListPublicPlayers<TData = Awaited<ReturnType<typeof listPublicPlayers>>, TError = ErrorType<unknown>>(
+ params?: ListPublicPlayersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPublicPlayers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPublicPlayersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
 export const getListPublicCharacterTagsUrl = () => {
 
 
@@ -19686,7 +19844,7 @@ export const getAdminAdjustWalletUrl = () => {
 }
 
 /**
- * @summary Manual eddie adjustment (admin only)
+ * @summary Manual eddie adjustment (admin or fixer)
  */
 export const adminAdjustWallet = async (walletAdjustmentInput: WalletAdjustmentInput, options?: RequestInit): Promise<Wallet> => {
 
@@ -19735,7 +19893,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type AdminAdjustWalletMutationError = ErrorType<unknown>
 
     /**
- * @summary Manual eddie adjustment (admin only)
+ * @summary Manual eddie adjustment (admin or fixer)
  */
 export const useAdminAdjustWallet = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminAdjustWallet>>, TError,{data: BodyType<WalletAdjustmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}

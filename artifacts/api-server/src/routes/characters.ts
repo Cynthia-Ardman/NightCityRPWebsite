@@ -1120,34 +1120,47 @@ router.get("/characters/:id/wallet/transactions", requireAuth, async (req, res):
   );
 });
 
-router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
-  const c = await loadOwnedChar(req.user!.id, id);
-  if (!c) {
-    res.status(404).json({ error: "Not found" });
+// Shared eddie-transfer implementation. `fromChar` is the sender's character
+// when transferring from a character context, or null for the account-level
+// route (players with no approved character still have a UB account — money is
+// account-level; characters are only ledger attribution). The recipient may be
+// a character (toCharacterId) OR a bare player account (toUserId) so players
+// without an approved character can still receive money.
+async function handleEddieTransfer(
+  req: Parameters<Parameters<typeof router.post>[1]>[0],
+  res: Parameters<Parameters<typeof router.post>[1]>[1],
+  fromChar: { id: number; name: string } | null,
+): Promise<void> {
+  const { toCharacterId, toUserId, amount, memo } = req.body ?? {};
+  if (!amount || amount <= 0 || (!toCharacterId && !toUserId) || (toCharacterId && toUserId)) {
+    res.status(400).json({ error: "positive amount and exactly one of toCharacterId / toUserId required" });
     return;
   }
-  const { toCharacterId, amount, memo } = req.body ?? {};
-  if (!toCharacterId || !amount || amount <= 0) {
-    res.status(400).json({ error: "toCharacterId and positive amount required" });
-    return;
+  let to: { id: number; name: string } | null = null;
+  let toOwner: typeof users.$inferSelect | undefined;
+  if (toCharacterId) {
+    const [toRow] = await db.select().from(characters).where(eq(characters.id, toCharacterId));
+    if (!toRow) {
+      res.status(404).json({ error: "Recipient not found" });
+      return;
+    }
+    // Refuse to transfer into an unclaimed character — there is no UB account
+    // to credit, so the sender's debit would have no offsetting credit.
+    if (!toRow.ownerId) {
+      res.status(409).json({ error: "Recipient character is unclaimed (no owner)" });
+      return;
+    }
+    [toOwner] = await db.select().from(users).where(eq(users.id, toRow.ownerId));
+    to = { id: toRow.id, name: toRow.name };
+  } else {
+    [toOwner] = await db.select().from(users).where(eq(users.id, String(toUserId)));
   }
-  const [to] = await db.select().from(characters).where(eq(characters.id, toCharacterId));
-  if (!to) {
-    res.status(404).json({ error: "Recipient not found" });
-    return;
-  }
-  // Refuse to transfer into an unclaimed character — there is no UB account
-  // to credit, so the sender's debit would have no offsetting credit.
-  if (!to.ownerId) {
-    res.status(409).json({ error: "Recipient character is unclaimed (no owner)" });
-    return;
-  }
-  const [toOwner] = await db.select().from(users).where(eq(users.id, to.ownerId));
   if (!toOwner) {
-    res.status(409).json({ error: "Recipient owner account missing" });
+    res.status(409).json({ error: "Recipient account missing" });
     return;
   }
+  const fromName = fromChar?.name ?? req.user!.username;
+  const toName = to?.name ?? (toOwner.globalName || toOwner.username);
   // Idempotency: a client may pass a key (UUID generated once per submit) so a
   // retry / double-click can't run the debit+credit twice. If we've already
   // settled this exact transfer, return success without touching UB again.
@@ -1163,7 +1176,7 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
     if (done) {
       const cur = await getBalance(req.user!.discordId);
       res.json({
-        characterId: id,
+        ...(fromChar ? { characterId: fromChar.id } : {}),
         balance: cur?.total ?? 0,
         cash: cur?.cash ?? 0,
         bank: cur?.bank ?? 0,
@@ -1193,21 +1206,21 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
     return;
   }
   // Debit sender via UB — must succeed.
-  const debited = await patchBalance(req.user!.discordId, { cash: -amount, reason: memo ?? `Transfer to ${to.name}` });
+  const debited = await patchBalance(req.user!.discordId, { cash: -amount, reason: memo ?? `Transfer to ${toName}` });
   if (!debited) {
     res.status(502).json({ error: "Wallet provider rejected debit" });
     return;
   }
-  const credited = await patchBalance(toOwner.discordId, { cash: amount, reason: memo ?? `From ${c.name}` });
+  const credited = await patchBalance(toOwner.discordId, { cash: amount, reason: memo ?? `From ${fromName}` });
   if (!credited) {
     // Compensate: refund sender to keep UB consistent. If the refund itself
     // fails the sender has been debited with no offsetting credit and no
     // record — surface a loud, structured log so an operator can reconcile by
     // hand, and tell the caller the truth rather than a clean refund message.
-    const refund = await patchBalance(req.user!.discordId, { cash: amount, reason: `Refund: credit to ${to.name} failed` });
+    const refund = await patchBalance(req.user!.discordId, { cash: amount, reason: `Refund: credit to ${toName} failed` });
     if (!refund) {
       logger.error(
-        { fromDiscordId: req.user!.discordId, toCharacterId: to.id, amount },
+        { fromDiscordId: req.user!.discordId, toCharacterId: to?.id ?? null, toUserId: toOwner.id, amount },
         "TRANSFER_REFUND_FAILED: sender debited but credit AND refund failed — manual reconciliation required",
       );
       res.status(502).json({ error: "Transfer failed and refund failed; contact staff for reconciliation." });
@@ -1227,9 +1240,9 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
     source: "website",
     kind: "transfer_out",
     memo: memo ?? null,
-    characterId: id,
-    counterpartyCharacterId: to.id,
-    counterpartyName: to.name,
+    characterId: fromChar?.id ?? null,
+    counterpartyCharacterId: to?.id ?? null,
+    counterpartyName: toName,
     idempotencyKey: transferKey ? `${transferKey}:out` : null,
   });
   await recordSettledWalletMovement({
@@ -1239,9 +1252,9 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
     source: "website",
     kind: "transfer_in",
     memo: memo ?? null,
-    characterId: to.id,
-    counterpartyCharacterId: c.id,
-    counterpartyName: c.name,
+    characterId: to?.id ?? null,
+    counterpartyCharacterId: fromChar?.id ?? null,
+    counterpartyName: fromName,
     idempotencyKey: transferKey ? `${transferKey}:in` : null,
   });
   const ub = await getBalance(req.user!.discordId);
@@ -1249,20 +1262,43 @@ router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Pr
     req,
     category: "wallet",
     action: "transfer",
-    targetType: "character",
-    targetId: id,
-    message: `${c.name} → ${to.name}: ${amount}`,
-    after: { fromCharacterId: id, toCharacterId: to.id, amount, memo: memo ?? null },
+    targetType: fromChar ? "character" : "user",
+    targetId: fromChar?.id ?? null,
+    message: `${fromName} → ${toName}: ${amount}`,
+    after: {
+      fromCharacterId: fromChar?.id ?? null,
+      toCharacterId: to?.id ?? null,
+      toUserId: toOwner.id,
+      amount,
+      memo: memo ?? null,
+    },
   });
   // Return the documented Wallet shape (characterId + balance) for the sender's
   // post-transfer balance, instead of the raw UbBalance (which used `total`).
   res.json({
-    characterId: id,
+    ...(fromChar ? { characterId: fromChar.id } : {}),
     balance: ub?.total ?? 0,
     cash: ub?.cash ?? 0,
     bank: ub?.bank ?? 0,
     source: ub?.source ?? "unbelievaboat",
   });
+}
+
+router.post("/characters/:id/wallet/transfer", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const c = await loadOwnedChar(req.user!.id, id);
+  if (!c) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  await handleEddieTransfer(req, res, { id: c.id, name: c.name });
+});
+
+// Account-level transfer: players with no approved character still have a UB
+// wallet, so they can send money without a character context. Ledger legs are
+// recorded with a null characterId (account-level rows).
+router.post("/wallet/transfer", requireAuth, async (req, res): Promise<void> => {
+  await handleEddieTransfer(req, res, null);
 });
 
 // Money sink: pay "Night City Bot" to burn eddies out of the economy. Unlike a

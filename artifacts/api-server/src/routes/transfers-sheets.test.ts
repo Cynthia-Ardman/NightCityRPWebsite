@@ -337,3 +337,86 @@ describe("POST /sheets — draft bypasses submission validation", () => {
     expect(res.body.status).toBe("draft");
   });
 });
+
+describe("wallet transfers — user targets & account-level sender", () => {
+  it("400 when both toCharacterId and toUserId are given", async () => {
+    const owner = await createUser();
+    const from = await createCharacter({ ownerId: owner.id });
+    const res = await request(app)
+      .post(`/api/characters/${from.id}/wallet/transfer`)
+      .set("x-test-user", owner.id)
+      .send({ toCharacterId: 1, toUserId: "x", amount: 10 });
+    expect(res.status).toBe(400);
+    expect(mockPatch).not.toHaveBeenCalled();
+  });
+
+  it("transfers to a bare player account via toUserId (no character)", async () => {
+    mockGet.mockResolvedValue(bal(500));
+    mockPatch.mockResolvedValueOnce(bal(400)).mockResolvedValueOnce(bal(100));
+    const owner = await createUser();
+    const recipient = await createUser();
+    const from = await createCharacter({ ownerId: owner.id });
+    const res = await request(app)
+      .post(`/api/characters/${from.id}/wallet/transfer`)
+      .set("x-test-user", owner.id)
+      .send({ toUserId: recipient.id, amount: 100 });
+    expect(res.status).toBe(200);
+    expect(mockPatch).toHaveBeenNthCalledWith(1, owner.discordId, expect.objectContaining({ cash: -100 }));
+    expect(mockPatch).toHaveBeenNthCalledWith(2, recipient.discordId, expect.objectContaining({ cash: 100 }));
+    const rows = await db.select().from(walletTransactions);
+    const inLeg = rows.find((r) => r.kind === "transfer_in");
+    expect(inLeg?.userId).toBe(recipient.id);
+    expect(inLeg?.characterId).toBeNull();
+  });
+
+  it("409 when toUserId does not exist", async () => {
+    const owner = await createUser();
+    const from = await createCharacter({ ownerId: owner.id });
+    const res = await request(app)
+      .post(`/api/characters/${from.id}/wallet/transfer`)
+      .set("x-test-user", owner.id)
+      .send({ toUserId: "does-not-exist", amount: 10 });
+    expect(res.status).toBe(409);
+    expect(mockPatch).not.toHaveBeenCalled();
+  });
+
+  it("POST /wallet/transfer sends from the account with no character context", async () => {
+    mockGet.mockResolvedValue(bal(500));
+    mockPatch.mockResolvedValueOnce(bal(400)).mockResolvedValueOnce(bal(100));
+    const sender = await createUser();
+    const recipientOwner = await createUser();
+    const to = await createCharacter({ ownerId: recipientOwner.id });
+    const res = await request(app)
+      .post("/api/wallet/transfer")
+      .set("x-test-user", sender.id)
+      .send({ toCharacterId: to.id, amount: 100 });
+    expect(res.status).toBe(200);
+    expect(res.body.balance).toBeDefined();
+    const rows = await db.select().from(walletTransactions);
+    const outLeg = rows.find((r) => r.kind === "transfer_out");
+    expect(outLeg?.userId).toBe(sender.id);
+    expect(outLeg?.characterId).toBeNull();
+    const inLeg = rows.find((r) => r.kind === "transfer_in");
+    expect(inLeg?.characterId).toBe(to.id);
+  });
+
+  it("account-level idempotency: same key does not double-move", async () => {
+    mockGet.mockResolvedValue(bal(500));
+    mockPatch.mockResolvedValue(bal(400));
+    const sender = await createUser();
+    const recipient = await createUser();
+    const key = "abc-123";
+    const first = await request(app)
+      .post("/api/wallet/transfer")
+      .set("x-test-user", sender.id)
+      .send({ toUserId: recipient.id, amount: 100, idempotencyKey: key });
+    expect(first.status).toBe(200);
+    const callsAfterFirst = mockPatch.mock.calls.length;
+    const second = await request(app)
+      .post("/api/wallet/transfer")
+      .set("x-test-user", sender.id)
+      .send({ toUserId: recipient.id, amount: 100, idempotencyKey: key });
+    expect(second.status).toBe(200);
+    expect(mockPatch.mock.calls.length).toBe(callsAfterFirst);
+  });
+});

@@ -7,6 +7,8 @@
  */
 
 export * from './acceptRules200';
+export * from './accountWallet';
+export * from './accountWalletSource';
 export * from './actingEntry';
 export * from './actingEntrySource';
 export * from './activityEvent';
@@ -408,6 +410,7 @@ export * from './listPendingSheetsParams';
 export * from './listPublicCharactersMode';
 export * from './listPublicCharactersParams';
 export * from './listPublicCharactersScope';
+export * from './listPublicPlayersParams';
 export * from './liveModeState';
 export * from './liveModeSystems';
 export * from './liveModeUpdate';
@@ -593,6 +596,7 @@ export * from './playerSearchResult';
 export * from './publicCharacter';
 export * from './publicCharacterSummary';
 export * from './publicCharacterSummaryLifeStatus';
+export * from './publicPlayerSummary';
 export * from './purchaseEventTicketBody';
 export * from './reactivateCharacter200';
 export * from './refreshVrchatInstances200';

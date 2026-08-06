@@ -6,7 +6,10 @@ import {
   getSearchFixerPlayersQueryKey,
   useGetFixerPlayerActivity,
   getGetFixerPlayerActivityQueryKey,
+  useAdminAdjustWallet,
 } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -530,6 +533,11 @@ export default function FixerPlayerLookup() {
                 </Section>
               )}
 
+              {/* Wallet adjustment (fixer/admin) — targets the player's account
+                  directly (userId), so it works even when the player has no
+                  approved character. Ledger attribution is account-level. */}
+              <WalletAdjustCard userId={selectedId!} />
+
               {/* Wallet transactions */}
               <Section icon={<Coins className="w-4 h-4" />} title="WALLET TRANSACTIONS" count={profile.walletTransactions.length}>
                 {profile.walletTransactions.length === 0 ? (
@@ -638,6 +646,86 @@ export default function FixerPlayerLookup() {
         </div>
       )}
     </div>
+  );
+}
+
+// Fixer/admin wallet adjustment for the selected player. Uses the shared
+// admin adjust endpoint with a bare userId so it works for players with no
+// approved character (ledger row is account-level, characterId null).
+function WalletAdjustCard({ userId }: { userId: string }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const adjust = useAdminAdjustWallet();
+  const [amount, setAmount] = useState(0);
+  const [reason, setReason] = useState("");
+  const canSubmit = amount !== 0 && reason.trim().length > 0 && !adjust.isPending;
+
+  return (
+    <Card className="rounded-none border-destructive/50 bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest text-destructive flex items-center gap-2">
+          <Coins className="w-4 h-4" /> ADJUST WALLET
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form
+          className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end font-mono"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!canSubmit) return;
+            adjust.mutate(
+              { data: { userId, amount, reason: reason.trim(), idempotencyKey: crypto.randomUUID() } },
+              {
+                onSuccess: () => {
+                  toast({ title: "Wallet adjusted", description: `${amount > 0 ? "+" : ""}${amount.toLocaleString()} €$ applied.` });
+                  setAmount(0);
+                  setReason("");
+                  qc.invalidateQueries({ queryKey: getGetFixerPlayerActivityQueryKey(userId) });
+                },
+                onError: (err: unknown) => {
+                  const msg =
+                    (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+                    (err instanceof Error ? err.message : "Adjustment failed");
+                  toast({ title: "Adjustment failed", description: msg, variant: "destructive" });
+                },
+              },
+            );
+          }}
+        >
+          <div className="sm:col-span-3">
+            <Label className="text-xs font-mono">AMOUNT (±€$)</Label>
+            <Input
+              type="number"
+              value={amount || ""}
+              onChange={(e) => setAmount(Number(e.target.value))}
+              data-testid="input-fixer-adjust-amount"
+            />
+          </div>
+          <div className="sm:col-span-6">
+            <Label className="text-xs font-mono">REASON</Label>
+            <Input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Why this adjustment?"
+              data-testid="input-fixer-adjust-reason"
+            />
+          </div>
+          <div className="sm:col-span-3">
+            <Button
+              type="submit"
+              disabled={!canSubmit}
+              className="w-full rounded-none bg-destructive text-destructive-foreground hover:bg-destructive/80 font-display"
+              data-testid="button-fixer-adjust-submit"
+            >
+              {adjust.isPending ? "APPLYING..." : "APPLY"}
+            </Button>
+          </div>
+        </form>
+        <p className="text-xs text-muted-foreground font-mono mt-2">
+          Applies directly to the player's account balance — works even if they have no approved character.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 

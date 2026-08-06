@@ -1512,6 +1512,15 @@ export interface Character {
   createdAt: string;
 }
 
+export interface PublicPlayerSummary {
+  id: string;
+  username: string;
+  /** @nullable */
+  globalName?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+}
+
 export type PublicCharacterSummaryLifeStatus = typeof PublicCharacterSummaryLifeStatus[keyof typeof PublicCharacterSummaryLifeStatus];
 
 
@@ -2583,6 +2592,21 @@ export interface Wallet {
   updatedAt?: string;
 }
 
+export type AccountWalletSource = typeof AccountWalletSource[keyof typeof AccountWalletSource];
+
+
+export const AccountWalletSource = {
+  unbelievaboat: 'unbelievaboat',
+  local: 'local',
+} as const;
+
+export interface AccountWallet {
+  balance: number;
+  bank?: number;
+  cash?: number;
+  source: AccountWalletSource;
+}
+
 export type UserWalletSource = typeof UserWalletSource[keyof typeof UserWalletSource];
 
 
@@ -2613,8 +2637,13 @@ export interface WalletMoveInput {
   idempotencyKey?: string;
 }
 
+/**
+ * Exactly one of toCharacterId / toUserId must be provided. toUserId targets a player account directly (for players with no approved character).
+ */
 export interface TransferInput {
-  toCharacterId: number;
+  toCharacterId?: number;
+  /** Recipient user id — used when the recipient has no approved character. */
+  toUserId?: string;
   /** @minimum 1 */
   amount: number;
   memo?: string;
@@ -5633,12 +5662,22 @@ export interface DiscordChannelOption {
   name: string;
 }
 
+/**
+ * Exactly one of characterId / userId must be provided. userId targets a player account directly (for players with no approved character).
+ */
 export interface WalletAdjustmentInput {
-  characterId: number;
+  characterId?: number;
+  /** Target user id — used when the player has no approved character. */
+  userId?: string;
   /** positive or negative */
   amount: number;
   /** @minLength 1 */
   reason: string;
+  /**
+     * Client-generated key so a retry / double-click doesn't apply the same adjustment twice.
+     * @maxLength 100
+     */
+  idempotencyKey?: string;
 }
 
 export type JobRunInputJob = typeof JobRunInputJob[keyof typeof JobRunInputJob];
@@ -8766,6 +8805,13 @@ export const ListPublicCharactersMode = {
   content: 'content',
 } as const;
 
+export type ListPublicPlayersParams = {
+/**
+ * Username / display-name filter (min 1 char).
+ */
+q?: string;
+};
+
 export type DeleteTagOption200 = {
   ok: boolean;
 };
@@ -9076,3 +9122,4 @@ export type MarkNotificationsReadBody = {
 export type MarkNotificationsRead200 = {
   updated: number;
 };
+

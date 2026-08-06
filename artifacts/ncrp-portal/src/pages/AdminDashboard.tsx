@@ -1251,11 +1251,11 @@ export function WalletTab() {
   });
 
   const onSubmit = (values: z.infer<typeof walletSchema>) => {
-    if (!target?.id) {
-      toast({ title: "Pick a character", description: "Search by character or player name.", variant: "destructive" });
+    if (!target || (!target.id && !target.userId)) {
+      toast({ title: "Pick a target", description: "Search by character or player name.", variant: "destructive" });
       return;
     }
-    adjustWallet.mutate({ data: { ...values, characterId: target.id } }, {
+    adjustWallet.mutate({ data: { ...values, ...(target.id ? { characterId: target.id } : { userId: target.userId }) } }, {
       onSuccess: () => {
         toast({ title: "Wallet Adjusted", description: `Adjusted ${target.name}.` });
         form.reset();
@@ -1279,7 +1279,7 @@ export function WalletTab() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 font-mono max-w-md">
             <div className="space-y-2">
               <Label>Character</Label>
-              <CharacterPicker value={target} onChange={setTarget} scope="all" testId="input-wallet-char" />
+              <CharacterPicker value={target} onChange={setTarget} scope="all" allowPlayers testId="input-wallet-char" />
               {!target && (
                 <p className="text-xs text-muted-foreground">Search by character or player name.</p>
               )}
@@ -1310,7 +1310,7 @@ export function WalletTab() {
                 </FormItem>
               )}
             />
-            <Button type="submit" disabled={adjustWallet.isPending || !target?.id} className="w-full rounded-none bg-destructive text-destructive-foreground hover:bg-destructive/80 font-display mt-4" data-testid="button-submit-wallet">
+            <Button type="submit" disabled={adjustWallet.isPending || (!target?.id && !target?.userId)} className="w-full rounded-none bg-destructive text-destructive-foreground hover:bg-destructive/80 font-display mt-4" data-testid="button-submit-wallet">
               {adjustWallet.isPending ? "PROCESSING..." : "EXECUTE TRANSFER"}
             </Button>
           </form>

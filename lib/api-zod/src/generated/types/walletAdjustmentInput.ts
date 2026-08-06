@@ -6,10 +6,20 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Exactly one of characterId / userId must be provided. userId targets a player account directly (for players with no approved character).
+ */
 export interface WalletAdjustmentInput {
-  characterId: number;
+  characterId?: number;
+  /** Target user id — used when the player has no approved character. */
+  userId?: string;
   /** positive or negative */
   amount: number;
   /** @minLength 1 */
   reason: string;
+  /**
+     * Client-generated key so a retry / double-click doesn't apply the same adjustment twice.
+     * @maxLength 100
+     */
+  idempotencyKey?: string;
 }
