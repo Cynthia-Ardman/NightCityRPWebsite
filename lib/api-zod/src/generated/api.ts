@@ -531,6 +531,24 @@ export const TransferInventoryItemResponse = zod.object({
 
 
 /**
+ * @summary Give uninstalled/removed cyberware from a character's inventory to a ripperdoc clinic's stock
+ */
+export const GiveInventoryItemToClinicParams = zod.object({
+  "id": zod.coerce.number(),
+  "itemId": zod.coerce.number()
+})
+
+
+
+
+export const GiveInventoryItemToClinicBody = zod.object({
+  "ripperdocId": zod.number(),
+  "quantity": zod.number().min(1).optional().describe('Defaults to 1. Cannot exceed source quantity.'),
+  "memo": zod.string().optional()
+})
+
+
+/**
  * @summary Per-instance chain of custody (owner or fixer/admin)
  */
 export const GetInventoryItemHistoryParams = zod.object({

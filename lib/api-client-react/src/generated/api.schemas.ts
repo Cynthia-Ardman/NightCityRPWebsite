@@ -2575,6 +2575,16 @@ export interface InventoryTransferInput {
   memo?: string;
 }
 
+export interface GiveToClinicInput {
+  ripperdocId: number;
+  /**
+     * Defaults to 1. Cannot exceed source quantity.
+     * @minimum 1
+     */
+  quantity?: number;
+  memo?: string;
+}
+
 export type WalletSource = typeof WalletSource[keyof typeof WalletSource];
 
 

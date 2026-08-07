@@ -7,6 +7,10 @@ import {
   useUpdateInventoryItem,
   useRemoveInventoryItem,
   useTransferInventoryItem,
+  useGiveInventoryItemToClinic,
+  useListRipperdocs,
+  getListRipperdocsQueryKey,
+  getGetRipperdocPublicQueryKey,
   useGetCharacterHousing,
   useVacateHousing,
   useGetWalletTransactions,
@@ -1503,20 +1507,38 @@ function TransferItemDialog({
   onDone,
 }: {
   characterId: number;
-  item: { id: number; name: string; quantity: number } | null;
+  item: { id: number; name: string; quantity: number; category?: string | null } | null;
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [mode, setMode] = useState<"give" | "sell">("give");
+  const [mode, setMode] = useState<"give" | "sell" | "clinic">("give");
   const [toChar, setToChar] = useState<CharacterPickerValue>(null);
+  const [clinicId, setClinicId] = useState<number | null>(null);
   const [qty, setQty] = useState(1);
   const [price, setPrice] = useState(0);
   const [memo, setMemo] = useState("");
+  const qc = useQueryClient();
   const transfer = useTransferInventoryItem({ mutation: { onSuccess: onDone } });
+  const giveToClinic = useGiveInventoryItemToClinic({
+    mutation: {
+      onSuccess: () => {
+        // The donated part now sits in the clinic's stock — refresh clinic data.
+        void qc.invalidateQueries({ queryKey: getListRipperdocsQueryKey() });
+        if (clinicId != null) void qc.invalidateQueries({ queryKey: getGetRipperdocPublicQueryKey(clinicId) });
+        onDone();
+      },
+    },
+  });
+  const canGiveToClinic = isCyberwareCategory(item?.category);
+  const { data: clinics } = useListRipperdocs({
+    query: { enabled: canGiveToClinic, queryKey: getListRipperdocsQueryKey() },
+  });
   if (!item) return null;
+  const activeErr = mode === "clinic" ? giveToClinic.error : transfer.error;
   const errMsg =
-    (transfer.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-    (transfer.error ? "Transfer failed" : null);
+    (activeErr as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+    (activeErr ? "Transfer failed" : null);
+  const pending = transfer.isPending || giveToClinic.isPending;
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="dialog-transfer-item">
       <Card className="rounded-none border-nc-cyan bg-card w-full max-w-lg">
@@ -1533,6 +1555,15 @@ function TransferItemDialog({
             className="space-y-4 font-mono text-sm"
             onSubmit={(e) => {
               e.preventDefault();
+              if (mode === "clinic") {
+                if (clinicId == null) return;
+                giveToClinic.mutate({
+                  id: characterId,
+                  itemId: item.id,
+                  data: { ripperdocId: clinicId, quantity: qty, ...(memo ? { memo } : {}) },
+                });
+                return;
+              }
               const toCharacterId = toChar?.id;
               if (!toCharacterId) return;
               if (mode === "sell" && price <= 0) return;
@@ -1566,11 +1597,43 @@ function TransferItemDialog({
               >
                 <DollarSign className="w-4 h-4 mr-2" /> SELL
               </Button>
+              {canGiveToClinic && (
+                <Button
+                  type="button"
+                  onClick={() => setMode("clinic")}
+                  className={`flex-1 rounded-none font-display ${mode === "clinic" ? "bg-nc-yellow text-background" : "bg-transparent border border-border text-muted-foreground"}`}
+                  data-testid="button-mode-clinic"
+                >
+                  <Package className="w-4 h-4 mr-2" /> CLINIC
+                </Button>
+              )}
             </div>
-            <div>
-              <Label className="text-xs">RECIPIENT</Label>
-              <CharacterPicker value={toChar} onChange={setToChar} testId="input-transfer-target" />
-            </div>
+            {mode === "clinic" ? (
+              <div>
+                <Label className="text-xs">CLINIC</Label>
+                <select
+                  className="w-full h-9 bg-background border border-border rounded-none px-2 font-mono text-sm"
+                  value={clinicId ?? ""}
+                  onChange={(e) => setClinicId(e.target.value ? Number(e.target.value) : null)}
+                  data-testid="select-transfer-clinic"
+                >
+                  <option value="">Select a clinic...</option>
+                  {(clinics ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {clinics != null && clinics.length === 0
+                    ? "No clinics are registered yet — ask staff to set one up."
+                    : "The piece moves into the clinic's stock. The clinic sets its own resale price."}
+                </p>
+              </div>
+            ) : (
+              <div>
+                <Label className="text-xs">RECIPIENT</Label>
+                <CharacterPicker value={toChar} onChange={setToChar} testId="input-transfer-target" />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">QUANTITY (max {item.quantity})</Label>
@@ -1605,11 +1668,11 @@ function TransferItemDialog({
             )}
             <Button
               type="submit"
-              disabled={transfer.isPending || !toChar?.id || (mode === "sell" && price <= 0)}
+              disabled={pending || (mode === "clinic" ? clinicId == null : !toChar?.id || (mode === "sell" && price <= 0))}
               className="w-full rounded-none bg-nc-cyan text-background hover:bg-nc-cyan/80 font-display"
               data-testid="button-confirm-transfer"
             >
-              {transfer.isPending ? "MOVING..." : mode === "give" ? "CONFIRM GIVE" : "CONFIRM SALE"}
+              {pending ? "MOVING..." : mode === "give" ? "CONFIRM GIVE" : mode === "sell" ? "CONFIRM SALE" : "GIVE TO CLINIC"}
             </Button>
           </form>
         </CardContent>

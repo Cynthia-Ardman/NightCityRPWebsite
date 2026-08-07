@@ -429,6 +429,25 @@ paths:
         "409": { description: Recipient unclaimed or owner missing }
         "502": { description: Wallet provider unavailable }
 
+  /characters/{id}/inventory/{itemId}/give-to-clinic:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+      - { in: path, name: itemId, required: true, schema: { type: integer } }
+    post:
+      operationId: giveInventoryItemToClinic
+      tags: [inventory]
+      summary: Give uninstalled/removed cyberware from a character's inventory to a ripperdoc clinic's stock
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GiveToClinicInput" }
+      responses:
+        "204": { description: Item moved into clinic stock }
+        "400": { description: "Bad request (installed, wrong category, bad quantity)" }
+        "404": { description: "Character, item, or clinic not found" }
+        "409": { description: "Item changed concurrently; retry" }
+
   # ---------------- WALLET (UnbelievaBoat is source of truth) ----------------
   /inventory-items/{uuid}:
     parameters:
@@ -8698,6 +8717,14 @@ components:
         mode: { type: string, enum: [give, sell] }
         quantity: { type: integer, minimum: 1, description: "Defaults to 1. Cannot exceed source quantity." }
         price: { type: integer, minimum: 1, description: "Required when mode=sell. Total price paid by recipient." }
+        memo: { type: string }
+
+    GiveToClinicInput:
+      type: object
+      required: [ripperdocId]
+      properties:
+        ripperdocId: { type: integer }
+        quantity: { type: integer, minimum: 1, description: "Defaults to 1. Cannot exceed source quantity." }
         memo: { type: string }
 
     Wallet:

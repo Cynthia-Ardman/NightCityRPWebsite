@@ -168,6 +168,7 @@ import type {
   GetGunMechanicsOverrides200,
   GetMyBreachPendingCount200,
   GetNotificationsUnreadCount200,
+  GiveToClinicInput,
   GlobalSearchParams,
   GlobalSearchResults,
   GuidebookBrowse,
@@ -2054,6 +2055,80 @@ export const useTransferInventoryItem = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getTransferInventoryItemMutationOptions(options));
+    }
+
+export const getGiveInventoryItemToClinicUrl = (id: number,
+    itemId: number,) => {
+
+
+
+
+  return `/api/characters/${id}/inventory/${itemId}/give-to-clinic`
+}
+
+/**
+ * @summary Give uninstalled/removed cyberware from a character's inventory to a ripperdoc clinic's stock
+ */
+export const giveInventoryItemToClinic = async (id: number,
+    itemId: number,
+    giveToClinicInput: GiveToClinicInput, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getGiveInventoryItemToClinicUrl(id,itemId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      giveToClinicInput,)
+  }
+);}
+
+
+
+
+export const getGiveInventoryItemToClinicMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof giveInventoryItemToClinic>>, TError,{id: number;itemId: number;data: BodyType<GiveToClinicInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof giveInventoryItemToClinic>>, TError,{id: number;itemId: number;data: BodyType<GiveToClinicInput>}, TContext> => {
+
+const mutationKey = ['giveInventoryItemToClinic'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof giveInventoryItemToClinic>>, {id: number;itemId: number;data: BodyType<GiveToClinicInput>}> = (props) => {
+          const {id,itemId,data} = props ?? {};
+
+          return  giveInventoryItemToClinic(id,itemId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GiveInventoryItemToClinicMutationResult = NonNullable<Awaited<ReturnType<typeof giveInventoryItemToClinic>>>
+    export type GiveInventoryItemToClinicMutationBody = BodyType<GiveToClinicInput>
+    export type GiveInventoryItemToClinicMutationError = ErrorType<void>
+
+    /**
+ * @summary Give uninstalled/removed cyberware from a character's inventory to a ripperdoc clinic's stock
+ */
+export const useGiveInventoryItemToClinic = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof giveInventoryItemToClinic>>, TError,{id: number;itemId: number;data: BodyType<GiveToClinicInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof giveInventoryItemToClinic>>,
+        TError,
+        {id: number;itemId: number;data: BodyType<GiveToClinicInput>},
+        TContext
+      > => {
+      return useMutation(getGiveInventoryItemToClinicMutationOptions(options));
     }
 
 export const getGetInventoryItemHistoryUrl = (uuid: string,) => {

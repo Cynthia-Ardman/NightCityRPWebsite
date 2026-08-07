@@ -296,6 +296,7 @@ export * from './getFixerPlayerCharacters200Item';
 export * from './getGunMechanicsOverrides200';
 export * from './getMyBreachPendingCount200';
 export * from './getNotificationsUnreadCount200';
+export * from './giveToClinicInput';
 export * from './globalSearchParams';
 export * from './globalSearchResults';
 export * from './guidebookBrowse';

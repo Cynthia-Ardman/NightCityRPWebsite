@@ -18,6 +18,7 @@ import {
   botBusinessOpenLog,
   stores,
   ripperdocs,
+  ripperdocStock,
   classifyWalletCategory,
   customRequests,
   characterTagOptions,
@@ -1013,6 +1014,139 @@ router.post("/characters/:cid/inventory/:itemId/transfer", requireAuth, async (r
     .from(inventoryItems)
     .where(eq(inventoryItems.instanceUuid, movedUuid));
   res.json(moved ?? item);
+});
+
+// Give uninstalled/removed cyberware from a character's personal inventory to
+// a ripperdoc clinic's stock. Complements the ripperdoc removal flow's
+// "clinic" destination for pieces that were removed to the patient (category
+// "cyberware (removed)") and only later donated to a clinic. Owner-initiated,
+// no money moves; the clinic sets a resale price afterwards.
+router.post("/characters/:cid/inventory/:itemId/give-to-clinic", requireAuth, async (req, res): Promise<void> => {
+  const cid = parseInt(String(req.params.cid), 10);
+  const itemId = parseInt(String(req.params.itemId), 10);
+  const sender = await loadOwnedChar(req.user!.id, cid);
+  if (!sender) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (sender.archived) {
+    res.status(400).json({ error: "Cannot give from an archived character" });
+    return;
+  }
+  const { ripperdocId, quantity, memo } = req.body ?? {};
+  const clinicId = parseInt(String(ripperdocId), 10);
+  if (!Number.isFinite(clinicId)) {
+    res.status(400).json({ error: "ripperdocId required" });
+    return;
+  }
+  const [item] = await db
+    .select()
+    .from(inventoryItems)
+    .where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
+  if (!item) {
+    res.status(404).json({ error: "Item not found" });
+    return;
+  }
+  const qty = Math.max(1, Number(quantity) || 1);
+  if (qty > item.quantity) {
+    res.status(400).json({ error: "Quantity exceeds available stock" });
+    return;
+  }
+  // Only chrome belongs in a ripperdoc's parts bin: loose (uninstalled)
+  // "cyberware" or previously removed "cyberware (removed)" pieces.
+  const cat = normalizeName(item.category ?? "");
+  if (cat !== "cyberware" && cat !== "cyberware (removed)") {
+    res.status(400).json({ error: "Only cyberware can be given to a clinic's stock" });
+    return;
+  }
+  if (cat === "cyberware" && parseCwp(item.notes) != null) {
+    res.status(400).json({
+      error: "This cyberware is currently installed. Have a ripperdoc remove it first — then the removed piece can be given to a clinic.",
+    });
+    return;
+  }
+  const [clinic] = await db.select().from(ripperdocs).where(eq(ripperdocs.id, clinicId));
+  if (!clinic) {
+    res.status(404).json({ error: "Clinic not found" });
+    return;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  // Keep a "CWP n" tag on the stock notes — it's the floor a future install
+  // charges when the catalog has no authoritative value (parity with the
+  // removal flow's clinic destination). Removed items usually still carry
+  // their original "CWP n · Installed ..." note, so parse from there.
+  const partCwp = parseCwp(item.notes) ?? 0;
+  let moved = false;
+  await db.transaction(async (tx) => {
+    // Optimistic concurrency: writes are conditioned on the quantity we read,
+    // so a concurrent transfer/consume makes this a no-op → 409.
+    if (qty === item.quantity) {
+      const [gone] = await tx
+        .delete(inventoryItems)
+        .where(and(
+          eq(inventoryItems.id, itemId),
+          eq(inventoryItems.characterId, cid),
+          eq(inventoryItems.quantity, item.quantity),
+        ))
+        .returning();
+      if (!gone) return;
+    } else {
+      const [updated] = await tx
+        .update(inventoryItems)
+        .set({ quantity: item.quantity - qty })
+        .where(and(
+          eq(inventoryItems.id, itemId),
+          eq(inventoryItems.characterId, cid),
+          eq(inventoryItems.quantity, item.quantity),
+        ))
+        .returning();
+      if (!updated) return;
+    }
+    await tx.insert(ripperdocStock).values({
+      ripperdocId: clinic.id,
+      name: item.name,
+      category: "cyberware",
+      price: 0,
+      cost: 0,
+      quantity: qty,
+      notes: `CWP ${partCwp} · Given by ${sender.name} on ${today}`,
+    });
+    moved = true;
+  });
+  if (!moved) {
+    res.status(409).json({ error: "Item changed while giving; please retry" });
+    return;
+  }
+  // Custody: a whole-stack give means the instance left the player entirely
+  // ("transferred"); a partial give must be recorded as a "split" (mirroring
+  // the P2P transfer route) so the source instance's chain doesn't claim the
+  // whole instance departed while part of it remains in inventory. The
+  // clinic-stock side has no per-instance chain (parity with the removal
+  // flow's clinic destination, which also lands parts as plain stock rows).
+  const givenReason = memo ? `Given to clinic stock: ${clinic.name} — ${memo}` : `Given to clinic stock: ${clinic.name}`;
+  await recordInventoryEvent({
+    instanceUuid: item.instanceUuid,
+    kind: qty === item.quantity ? "transferred" : "split",
+    actorId: req.user!.id,
+    actorName: req.user!.username,
+    fromCharacterId: sender.id,
+    fromCharacterName: sender.name,
+    itemName: item.name,
+    quantity: qty,
+    reason: qty === item.quantity ? givenReason : `Split ${qty} of ${item.quantity} — ${givenReason}`,
+    metadata: { destination: "clinic_stock", ripperdocId: clinic.id, ripperdocName: clinic.name },
+  });
+  await db.insert(activityEvents).values({
+    kind: "transfer",
+    actorId: req.user!.id,
+    actorName: req.user!.username,
+    actorAvatarUrl: req.user!.avatarUrl,
+    message: `${sender.name} gave ${item.name} x${qty} to ${clinic.name}'s clinic stock`,
+  });
+  await db.insert(characterUpdates).values([
+    { characterId: cid, authorId: req.user!.id, note: `Gave ${item.name} x${qty} to clinic stock at ${clinic.name}` },
+  ]);
+  res.sendStatus(204);
 });
 
 // ===== Per-item chain of custody =====
