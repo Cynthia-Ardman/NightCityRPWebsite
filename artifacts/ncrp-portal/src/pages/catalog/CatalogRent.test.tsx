@@ -41,6 +41,8 @@ vi.mock("@/components/catalog/CatalogRequestSection", () => ({
 }));
 
 vi.mock("@workspace/api-client-react", () => ({
+  useListPublicPlayers: () => ({ data: [], isFetching: false }),
+  getListPublicPlayersQueryKey: (p?: unknown) => ["public-players", p],
   useListRentListings: () => ({ data: h.listings as unknown[], isLoading: false }),
   useListMyCharacters: () => ({ data: [] }),
   useLeaseHousing: (opts?: { mutation?: { onSuccess?: () => void } }) => {

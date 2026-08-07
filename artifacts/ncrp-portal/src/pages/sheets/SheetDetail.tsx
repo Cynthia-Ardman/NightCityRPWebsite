@@ -168,9 +168,9 @@ export default function SheetDetail() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-4xl font-display text-foreground" data-testid="text-sheet-name">{sheet.name}</h1>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-3xl sm:text-4xl font-display text-foreground break-words" data-testid="text-sheet-name">{sheet.name}</h1>
           <p className="font-mono text-xs text-muted-foreground mt-1">
             Submitted {formatDateTime(sheet.submittedAt ?? sheet.createdAt)}
             {sheet.ownerName ? <> by <span className="text-foreground">{sheet.ownerName}</span></> : null} · Status:{" "}
@@ -220,7 +220,7 @@ export default function SheetDetail() {
 
       <Card className="rounded-none border-border bg-card/50">
         <CardHeader><CardTitle className="font-display tracking-widest">PROFILE</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-2 gap-3 text-sm font-mono">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm font-mono">
           {["fullName", "nickname", "archetype", "age", "gender"].map((k) => (
             <div key={k} className="break-words [overflow-wrap:anywhere]"><span className="text-muted-foreground uppercase tracking-widest">{k}: </span>{String(data[k] ?? "—")}</div>
           ))}
@@ -382,9 +382,9 @@ export default function SheetDetail() {
         <CardContent className="space-y-1">
           {cw.length === 0 ? <p className="text-muted-foreground font-mono text-sm">None.</p> :
             cw.map((c, i) => (
-              <div key={i} className="grid grid-cols-4 gap-2 border-b border-border/30 py-1 text-sm font-mono" data-testid={`row-cyberware-${i}`}>
+              <div key={i} className="grid grid-cols-1 sm:grid-cols-4 gap-x-2 gap-y-0.5 border-b border-border/30 py-1.5 text-sm font-mono" data-testid={`row-cyberware-${i}`}>
                 <span className="text-nc-cyan break-words [overflow-wrap:anywhere]">{c.slot}</span>
-                <span className="col-span-2 break-words [overflow-wrap:anywhere]">
+                <span className="sm:col-span-2 break-words [overflow-wrap:anywhere]">
                   {c.name}
                   {!c.isCatalog && <span className="ml-2 text-[10px] uppercase tracking-widest text-muted-foreground">custom</span>}
                 </span>
@@ -450,7 +450,7 @@ export default function SheetDetail() {
               </div>
             )}
             <Textarea placeholder="Optional note for the player..." value={note} onChange={(e) => setNote(e.target.value)} data-testid="input-decision-note" />
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button onClick={() => vote.mutate({ id: sheetId, data: { vote: "approve", note: note || undefined } })} disabled={vote.isPending} className="rounded-none bg-nc-green text-background hover:bg-nc-green/80 font-display" data-testid="button-approve"><Check className="w-4 h-4 mr-1" /> APPROVE</Button>
               <Button onClick={() => vote.mutate({ id: sheetId, data: { vote: "reject", note: note || undefined } })} disabled={vote.isPending} variant="destructive" className="rounded-none font-display" data-testid="button-reject"><X className="w-4 h-4 mr-1" /> REJECT</Button>
               <Button onClick={() => vote.mutate({ id: sheetId, data: { vote: "pause", note: note || undefined } })} disabled={vote.isPending} variant="outline" className="rounded-none border-nc-yellow text-nc-yellow hover:bg-nc-yellow/10 font-display" data-testid="button-pause" title="Pause marker — doesn't count toward the decision"><Pause className="w-4 h-4 mr-1" /> PAUSE</Button>

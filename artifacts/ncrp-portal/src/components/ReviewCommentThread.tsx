@@ -104,8 +104,8 @@ export default function ReviewCommentThread({
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 font-mono text-[11px]">
-                    <span className="text-foreground font-bold truncate">{c.authorName ?? c.authorId}</span>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px]">
+                    <span className="text-foreground font-bold truncate max-w-full">{c.authorName ?? c.authorId}</span>
                     {c.isReviewer ? (
                       <span className="text-nc-yellow uppercase tracking-widest text-[9px] border border-nc-yellow/50 px-1">
                         Fixer
@@ -182,10 +182,11 @@ export function AwaitingVoteBanner({ show }: { show: boolean }) {
   if (!show) return null;
   return (
     <div
-      className="border border-nc-yellow bg-nc-yellow/10 text-nc-yellow px-4 py-2 font-mono text-xs tracking-wider flex items-center gap-2 animate-pulse"
+      className="border border-nc-yellow bg-nc-yellow/10 text-nc-yellow px-4 py-2 font-mono text-xs tracking-wider flex items-start gap-2 animate-pulse"
       data-testid="banner-awaiting-vote"
     >
-      <MessageSquare className="w-4 h-4" /> AWAITING YOUR VOTE — this item is in your review queue and you haven't voted yet.
+      <MessageSquare className="w-4 h-4 shrink-0 mt-0.5" />
+      <span className="min-w-0">AWAITING YOUR VOTE — this item is in your review queue and you haven't voted yet.</span>
     </div>
   );
 }

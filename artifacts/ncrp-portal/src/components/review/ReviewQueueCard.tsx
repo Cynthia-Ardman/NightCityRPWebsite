@@ -110,7 +110,7 @@ export function ReviewQueueCard({
             )}
           </div>
         </div>
-        <CardTitle className="text-lg font-display truncate mt-2">{title}</CardTitle>
+        <CardTitle className="text-lg font-display truncate min-w-0 mt-2">{title}</CardTitle>
         {subtitle != null && (
           <CardDescription className="font-mono text-xs">{subtitle}</CardDescription>
         )}

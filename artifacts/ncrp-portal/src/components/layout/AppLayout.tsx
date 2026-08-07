@@ -36,12 +36,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     <div className="min-h-screen w-full flex flex-col md:flex-row bg-background">
       <GlobalSearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
       {/* Mobile Header */}
-      <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card">
-        <Link href="/" className="flex items-center gap-2" data-testid="link-brand-mobile">
-          <img src={ncrpLogo} alt="NCRP" className="h-12 w-12 object-contain" />
-          <span className="font-display font-bold text-lg text-nc-cyan glitch-hover">NCRP_PORTAL</span>
+      <div className="md:hidden flex items-center justify-between gap-2 px-3 py-3 border-b border-border bg-card">
+        <Link href="/" className="flex items-center gap-2 min-w-0" data-testid="link-brand-mobile">
+          <img src={ncrpLogo} alt="NCRP" className="h-10 w-10 shrink-0 object-contain" />
+          <span className="font-display font-bold text-base text-nc-cyan glitch-hover truncate">NCRP_PORTAL</span>
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
         <Button
           variant="outline"
           size="icon"
@@ -518,16 +518,19 @@ function TopBar({ onOpenSearch }: { onOpenSearch: () => void }) {
   const walletStale = wallet?.source === "local";
 
   return (
-    <div className="h-16 border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10 flex items-center justify-between px-4 md:px-8">
-      <div className="flex items-center gap-4">
+    <div className="min-h-14 md:h-16 py-2 md:py-0 border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10 flex items-center justify-between gap-2 px-3 md:px-8">
+      <div className="flex items-center gap-4 min-w-0">
         <ViewAsControl />
       </div>
 
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-2 md:gap-6 min-w-0">
+        {/* The mobile header row already carries its own search + bell — hide
+            the desktop copies below md so the sticky bar has room for the
+            wallet pill on narrow screens. */}
         <button
           type="button"
           onClick={onOpenSearch}
-          className="flex items-center gap-2 border border-border bg-card/60 px-3 py-1.5 font-mono text-xs text-muted-foreground transition-colors hover:border-nc-cyan/60 hover:text-nc-cyan"
+          className="hidden md:flex items-center gap-2 border border-border bg-card/60 px-3 py-1.5 font-mono text-xs text-muted-foreground transition-colors hover:border-nc-cyan/60 hover:text-nc-cyan"
           aria-label="Search the portal"
           data-testid="button-search-desktop"
         >
@@ -535,11 +538,13 @@ function TopBar({ onOpenSearch }: { onOpenSearch: () => void }) {
           <span className="hidden lg:inline uppercase tracking-widest">Search</span>
           <kbd className="hidden lg:inline border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">Ctrl K</kbd>
         </button>
-        <NotificationBell />
+        <div className="hidden md:block">
+          <NotificationBell />
+        </div>
         {user && wallet && typeof wallet.balance === "number" && (
-          <div className="flex items-center gap-3 border border-nc-yellow/30 bg-nc-yellow/5 px-4 py-1.5 shadow-[0_0_10px_rgba(255,255,0,0.1)]" data-testid="pill-eddies">
-            <div className="text-nc-yellow font-display text-sm tracking-widest">EDDIES</div>
-            <div className="text-nc-yellow font-mono text-lg font-bold">
+          <div className="flex items-center gap-2 md:gap-3 min-w-0 border border-nc-yellow/30 bg-nc-yellow/5 px-2.5 md:px-4 py-1.5 shadow-[0_0_10px_rgba(255,255,0,0.1)]" data-testid="pill-eddies">
+            <div className="hidden sm:block text-nc-yellow font-display text-sm tracking-widest">EDDIES</div>
+            <div className="text-nc-yellow font-mono text-base md:text-lg font-bold whitespace-nowrap">
               {wallet.balance.toLocaleString()}
               <span className="text-nc-yellow/50 text-xs ml-1">€$</span>
             </div>

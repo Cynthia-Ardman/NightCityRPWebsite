@@ -28,6 +28,8 @@ const h = vi.hoisted(() => ({
 // Mock the whole api-client + toast layer so every tab mounts without a network
 // stack; the assertions only confirm the tab rendered something, not behaviour.
 vi.mock("@workspace/api-client-react", () => ({
+  useListPublicPlayers: () => ({ data: [], isFetching: false }),
+  getListPublicPlayersQueryKey: (p?: unknown) => ["public-players", p],
   // Users
   useAdminListUsers: () => ({ data: h.state.users, isLoading: h.state.usersLoading }),
   useAdminHydrateUsers: () => ({ mutate: h.mutate, isPending: false }),

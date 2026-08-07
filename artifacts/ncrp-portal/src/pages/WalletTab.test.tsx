@@ -15,6 +15,8 @@ const h = vi.hoisted(() => ({
 // without a network layer. The picker starts disabled/closed, so the list
 // hook is never actually fired.
 vi.mock("@workspace/api-client-react", () => ({
+  useListPublicPlayers: () => ({ data: [], isFetching: false }),
+  getListPublicPlayersQueryKey: (p?: unknown) => ["public-players", p],
   useAdminAdjustWallet: () => ({
     mutate: h.adjustMutate,
     isPending: h.state.pending,
