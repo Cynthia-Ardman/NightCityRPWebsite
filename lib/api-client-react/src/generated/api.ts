@@ -325,6 +325,7 @@ import type {
   SearchInventoryByOwnerParams,
   SearchMissionActorsParams,
   ServiceBillInput,
+  SetCharacterKindBody,
   SetEventCheckinStaffBody,
   SetEventTicketAttendanceBody,
   SetTextScalePreference200,
@@ -2055,6 +2056,78 @@ export const useTransferInventoryItem = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getTransferInventoryItemMutationOptions(options));
+    }
+
+export const getSetCharacterKindUrl = (id: number,) => {
+
+
+
+
+  return `/api/characters/${id}/kind`
+}
+
+/**
+ * @summary Convert a character between PC and NPC (fixer/admin only)
+ */
+export const setCharacterKind = async (id: number,
+    setCharacterKindBody: SetCharacterKindBody, options?: RequestInit): Promise<Character> => {
+
+  return customFetch<Character>(getSetCharacterKindUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      setCharacterKindBody,)
+  }
+);}
+
+
+
+
+export const getSetCharacterKindMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCharacterKind>>, TError,{id: number;data: BodyType<SetCharacterKindBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setCharacterKind>>, TError,{id: number;data: BodyType<SetCharacterKindBody>}, TContext> => {
+
+const mutationKey = ['setCharacterKind'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setCharacterKind>>, {id: number;data: BodyType<SetCharacterKindBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setCharacterKind(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetCharacterKindMutationResult = NonNullable<Awaited<ReturnType<typeof setCharacterKind>>>
+    export type SetCharacterKindMutationBody = BodyType<SetCharacterKindBody>
+    export type SetCharacterKindMutationError = ErrorType<void>
+
+    /**
+ * @summary Convert a character between PC and NPC (fixer/admin only)
+ */
+export const useSetCharacterKind = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCharacterKind>>, TError,{id: number;data: BodyType<SetCharacterKindBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setCharacterKind>>,
+        TError,
+        {id: number;data: BodyType<SetCharacterKindBody>},
+        TContext
+      > => {
+      return useMutation(getSetCharacterKindMutationOptions(options));
     }
 
 export const getGiveInventoryItemToClinicUrl = (id: number,

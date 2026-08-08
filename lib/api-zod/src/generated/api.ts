@@ -531,6 +531,71 @@ export const TransferInventoryItemResponse = zod.object({
 
 
 /**
+ * @summary Convert a character between PC and NPC (fixer/admin only)
+ */
+export const SetCharacterKindParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SetCharacterKindBody = zod.object({
+  "kind": zod.enum(['pc', 'npc'])
+})
+
+export const SetCharacterKindResponse = zod.object({
+  "id": zod.number(),
+  "ownerId": zod.string().nullish(),
+  "claimed": zod.boolean(),
+  "legacyDiscordUsername": zod.string().nullish(),
+  "name": zod.string(),
+  "kind": zod.enum(['pc', 'npc']),
+  "archetype": zod.string().nullish(),
+  "background": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional().describe('Merged archive tags (Discord-applied ∪ manually added). Edit via PATCH \/characters\/{id}\/tags.'),
+  "portraitUrl": zod.string().nullish(),
+  "portraitUrls": zod.array(zod.string()),
+  "statsImageUrls": zod.array(zod.string()),
+  "sheetData": zod.union([zod.null(),zod.object({
+  "preamble": zod.string(),
+  "sections": zod.record(zod.string(), zod.string()),
+  "physicalDescription": zod.string().optional(),
+  "appearance": zod.string().optional(),
+  "psychProfile": zod.string().optional(),
+  "hooks": zod.string().optional(),
+  "skills": zod.string().optional(),
+  "knownAffiliation": zod.string().optional().describe('Optional free-text list of factions, gangs, corps, or groups the character is publicly known to be affiliated with.'),
+  "ripperDoc": zod.boolean().optional().describe('When true, grants the RipperDoc Discord role to the character\'s owner on save.'),
+  "fbc": zod.boolean().optional().describe('Self-declared Full Body Conversion flag. Purely informational — no programmatic effect (medical-grade only, no advantages, no combat cyberware).'),
+  "ncpd": zod.boolean().optional().describe('Self-declared NCPD officer flag. Purely informational — surfaces this character on the NCPD officer roster (only effective when the owner holds the NCPD Discord role).'),
+  "organic": zod.boolean().optional().describe('Self-declared fully-organic flag: NO implants at all, not even the baseline ones everyone else is assumed to have (no net access, no smart-linked guns, etc.). Purely informational — no programmatic effect.')
+})]).optional(),
+  "importedFromThreadId": zod.string().nullish(),
+  "importedFromChannelName": zod.string().nullish(),
+  "discordChannelId": zod.string().nullish(),
+  "approved": zod.boolean().optional(),
+  "archived": zod.boolean(),
+  "lifeStatus": zod.enum(['active', 'dead', 'missing', 'loa', 'retired']).optional().describe('Headline character status shown on sheets. Editable by the owner via PATCH \/characters\/{id}.'),
+  "lifestyleTierId": zod.number().nullish(),
+  "lifestyleTier": zod.union([zod.null(),zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "monthlyCost": zod.number(),
+  "description": zod.string().nullish(),
+  "archived": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})]).optional(),
+  "traumaTeamTier": zod.union([zod.literal('silver'),zod.literal('gold'),zod.literal('platinum'),zod.literal('diamond'),zod.literal('corporate'),zod.literal(null)]).nullish().describe('Trauma Team subscription tier. Billed monthly from bot_config.trauma_team_costs. Null = no subscription.'),
+  "xanaduGold": zod.boolean().optional().describe('Xanadu Gold premium membership. Flat monthly fee from bot_config.xanadu_gold_cost.'),
+  "lastCheckupAt": zod.coerce.date().nullish().describe('Timestamp of the last ripperdoc checkup. Null = never had one.'),
+  "lastCheckupActualAt": zod.coerce.date().nullish().describe('Real most-recent checkup visit date (from the audit trail). Only populated on the single-character GET; may be later than lastCheckupAt while a checkup-reset floor event backdates the billing-effective date.'),
+  "checkupStreak": zod.number().optional().describe('Consecutive weekly cron ticks since the last checkup. Multiplies the weekly meds bill (1× → 10× max).'),
+  "cyberwareLevel": zod.enum(['none', 'medium', 'high', 'extreme']).optional().describe('Cyberware-risk band set by a ripperdoc on checkup. Drives the weekly meds cap in the cyberware cron: none=no charge, medium=2k cap, high=5k cap, extreme=10k cap.'),
+  "isOrganic": zod.boolean().optional().describe('Marks this character as having zero chrome on purpose (CWP=0 in the importer). Suppresses missing-cyberware warnings on the dashboard.'),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Give uninstalled/removed cyberware from a character's inventory to a ripperdoc clinic's stock
  */
 export const GiveInventoryItemToClinicParams = zod.object({

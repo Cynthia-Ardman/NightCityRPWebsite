@@ -20,6 +20,8 @@ export { CallTraumaTeamBody } from "./generated/api";
 export type { CallTraumaTeamBody as CallTraumaTeamBodyType } from "./generated/types";
 export { SetTextScalePreferenceBody } from "./generated/api";
 export type { SetTextScalePreferenceBody as SetTextScalePreferenceBodyType } from "./generated/types";
+export { SetCharacterKindBody } from "./generated/api";
+export type { SetCharacterKindBody as SetCharacterKindBodyType } from "./generated/types";
 export { UpdateCharacterTagsBody } from "./generated/api";
 export type { UpdateCharacterTagsBody as UpdateCharacterTagsBodyType } from "./generated/types";
 export { GetEventParams } from "./generated/api";

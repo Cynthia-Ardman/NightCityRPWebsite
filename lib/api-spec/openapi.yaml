@@ -429,6 +429,32 @@ paths:
         "409": { description: Recipient unclaimed or owner missing }
         "502": { description: Wallet provider unavailable }
 
+  /characters/{id}/kind:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    patch:
+      operationId: setCharacterKind
+      tags: [characters]
+      summary: Convert a character between PC and NPC (fixer/admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind: { type: string, enum: [pc, npc] }
+      responses:
+        "200":
+          description: Updated character
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Character" }
+        "400": { description: Invalid kind }
+        "403": { description: Not fixer/admin }
+        "404": { description: Not found }
+
   /characters/{id}/inventory/{itemId}/give-to-clinic:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }

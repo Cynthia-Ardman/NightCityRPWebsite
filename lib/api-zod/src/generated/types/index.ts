@@ -643,6 +643,8 @@ export * from './searchInventoryByOwnerParams';
 export * from './searchMissionActorsParams';
 export * from './searchResultItem';
 export * from './serviceBillInput';
+export * from './setCharacterKindBody';
+export * from './setCharacterKindBodyKind';
 export * from './setEventCheckinStaffBody';
 export * from './setEventTicketAttendanceBody';
 export * from './setTextScalePreference200';

@@ -1,6 +1,7 @@
 import { formatDate, formatEddies, formatDateTime } from "@/lib/format";
 import {
   useGetCharacter,
+  useSetCharacterKind,
   useListCharacterUpdates,
   useGetCharacterInventory,
   useAddInventoryItem,
@@ -64,6 +65,19 @@ export default function CharacterDetail() {
   const { data: char, isLoading: charLoading } = useGetCharacter(charId);
   const me = useEffectiveMe();
   const isAdmin = !!me.data?.isAdmin;
+  const isStaffKind = isAdmin || !!me.data?.isFixer;
+  const qcKind = useQueryClient();
+  const setKind = useSetCharacterKind({
+    mutation: {
+      onSuccess: () => {
+        void qcKind.invalidateQueries({ queryKey: getGetCharacterQueryKey(charId) });
+      },
+      onError: (err) => {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        window.alert(msg ?? "Conversion failed");
+      },
+    },
+  });
   // Deletion is broader than admin: archivists and coordinators can also
   // permanently delete a character (enforced server-side too).
   const canDelete = isAdmin || !!me.data?.isArchivist || !!me.data?.isCoordinator;
@@ -105,6 +119,25 @@ export default function CharacterDetail() {
             <div className="flex items-center gap-2">
               <span className="text-foreground">TYPE:</span>
               <span className={char.kind === "pc" ? "text-nc-magenta" : "text-nc-yellow"}>{char.kind}</span>
+              {isStaffKind && (
+                <button
+                  type="button"
+                  disabled={setKind.isPending}
+                  onClick={() => {
+                    const next = char.kind === "npc" ? "pc" : "npc";
+                    const msg = next === "npc"
+                      ? `Convert ${char.name} from PC to NPC? NPCs are exempt from the 15-CWP cap and player billing.`
+                      : `Convert ${char.name} from NPC to PC? They become subject to the 15-CWP cap and player billing — the conversion is blocked if their installed chrome is already over the cap.`;
+                    if (window.confirm(msg)) {
+                      setKind.mutate({ id: charId, data: { kind: next } });
+                    }
+                  }}
+                  className="px-1.5 py-0.5 border border-dashed border-border text-muted-foreground text-[0.65rem] hover:border-nc-yellow hover:text-nc-yellow transition"
+                  data-testid="button-convert-kind"
+                >
+                  {setKind.isPending ? "..." : char.kind === "npc" ? "MAKE PC" : "MAKE NPC"}
+                </button>
+              )}
             </div>
             {char.archetype && (
               <div className="flex items-center gap-2">

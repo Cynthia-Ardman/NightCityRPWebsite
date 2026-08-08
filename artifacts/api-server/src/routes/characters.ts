@@ -34,8 +34,9 @@ import { announceRequest } from "./requests";
 import { createPendingEdit } from "./pending-edits";
 import { recordInventoryEvent } from "../lib/inventoryEvents";
 import { installSlotClashError } from "../lib/cyberwareSlots";
+import { checkCwpCapacity, MAX_PC_CWP } from "../lib/cyberware-cap";
 import { isSessionWindowOpen, nextSessionWindowStart, SESSION_WINDOW_HINT } from "../lib/sessionWindow";
-import { parseCwp } from "../lib/cyberware";
+import { parseCwp, sumCwpByCharacter } from "../lib/cyberware";
 import { isStaffRoles } from "../lib/roleChecks";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
@@ -105,6 +106,70 @@ router.post("/characters", requireAuth, async (req, res): Promise<void> => {
     after: { name: c.name, kind: c.kind, archetype: c.archetype },
   });
   res.status(201).json(c);
+});
+
+// Convert an existing character between PC and NPC. Staff-only (fixer/admin):
+// kind is an administrative classification (NPCs are exempt from the CWP cap
+// and player billing), so it never rides through the pending-edits review
+// queue — proposed_diffs never carry kind, so this direct write cannot be
+// clobbered by a later edit close.
+router.patch("/characters/:id/kind", requireAnyRole(["ADMIN", "FIXER"]), async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  const { kind } = req.body ?? {};
+  if (kind !== "pc" && kind !== "npc") {
+    res.status(400).json({ error: "kind must be 'pc' or 'npc'" });
+    return;
+  }
+  const [c] = await db.select().from(characters).where(eq(characters.id, id));
+  if (!c) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (c.kind === kind) {
+    res.json(c);
+    return;
+  }
+  // NPC → PC: PCs are hard-capped at 15 installed CWP (NPCs are exempt), so
+  // converting must not mint a PC already over the limit. Same authoritative
+  // sum the install paths use.
+  if (kind === "pc") {
+    const used = (await sumCwpByCharacter([c.id])).get(c.id) ?? 0;
+    const cap = checkCwpCapacity({ kind: "pc", used, add: 0 });
+    if (!cap.ok || used > (cap.max ?? MAX_PC_CWP)) {
+      res.status(409).json({
+        error: `Cannot convert to PC: ${c.name} has ${used} CWP installed, over the ${cap.max ?? MAX_PC_CWP} CWP PC limit. Remove chrome first.`,
+      });
+      return;
+    }
+  }
+  const [updated] = await db
+    .update(characters)
+    .set({ kind })
+    .where(eq(characters.id, id))
+    .returning();
+  await db.insert(characterUpdates).values({
+    characterId: id,
+    authorId: req.user!.id,
+    note: `Converted from ${c.kind.toUpperCase()} to ${kind.toUpperCase()}`,
+  });
+  await db.insert(activityEvents).values({
+    kind: "character_updated",
+    actorId: req.user!.id,
+    actorName: req.user!.username,
+    actorAvatarUrl: req.user!.avatarUrl,
+    message: `${req.user!.username} converted ${c.name} from ${c.kind.toUpperCase()} to ${kind.toUpperCase()}`,
+  });
+  await recordAudit({
+    req,
+    category: "character",
+    action: "set_kind",
+    targetType: "character",
+    targetId: id,
+    message: `Converted ${c.name} from ${c.kind} to ${kind}`,
+    before: { kind: c.kind },
+    after: { kind },
+  });
+  res.json(updated);
 });
 
 router.get("/characters/:id", requireAuth, async (req, res): Promise<void> => {

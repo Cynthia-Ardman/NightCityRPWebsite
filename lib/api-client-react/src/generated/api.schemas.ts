@@ -8323,6 +8323,18 @@ export type ReactivateCharacter200 = {
   archived: boolean;
 };
 
+export type SetCharacterKindBodyKind = typeof SetCharacterKindBodyKind[keyof typeof SetCharacterKindBodyKind];
+
+
+export const SetCharacterKindBodyKind = {
+  pc: 'pc',
+  npc: 'npc',
+} as const;
+
+export type SetCharacterKindBody = {
+  kind: SetCharacterKindBodyKind;
+};
+
 export type ListCustomCatalogItemsParams = {
 type: ListCustomCatalogItemsType;
 };

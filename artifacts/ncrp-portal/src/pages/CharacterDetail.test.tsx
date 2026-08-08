@@ -93,6 +93,7 @@ vi.mock("@workspace/api-client-react", () => {
     useUpdateInventoryItem: idleMutation,
     useRemoveInventoryItem: idleMutation,
     useTransferInventoryItem: idleMutation,
+    useSetCharacterKind: idleMutation,
     useGiveInventoryItemToClinic: idleMutation,
     useListRipperdocs: () => ({ data: [] }),
     getListRipperdocsQueryKey: () => ["ripperdocs"],
