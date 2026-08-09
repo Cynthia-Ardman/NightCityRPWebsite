@@ -1,6 +1,7 @@
+- [Role history reconstruction](role-history-reconstruction.md) — no role history anywhere; rebuild from Dyno #bot-logs role embeds (only since Feb 2026) + current roles undone backwards; UA trap on Discord REST.
 - [Membership growth ingest](membership-growth-ingest.md) — jsonb digit-string cursors double-parse to lossy numbers (wrap as {"id":...}); monotonic cursor upserts; welcome/Dyno/VRChat-audit source formats.
 - [pg pool idle-error handler](pg-pool-idle-error-handler.md) — every long-lived pg Pool needs pool.on("error") or a dropped idle Neon connection hard-crashes the process (prod outage 2026-07-18).
-- [OpenAPI list-only fields](openapi-list-only-fields.md) — a field only some endpoints of a reused schema (CustomRequest shape()) return must stay OPTIONAL in OpenAPI, never required.
+- OpenAPI: [list-only fields stay OPTIONAL in reused schemas](openapi-list-only-fields.md); [stock/inventory schema trios — new fields hit all three](stock-schema-trio.md); [PATCH responses mirror GET computed shape](catalog-patch-response-parity.md).
 - Timeouts: [long-running scripts](long-running-scripts.md) SDK calls/fetches/pagination need explicit AbortSignal.timeout; [Anthropic SDK defaults](anthropic-sdk-timeouts.md) 10-min per-call + silent 429 retries stall batches.
 - [Background process suspension](bash-background-suspension.md) — detached/nohup processes started in one bash tool call freeze/die before the next; don't run long jobs that way — see topic.
 - [Discord audit-reason header](discord-audit-log-reason-header.md) — X-Audit-Log-Reason must be encodeURIComponent'd; raw em-dash crashes fetch with a ByteString TypeError.
@@ -32,7 +33,6 @@
 - Cyberware edit surfaces: [non-staff lock spans API+editor+UI rows](cyberware-review-enforcement-surfaces.md) gating one is a bypass; [custom installs under real catalog slots](cyberware-custom-install-surfaces.md) CUSTOM_NAME pattern.
 - [Archive tag storage split](archive-tag-storage.md) — tags live in appliedTags (importer-owned, overwritten) + manualTags (staff-owned); read/filter the UNION so re-import can't wipe manual tags.
 - Audit: [recordAudit() swallows failures — traceable endpoints write audit+changelog inline in a db.transaction](audit-trail-durability.md); [staff PATCH must audit like sibling create/delete](staff-edit-audit-parity.md).
-- [Catalog PATCH response parity](catalog-patch-response-parity.md) — staff edit PATCH must return the SAME computed-field shape as the GET (e.g. rent's `occupied`), or generated clients drift from the contract.
 - [Mission completedAt stamping](mission-completedat-stamping.md) — every status advance into completed_* must stamp completedAt (completedAtStamp helper) or "upcoming" filters flag finished missions.
 - [Mission data locations](mission-data-locations.md) — empty LN/missions page is by-design (check missions_id_seq before "restoring"); user-facing "missions" = legacy bot mission_event; import-legacy-missions(+assignments).ts backfill them.
 - Mission pay races: [durable uniqueness guard BEFORE the UB call](mission-payout-idempotency.md); [re-check completedAt inside INSERT...SELECT](mission-completion-lock-race.md); [roster remove re-checks paid FOR UPDATE](mission-remove-pay-race.md).
@@ -115,7 +115,6 @@
 - [role_sync bulk fetch](role-sync-bulk-fetch.md) — hourly; bulk member snapshot preferred (per-user fallback for no-intent); only clear empty roles on a DEFINITE read, never a partial/uncertain one.
 - Approver pool: [isReviewer vs isEligibleReviewer (no admin), tallies filter to eligible](review-approver-pool-split.md); [trial-fixer author-only tier](trial-fixer-tier.md) exclude at isReviewer + strip stale grants.
 - Discord thread mirror: [cs-approver drawer pop-out, mount 15s-polling panel only when open](discord-thread-drawer.md); [persist discordThreadId at creation so "linked" never lies](discord-thread-mirror-linkage.md).
-- [Stock schema trio drift](stock-schema-trio.md) — store stock has 3 separate OpenAPI schemas (StockItem/StockInput/StockUpdate); a new field must hit ALL THREE or the PATCH path tsc-fails; same for InventoryItem trio.
 - VRChat: [session history](vrchat-instance-session-history.md) poller-written, close=absence, uniqueUsers via VRCX import; [calendar sync](vrchat-calendar-sync.md) + [mirror gating](vrchat-calendar-mirror.md); [group instances](vrchat-group-instances.md); [allowed-roles](vrchat-instance-roles.md); [agent queue CLAIM](vrchat-agent-command-queue.md).
 - [Meds refund forensics + checkup extraction](meds-refund-forensics.md) — June-2026 probe: legacy meds charges were CORRECT (reset on checkup, scale w/ gap), new cron never charged — see topic.
 - [sheetData merge + passthrough](sheetdata-merge-passthrough.md) — char edit whole-replaces sheetData; forms must spread-merge existing keys AND EditableSchema must `.passthrough()` or sheet-created story/gear/identity fields silently wipe.
