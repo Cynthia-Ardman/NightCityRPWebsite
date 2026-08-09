@@ -8,6 +8,12 @@ run every Sunday but are stored as ONE event row per week — each with its own
 `discord_event_id` — NOT as a single row with `recurrence_rule`. So the calendar
 only shows sessions as far out as rows physically exist.
 
+**Enforced (Aug 2026):** POST/PATCH `/events` 400 any effective session+recurrenceRule
+combination (including a type-only flip onto a stored recurring row); occurrence-scoped
+edits are exempt (children are always non-recurring). A DB CHECK constraint
+`events_session_not_recurring` backstops the race — any writer that tries to persist
+the combination fails loudly.
+
 **Why:** They mirror real per-week Discord scheduled events (each week is a
 distinct Discord event), so a recurrence rule would not map cleanly to Discord
 sync. Other recurring events DO use `recurrence_rule`; sessions are the exception.

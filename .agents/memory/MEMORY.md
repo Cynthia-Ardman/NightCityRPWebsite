@@ -21,7 +21,7 @@
 - Drizzle traps: [`= ANY(${arr})` spreads into N params and 500s](drizzle-any-array-spread.md) use inArray; [onConflict partial index needs `where:`](drizzle-onconflict-partial-index.md) read err.cause for real PG error.
 - Character merge: [same-name ≠ same person](character-name-collisions.md) merge only if owner AND backstory match; [repoint EVERY char-id column](character-merge-repoint.md) incl. non-FK plain ints.
 - [Import-time name dedupe](import-name-dedupe.md) — (ownerId, lower(name)) misses nickname-vs-thread-title divergence ("Diesel" vs full name) → dup rows w/ orphaned FKs; needs fuzzy match or merge pass.
-- Testing: [api-server harness](api-server-test-harness.md) *_test DB, x-test-user shim, per-file runs; [Playwright e2e](e2e-playwright-harness.md) Nix chromium + gated test-login; [portal vitest fragile mocks](portal-vitest-fragile-mocks.md).
+- Testing: [api-server harness](api-server-test-harness.md) *_test DB, x-test-user shim, per-file runs; [Playwright e2e](e2e-playwright-harness.md) Nix chromium + gated test-login; [portal vitest fragile mocks](portal-vitest-fragile-mocks.md); [full-suite validation times out](full-suite-validation-timeout.md) run per-file vitest + skip_validation_reason.
 - Test traps: [AdminTabs render-guard mock must list every hook in the subtree](admin-tabs-render-guard-mock.md); [meds-charge tests must backdate createdAt](cyberware-checkup-grace-test-trap.md) or pass vacuously.
 - [Checkup dates](checkup-streak-creation-floor.md) — createdAt = implicit first checkup (null ≠ max streak); lastCheckupAt is billing-effective ONLY (floor event backdates it) — displays use lastCheckupActualAt.
 - [api-server dev no watcher](api-server-dev-no-watcher.md) — dev workflow is build+start, NO reload; new routes 404 until restart_workflow; curl :8080 expect 401 not 404.
@@ -76,9 +76,7 @@
 - [Rent & meds history sources](rent-and-meds-history-sources.md) — rent = #rent-payments channel; meds full year = bot's operator-DM sweep logs (our token IS the bot, reads own DMs) — see topic.
 - [Character wallet endpoint scope](character-wallet-endpoint-scope.md) — /characters/:id/wallet/transactions also returns account-level (characterId NULL) owner rows — see topic.
 - [Breach Protocol minigame](breach-minigame.md) — exactly-once reward (atomic completedAt-IS-NULL); server anchors timer before any grid reveal, lists redact unstarted grids; /result 200-idempotent.
-- [Discord recurrence_rule needs start](discord-recurrence-start-required.md) — recurrence_rule bodies 400 without a `start` timestamp; null clears fine; verified live, reconcile doesn't churn.
-- [Recurring push times](recurring-event-push-times.md) — Discord/VRChat 400 on past starts; every outbound event-time push must roll to the next occurrence.
-- Event recurrence: [Discord rolls start_at forward, backfill open-ended series only](event-recurrence-rollforward.md); [byWeekday is UTC-frame, step the base instant](events-recurrence-listing.md) + merge recurring into 500-cap list.
+- Event recurrence: [recurrence_rule bodies need `start`](discord-recurrence-start-required.md); [outbound pushes must roll past starts forward](recurring-event-push-times.md); [Discord rolls start_at forward, backfill open-ended series only](event-recurrence-rollforward.md); [byWeekday is UTC-frame](events-recurrence-listing.md).
 - [users.roles = lowercase names](roles-lowercase-names.md) — SQL role filters must use ROLE_NAMES name lists (arrayOverlaps), never the uppercase group key; `'FIXER' = ANY(roles)` matches nothing.
 - [Role-derived access flags](role-derived-flag-sync.md) — Discord-role-derived gate flags (verified18) must be recomputed BOTH directions in the role_sync cron, null-guarded; set-true-on-login alone leaves stale-true authz drift.
 - [Discord event sync](discord-event-sync.md) — poll-based (NO gateway), hash-directed, website-authoritative; [session self-heal](session-discord-selfheal.md) backfill re-pushes future website-only rows missing discord_event_id.
@@ -90,8 +88,7 @@
 - [MyRequests edit-button venue parity](myrequests-edit-entrypoints.md) — 3 edit entry points (draft/pending/changes_requested) each call setEditing — see topic.
 - [Player wallet DM notifications](wallet-dm-notifications.md) — DM after patchBalance success only, fire-and-forget (`void`), never await; new charge types follow same rule; gating already correct, don't add env gates.
 - [Fixer NPCs are characters](fixer-npcs-are-characters.md) — NPCs = characters kind='npc' (view /characters/:id); legacy fixer_npcs table empty, its /fixer/npcs/:id detail+create+patch endpoints are orphaned dead code.
-- [Session events always need NPCs](session-npc-derivation.md) — needsNpcs is DERIVED (manual flag OR eventType==="session"); route all view/gate reads through eventNeedsNpcs(e), not the raw column.
-- [Main Sessions are discrete weekly rows](main-sessions-discrete.md) — one event row per Sunday (own discord id), NOT recurrence_rule — see topic.
+- Main Sessions: [discrete weekly rows, never recurrence — now enforced by API 400s + DB CHECK](main-sessions-discrete.md); [needsNpcs is DERIVED — read via eventNeedsNpcs(e)](session-npc-derivation.md).
 - Wallet writes: [debit authz = live UB cash, not mirror](wallet-debit-live-authorization.md); [int4 ceiling](wallet-int4-ceiling.md) balances max 2,147,483,647, UB→website reconcile is an overflow vector; [atomic increments](wallet-atomic-increments.md) always relative SQL increments, never read-then-write.
 - UB economy quirks: [WORK/SLUT "command failed" = economy toggled off](economy-disabled-symptom.md); [native !work/!slut have no cooldown/config API — only fix is disabling in UB dashboard](ub-native-commands.md).
 - [react-query auth gate loop](react-query-auth-loop.md) — root gate on useQuery(authMe).isLoading + errored query + retryOnMount default true = 1Hz mount/unmount loop; see topic for QueryClient defaults.

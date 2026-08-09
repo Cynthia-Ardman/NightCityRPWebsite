@@ -13,6 +13,7 @@ import {
   primaryKey,
   uuid,
   date,
+  check,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
@@ -1262,6 +1263,14 @@ export const events = pgTable("events", {
   discordEventIdUnq: uniqueIndex("events_discord_event_id_unq")
     .on(t.discordEventId)
     .where(sql`${t.discordEventId} is not null`),
+  // Main Sessions are deliberately discrete weekly rows, never recurrence
+  // series. The API rejects the combination with a friendly 400; this DB-level
+  // invariant closes the concurrent-PATCH race (type flip + rule add validating
+  // against the same pre-image).
+  sessionNotRecurring: check(
+    "events_session_not_recurring",
+    sql`${t.eventType} <> 'session' OR ${t.recurrenceRule} IS NULL`,
+  ),
 }));
 export type Event = typeof events.$inferSelect;
 

@@ -187,6 +187,13 @@ router.post("/events", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const recurrenceRule = recurrenceRuleResult as EventRecurrenceRule | null | undefined;
+  // Main Sessions are deliberately discrete weekly rows, never recurrence
+  // series (see main-sessions-discrete) — mirror the portal's disabled Repeat
+  // control server-side so a direct API call can't create a recurring session.
+  if (parsed.eventType === "session" && recurrenceRule) {
+    res.status(400).json({ error: "Main Session events cannot be recurring — create discrete weekly events instead" });
+    return;
+  }
   // Ticket configuration (optional).
   const ticketPayoutMode = isTicketPayoutMode(b.ticketPayoutMode) ? b.ticketPayoutMode : undefined;
   const ticketRunnerUserId =
@@ -376,6 +383,31 @@ router.patch("/events/:id", requireAuth, async (req, res): Promise<void> => {
     });
     res.status(201).json(await getEventDetail(split.child.id, viewerOf(req)));
     return;
+  }
+  // Main Sessions can never be recurring (deliberately discrete weekly rows):
+  // reject when the EFFECTIVE post-patch state would be a session with a
+  // non-null recurrenceRule — whether the type or the rule comes from this
+  // patch or from the stored row. Runs only for series-scoped edits: an
+  // occurrence-scoped edit above always yields a non-recurring child (and
+  // already rejects recurrenceRule changes). This friendly 400 covers the
+  // normal path; the events_session_not_recurring DB CHECK constraint closes
+  // the concurrent-PATCH race for good.
+  if (patchRecurrenceRule || patch.eventType === "session") {
+    const [existing] = await db
+      .select({ eventType: events.eventType, recurrenceRule: events.recurrenceRule })
+      .from(events)
+      .where(eq(events.id, id))
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ error: "Event not found" });
+      return;
+    }
+    const effectiveType = typeof patch.eventType === "string" ? patch.eventType : existing.eventType;
+    const effectiveRule = patchRecurrenceRule !== undefined ? patchRecurrenceRule : existing.recurrenceRule;
+    if (effectiveType === "session" && effectiveRule) {
+      res.status(400).json({ error: "Main Session events cannot be recurring — create discrete weekly events instead" });
+      return;
+    }
   }
   // Replace-set the ticket types BEFORE the event update so a validation error
   // aborts the whole edit.

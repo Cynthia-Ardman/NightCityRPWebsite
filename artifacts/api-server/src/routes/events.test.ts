@@ -89,6 +89,111 @@ describe("POST /events", () => {
   });
 });
 
+describe("Main Session events cannot be recurring", () => {
+  const RULE = { frequency: 2, interval: 1 };
+
+  it("POST /events rejects a non-null recurrenceRule on eventType 'session'", async () => {
+    const admin = await createAdmin();
+    const res = await createValidEvent(admin.id, { eventType: "session", recurrenceRule: RULE });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/recurring/i);
+  });
+
+  it("POST /events still allows a session with recurrenceRule null and a non-session with a rule", async () => {
+    const admin = await createAdmin();
+    const sess = await createValidEvent(admin.id, { eventType: "session", recurrenceRule: null });
+    expect(sess.status).toBe(201);
+    const social = await createValidEvent(admin.id, { eventType: "social", recurrenceRule: RULE });
+    expect(social.status).toBe(201);
+  });
+
+  it("PATCH /events/:id rejects a non-null recurrenceRule when the stored type is 'session'", async () => {
+    const admin = await createAdmin();
+    const created = await createValidEvent(admin.id, { eventType: "session" });
+    expect(created.status).toBe(201);
+    const res = await request(app)
+      .patch(`/api/events/${created.body.id}`)
+      .set("x-test-user", admin.id)
+      .send({ recurrenceRule: RULE });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/recurring/i);
+  });
+
+  it("PATCH /events/:id rejects a type-only flip to 'session' on a stored recurring event, but allows it when clearing the rule", async () => {
+    const admin = await createAdmin();
+    const created = await createValidEvent(admin.id, { eventType: "social" });
+    expect(created.status).toBe(201);
+    await db
+      .update(events)
+      .set({ recurrenceRule: { frequency: 2, interval: 1, byWeekday: [6], count: null, until: null } })
+      .where(eq(events.id, created.body.id));
+
+    const flip = await request(app)
+      .patch(`/api/events/${created.body.id}`)
+      .set("x-test-user", admin.id)
+      .send({ eventType: "session" });
+    expect(flip.status).toBe(400);
+    expect(flip.body.error).toMatch(/recurring/i);
+
+    const flipClearing = await request(app)
+      .patch(`/api/events/${created.body.id}`)
+      .set("x-test-user", admin.id)
+      .send({ eventType: "session", recurrenceRule: null });
+    expect(flipClearing.status).toBe(200);
+    expect(flipClearing.body.eventType).toBe("session");
+  });
+
+  it("PATCH /events/:id rejects a rule when the same patch flips the type to 'session'", async () => {
+    const admin = await createAdmin();
+    const created = await createValidEvent(admin.id, { eventType: "social" });
+    expect(created.status).toBe(201);
+    const res = await request(app)
+      .patch(`/api/events/${created.body.id}`)
+      .set("x-test-user", admin.id)
+      .send({ eventType: "session", recurrenceRule: RULE });
+    expect(res.status).toBe(400);
+  });
+
+  it("occurrence-scoped edits may flip one occurrence of a recurring non-session event to 'session' (child is non-recurring)", async () => {
+    const admin = await createAdmin();
+    const start = new Date(Date.now() + 24 * 3600_000);
+    const created = await createValidEvent(admin.id, {
+      eventType: "social",
+      startAt: start.toISOString(),
+      endAt: new Date(start.getTime() + 2 * 3600_000).toISOString(),
+    });
+    expect(created.status).toBe(201);
+    await db
+      .update(events)
+      .set({ recurrenceRule: { frequency: 2, interval: 1, byWeekday: [6], count: null, until: null } })
+      .where(eq(events.id, created.body.id));
+
+    const res = await request(app)
+      .patch(`/api/events/${created.body.id}`)
+      .set("x-test-user", admin.id)
+      .send({ applyScope: "occurrence", occurrenceStartAt: start.toISOString(), eventType: "session" });
+    expect(res.status).toBe(201);
+    expect(res.body.eventType).toBe("session");
+    expect(res.body.recurrence ?? null).toBeNull();
+    // Parent series is untouched.
+    const [parent] = await db.select().from(events).where(eq(events.id, created.body.id));
+    expect(parent.eventType).toBe("social");
+    expect(parent.recurrenceRule).not.toBeNull();
+  });
+
+  it("DB CHECK constraint blocks the racy session+rule combination even when writes bypass the route guard", async () => {
+    const admin = await createAdmin();
+    const created = await createValidEvent(admin.id, { eventType: "session" });
+    expect(created.status).toBe(201);
+    await expect(
+      db
+        .update(events)
+        .set({ recurrenceRule: { frequency: 2, interval: 1, byWeekday: null, count: null, until: null } })
+        .where(eq(events.id, created.body.id)),
+    ).rejects.toThrow();
+  });
+});
+
 describe("PATCH/DELETE /events/:id", () => {
   it("forbids a non-manager from editing or cancelling", async () => {
     const admin = await createAdmin();
