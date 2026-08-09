@@ -159,6 +159,115 @@ router.patch("/characters/:id/kind", requireAnyRole(["ADMIN", "FIXER"]), async (
     actorAvatarUrl: req.user!.avatarUrl,
     message: `${req.user!.username} converted ${c.name} from ${c.kind.toUpperCase()} to ${kind.toUpperCase()}`,
   });
+  // Compute billing eligibility for the audit record — informational only, not
+  // for access control. We read the character's pre-conversion fields from `c`
+  // (fetched before the update) so no ±1 arithmetic is needed even when the
+  // character is unapproved, archived, or has an excluded life status.
+  //
+  // The billing cron (monthly_rent) checks:
+  //   1. character_status.loa = true (transient self-service LOA) — `isOnLoa()`
+  //      appears at the TOP of the personal-billing loop and skips baseline,
+  //      Trauma Team AND Xanadu Gold for that character.
+  //   2. characters.lifeStatus in {dead, retired, loa} — meds-only exclusion
+  //      via countsForCyberwareBilling(); personal billing does NOT filter on
+  //      this column.
+  //
+  // Personal billing eligibility (baseline / TT / Xanadu — same predicate):
+  //   kind='pc' + approved + !archived + ownerId + !character_status.loa
+  // Meds household eligibility:
+  //   same as personal + !lifeStatus {dead/retired/loa}
+  //
+  // Leases, tag roles, mission rosters, and wallet are kept as-is.
+  // See docs/pc-npc-conversion-policy.md.
+
+  // Fetch transient LOA state for THIS character (character_status.loa).
+  // Not changed by the kind conversion; shown as reference in the audit.
+  const [charStatusRow] = await db
+    .select({ loa: characterStatus.loa })
+    .from(characterStatus)
+    .where(eq(characterStatus.characterId, id));
+  const thisTransientLoa = charStatusRow?.loa ?? false;
+
+  // Headline life-status exclusion for the meds cron only.
+  const MEDS_EXCLUDED_LIFE_STATUSES = new Set(["dead", "retired", "loa"]);
+  const lifeStatusLower = (c.lifeStatus ?? "active").toLowerCase();
+  const lifeStatusCountsForMeds = !MEDS_EXCLUDED_LIFE_STATUSES.has(lifeStatusLower);
+
+  const structurallyEligible = c.approved === true && c.archived === false && c.ownerId != null;
+
+  // Personal billing: all three fees (baseline, TT, Xanadu) share the same
+  // predicate — transient LOA skips the entire character in the cron loop.
+  const thisCharPersonalBefore = c.kind === "pc" && structurallyEligible && !thisTransientLoa;
+  const thisCharPersonalAfter  = kind  === "pc" && structurallyEligible && !thisTransientLoa;
+
+  // Meds: personal eligibility + not excluded by headline lifeStatus.
+  const thisCharMedsBefore = thisCharPersonalBefore && lifeStatusCountsForMeds;
+  const thisCharMedsAfter  = thisCharPersonalAfter  && lifeStatusCountsForMeds;
+
+  // Count of the owner's OTHER PCs that are personally eligible (structural +
+  // not transient LOA), mirroring the isOnLoa() cron condition. LEFT JOIN so
+  // characters with no status row (loa = null) are treated as non-LOA.
+  const ownerOtherPersonalEligibleCount = c.ownerId
+    ? Number(
+        (
+          await db
+            .select({ count: sql<string>`count(*)` })
+            .from(characters)
+            .leftJoin(characterStatus, eq(characterStatus.characterId, characters.id))
+            .where(
+              and(
+                eq(characters.ownerId, c.ownerId),
+                eq(characters.kind, "pc"),
+                eq(characters.approved, true),
+                eq(characters.archived, false),
+                notInArray(characters.id, [id]),
+                sql`coalesce(${characterStatus.loa}, false) = false`,
+              ),
+            )
+        )[0]?.count ?? 0,
+      )
+    : 0;
+
+  let personalBillingNote: string;
+  if (thisCharPersonalBefore && !thisCharPersonalAfter) {
+    personalBillingNote =
+      ownerOtherPersonalEligibleCount > 0
+        ? "owner still has personally-eligible PC(s); baseline billing continues"
+        : "owner has no remaining personally-eligible PCs; baseline billing will stop";
+  } else if (!thisCharPersonalBefore && thisCharPersonalAfter) {
+    personalBillingNote =
+      ownerOtherPersonalEligibleCount > 0
+        ? "owner already had personally-eligible PC(s); baseline billing unchanged"
+        : "first personally-eligible PC for owner; baseline billing will start";
+  } else {
+    // Not eligible before and not after: unapproved, archived, no owner, or transient LOA active.
+    personalBillingNote = "character was not in the personal billing pool (unapproved, archived, no owner, or self-service LOA active); no billing change";
+  }
+
+  let medsBillingNote: string;
+  if (thisCharMedsBefore && !thisCharMedsAfter) {
+    medsBillingNote = "character's CWP removed from meds household; band/multiplier may decrease";
+  } else if (!thisCharMedsBefore && thisCharMedsAfter) {
+    medsBillingNote = "character's CWP added to meds household; band/multiplier may increase if ≥7 CWP";
+  } else {
+    medsBillingNote = "character excluded from meds household (unapproved, archived, self-service LOA, or excluded life status); no meds change";
+  }
+
+  const billingEffects = {
+    // Personal billing: baseline, TT, and Xanadu all share this predicate.
+    characterPersonalBillingBefore: thisCharPersonalBefore,
+    characterPersonalBillingAfter: thisCharPersonalAfter,
+    // Meds household additionally excludes headline dead/retired/loa life statuses.
+    characterMedsBillingBefore: thisCharMedsBefore,
+    characterMedsBillingAfter: thisCharMedsAfter,
+    // Reference: these are unchanged by the kind conversion.
+    transientLoaActive: thisTransientLoa,
+    lifeStatusMedsExcluded: !lifeStatusCountsForMeds,
+    // Owner's other PCs that are personally eligible (transient LOA excluded).
+    ownerOtherPersonalBillingEligiblePcCount: ownerOtherPersonalEligibleCount,
+    personalBillingNote,
+    medsBillingNote,
+  };
   await recordAudit({
     req,
     category: "character",
@@ -167,7 +276,7 @@ router.patch("/characters/:id/kind", requireAnyRole(["ADMIN", "FIXER"]), async (
     targetId: id,
     message: `Converted ${c.name} from ${c.kind} to ${kind}`,
     before: { kind: c.kind },
-    after: { kind },
+    after: { kind, billingEffects },
   });
   res.json(updated);
 });
