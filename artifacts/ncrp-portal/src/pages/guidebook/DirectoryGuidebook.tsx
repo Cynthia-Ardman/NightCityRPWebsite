@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BookMarked, Plus, Download, FileEdit, FileText, Crosshair, Scale, Star } from "lucide-react";
+import { BookMarked, Plus, Download, FileEdit, FileText, Crosshair, Scale, Star, Globe } from "lucide-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { LEGACY_SECTION_ALIASES } from "@/lib/guidebookLinks";
 
@@ -140,7 +140,7 @@ export default function DirectoryGuidebook() {
                 {s.description && <p className="font-mono text-xs text-muted-foreground mt-1">{s.description}</p>}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {s.key === "rules" && !searching && <RulesHubCard />}
+                {s.key === "rules" && !searching && <RulesHubCard isStaff={isStaff} />}
                 {s.pages.map((p) => (
                   <PageCard key={p.id} page={p} isStaff={isStaff} />
                 ))}
@@ -186,7 +186,7 @@ function MustReadRow({ pinned, isStaff }: { pinned: GuidebookPage[]; isStaff: bo
         </p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <RulesHubCard featured />
+        <RulesHubCard featured isStaff={isStaff} />
         {pinned.map((p) => (
           <PageCard key={p.id} page={p} isStaff={isStaff} />
         ))}
@@ -195,7 +195,7 @@ function MustReadRow({ pinned, isStaff }: { pinned: GuidebookPage[]; isStaff: bo
   );
 }
 
-function RulesHubCard({ featured = false }: { featured?: boolean }) {
+function RulesHubCard({ featured = false, isStaff = false }: { featured?: boolean; isStaff?: boolean }) {
   return (
     <Link href="/guidebook/rules">
       <Card
@@ -203,9 +203,16 @@ function RulesHubCard({ featured = false }: { featured?: boolean }) {
         data-testid="card-guidebook-rules-hub"
       >
         <CardHeader>
-          <CardTitle className="font-display text-lg flex items-center gap-2">
-            <Scale className="w-5 h-5 text-nc-magenta" /> Rules at a Glance
-          </CardTitle>
+          <div className="flex items-start justify-between gap-2">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
+              <Scale className="w-5 h-5 text-nc-magenta" /> Rules at a Glance
+            </CardTitle>
+            {isStaff && (
+              <Badge variant="outline" className="rounded-none border-nc-cyan text-nc-cyan text-[10px] shrink-0" data-testid="badge-guidebook-public-rules-hub">
+                <Globe className="w-3 h-3 mr-1" /> PUBLIC
+              </Badge>
+            )}
+          </div>
           <CardDescription className="font-mono text-xs">
             Server rules, RP rules and avatar restrictions — summarized on one page.
           </CardDescription>
@@ -227,10 +234,19 @@ function PageCard({ page, isStaff }: { page: GuidebookPage; isStaff: boolean }) 
         <CardHeader>
           <div className="flex items-start justify-between gap-2">
             <CardTitle className="font-display text-lg">{page.title}</CardTitle>
-            {isStaff && page.editedSinceImport && (
-              <Badge variant="outline" className="rounded-none border-nc-yellow text-nc-yellow text-[10px] shrink-0" data-testid={`badge-guidebook-edited-${page.id}`}>
-                <FileEdit className="w-3 h-3 mr-1" /> EDITED
-              </Badge>
+            {isStaff && (
+              <div className="flex gap-1 shrink-0">
+                {page.publicRead && (
+                  <Badge variant="outline" className="rounded-none border-nc-cyan text-nc-cyan text-[10px]" data-testid={`badge-guidebook-public-${page.id}`}>
+                    <Globe className="w-3 h-3 mr-1" /> PUBLIC
+                  </Badge>
+                )}
+                {page.editedSinceImport && (
+                  <Badge variant="outline" className="rounded-none border-nc-yellow text-nc-yellow text-[10px]" data-testid={`badge-guidebook-edited-${page.id}`}>
+                    <FileEdit className="w-3 h-3 mr-1" /> EDITED
+                  </Badge>
+                )}
+              </div>
             )}
           </div>
           {page.description && (
