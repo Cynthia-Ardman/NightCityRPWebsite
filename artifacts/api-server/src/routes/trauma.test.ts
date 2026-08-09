@@ -3,6 +3,13 @@ import request from "supertest";
 
 // Mock only the Discord side-effects: the raw role-id lookup (subscription
 // gate), the responder scan, and the DM send. Everything else stays real.
+// The call endpoint is gated on the main Sunday session window; default the
+// mock to open so existing behavior tests run, and flip it off to test the gate.
+vi.mock("../lib/sessionWindow", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/sessionWindow")>();
+  return { ...actual, isSessionWindowOpen: vi.fn(() => true) };
+});
+
 vi.mock("../lib/discord", async (importActual) => {
   const actual = await importActual<typeof import("../lib/discord")>();
   return {
@@ -22,11 +29,13 @@ import { db, characters } from "@workspace/db";
 import { buildTestApp } from "../test/app";
 import { createUser } from "../test/testDb";
 import { TRAUMA_TIER_ROLES } from "./trauma";
+import { isSessionWindowOpen } from "../lib/sessionWindow";
 
 const app = buildTestApp();
 const mockRoleIds = vi.mocked(fetchGuildMemberRoleIdsViaBot);
 const mockScan = vi.mocked(listGuildMembersWithRole);
 const mockDm = vi.mocked(sendDirectMessage);
+const mockWindow = vi.mocked(isSessionWindowOpen);
 
 const GOLD = TRAUMA_TIER_ROLES.find((t) => t.tier === "Gold")!.id;
 const DIAMOND = TRAUMA_TIER_ROLES.find((t) => t.tier === "Diamond")!.id;
@@ -51,17 +60,17 @@ describe("GET /trauma/status", () => {
     mockRoleIds.mockResolvedValue([GOLD, DIAMOND, "999"]);
     const res = await request(app).get("/api/trauma/status").set("x-test-user", u.id);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ eligible: true, tier: "Diamond", determined: true });
+    expect(res.body).toEqual({ eligible: true, tier: "Diamond", determined: true, sessionOpen: true });
   });
 
   it("is ineligible without a tier role, undetermined on lookup failure", async () => {
     const u = await createUser({ roles: [] });
     mockRoleIds.mockResolvedValue(["999"]);
     let res = await request(app).get("/api/trauma/status").set("x-test-user", u.id);
-    expect(res.body).toEqual({ eligible: false, tier: null, determined: true });
+    expect(res.body).toEqual({ eligible: false, tier: null, determined: true, sessionOpen: true });
     mockRoleIds.mockResolvedValue(null);
     res = await request(app).get("/api/trauma/status").set("x-test-user", u.id);
-    expect(res.body).toEqual({ eligible: false, tier: null, determined: false });
+    expect(res.body).toEqual({ eligible: false, tier: null, determined: false, sessionOpen: true });
   });
 });
 
@@ -146,5 +155,33 @@ describe("POST /trauma/call", () => {
       .set("x-test-user", u.id)
       .send({ characterId: cid });
     expect(res.status).toBe(200);
+  });
+});
+
+describe("session window gate", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockWindow.mockReturnValue(true);
+  });
+
+  it("rejects calls outside the Sunday session window", async () => {
+    mockWindow.mockReturnValue(false);
+    const u = await createUser();
+    const res = await request(app)
+      .post("/api/trauma/call")
+      .set("x-test-user", u.id)
+      .send({ characterId: 1 });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/main session/i);
+  });
+
+  it("reports sessionOpen=false in status without hiding eligibility", async () => {
+    mockWindow.mockReturnValue(false);
+    mockRoleIds.mockResolvedValue([TRAUMA_TIER_ROLES[0].id]);
+    const u = await createUser();
+    const res = await request(app).get("/api/trauma/status").set("x-test-user", u.id);
+    expect(res.status).toBe(200);
+    expect(res.body.sessionOpen).toBe(false);
+    expect(res.body.eligible).toBe(true);
   });
 });

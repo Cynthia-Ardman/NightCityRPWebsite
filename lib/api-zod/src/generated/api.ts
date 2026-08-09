@@ -11059,7 +11059,8 @@ export const RunIncomeSlutResponse = zod.object({
 export const GetTraumaStatusResponse = zod.object({
   "eligible": zod.boolean(),
   "tier": zod.string().nullable().describe('Best held tier (Diamond > Platinum > Gold > Silver), null when not subscribed.'),
-  "determined": zod.boolean().describe('False when the Discord role lookup failed — hide the button rather than guessing.')
+  "determined": zod.boolean().describe('False when the Discord role lookup failed — hide the button rather than guessing.'),
+  "sessionOpen": zod.boolean().describe('True only during the main Sunday session window; the call button is hidden (and the call rejected) outside it.')
 })
 
 

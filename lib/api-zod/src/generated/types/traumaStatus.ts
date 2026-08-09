@@ -15,4 +15,6 @@ export interface TraumaStatus {
   tier: string | null;
   /** False when the Discord role lookup failed — hide the button rather than guessing. */
   determined: boolean;
+  /** True only during the main Sunday session window; the call button is hidden (and the call rejected) outside it. */
+  sessionOpen: boolean;
 }

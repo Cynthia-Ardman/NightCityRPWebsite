@@ -10,6 +10,7 @@ import {
 } from "../lib/discord";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
+import { isSessionWindowOpen, SESSION_WINDOW_HINT } from "../lib/sessionWindow";
 
 const router: IRouter = Router();
 
@@ -41,13 +42,14 @@ function bestTier(roleIds: string[]): string | null {
 // which tier? `determined:false` means the Discord lookup failed, so the
 // dashboard should hide the button rather than guessing.
 router.get("/trauma/status", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const sessionOpen = isSessionWindowOpen();
   const roleIds = await fetchGuildMemberRoleIdsViaBot(req.user!.discordId);
   if (roleIds === null) {
-    res.json({ eligible: false, tier: null, determined: false });
+    res.json({ eligible: false, tier: null, determined: false, sessionOpen });
     return;
   }
   const tier = bestTier(roleIds);
-  res.json({ eligible: tier !== null, tier, determined: true });
+  res.json({ eligible: tier !== null, tier, determined: true, sessionOpen });
 });
 
 // POST /trauma/call { characterId } — DM every Trauma Team responder that this
@@ -56,6 +58,13 @@ router.get("/trauma/status", requireAuth, async (req: Request, res: Response): P
 // character must belong to the caller.
 router.post("/trauma/call", requireAuth, async (req: Request, res: Response): Promise<void> => {
   const u = req.user!;
+  // Trauma Team extraction is an in-session RP event: calls are only accepted
+  // during the main Sunday session window (server-authoritative; the dashboard
+  // button is hidden outside it, but never trust the client).
+  if (!isSessionWindowOpen()) {
+    res.status(409).json({ error: `Trauma Team can only be called during the main session (${SESSION_WINDOW_HINT}).` });
+    return;
+  }
   const characterId = Number((req.body ?? {}).characterId);
   if (!Number.isInteger(characterId) || characterId <= 0) {
     res.status(400).json({ error: "characterId is required." });

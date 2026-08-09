@@ -4767,6 +4767,7 @@ paths:
               schema: { $ref: "#/components/schemas/TraumaCallResult" }
         "400": { description: Missing characterId }
         "401": { description: Not signed in }
+        "409": { description: "Outside the main Sunday session window (or already called recently)." }
         "403": { description: No Trauma Team subscription role }
         "404": { description: Character not found or not owned by caller }
         "429": { description: Called too recently }
@@ -10394,11 +10395,12 @@ components:
 
     TraumaStatus:
       type: object
-      required: [eligible, tier, determined]
+      required: [eligible, tier, determined, sessionOpen]
       properties:
         eligible: { type: boolean }
         tier: { type: ["string", "null"], description: "Best held tier (Diamond > Platinum > Gold > Silver), null when not subscribed." }
         determined: { type: boolean, description: "False when the Discord role lookup failed — hide the button rather than guessing." }
+        sessionOpen: { type: boolean, description: "True only during the main Sunday session window; the call button is hidden (and the call rejected) outside it." }
 
     TraumaCallResult:
       type: object

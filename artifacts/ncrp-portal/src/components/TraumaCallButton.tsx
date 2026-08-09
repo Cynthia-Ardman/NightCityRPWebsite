@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   useGetTraumaStatus,
+  getGetTraumaStatusQueryKey,
   useCallTraumaTeam,
   useListMyCharacters,
 } from "@workspace/api-client-react";
@@ -34,7 +35,11 @@ import { Siren } from "lucide-react";
  * responder with the character, the caller, and their subscription tier.
  */
 export default function TraumaCallButton() {
-  const { data: status } = useGetTraumaStatus();
+  // Refresh every minute (and on focus) so a dashboard left open transitions
+  // correctly when the Sunday session window opens or closes.
+  const { data: status } = useGetTraumaStatus({
+    query: { queryKey: getGetTraumaStatusQueryKey(), refetchInterval: 60_000, refetchOnWindowFocus: true },
+  });
   const { data: characters } = useListMyCharacters();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -60,8 +65,10 @@ export default function TraumaCallButton() {
     },
   });
 
-  // Hide entirely unless we positively know the viewer is a subscriber.
-  if (!status?.determined || !status.eligible) return null;
+  // Hide entirely unless we positively know the viewer is a subscriber, and
+  // only show during the main Sunday session window (server-authoritative —
+  // the call endpoint rejects out-of-window calls too).
+  if (!status?.determined || !status.eligible || !status.sessionOpen) return null;
 
   const chars = (characters ?? []).filter((c) => c.lifeStatus !== "dead");
 
