@@ -1213,7 +1213,10 @@ async function buildEventBody(input: ScheduledEventInput): Promise<Record<string
       body.recurrence_rule = null;
     } else {
       const r = input.recurrenceRule;
+      // Discord REQUIRES recurrence_rule.start (BASE_TYPE_REQUIRED 400 without
+      // it) — it anchors the series and must match the event's start time.
       const rule: Record<string, unknown> = {
+        start: input.startAt.toISOString(),
         frequency: r.frequency,
         interval: r.interval,
       };

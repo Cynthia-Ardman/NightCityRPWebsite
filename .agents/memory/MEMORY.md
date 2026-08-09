@@ -76,6 +76,7 @@
 - [Rent & meds history sources](rent-and-meds-history-sources.md) — rent = #rent-payments channel; meds full year = bot's operator-DM sweep logs (our token IS the bot, reads own DMs) — see topic.
 - [Character wallet endpoint scope](character-wallet-endpoint-scope.md) — /characters/:id/wallet/transactions also returns account-level (characterId NULL) owner rows — see topic.
 - [Breach Protocol minigame](breach-minigame.md) — exactly-once reward (atomic completedAt-IS-NULL); server anchors timer before any grid reveal, lists redact unstarted grids; /result 200-idempotent.
+- [Discord recurrence_rule needs start](discord-recurrence-start-required.md) — recurrence_rule bodies 400 without a `start` timestamp; null clears fine; verified live, reconcile doesn't churn.
 - [Recurring push times](recurring-event-push-times.md) — Discord/VRChat 400 on past starts; every outbound event-time push must roll to the next occurrence.
 - Event recurrence: [Discord rolls start_at forward, backfill open-ended series only](event-recurrence-rollforward.md); [byWeekday is UTC-frame, step the base instant](events-recurrence-listing.md) + merge recurring into 500-cap list.
 - [users.roles = lowercase names](roles-lowercase-names.md) — SQL role filters must use ROLE_NAMES name lists (arrayOverlaps), never the uppercase group key; `'FIXER' = ANY(roles)` matches nothing.
