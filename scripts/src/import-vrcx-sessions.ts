@@ -388,26 +388,33 @@ async function main() {
     // extends past that point would duplicate those sessions. Skip any
     // reconstructed session that overlaps a live session for the same
     // instance (location prefix before the first '~').
-    const { rows: liveRows } = await client.query<{ prefix: string; first_seen_at: Date; ends_at: Date }>(
-      `SELECT split_part(location, '~', 1) AS prefix, first_seen_at,
+    const { rows: liveRows } = await client.query<{ id: number; prefix: string; first_seen_at: Date; ends_at: Date }>(
+      `SELECT id, split_part(location, '~', 1) AS prefix, first_seen_at,
               COALESCE(closed_at, last_seen_at) AS ends_at
        FROM vrchat_instance_sessions WHERE source = 'live'`,
     );
-    const liveByPrefix = new Map<string, Array<{ start: number; end: number }>>();
+    const liveByPrefix = new Map<string, Array<{ id: number; start: number; end: number }>>();
     for (const r of liveRows) {
       const arr = liveByPrefix.get(r.prefix) ?? [];
-      arr.push({ start: new Date(r.first_seen_at).getTime(), end: new Date(r.ends_at).getTime() });
+      arr.push({ id: Number(r.id), start: new Date(r.first_seen_at).getTime(), end: new Date(r.ends_at).getTime() });
       liveByPrefix.set(r.prefix, arr);
     }
+    // Sessions the poller already covers are MERGED, not just skipped: the
+    // live row keeps its samples, but gains the VRCX-only identity data —
+    // unique_users and per-person visit records.
     const before = sessions.length;
+    const merges: Array<{ liveId: number; session: Session }> = [];
     const kept = sessions.filter((s) => {
       const ranges = liveByPrefix.get(s.location.split("~")[0]);
       if (!ranges) return true;
       const start = s.firstSeenAt.getTime();
       const end = s.lastSeenAt.getTime();
-      return !ranges.some((r) => start <= r.end && end >= r.start);
+      const hit = ranges.find((r) => start <= r.end && end >= r.start);
+      if (!hit) return true;
+      merges.push({ liveId: hit.id, session: s });
+      return false;
     });
-    console.log(`skipped ${before - kept.length} sessions already covered by the live poller`);
+    console.log(`merging ${before - kept.length} sessions into existing live poller rows`);
     sessions = kept;
 
     await client.query("BEGIN");
@@ -470,7 +477,33 @@ async function main() {
       }
     }
     await client.query("COMMIT");
+    // Enrich overlapping live sessions with VRCX identity data. Idempotent:
+    // visits for these live rows only ever come from VRCX, so replace them.
+    let mergedVisits = 0;
+    for (const { liveId, session: s } of merges) {
+      await client.query(`DELETE FROM vrchat_instance_visits WHERE session_id = $1`, [liveId]);
+      await client.query(`UPDATE vrchat_instance_sessions SET unique_users = $2 WHERE id = $1`, [liveId, s.uniqueUsers]);
+      if (s.visits.length > 0) {
+        await client.query(
+          `INSERT INTO vrchat_instance_visits
+             (session_id, vrchat_user_id, display_name, joined_at, left_at, duration_ms)
+           SELECT $1, x.uid, x.name, x.j, x.l, x.d
+           FROM unnest($2::text[], $3::text[], $4::timestamptz[], $5::timestamptz[], $6::int[])
+             AS x(uid, name, j, l, d)`,
+          [
+            liveId,
+            s.visits.map((v) => v.vrchatUserId),
+            s.visits.map((v) => v.displayName),
+            s.visits.map((v) => v.joinedAt.toISOString()),
+            s.visits.map((v) => (v.leftAt ? v.leftAt.toISOString() : null)),
+            s.visits.map((v) => v.durationMs),
+          ],
+        );
+        mergedVisits += s.visits.length;
+      }
+    }
     console.log(`inserted ${inserted} sessions, ${sampleRows} samples, ${visitRows} visits`);
+    console.log(`enriched ${merges.length} live sessions with unique_users + ${mergedVisits} visits`);
 
     const { rows: summary } = await client.query(
       `SELECT source, COUNT(*)::int AS n,
