@@ -372,7 +372,7 @@ async function main() {
   }
   console.log(`events: ${rows.length - 1} rows, ${skipped} skipped, ${byLocation.size} locations`);
 
-  const sessions: Session[] = [];
+  let sessions: Session[] = [];
   for (const [loc, evs] of byLocation) sessions.push(...buildSessions(loc, evs));
   sessions.sort((a, b) => a.firstSeenAt.getTime() - b.firstSeenAt.getTime());
   console.log(`reconstructed ${sessions.length} sessions`);
@@ -383,6 +383,32 @@ async function main() {
   try {
     const worldIds = [...new Set(sessions.map((s) => s.worldId))];
     const names = await resolveWorldNames(client, worldIds);
+
+    // The live poller has been recording since 2026-07-19; a VRCX export that
+    // extends past that point would duplicate those sessions. Skip any
+    // reconstructed session that overlaps a live session for the same
+    // instance (location prefix before the first '~').
+    const { rows: liveRows } = await client.query<{ prefix: string; first_seen_at: Date; ends_at: Date }>(
+      `SELECT split_part(location, '~', 1) AS prefix, first_seen_at,
+              COALESCE(closed_at, last_seen_at) AS ends_at
+       FROM vrchat_instance_sessions WHERE source = 'live'`,
+    );
+    const liveByPrefix = new Map<string, Array<{ start: number; end: number }>>();
+    for (const r of liveRows) {
+      const arr = liveByPrefix.get(r.prefix) ?? [];
+      arr.push({ start: new Date(r.first_seen_at).getTime(), end: new Date(r.ends_at).getTime() });
+      liveByPrefix.set(r.prefix, arr);
+    }
+    const before = sessions.length;
+    const kept = sessions.filter((s) => {
+      const ranges = liveByPrefix.get(s.location.split("~")[0]);
+      if (!ranges) return true;
+      const start = s.firstSeenAt.getTime();
+      const end = s.lastSeenAt.getTime();
+      return !ranges.some((r) => start <= r.end && end >= r.start);
+    });
+    console.log(`skipped ${before - kept.length} sessions already covered by the live poller`);
+    sessions = kept;
 
     await client.query("BEGIN");
     const del = await client.query(`DELETE FROM vrchat_instance_sessions WHERE source = 'vrcx'`);
