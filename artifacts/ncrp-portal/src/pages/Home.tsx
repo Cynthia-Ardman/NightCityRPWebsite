@@ -1890,6 +1890,21 @@ function medsEmptyHint(status: CyberwareStatusShape): string {
   return "No meds owed this week.";
 }
 
+// Whole weeks actually elapsed since the most recent real checkup — what a
+// player expects "Weeks Without Checkup" to mean. This is deliberately NOT
+// weeksUnpaid: that value is the billing week projected to the next Monday
+// cron tick, which can read one higher than elapsed time (a checkup 8 days
+// ago is "week 2" at next Monday's bill) and contradicted the "Last Checkup"
+// row on the same card. Falls back to the server's number when the player
+// has never had a checkup (no date to measure from).
+function elapsedCheckupWeeks(status: CyberwareStatusShape): number {
+  const at = status.lastCheckupActualAt ?? status.lastCheckupAt;
+  if (!at) return status.weeksUnpaid;
+  const ms = Date.now() - new Date(at).getTime();
+  if (ms <= 0) return 0;
+  return Math.floor(ms / (7 * 86400000));
+}
+
 function bandLabel(band: string): string {
   if (band === "none") return "None";
   return band.charAt(0).toUpperCase() + band.slice(1);
@@ -1939,7 +1954,7 @@ function CyberwareStatusPanel({ status }: { status: CyberwareStatusShape }) {
 
         <StatRow
           label="Weeks Without Checkup"
-          value={String(status.weeksUnpaid)}
+          value={String(elapsedCheckupWeeks(status))}
           tooltip={
             <>
               <p className="font-semibold text-nc-cyan">Weekly bill formula</p>
@@ -1949,6 +1964,10 @@ function CyberwareStatusPanel({ status }: { status: CyberwareStatusShape }) {
               </p>
               <p className="text-muted-foreground">
                 Doubles every week without a checkup. Capped at 12 weeks.
+                The billed week is evaluated at the Monday bill run
+                {status.weeksUnpaid !== elapsedCheckupWeeks(status)
+                  ? ` — your next bill lands at week ${status.weeksUnpaid}.`
+                  : "."}
               </p>
             </>
           }

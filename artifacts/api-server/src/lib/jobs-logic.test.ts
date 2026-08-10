@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  CHECKUP_WEEK_GRACE_MS,
   CYBERWARE_MAX_STREAK,
   deriveCyberwareBand,
   householdMultiplier,
@@ -52,11 +53,22 @@ describe("weeksSinceLastCheckup", () => {
     expect(weeksSinceLastCheckup(future, now)).toBe(1);
   });
 
-  it("counts whole weeks elapsed, 1-indexed", () => {
-    const oneWeekAgo = new Date(now.getTime() - 7 * 86400000);
-    expect(weeksSinceLastCheckup(oneWeekAgo, now)).toBe(2);
-    const threeWeeksAgo = new Date(now.getTime() - 21 * 86400000);
-    expect(weeksSinceLastCheckup(threeWeeksAgo, now)).toBe(4);
+  it("counts whole weeks elapsed, 1-indexed, with a grace window", () => {
+    // 7 days + a few hours = "missed one Sunday" — still week 1, not 2.
+    const oneWeekAgo = new Date(now.getTime() - 7 * 86400000 - 6 * 3600000);
+    expect(weeksSinceLastCheckup(oneWeekAgo, now)).toBe(1);
+    // Past the grace window the next week starts.
+    const wellPastOneWeek = new Date(now.getTime() - 9 * 86400000 - 1);
+    expect(weeksSinceLastCheckup(wellPastOneWeek, now)).toBe(2);
+    const threeWeeksAgo = new Date(now.getTime() - 21 * 86400000 - 6 * 3600000);
+    expect(weeksSinceLastCheckup(threeWeeksAgo, now)).toBe(3);
+  });
+
+  it("grace boundary: exactly grace past N weeks is still week N", () => {
+    const exactlyGrace = new Date(now.getTime() - (14 * 86400000 + CHECKUP_WEEK_GRACE_MS));
+    expect(weeksSinceLastCheckup(exactlyGrace, now)).toBe(3);
+    const justInside = new Date(now.getTime() - (14 * 86400000 + CHECKUP_WEEK_GRACE_MS - 1));
+    expect(weeksSinceLastCheckup(justInside, now)).toBe(2);
   });
 
   it("caps the streak at CYBERWARE_MAX_STREAK", () => {

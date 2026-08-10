@@ -21,7 +21,7 @@ import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscor
 import { resolveOrProvisionUser } from "../lib/userProvision";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { patchBalance, getBalance } from "../lib/unbelievaboat";
-import { runJob, deriveCyberwareBand, weeksSinceLastCheckup, CYBERWARE_MAX_STREAK, householdEffectiveCheckupDate, nextWeeklyRunDate } from "../lib/jobs";
+import { runJob, deriveCyberwareBand, weeksSinceLastCheckup, CYBERWARE_MAX_STREAK, CHECKUP_WEEK_GRACE_MS, householdEffectiveCheckupDate, nextWeeklyRunDate } from "../lib/jobs";
 import { recordAudit, recordAuditInline } from "../lib/audit";
 import { listMissionThreadBackfillTargets, runMissionThreadBackfill } from "../lib/missionsService";
 import { repairGuidebookLinks } from "../lib/guidebookImport";
@@ -1001,10 +1001,11 @@ router.post("/admin/characters/:id/checkup", requireAuth, async (req, res): Prom
     // weeksSinceLastCheckup AT the next Monday 05:00 UTC tick — so a date set
     // to "week N as of now" reads as week N+1 by the time the bill lands
     // (e.g. a Sunday checkup under floor 4 was billed at week 5 the next
-    // morning). date = nextRun - (N-1) weeks makes the run itself week N
-    // exactly. Clamp to `now` so N=1 (or a run inside the window) never
-    // stamps a future checkup date.
-    const anchored = nextWeeklyRunDate(now).getTime() - (floorWeeks - 1) * 7 * 86400000;
+    // morning). date = nextRun - (N-1) weeks - grace makes the run itself
+    // week N exactly (weeksSinceLastCheckup subtracts CHECKUP_WEEK_GRACE_MS
+    // before flooring, so the anchor must pre-add it back). Clamp to `now`
+    // so N=1 (or a run inside the window) never stamps a future checkup date.
+    const anchored = nextWeeklyRunDate(now).getTime() - (floorWeeks - 1) * 7 * 86400000 - CHECKUP_WEEK_GRACE_MS;
     const floorDate = new Date(Math.min(anchored, now.getTime()));
     // Effective date mirrors billing exactly: lastCheckupAt when set, else
     // createdAt (the implicit initial checkup). Do NOT max() with createdAt —

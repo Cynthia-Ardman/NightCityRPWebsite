@@ -10,7 +10,7 @@ vi.mock("../lib/unbelievaboat", () => ({
 
 import { db, characters, users, walletTransactions, auditLog, botConfig } from "@workspace/db";
 import { patchBalance } from "../lib/unbelievaboat";
-import { nextWeeklyRunDate } from "../lib/jobs";
+import { nextWeeklyRunDate, weeksSinceLastCheckup } from "../lib/jobs";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
 
@@ -128,10 +128,10 @@ describe("POST /admin/characters/:id/checkup — temporary reset floor", () => {
 
   // The billing week is evaluated AT the next weekly cron run (Monday 05:00
   // UTC), not "now" — the floor anchors against that same instant so the
-  // BILLED week is exactly N. weeksSinceLastCheckup maps a date D to
-  // floor((runAt - D) / 1w) + 1.
+  // BILLED week is exactly N. Use the real billing helper so this stays in
+  // lockstep with the formula (including the grace window).
   const billedWeeksOf = (iso: string) =>
-    Math.floor((nextWeeklyRunDate().getTime() - new Date(iso).getTime()) / (7 * DAY)) + 1;
+    weeksSinceLastCheckup(new Date(iso), nextWeeklyRunDate());
 
   beforeEach(async () => {
     await clearFloor();
@@ -153,7 +153,8 @@ describe("POST /admin/characters/:id/checkup — temporary reset floor", () => {
     // (the old "now - 3 weeks" anchor read as week 5 by Monday's cron).
     expect(billedWeeksOf(res.body.lastCheckupAt)).toBe(4);
     expect(new Date(res.body.lastCheckupAt).getTime()).toBe(
-      nextWeeklyRunDate().getTime() - 3 * 7 * DAY,
+      // Anchor pre-adds the grace window so the billed week is exactly N.
+      nextWeeklyRunDate().getTime() - 3 * 7 * DAY - 2 * DAY,
     );
     await clearFloor();
   });

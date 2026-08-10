@@ -134,15 +134,27 @@ export function nextWeeklyRunDate(now: Date = new Date()): Date {
   return d;
 }
 
+// Grace window subtracted before counting checkup weeks. Checkups mostly
+// happen during the Sunday session (up to ~04:00 UTC Monday) while the
+// billing cron ticks Monday 05:00 UTC — so "one missed Sunday" is 7 days
+// plus a few hours by the time the bill lands. Without grace, floor(+1)
+// counted that as week 2, making week-1 pricing unreachable for anyone
+// who does checkups during sessions. Two days comfortably absorbs the
+// checkup-to-tick offset without ever forgiving a genuinely missed week.
+export const CHECKUP_WEEK_GRACE_MS = 2 * 86400000;
+
 // Weeks since the last ripperdoc checkup, projected forward to a given
 // cron tick (defaults to "right now"). Returns 1 if a checkup just
-// happened (first tick after a checkup is week 1). Capped at
-// CYBERWARE_MAX_STREAK; null lastCheckupAt means "never had one" → max.
+// happened (first tick after a checkup is week 1). A grace window
+// (CHECKUP_WEEK_GRACE_MS) is subtracted before flooring so a checkup a
+// few hours more than N weeks before the tick still bills as week N.
+// Capped at CYBERWARE_MAX_STREAK; null lastCheckupAt means "never had
+// one" → max.
 export function weeksSinceLastCheckup(lastCheckupAt: Date | null | undefined, runAt: Date = new Date()): number {
   if (!lastCheckupAt) return CYBERWARE_MAX_STREAK;
   const ms = runAt.getTime() - lastCheckupAt.getTime();
   if (ms <= 0) return 1;
-  const weeks = Math.floor(ms / (7 * 86400000)) + 1;
+  const weeks = Math.floor((ms - CHECKUP_WEEK_GRACE_MS) / (7 * 86400000)) + 1;
   return Math.max(1, Math.min(CYBERWARE_MAX_STREAK, weeks));
 }
 
