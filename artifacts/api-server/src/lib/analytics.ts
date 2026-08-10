@@ -1,6 +1,12 @@
 import { db, classifyWalletCategory } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
+// Below this population an instance is considered "ended" — one or two people
+// often linger for hours after an event and would otherwise skew durations,
+// averages, and medians. Trailing samples under this count are trimmed.
+export const VRCHAT_SESSION_ENDED_BELOW = 5;
+
+
 // ---------------------------------------------------------------------------
 // Staff analytics — server-side aggregates for the Analytics dashboard.
 // Everything is computed in SQL (grouped sums / counts) so the browser only
@@ -602,7 +608,12 @@ export async function computeAdminAnalytics(
   // Session history written by the group-instance poller (plus VRCX-imported
   // rows). Durations use COALESCE(closed_at, last_seen_at) so still-open
   // sessions count their elapsed time without inflating by the poll gap.
-  const vrDur = sql`EXTRACT(EPOCH FROM (COALESCE(closed_at, last_seen_at) - first_seen_at))`;
+  // An instance often lingers with a straggler or two long after the event is
+  // over, so the *effective* end is the last sample at or above the
+  // ended-threshold population; sessions that never reached it keep their full
+  // span (small gatherings are still real sessions).
+  const vrEnd = sql`GREATEST(first_seen_at, COALESCE((SELECT MAX(sm.at) FROM vrchat_instance_samples sm WHERE sm.session_id = vrchat_instance_sessions.id AND sm.user_count >= ${VRCHAT_SESSION_ENDED_BELOW}), COALESCE(closed_at, last_seen_at)))`;
+  const vrDur = sql`EXTRACT(EPOCH FROM (${vrEnd} - first_seen_at))`;
   const [vrWeeklyRes, vrTotalsRes, vrTopRes] = await Promise.all([
     db.execute(sql`
       SELECT date_trunc('week', first_seen_at) AS week,
@@ -752,6 +763,9 @@ export interface VrchatInstanceDetail {
 // Per-instance sessions behind one weekly bar (week) or one top-world row
 // (world + since). Median comes from the raw poll samples; the population
 // sparkline is the sample series downsampled to <= 60 points per instance.
+// Stats and the sparkline are trimmed at the effective end: trailing samples
+// below VRCHAT_SESSION_ENDED_BELOW (after the last sample at/above it) are
+// stragglers, not the event.
 export async function computeVrchatInstanceDrilldown(opts: {
   week?: Date;
   world?: string;
@@ -779,6 +793,7 @@ export async function computeVrchatInstanceDrilldown(opts: {
   }>;
   const ids = rows.map((r) => Number(r.id));
   const samplesBySession = new Map<number, Array<{ at: string; userCount: number }>>();
+  const statsBySession = new Map<number, { lastAt: string; avg: number; median: number }>();
   if (ids.length > 0) {
     const sampleRes = await db.execute(sql`
       SELECT session_id, at, user_count FROM vrchat_instance_samples
@@ -794,6 +809,28 @@ export async function computeVrchatInstanceDrilldown(opts: {
       }
       arr.push({ at: new Date(r.at as string).toISOString(), userCount: Number(r.user_count) || 0 });
     }
+    // Trim the straggler tail: drop samples after the last one at/above the
+    // ended-threshold. Sessions that never reached it are left untouched.
+    for (const [sid, arr] of samplesBySession) {
+      let lastActive = -1;
+      for (let i = 0; i < arr.length; i++) {
+        if (arr[i].userCount >= VRCHAT_SESSION_ENDED_BELOW) lastActive = i;
+      }
+      if (lastActive >= 0 && lastActive < arr.length - 1) {
+        samplesBySession.set(sid, arr.slice(0, lastActive + 1));
+      }
+    }
+    // Stats come from the full (trimmed) series, before downsampling thins it.
+    for (const [sid, arr] of samplesBySession) {
+      if (arr.length === 0) continue;
+      const counts = arr.map((p) => p.userCount).sort((a, b) => a - b);
+      const mid = Math.floor(counts.length / 2);
+      statsBySession.set(sid, {
+        lastAt: arr[arr.length - 1].at,
+        avg: counts.reduce((a, b) => a + b, 0) / counts.length,
+        median: counts.length % 2 === 1 ? counts[mid] : (counts[mid - 1] + counts[mid]) / 2,
+      });
+    }
     // Downsample long series to <= 60 points, always keeping the last point.
     for (const [sid, arr] of samplesBySession) {
       if (arr.length > 60) {
@@ -804,20 +841,35 @@ export async function computeVrchatInstanceDrilldown(opts: {
       }
     }
   }
-  return rows.map((r) => ({
-    id: Number(r.id),
-    worldName: r.world_name,
-    source: r.source,
-    firstSeenAt: new Date(r.first_seen_at as string).toISOString(),
-    lastSeenAt: new Date(r.last_seen_at as string).toISOString(),
-    closedAt: r.closed_at ? new Date(r.closed_at as string).toISOString() : null,
-    durationMinutes: Math.round((Number(r.seconds) || 0) / 60),
-    peakUserCount: Number(r.peak_user_count) || 0,
-    avgUserCount: Math.round((Number(r.avg_users) || 0) * 10) / 10,
-    medianUserCount: Math.round((Number(r.median_users) || 0) * 10) / 10,
-    uniqueUsers: r.unique_users === null ? null : Number(r.unique_users),
-    samples: samplesBySession.get(Number(r.id)) ?? [],
-  }));
+  return rows.map((r) => {
+    const samples = samplesBySession.get(Number(r.id)) ?? [];
+    // Recompute duration/avg/median from the trimmed series when we have one;
+    // fall back to the SQL values for sessions without samples.
+    let seconds = Number(r.seconds) || 0;
+    let avg = Number(r.avg_users) || 0;
+    let median = Number(r.median_users) || 0;
+    const stats = statsBySession.get(Number(r.id));
+    if (stats) {
+      const firstSeen = new Date(r.first_seen_at as string).getTime();
+      seconds = Math.max(0, (new Date(stats.lastAt).getTime() - firstSeen) / 1000);
+      avg = stats.avg;
+      median = stats.median;
+    }
+    return {
+      id: Number(r.id),
+      worldName: r.world_name,
+      source: r.source,
+      firstSeenAt: new Date(r.first_seen_at as string).toISOString(),
+      lastSeenAt: new Date(r.last_seen_at as string).toISOString(),
+      closedAt: r.closed_at ? new Date(r.closed_at as string).toISOString() : null,
+      durationMinutes: Math.round(seconds / 60),
+      peakUserCount: Number(r.peak_user_count) || 0,
+      avgUserCount: Math.round(avg * 10) / 10,
+      medianUserCount: Math.round(median * 10) / 10,
+      uniqueUsers: r.unique_users === null ? null : Number(r.unique_users),
+      samples,
+    };
+  });
 }
 
 export interface MissionWeekDetail {
