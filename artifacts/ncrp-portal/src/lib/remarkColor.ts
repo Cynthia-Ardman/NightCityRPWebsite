@@ -140,6 +140,18 @@ function processChildren(children: MdNode[]): MdNode[] {
   return build(tokens);
 }
 
+// Remove [c=...]...[/c] color markup from a string, keeping the inner text.
+// For compact plain-text surfaces (preview cards, clamped snippets) that
+// don't render through the shared <Markdown> component — rendering markdown
+// there would break on tags cut mid-way by truncation, so we strip instead.
+// Only VALID color openers are removed (mirroring the renderer, which leaves
+// unknown colors as literal text); stray [/c] closers are always dropped.
+export function stripColorTags(value: string): string {
+  return value
+    .replace(/\[c=([^\]\s]+)\]/g, (raw, color: string) => (resolveColor(color) ? "" : raw))
+    .replace(/\[\/c\]/g, "");
+}
+
 export default function remarkColor() {
   return (tree: MdNode) => {
     if (tree.children && tree.children.length > 0) {

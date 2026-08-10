@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import remarkColor, { COLOR_PRESETS, resolveColor } from "./remarkColor";
+import remarkColor, { COLOR_PRESETS, resolveColor, stripColorTags } from "./remarkColor";
 
 describe("resolveColor", () => {
   it("resolves every named preset to its hex", () => {
@@ -130,5 +130,21 @@ describe("remarkColor: tokenization of [c=VALUE]text[/c]", () => {
     expect(root.type).toBe("strong");
     const span = root.children?.find((c) => c.type === "colorText");
     expect(span?.data?.hProperties?.style).toBe("color:#22d3ee");
+  });
+});
+
+describe("stripColorTags", () => {
+  it("removes valid color markers but keeps the inner text", () => {
+    expect(stripColorTags("[c=green]Militech[/c] - [c=red]Zetatech[/c]")).toBe("Militech - Zetatech");
+    expect(stripColorTags("[c=#ff0000]hex[/c]")).toBe("hex");
+  });
+
+  it("leaves unknown-color openers as literal text (mirrors the renderer)", () => {
+    expect(stripColorTags("[c=notacolor]weird[/c]")).toBe("[c=notacolor]weird");
+  });
+
+  it("drops stray closers and handles truncated/unbalanced input", () => {
+    expect(stripColorTags("plain [/c] text")).toBe("plain  text");
+    expect(stripColorTags("[c=cyan]cut off mid sni")).toBe("cut off mid sni");
   });
 });

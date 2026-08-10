@@ -111,6 +111,7 @@ import { CloseApplicationsButton } from "@/components/CloseApplicationsButton";
 import { TrialFixerBadge } from "@/components/TrialFixerBadge";
 import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 import Markdown from "@/components/Markdown";
+import { stripColorTags } from "@/lib/remarkColor";
 
 function errOf(e: unknown): string | null {
   const r = (e as { response?: { data?: { error?: string } } } | null)?.response?.data?.error;
@@ -1744,11 +1745,15 @@ function CharacterIntelBody({ characterId }: { characterId: number }) {
     const v = sheet?.[k];
     return typeof v === "string" && v.trim() ? v.trim() : null;
   };
-  const affiliation = sheetStr("knownAffiliation");
-  const skills = sheetStr("skills");
-  const psych = sheetStr("psychProfile");
+  // This card renders sheet prose as PLAIN TEXT (clamped snippets), so strip
+  // the [c=...] color markup players use in their sheets — rendering it as
+  // markdown here would break on tags cut mid-way by the clamp.
+  const plain = (s: string | null) => (s ? stripColorTags(s).trim() || null : null);
+  const affiliation = plain(sheetStr("knownAffiliation"));
+  const skills = plain(sheetStr("skills"));
+  const psych = plain(sheetStr("psychProfile"));
   // Strip internal [legacy:<uuid>] anchors stamped by the prod importer.
-  const bgClean = (c.background ?? "").replace(/\[legacy:[^\]]+\]/g, "").trim();
+  const bgClean = stripColorTags((c.background ?? "").replace(/\[legacy:[^\]]+\]/g, "")).trim();
   const summary = psych ?? (bgClean || null);
   const clamp = (s: string, n: number) => (s.length > n ? `${s.slice(0, n).trimEnd()}…` : s);
 

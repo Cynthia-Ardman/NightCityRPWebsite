@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
 import { KindBadge } from "@/components/directory/CharacterBadges";
+import { stripColorTags } from "@/lib/remarkColor";
 
 export default function CharactersList() {
   const { data: characters, isLoading: charsLoading } = useListMyCharacters();
@@ -216,8 +217,10 @@ function CharacterSection({
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col pb-4">
                   {char.background && (
-                    <p className="font-mono text-xs text-muted-foreground line-clamp-2 mb-3" title={char.background}>
-                      {char.background}
+                    // Plain-text snippet — strip [c=...] color markup so raw
+                    // tags don't leak into the card preview.
+                    <p className="font-mono text-xs text-muted-foreground line-clamp-2 mb-3" title={stripColorTags(char.background)}>
+                      {stripColorTags(char.background)}
                     </p>
                   )}
                   <div className="flex items-center justify-between text-xs font-mono mt-auto pt-3 border-t border-border/50">
