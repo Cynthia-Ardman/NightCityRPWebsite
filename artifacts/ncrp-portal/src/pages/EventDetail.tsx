@@ -67,8 +67,14 @@ import { NpcStateBadge, PaymentBadge } from "@/components/RosterBadges";
 import { useToast } from "@/hooks/use-toast";
 
 function errOf(e: unknown): string | null {
-  const r = (e as { response?: { data?: { error?: string } } } | null)?.response?.data?.error;
-  return r ?? (e ? "Request failed" : null);
+  if (!e) return null;
+  // The generated API client throws ApiError with the server JSON on `.data`
+  // (NOT axios's `.response.data`) and a readable `HTTP <status>: <msg>` on
+  // `.message` — surface the real server error instead of "Request failed".
+  const data = (e as { data?: { error?: string } }).data;
+  if (typeof data?.error === "string" && data.error) return data.error;
+  const msg = (e as { message?: string }).message;
+  return msg || "Request failed";
 }
 
 const EVENT_TYPE_LABEL: Record<string, string> = {

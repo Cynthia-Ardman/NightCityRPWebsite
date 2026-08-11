@@ -154,3 +154,4 @@
 - [Player character tags](character-player-tags.md) — registry-locked tag edits; resolveRegistryTags returns {tags,unknown} (close is lenient); PATCH locks row in-tx vs importer.
 - [Closed-outcome preservation](closed-outcome-preservation.md) — every review close path sets closed_outcome (pre-close status), reopen clears it; sheets archive audit must log prevStatus not post-close.
 - [Outcome banners filter server-side](mission-application-row-picker.md) — applicant-outcome banners exclude completed (completedAt)/cancelled missions in SQL; localStorage dismissal is per-device and can never be the only guard.
+- [Partial-index predicate drift](event-actor-payout-once.md) — drizzle push never alters an existing index's WHERE; predicate changes need manual DROP/CREATE in dev AND prod or onConflict targets 500.

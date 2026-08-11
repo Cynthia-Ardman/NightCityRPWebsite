@@ -26,3 +26,7 @@ returns `paidActorUserIds` (manager-only) so the EventDetail roster locks paid N
 submits checked+unpaid ids. Skipped (already-paid) inserts increment `result.skipped`.
 Reservation is paid-row-before-UB then flip-to-failed (same pattern as the rest of the file);
 a failed payout leaves no 'paid' row so it remains retryable.
+
+## Index-predicate drift (Aug 2026 incident)
+The schema's split predicates (per-event WHERE occurrence IS NULL vs per-occurrence) were correct in code, but dev AND prod still carried the OLD broad `(event_id,user_id) WHERE paid` index — drizzle push does not alter an existing index's WHERE clause. Result: paying an NPC for a later occurrence of a recurring event hit a raw unique violation (500 "Request failed") because onConflictDoNothing only targets the matching predicate. Fixed by manually DROP/CREATE in both DBs.
+**Lesson:** after changing a partial-index predicate in schema code, verify the live catalog with `\d table` / pg_get_indexdef in dev AND prod — push silently leaves the old predicate.
