@@ -83,28 +83,24 @@ describe("auto-charge DM notifications (cyberware_humanity meds)", () => {
     expect(String(mockDm.mock.calls[0][1])).toContain("Automatic charge");
   });
 
-  it("does NOT DM when the wallet debit fails (no money moved)", async () => {
+  it("still charges and DMs when UnbelievaBoat is unreachable (website wallet authoritative)", async () => {
     const owner = await createUser();
     const char = await createCharacter({ ownerId: owner.id });
     await addChrome(char.id, owner.id, 8);
-    // Backdate past the grace window so a charge is actually ATTEMPTED — otherwise
-    // the char is skipped and this test would pass vacuously (no charge, no DM)
-    // without ever exercising the debit-failure path.
+    // Backdate past the grace window so a charge is actually attempted.
     await backdateCreation(char.id);
-    mockPatch.mockResolvedValue(null); // UB debit fails
+    mockPatch.mockResolvedValue(null); // UB unreachable — mirror push just waits
 
     await runJob("cyberware_humanity");
 
-    // The debit was genuinely attempted (proving we hit the failure branch)...
-    expect(mockPatch).toHaveBeenCalled();
-    // ...but with no money moved there is no ledger row and, crucially, no
-    // misleading "you were charged" DM.
+    // The website wallet is the source of truth: the charge commits locally
+    // and the player IS notified; the UB mirror catches up via the outbox.
     const meds = await db
       .select()
       .from(walletTransactions)
       .where(eq(walletTransactions.kind, "meds"));
-    expect(meds).toHaveLength(0);
-    expect(mockDm).not.toHaveBeenCalled();
+    expect(meds).toHaveLength(1);
+    expect(mockDm).toHaveBeenCalled();
   });
 
   it("does not block the billing job on DM delivery (fire-and-forget)", async () => {

@@ -7,7 +7,7 @@ vi.mock("../lib/unbelievaboat", () => ({
   patchBalance: vi.fn(),
 }));
 
-import { db, stores, ripperdocs, walletTransactions, users, botConfig } from "@workspace/db";
+import { db, stores, ripperdocs, walletTransactions, users, botConfig, ubPushOutbox } from "@workspace/db";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin } from "../test/testDb";
@@ -73,8 +73,12 @@ describe("POST /stores/:id/deposit & /withdraw", () => {
       .send({ amount: 200 });
     expect(res.status).toBe(200);
 
-    // Personal leg syncs to UB (cash decreases on deposit).
-    expect(mockPatch).toHaveBeenCalledWith(owner.discordId, expect.objectContaining({ cash: -200 }));
+    // Website wallet is the source of truth; the UB mirror push is queued in
+    // the outbox rather than patched inline.
+    const [u] = await db.select().from(users).where(eq(users.id, owner.id));
+    expect(u.walletBalance).toBe(800);
+    const queued = await db.select().from(ubPushOutbox).where(eq(ubPushOutbox.userId, owner.id));
+    expect(queued.some((q) => q.amount === -200)).toBe(true);
 
     const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
     expect(s.balance).toBe(200);
@@ -103,7 +107,9 @@ describe("POST /stores/:id/deposit & /withdraw", () => {
       .set("x-test-user", owner.id)
       .send({ amount: 8000 });
     expect(res.status).toBe(200);
-    expect(mockPatch).toHaveBeenCalledWith(owner.discordId, expect.objectContaining({ cash: -8000 }));
+    // The debit itself is queued for the UB mirror, not patched inline.
+    const queued = await db.select().from(ubPushOutbox).where(eq(ubPushOutbox.userId, owner.id));
+    expect(queued.some((q) => q.amount === -8000)).toBe(true);
 
     // The stale mirror must be self-healed (reconcile fold +7900) before the
     // debit applies, so the stored balance and ledger stay truthful.
@@ -173,19 +179,27 @@ describe("POST /stores/:id/deposit & /withdraw", () => {
     expect(s.balance).toBe(100);
   });
 
-  it("502s and does not touch the store when the personal-leg UB sync fails", async () => {
+  it("deposit succeeds locally even when UnbelievaBoat is unreachable (mirror push queued)", async () => {
     await setMode("enabled");
-    mockGetBalance.mockResolvedValue({ cash: 1000, bank: 0, total: 1000, source: "unbelievaboat" });
+    // UB down: getBalance null, patch would fail. The website wallet is the
+    // source of truth, so the deposit still commits and the mirror push waits
+    // in the outbox for a later drain/retry.
+    mockGetBalance.mockResolvedValue(null);
     mockPatch.mockResolvedValue(null);
     const owner = await createUser();
+    await db.update(users).set({ walletBalance: 1000, lastSyncedUbBalance: 1000 }).where(eq(users.id, owner.id));
     const store = await makeStore(owner.id, 0);
     const res = await request(app)
       .post(`/api/stores/${store.id}/deposit`)
       .set("x-test-user", owner.id)
       .send({ amount: 200 });
-    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).toBe(200);
     const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
-    expect(s.balance).toBe(0);
+    expect(s.balance).toBe(200);
+    const [u] = await db.select().from(users).where(eq(users.id, owner.id));
+    expect(u.walletBalance).toBe(800);
+    const queued = await db.select().from(ubPushOutbox).where(eq(ubPushOutbox.userId, owner.id));
+    expect(queued.some((q) => q.amount === -200)).toBe(true);
   });
 });
 
@@ -195,13 +209,17 @@ describe("ripperdoc deposit/withdraw", () => {
     mockGetBalance.mockResolvedValue({ cash: 500, bank: 0, total: 500, source: "unbelievaboat" });
     mockPatch.mockResolvedValue({ cash: 600, bank: 0, total: 600, source: "unbelievaboat" });
     const owner = await createUser();
+    await db.update(users).set({ walletBalance: 500, lastSyncedUbBalance: 500 }).where(eq(users.id, owner.id));
     const clinic = await makeRipperdoc(owner.id, 300);
     const res = await request(app)
       .post(`/api/ripperdocs/${clinic.id}/withdraw`)
       .set("x-test-user", owner.id)
       .send({ amount: 100 });
     expect(res.status).toBe(200);
-    expect(mockPatch).toHaveBeenCalledWith(owner.discordId, expect.objectContaining({ cash: 100 }));
+    const [u] = await db.select().from(users).where(eq(users.id, owner.id));
+    expect(u.walletBalance).toBe(600);
+    const queued = await db.select().from(ubPushOutbox).where(eq(ubPushOutbox.userId, owner.id));
+    expect(queued.some((q) => q.amount === 100)).toBe(true);
     const [r] = await db.select().from(ripperdocs).where(eq(ripperdocs.id, clinic.id));
     expect(r.balance).toBe(200);
   });

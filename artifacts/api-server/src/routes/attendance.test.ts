@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
-import { db, attendanceClaims } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { db, attendanceClaims, users, ubPushOutbox } from "@workspace/db";
 import { buildTestApp } from "../test/app";
 import { createUser } from "../test/testDb";
 
@@ -48,41 +49,32 @@ describe("POST /attendance/claim", () => {
     expect(rows).toHaveLength(0);
   });
 
-  it("credits UB and writes one claim row on success", async () => {
+  it("credits the website wallet, queues the UB mirror push, and writes one claim row", async () => {
     const user = await createUser();
-    mockPatch.mockResolvedValue({ total: 1250 } as never);
+    await db.update(users).set({ walletBalance: 1000, lastSyncedUbBalance: 1000 }).where(eq(users.id, user.id));
     const res = await request(app).post("/api/attendance/claim").set("x-test-user", user.id);
     expect(res.status).toBe(200);
     expect(res.body.amount).toBe(250);
     expect(res.body.newBalance).toBe(1250);
-    expect(mockPatch).toHaveBeenCalledTimes(1);
-    expect(mockPatch).toHaveBeenCalledWith(
-      user.discordId,
-      expect.objectContaining({ cash: 250 }),
-    );
+    const [u] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(u.walletBalance).toBe(1250);
+    const queued = await db.select().from(ubPushOutbox).where(eq(ubPushOutbox.userId, user.id));
+    expect(queued.some((q) => q.amount === 250)).toBe(true);
     const rows = await db.select().from(attendanceClaims);
     expect(rows).toHaveLength(1);
   });
 
-  it("502s without inserting a row when the UB credit fails", async () => {
-    const user = await createUser();
-    mockPatch.mockResolvedValue(null as never);
-    const res = await request(app).post("/api/attendance/claim").set("x-test-user", user.id);
-    expect(res.status).toBe(502);
-    const rows = await db.select().from(attendanceClaims);
-    expect(rows).toHaveLength(0);
-  });
-
   it("409s on a second claim in the same week and never double-credits", async () => {
     const user = await createUser();
-    mockPatch.mockResolvedValue({ total: 1250 } as never);
+    await db.update(users).set({ walletBalance: 0, lastSyncedUbBalance: 0 }).where(eq(users.id, user.id));
     const first = await request(app).post("/api/attendance/claim").set("x-test-user", user.id);
     expect(first.status).toBe(200);
 
     const second = await request(app).post("/api/attendance/claim").set("x-test-user", user.id);
     expect(second.status).toBe(409);
-    // Pre-check short-circuits before UB, so still only one credit total.
-    expect(mockPatch).toHaveBeenCalledTimes(1);
+    // Pre-check short-circuits, so still only one credit total.
+    const [u] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(u.walletBalance).toBe(250);
     const rows = await db.select().from(attendanceClaims);
     expect(rows).toHaveLength(1);
   });

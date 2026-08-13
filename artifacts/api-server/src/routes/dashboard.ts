@@ -20,7 +20,6 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
-import { recordSettledWalletMovement } from "../lib/economy";
 import { logger } from "../lib/logger";
 import { hasRole } from "../lib/discord";
 import { projectedWeeklyMeds, weeksSinceLastCheckup, deriveCyberwareBand, countsForCyberwareBilling, nextWeeklyRunDate } from "../lib/jobs";
@@ -61,8 +60,13 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
       if (s.loa) loaCount++;
     }
   }
-  const ub = await getBalance(req.user!.discordId, { allowStale: true });
-  const totalEddies = ub?.total ?? 0;
+  // Website wallet is the source of truth for the total; UB only supplies the
+  // bank split elsewhere.
+  const [walletRow] = await db
+    .select({ balance: users.walletBalance })
+    .from(users)
+    .where(eq(users.id, req.user!.id));
+  const totalEddies = walletRow?.balance ?? 0;
   // NOTE: the dashboard's "Sheets to Review" / "Requests to Review" cards are
   // driven entirely by GET /review/unseen-counts (the same source as the
   // sidebar "Pending" badge), NOT by this summary. The summary deliberately
@@ -437,22 +441,23 @@ router.get("/me/system-log", requireAuth, async (req, res): Promise<void> => {
   res.json(rows);
 });
 
-// Per-user wallet — eddies live on the Discord account via Unbelievaboat,
-// not per-character. UI should prefer these over the per-character endpoints.
+// Per-user wallet. The WEBSITE wallet (users.walletBalance) is the source of
+// truth for the total; cash/bank is a best-effort UB mirror snapshot (the bank
+// split remains a UB-side convenience). When the mirror can't provide a split,
+// send null so clients render "unknown" instead of a false "bank emptied".
 router.get("/me/wallet", requireAuth, async (req, res): Promise<void> => {
+  const [u] = await db
+    .select({ balance: users.walletBalance })
+    .from(users)
+    .where(eq(users.id, req.user!.id));
+  const balance = u?.balance ?? 0;
   const ub = await getBalance(req.user!.discordId, { allowStale: true });
-  if (!ub) {
-    res.status(502).json({ error: "Wallet provider unavailable" });
-    return;
-  }
-  // splitUnknown: stale fallback with no persisted cash/bank snapshot — the
-  // split placeholders (total/0) must NOT be surfaced as real figures, or the
-  // UI shows a false "bank emptied". Send null so clients render "unknown".
+  const splitKnown = !!ub && !ub.splitUnknown;
   res.json({
-    balance: ub.total,
-    cash: ub.splitUnknown ? null : ub.cash,
-    bank: ub.splitUnknown ? null : ub.bank,
-    source: ub.source,
+    balance,
+    cash: splitKnown ? balance - ub!.bank : null,
+    bank: splitKnown ? ub!.bank : null,
+    source: "website",
   });
 });
 
@@ -544,15 +549,18 @@ async function handleWalletMove(
   // key). amount 0 means the user's mirrored walletBalance is unchanged; total
   // is unchanged so reconcile won't drift. Hidden from the ledger display.
   if (moveKey) {
-    await recordSettledWalletMovement({
-      userId: req.user!.id,
-      amount: 0,
-      ubTotalAfter: moved.total,
-      source: "website",
-      kind: dir === "withdraw" ? "bank_withdraw" : "bank_deposit",
-      memo: dir === "withdraw" ? `Withdrew ${amount} from bank` : `Deposited ${amount} to bank`,
-      idempotencyKey: moveKey,
-    });
+    await db
+      .insert(walletTransactions)
+      .values({
+        userId: req.user!.id,
+        amount: 0,
+        kind: dir === "withdraw" ? "bank_withdraw" : "bank_deposit",
+        memo: dir === "withdraw" ? `Withdrew ${amount} from bank` : `Deposited ${amount} to bank`,
+        source: "website",
+        syncStatus: "synced",
+        idempotencyKey: moveKey,
+      })
+      .onConflictDoNothing({ target: walletTransactions.idempotencyKey });
   }
   res.json({ balance: moved.total, cash: moved.cash, bank: moved.bank, source: moved.source });
 }

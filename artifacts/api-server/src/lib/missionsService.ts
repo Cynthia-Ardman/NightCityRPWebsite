@@ -18,8 +18,7 @@ import {
 import { logger } from "./logger";
 import { recordAudit } from "./audit";
 import { portalLink } from "./portalUrl";
-import { patchBalance } from "./unbelievaboat";
-import { recordSettledWalletMovement } from "./economy";
+import { applyWalletDelta } from "./economy";
 import {
   postToChannel,
   startThreadFromMessage,
@@ -1954,46 +1953,40 @@ export async function withdrawNpcSignup(opts: {
  * completion lock was removed in #185 — completed missions CAN still confirm).
  */
 /**
- * Best-effort: record an already-settled ACTOR/NPC payout into the website
- * wallet ledger so it surfaces in the actor's wallet/transaction history.
- *
- * Actor/NPC payouts call patchBalance (UnbelievaBoat) DIRECTLY and bypass
- * applyWalletDelta (gated on mission live mode, not the economy kill-switch), so
- * without this the eddies only ever appear as a generic 'reconcile' row later.
- * Mirrors the player mission-pay path. A failure here must never unwind a payout
- * that already moved real money — the reconcile cron folds the UB delta in later
- * if this misses. Skips non-positive amounts (no money moved). Idempotent on the
+ * Website-first ACTOR/NPC payout: credits the website wallet (source of
+ * truth) with a mission-source ledger row and enqueues the UB mirror push.
+ * Bypasses the economy kill-switch (gate: "none") — these paths are gated on
+ * MISSION live mode by their callers. Idempotent on the
  * mission_actor_payments row id so re-runs and a backfill share one key.
+ * Zero-amount payouts are a settled no-op.
  */
-async function recordActorPayoutLedger(opts: {
+async function creditActorPayout(opts: {
   userId: string;
+  discordId: string;
   amount: number;
-  ubTotalAfter: number;
+  reason: string;
   memo: string;
   paymentRowId: number;
   relatedEntityType: string;
   relatedEntityId: number | null;
-}): Promise<void> {
-  if (opts.amount <= 0) return;
-  try {
-    await recordSettledWalletMovement({
-      userId: opts.userId,
-      amount: opts.amount,
-      ubTotalAfter: opts.ubTotalAfter,
-      source: "mission",
-      kind: "mission",
-      memo: opts.memo,
-      characterId: null,
-      relatedEntityType: opts.relatedEntityType,
-      relatedEntityId: opts.relatedEntityId,
-      idempotencyKey: `actor_payout:${opts.paymentRowId}`,
-    });
-  } catch (err) {
-    logger.warn(
-      { err, paymentRowId: opts.paymentRowId },
-      "actor payout ledger record failed (reconcile will fold the UB delta)",
-    );
-  }
+}): Promise<{ ok: boolean; error?: string }> {
+  if (opts.amount <= 0) return { ok: true };
+  const r = await applyWalletDelta({
+    userId: opts.userId,
+    discordId: opts.discordId,
+    amount: opts.amount,
+    source: "mission",
+    kind: "mission",
+    reason: opts.reason,
+    memo: opts.memo,
+    characterId: null,
+    relatedEntityType: opts.relatedEntityType,
+    relatedEntityId: opts.relatedEntityId,
+    idempotencyKey: `actor_payout:${opts.paymentRowId}`,
+    gate: "none",
+  });
+  if (!r.ok) return { ok: false, error: r.error ?? r.status };
+  return { ok: true };
 }
 
 export async function confirmNpcSignup(opts: {
@@ -2119,27 +2112,25 @@ export async function confirmNpcSignup(opts: {
           .where(eq(missionActorPayments.id, reservedId));
         await setSignup({ paymentStatus: "failed", paymentError: "No Discord id for actor", paidAt: null });
       } else {
-        const balance =
-          amount > 0
-            ? await patchBalance(u.discordId, { cash: amount, reason: `NPC pay: ${mission.title}` })
-            : { cash: 0, bank: 0, total: 0, source: "local" as const };
-        if (balance == null) {
+        const credit = await creditActorPayout({
+          userId: signup.userId,
+          discordId: u.discordId,
+          amount,
+          reason: `NPC pay: ${mission.title}`,
+          memo: `NPC payout: ${mission.title}`,
+          paymentRowId: reservedId,
+          relatedEntityType: "mission",
+          relatedEntityId: opts.missionId,
+        });
+        if (!credit.ok) {
+          const payErr = credit.error ?? "Wallet payout failed";
           await db
             .update(missionActorPayments)
-            .set({ paymentStatus: "failed", paymentError: "UnbelievaBoat payout failed", paidAt: null })
+            .set({ paymentStatus: "failed", paymentError: payErr, paidAt: null })
             .where(eq(missionActorPayments.id, reservedId));
-          await setSignup({ paymentStatus: "failed", paymentError: "UnbelievaBoat payout failed", paidAt: null });
+          await setSignup({ paymentStatus: "failed", paymentError: payErr, paidAt: null });
         } else {
           await setSignup({ paymentStatus: "paid", paymentError: null, paidAt: now });
-          await recordActorPayoutLedger({
-            userId: signup.userId,
-            amount,
-            ubTotalAfter: balance.total,
-            memo: `NPC payout: ${mission.title}`,
-            paymentRowId: reservedId,
-            relatedEntityType: "mission",
-            relatedEntityId: opts.missionId,
-          });
           if (u.username || u.discordId) {
             await postToChannel(
               ctx.npcSpendingChannelId,
@@ -3156,11 +3147,28 @@ export async function payMissionPlayers(
       continue;
     }
 
-    const balance = await patchBalance(discordId, { cash: amount, reason: `Mission pay: ${mission.title}` });
-    if (balance == null) {
+    // Website-first payout: credits the website wallet (source of truth) with
+    // a settled 'mission' ledger row and enqueues the UB mirror push. Gated on
+    // MISSION live mode by ctx.live above, so it bypasses the economy
+    // kill-switch (gate: "none"). Idempotent on the assignment id.
+    const credit = await applyWalletDelta({
+      userId: a.userId,
+      discordId,
+      amount,
+      source: "mission",
+      kind: "mission",
+      reason: `Mission pay: ${mission.title}`,
+      memo: `Mission payout: ${mission.title}`,
+      characterId: a.characterId ?? null,
+      relatedEntityType: "mission",
+      relatedEntityId: missionId,
+      idempotencyKey: `mission_payout:${a.id}`,
+      gate: "none",
+    });
+    if (!credit.ok) {
       await db
         .update(missionAssignments)
-        .set({ paymentStatus: "failed", payAmount: amount, paymentError: "UnbelievaBoat payout failed", attendanceCreditedAt: creditAttendance })
+        .set({ paymentStatus: "failed", payAmount: amount, paymentError: credit.error ?? "Wallet payout failed", attendanceCreditedAt: creditAttendance })
         .where(eq(missionAssignments.id, a.id));
       result.failed++;
     } else {
@@ -3170,37 +3178,13 @@ export async function payMissionPlayers(
         .where(eq(missionAssignments.id, a.id));
       result.paid++;
       paidLines.push(`<@${discordId}>${username ? ` (${username})` : ""}: +${amount.toLocaleString()} eddies`);
-      // The eddies already moved in UnbelievaBoat above (patchBalance). Mission
-      // pay deliberately bypasses applyWalletDelta (it's gated on mission live
-      // mode, not the economy kill-switch), so without this the payout would
-      // only ever surface in the website ledger as a generic 'reconcile' entry.
-      // Record a settled 'mission' ledger row so it shows in the player's
-      // wallet/Ledger history as a mission payout. Best-effort: a failure here
-      // must not unwind a payout that already happened — the reconcile cron will
-      // fold the UB delta in later if this misses.
-      try {
-        await recordSettledWalletMovement({
-          userId: a.userId,
-          amount,
-          ubTotalAfter: balance.total,
-          source: "mission",
-          kind: "mission",
-          memo: `Mission payout: ${mission.title}`,
-          characterId: a.characterId ?? null,
-          relatedEntityType: "mission",
-          relatedEntityId: missionId,
-          idempotencyKey: `mission_payout:${a.id}`,
-        });
-      } catch (err) {
-        logger.warn({ err, missionId, assignmentId: a.id }, "mission payout ledger record failed (reconcile will fold the UB delta)");
-      }
       void notifyMissionPayout({
         discordId,
         userId: a.userId,
         amount,
         missionTitle: mission.title,
         missionId,
-        newBalance: balance.cash,
+        newBalance: credit.balance,
       });
     }
   }
@@ -3419,26 +3403,26 @@ export async function payMissionActors(
       result.failed++;
       continue;
     }
-    const balance = amount > 0 ? await patchBalance(u.discordId, { cash: amount, reason: `Actor pay: ${mission.title}` }) : { cash: 0, bank: 0, total: 0, source: "local" as const };
-    if (balance == null) {
+    const credit = await creditActorPayout({
+      userId,
+      discordId: u.discordId,
+      amount,
+      reason: `Actor pay: ${mission.title}`,
+      memo: `Actor payout: ${mission.title}`,
+      paymentRowId: reservedId,
+      relatedEntityType: "mission",
+      relatedEntityId: missionId,
+    });
+    if (!credit.ok) {
       // Release the reservation so the actor can be retried later.
       await db
         .update(missionActorPayments)
-        .set({ paymentStatus: "failed", paymentError: "UnbelievaBoat payout failed", paidAt: null })
+        .set({ paymentStatus: "failed", paymentError: credit.error ?? "Wallet payout failed", paidAt: null })
         .where(eq(missionActorPayments.id, reservedId));
       result.failed++;
     } else {
       // Row is already 'paid' from the reservation.
       result.paid++;
-      await recordActorPayoutLedger({
-        userId,
-        amount,
-        ubTotalAfter: balance.total,
-        memo: `Actor payout: ${mission.title}`,
-        paymentRowId: reservedId,
-        relatedEntityType: "mission",
-        relatedEntityId: missionId,
-      });
       postedLines.push(`<@${u.discordId}>${u.username ? ` (${u.username})` : ""}: +${amount.toLocaleString()} eddies`);
     }
   }
@@ -3645,24 +3629,24 @@ export async function payStandaloneActors(
         continue;
       }
       const payLabel = "Fixer pay";
-      const balance = amount > 0 ? await patchBalance(u.discordId, { cash: amount, reason: `${payLabel}: ${eventName}` }) : { cash: 0, bank: 0, total: 0, source: "local" as const };
-      if (balance == null) {
+      const generalCredit = await creditActorPayout({
+        userId,
+        discordId: u.discordId,
+        amount,
+        reason: `${payLabel}: ${eventName}`,
+        memo: `Fixer pay: ${eventName}`,
+        paymentRowId: row.id,
+        relatedEntityType: "actor_event",
+        relatedEntityId: null,
+      });
+      if (!generalCredit.ok) {
         await db
           .update(missionActorPayments)
-          .set({ paymentStatus: "failed", paymentError: "UnbelievaBoat payout failed", paidAt: null })
+          .set({ paymentStatus: "failed", paymentError: generalCredit.error ?? "Wallet payout failed", paidAt: null })
           .where(eq(missionActorPayments.id, row.id));
         result.failed++;
       } else {
         result.paid++;
-        await recordActorPayoutLedger({
-          userId,
-          amount,
-          ubTotalAfter: balance.total,
-          memo: `Fixer pay: ${eventName}`,
-          paymentRowId: row.id,
-          relatedEntityType: "actor_event",
-          relatedEntityId: null,
-        });
         void notifyFixerPay({
           discordId: u.discordId,
           userId,
@@ -3670,7 +3654,7 @@ export async function payStandaloneActors(
           reason: eventName,
           general: true,
           characterName: input.characterName ?? null,
-          newBalance: balance.total,
+          newBalance: null,
         });
         postedLines.push(`<@${u.discordId}>${u.username ? ` (${u.username})` : ""}: +${amount.toLocaleString()} eddies`);
       }
@@ -3725,31 +3709,31 @@ export async function payStandaloneActors(
     }
     // General (non-acting) fixer pay reads differently in UB history / ledger.
     const payLabel = input.eventType === "general" ? "Fixer pay" : "Actor pay";
-    const balance = amount > 0 ? await patchBalance(u.discordId, { cash: amount, reason: `${payLabel}: ${eventName}` }) : { cash: 0, bank: 0, total: 0, source: "local" as const };
-    if (balance == null) {
+    const eventCredit = await creditActorPayout({
+      userId,
+      discordId: u.discordId,
+      amount,
+      reason: `${payLabel}: ${eventName}`,
+      memo: `${payLabel === "Fixer pay" ? "Fixer pay" : "Actor payout"}: ${eventName}`,
+      paymentRowId: inserted.id,
+      relatedEntityType: input.eventId != null ? "event" : "actor_event",
+      relatedEntityId: input.eventId ?? null,
+    });
+    if (!eventCredit.ok) {
       await db
         .update(missionActorPayments)
-        .set({ paymentStatus: "failed", paymentError: "UnbelievaBoat payout failed", paidAt: null })
+        .set({ paymentStatus: "failed", paymentError: eventCredit.error ?? "Wallet payout failed", paidAt: null })
         .where(eq(missionActorPayments.id, inserted.id));
       result.failed++;
     } else {
       result.paid++;
-      await recordActorPayoutLedger({
-        userId,
-        amount,
-        ubTotalAfter: balance.total,
-        memo: `${payLabel === "Fixer pay" ? "Fixer pay" : "Actor payout"}: ${eventName}`,
-        paymentRowId: inserted.id,
-        relatedEntityType: input.eventId != null ? "event" : "actor_event",
-        relatedEntityId: input.eventId ?? null,
-      });
       void notifyFixerPay({
         discordId: u.discordId,
         userId,
         amount,
         reason: eventName,
         general: false,
-        newBalance: balance.total,
+        newBalance: null,
       });
       postedLines.push(`<@${u.discordId}>${u.username ? ` (${u.username})` : ""}: +${amount.toLocaleString()} eddies`);
     }

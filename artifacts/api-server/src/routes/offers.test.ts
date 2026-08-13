@@ -149,16 +149,19 @@ describe("POST /offers/:id/approve", () => {
     expect(fresh.status).toBe("pending");
   });
 
-  it("502s and leaves the offer pending when the wallet provider fails", async () => {
+  it("completes the sale even when UnbelievaBoat is unreachable (website wallet authoritative)", async () => {
     await setEconomyMode("enabled");
+    // UB down: the website wallet is the source of truth, so the sale still
+    // commits and the mirror push waits in the outbox.
     mockPatch.mockResolvedValue(null);
     const { offer, buyerUser } = await seedStoreOffer({ price: 100, qty: 1 });
     await fund(buyerUser.id, 1000);
     const res = await request(app).post(`/api/offers/${offer.id}/approve`).set("x-test-user", buyerUser.id);
-    expect(res.status).toBe(502);
+    expect(res.status).toBe(200);
     const [fresh] = await db.select().from(saleOffers).where(eq(saleOffers.id, offer.id));
-    expect(fresh.status).toBe("pending");
-    expect(await db.select().from(inventoryItems)).toHaveLength(0);
+    expect(fresh.status).toBe("approved");
+    const [bu] = await db.select().from(users).where(eq(users.id, buyerUser.id));
+    expect(bu.walletBalance).toBe(900);
   });
 
   it("completes the sale: debits buyer, decrements stock, adds inventory, credits the store", async () => {
@@ -254,12 +257,11 @@ describe("POST /offers/:id/approve", () => {
 
   it("holds the commission reservation when the employee credit fails (money conserved, no minting)", async () => {
     await setEconomyMode("enabled");
-    // Buyer debit (1st external call) succeeds; commission credit (2nd) fails.
-    mockPatch.mockReset();
-    mockPatch.mockResolvedValueOnce({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
-    mockPatch.mockResolvedValue(null);
     const { offer, buyerUser, store, clerkUser } = await seedStoreOffer({ price: 100, qty: 2, commissionPct: 25 });
     await fund(buyerUser.id, 1000);
+    // Force the employee's +50 commission credit to fail: their website wallet
+    // sits so close to the max balance that the credit would overflow it.
+    await fund(clerkUser!.id, 2_147_483_620);
 
     const res = await request(app).post(`/api/offers/${offer.id}/approve`).set("x-test-user", buyerUser.id);
     // The sale completes; the commission is reserved but not yet paid out.
@@ -274,9 +276,9 @@ describe("POST /offers/:id/approve", () => {
     expect(offerRow.status).toBe("approved");
     expect(offerRow.commissionSettledAt).not.toBeNull();
     expect(offerRow.commissionAmount).toBe(50);
-    // Employee was NOT paid (no money created from a failed credit).
+    // Employee was NOT paid (the failed credit changed nothing).
     const [cu] = await db.select().from(users).where(eq(users.id, clerkUser!.id));
-    expect(cu.walletBalance).toBe(0);
+    expect(cu.walletBalance).toBe(2_147_483_620);
     // Buyer was still charged for the purchase.
     const [bu] = await db.select().from(users).where(eq(users.id, buyerUser.id));
     expect(bu.walletBalance).toBe(800);
@@ -284,12 +286,11 @@ describe("POST /offers/:id/approve", () => {
 
   it("recovers an unpaid commission on a later approve, without re-debiting the venue (deterministic retry)", async () => {
     await setEconomyMode("enabled");
-    // First approve: buyer debit succeeds, commission credit fails -> held.
-    mockPatch.mockReset();
-    mockPatch.mockResolvedValueOnce({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
-    mockPatch.mockResolvedValueOnce(null);
+    // First approve: buyer debit succeeds, commission credit fails (the
+    // employee wallet is pinned at near-max so +50 would overflow) -> held.
     const { offer, buyerUser, store, clerkUser } = await seedStoreOffer({ price: 100, qty: 2, commissionPct: 25 });
     await fund(buyerUser.id, 1000);
+    await fund(clerkUser!.id, 2_147_483_620);
 
     const first = await request(app).post(`/api/offers/${offer.id}/approve`).set("x-test-user", buyerUser.id);
     expect(first.status).toBe(200);
@@ -297,8 +298,8 @@ describe("POST /offers/:id/approve", () => {
     const [afterFail] = await db.select().from(stores).where(eq(stores.id, store.id));
     expect(afterFail.balance).toBe(150);
 
-    // Credit succeeds on retry: a re-approve recovers the held commission.
-    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    // Credit can succeed on retry: a re-approve recovers the held commission.
+    await fund(clerkUser!.id, 0);
     const retry = await request(app).post(`/api/offers/${offer.id}/approve`).set("x-test-user", buyerUser.id);
     expect(retry.status).toBe(200);
     expect(retry.body.recovered).toBe(true);

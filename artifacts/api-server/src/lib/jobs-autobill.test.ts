@@ -8,7 +8,7 @@ vi.mock("./unbelievaboat", () => ({
 
 import {
   db, botConfig, housing, characterStatus, inventoryItems, walletTransactions,
-  characters, shopOpens,
+  characters, shopOpens, ubPushOutbox,
 } from "@workspace/db";
 import { patchBalance } from "./unbelievaboat";
 import { runJob, isAutobillEnabled, AUTOBILL_FLAGS } from "./jobs";
@@ -92,12 +92,15 @@ describe("runJob('cyberware_humanity')", () => {
 
     const result = await runJob("cyberware_humanity");
     expect(result.status).toBe("succeeded");
-    expect(mockPatch).toHaveBeenCalledTimes(1);
 
     const meds = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "meds"));
     expect(meds).toHaveLength(1);
     expect(meds[0].userId).toBe(owner.id);
     expect(meds[0].amount).toBeLessThan(0);
+    // Website-first: the charge lands on the website wallet and queues a UB
+    // mirror push instead of patching UnbelievaBoat inline.
+    const queued = await db.select().from(ubPushOutbox).where(eq(ubPushOutbox.userId, owner.id));
+    expect(queued.some((q) => q.amount === meds[0].amount)).toBe(true);
   });
 
   it("does not charge a player below the chrome threshold", async () => {
@@ -121,22 +124,11 @@ describe("runJob('cyberware_humanity')", () => {
 
     await runJob("cyberware_humanity");
     await runJob("cyberware_humanity");
-    expect(mockPatch).toHaveBeenCalledTimes(1);
     const meds = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "meds"));
     expect(meds).toHaveLength(1);
-  });
-
-  it("does not write a ledger row when the wallet debit fails", async () => {
-    mockPatch.mockResolvedValue(null);
-    const owner = await createUser();
-    const char = await createCharacter({ ownerId: owner.id });
-    await addChrome(char.id, owner.id, 8);
-    await backdateCreation(char.id);
-
-    await runJob("cyberware_humanity");
-    expect(mockPatch).toHaveBeenCalledTimes(1);
-    const meds = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "meds"));
-    expect(meds).toHaveLength(0);
+    // Exactly one mirror push queued too — the rerun enqueued nothing.
+    const queued = await db.select().from(ubPushOutbox).where(eq(ubPushOutbox.userId, owner.id));
+    expect(queued).toHaveLength(1);
   });
 
   it("skips meds for a player whose character is on the self-service LOA toggle", async () => {
@@ -263,7 +255,10 @@ describe("runJob('monthly_rent')", () => {
     expect(rent).toHaveLength(1);
   });
 
-  it("stamps the lease delinquent (no ledger row) when the debit fails", async () => {
+  it("still charges rent when UnbelievaBoat is unreachable (website wallet is authoritative; no delinquency)", async () => {
+    // The website wallet is the source of truth: rent always commits locally
+    // and the UB mirror push waits in the outbox. A UB outage can no longer
+    // cause a missed charge, so it must NOT stamp the lease delinquent.
     mockPatch.mockResolvedValue(null);
     const owner = await createUser();
     const char = await createCharacter({ ownerId: owner.id, approved: true });
@@ -273,58 +268,42 @@ describe("runJob('monthly_rent')", () => {
 
     await runJob("monthly_rent");
     const rent = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "rent"));
-    expect(rent).toHaveLength(0);
+    expect(rent).toHaveLength(1);
     const [lease] = await db.select().from(housing).where(eq(housing.characterId, char.id));
-    expect(lease.delinquentSince).not.toBeNull();
+    expect(lease.delinquentSince).toBeNull();
+    expect(lease.paidThrough).not.toBeNull();
+    const queued = await db.select().from(ubPushOutbox).where(eq(ubPushOutbox.userId, owner.id));
+    expect(queued.some((q) => q.amount === -500)).toBe(true);
   });
 });
 
-// Crash-window race: the external UB debit can succeed, but if the process dies
-// before the local idempotency guard (ledger row / paidThrough bump) commits, a
-// manual rerun in the same period would historically re-debit the player. We
-// reproduce that by having the FIRST run's patchBalance perform the debit and
-// then throw — simulating the process dying right after the irreversible
-// external mutation. The reserve-before-debit fix commits the guard BEFORE the
-// debit, so a recovery rerun must NOT charge again.
-describe("runJob('monthly_rent') crash-window: debit succeeded, ledger write missing", () => {
-  it("does not double-charge rent on a rerun after a mid-run crash", async () => {
+// Rerun idempotency: the ledger guard (rent row / paidThrough bump / per-owner
+// period rows) commits with the charge itself, so a rerun in the same period —
+// whatever interrupted the first run — must not charge again. The old
+// crash-window race against the inline UB debit is gone: the UB mirror push is
+// queued in the outbox, not performed mid-run.
+describe("runJob('monthly_rent') rerun idempotency", () => {
+  it("does not double-charge rent on a rerun in the same period", async () => {
     const owner = await createUser();
     const char = await createCharacter({ ownerId: owner.id, approved: true });
     await db.insert(housing).values({
       characterId: char.id, address: "Megabuilding H10", monthlyRent: 500, kind: "residential",
     });
 
-    // First run: UB debit "succeeds" then the process crashes before the run
-    // can finish.
-    let debits = 0;
-    mockPatch.mockImplementation(async () => {
-      debits++;
-      throw new Error("simulated crash after external debit succeeded");
-    });
-    const first = await runJob("monthly_rent");
-    expect(first.status).toBe("failed");
-    expect(debits).toBe(1);
-
-    // The guard (ledger row + paidThrough) was reserved BEFORE the debit, so it
-    // survived the crash.
-    const afterCrash = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "rent"));
-    expect(afterCrash).toHaveLength(1);
-    const [leaseAfterCrash] = await db.select().from(housing).where(eq(housing.characterId, char.id));
-    expect(leaseAfterCrash.paidThrough).not.toBeNull();
-    expect(leaseAfterCrash.paidThrough!.getTime()).toBeGreaterThan(Date.now());
-
-    // Recovery run with a healthy UB: rent must NOT be debited again. (Other
-    // fees like the per-owner baseline cost may still fire on recovery — they
-    // were never billed in the crashed run — so we assert specifically that the
-    // rent debit is not repeated, not that UB is untouched entirely.)
-    mockPatch.mockReset();
-    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
     await runJob("monthly_rent");
-    const recoveryReasons = mockPatch.mock.calls.map((c) => c[1]?.reason);
-    expect(recoveryReasons).not.toContain("Rent: Megabuilding H10");
+    const afterFirst = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "rent"));
+    expect(afterFirst).toHaveLength(1);
+    const [leaseAfterFirst] = await db.select().from(housing).where(eq(housing.characterId, char.id));
+    expect(leaseAfterFirst.paidThrough).not.toBeNull();
+    expect(leaseAfterFirst.paidThrough!.getTime()).toBeGreaterThan(Date.now());
 
+    await runJob("monthly_rent");
     const rent = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "rent"));
     expect(rent).toHaveLength(1);
+    // Exactly one mirror push queued for the rent debit (the baseline living
+    // cost queues its own row, so match on the reason).
+    const queued = await db.select().from(ubPushOutbox).where(eq(ubPushOutbox.userId, owner.id));
+    expect(queued.filter((q) => (q.reason ?? "").startsWith("Rent:"))).toHaveLength(1);
   });
 
   it("never pays shop income from the monthly run (it is paid instantly on open shop)", async () => {
@@ -350,76 +329,43 @@ describe("runJob('monthly_rent') crash-window: debit succeeded, ledger write mis
     expect(income).toHaveLength(0);
   });
 
-  it("does not double-charge a personal fee (baseline) on a rerun after a mid-run crash", async () => {
+  it("does not double-charge a personal fee (baseline) on a rerun in the same period", async () => {
     const owner = await createUser();
     await createCharacter({ ownerId: owner.id, approved: true });
 
-    // First run: the baseline debit "succeeds" then the process crashes. There
-    // is no housing lease and no trauma/xanadu, so the per-owner baseline living
-    // cost is the first (and only) debit attempted.
-    let debits = 0;
-    mockPatch.mockImplementation(async () => {
-      debits++;
-      throw new Error("simulated crash after external debit succeeded");
-    });
-    const first = await runJob("monthly_rent");
-    expect(first.status).toBe("failed");
-    expect(debits).toBe(1);
-
-    // The baseline ledger row was reserved BEFORE the debit and survived.
-    const afterCrash = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "baseline"));
-    expect(afterCrash).toHaveLength(1);
-
-    // Recovery run: the committed baseline ledger row trips the per-owner period
-    // guard, so baseline is NOT re-debited.
-    mockPatch.mockReset();
-    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
     await runJob("monthly_rent");
-    const recoveryReasons = mockPatch.mock.calls.map((c) => c[1]?.reason ?? "");
-    expect(recoveryReasons.some((r) => r.startsWith("Baseline"))).toBe(false);
+    const afterFirst = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "baseline"));
+    expect(afterFirst).toHaveLength(1);
 
+    // Rerun: the committed baseline ledger row trips the per-owner period
+    // guard, so baseline is NOT re-debited.
+    await runJob("monthly_rent");
     const baseline = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "baseline"));
     expect(baseline).toHaveLength(1);
+    const queued = await db.select().from(ubPushOutbox).where(eq(ubPushOutbox.userId, owner.id));
+    expect(queued).toHaveLength(1);
   });
 });
 
-// Same crash-window race as monthly_rent, but for the weekly cyberpsychosis-meds
-// job. The external UB debit can succeed and then the process dies before the
-// 'meds' ledger row commits — a manual rerun in the same week would historically
-// re-debit. The reserve-before-debit fix commits the ledger guard BEFORE the
-// debit, so a recovery rerun must NOT charge again.
-describe("runJob('cyberware_humanity') crash-window: debit succeeded, ledger write missing", () => {
-  it("does not double-charge meds on a rerun after a mid-run crash", async () => {
+// Same rerun idempotency for the weekly cyberpsychosis-meds job: the 'meds'
+// ledger row commits with the charge, so a rerun in the same week must not
+// charge again.
+describe("runJob('cyberware_humanity') rerun idempotency", () => {
+  it("does not double-charge meds on a rerun in the same week", async () => {
     const owner = await createUser();
     const char = await createCharacter({ ownerId: owner.id });
     await addChrome(char.id, owner.id, 8); // medium band
     await backdateCreation(char.id);
 
-    // First run: UB debit "succeeds" then the process crashes before the run
-    // can finish.
-    let debits = 0;
-    mockPatch.mockImplementation(async () => {
-      debits++;
-      throw new Error("simulated crash after external debit succeeded");
-    });
-    const first = await runJob("cyberware_humanity");
-    expect(first.status).toBe("failed");
-    expect(debits).toBe(1);
-
-    // The 'meds' ledger row was reserved BEFORE the debit, so it survived the
-    // crash.
-    const afterCrash = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "meds"));
-    expect(afterCrash).toHaveLength(1);
-
-    // Recovery run with a healthy UB: the committed ledger row trips the weekly
-    // guard, so meds is NOT debited again.
-    mockPatch.mockReset();
-    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
     await runJob("cyberware_humanity");
-    expect(mockPatch).not.toHaveBeenCalled();
+    const afterFirst = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "meds"));
+    expect(afterFirst).toHaveLength(1);
 
+    await runJob("cyberware_humanity");
     const meds = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "meds"));
     expect(meds).toHaveLength(1);
+    const queued = await db.select().from(ubPushOutbox).where(eq(ubPushOutbox.userId, owner.id));
+    expect(queued).toHaveLength(1);
   });
 });
 

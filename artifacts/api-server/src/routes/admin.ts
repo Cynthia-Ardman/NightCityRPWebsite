@@ -20,7 +20,7 @@ import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
 import { fetchGuildMemberRolesViaBot, fetchGuildMemberRoleIdsViaBot, fetchDiscordUser, searchGuildMembers, searchGuildChannels, hasRole, ROLE_NAMES, fetchThreadOpMessage, imageAttachmentsOf, listGuildMembersWithRole, addGuildMemberRole, grantDeadCharacterRole, NPC_ROLE_ID, VERIFIED_18_ROLE_ID, RIPPERDOC_ROLE_ID, RIPPERDOC_ROLE_MARKER, applyRoleIdGrants, externalWritesAllowed, type ThreadAttachment } from "../lib/discord";
 import { resolveOrProvisionUser } from "../lib/userProvision";
 import { ObjectStorageService } from "../lib/objectStorage";
-import { patchBalance, getBalance } from "../lib/unbelievaboat";
+import { getBalance } from "../lib/unbelievaboat";
 import { runJob, deriveCyberwareBand, weeksSinceLastCheckup, CYBERWARE_MAX_STREAK, CHECKUP_WEEK_GRACE_MS, householdEffectiveCheckupDate, nextWeeklyRunDate } from "../lib/jobs";
 import { recordAudit, recordAuditInline } from "../lib/audit";
 import { listMissionThreadBackfillTargets, runMissionThreadBackfill } from "../lib/missionsService";
@@ -35,7 +35,14 @@ import { getLiveModeState, LIVE_MODE_KEYS, LIVE_SYSTEMS, type LiveSystem } from 
 import { isLoginRestricted, LOGIN_RESTRICTED_KEY } from "../lib/siteAccess";
 import { isVrchatCalendarSyncEnabled, VRCHAT_SYNC_FLAG } from "../lib/eventsService";
 import { scanVrchatChannel } from "../lib/vrchatLinks";
-import { getEconomyMode, reconcileOneUser, recordSettledWalletMovement, applyWalletDelta } from "../lib/economy";
+import {
+  getEconomyMode,
+  reconcileOneUser,
+  applyWalletDelta,
+  websiteWalletPayload,
+  getMirrorHealth,
+  drainUbPushOutbox,
+} from "../lib/economy";
 import {
   computeAdminAnalytics,
   parseAnalyticsRange,
@@ -1262,43 +1269,32 @@ router.post("/admin/wallet/adjust", adminOrFixer, async (req, res): Promise<void
     return;
   }
   // Optional client idempotencyKey dedupes accidental double-submits of the
-  // same adjustment. Check it BEFORE the UB write — the settled-movement
-  // dedupe alone only protects the local ledger; a keyed retry that reaches
-  // patchBalance would move real money twice.
+  // same adjustment (enforced inside applyWalletDelta).
   const idempotencyKey =
     typeof req.body?.idempotencyKey === "string" && req.body.idempotencyKey.trim()
       ? `admin_adjust:${req.body.idempotencyKey.trim().slice(0, 80)}`
       : null;
-  if (idempotencyKey) {
-    const [done] = await db
-      .select({ id: walletTransactions.id })
-      .from(walletTransactions)
-      .where(eq(walletTransactions.idempotencyKey, idempotencyKey));
-    if (done) {
-      res.json({ success: true });
-      return;
-    }
-  }
-  // UB is authoritative — do not write a local ledger entry unless UB write succeeds.
-  const ubResult = await patchBalance(owner.discordId, { cash: amount, reason: note ?? "Admin adjustment" });
-  if (!ubResult) {
-    res.status(502).json({ error: "Wallet provider unavailable or rejected adjustment" });
-    return;
-  }
-  // Record the settled movement through the shared bridge so the website wallet
-  // balance (users.walletBalance) advances immediately instead of drifting until
-  // the next reconcile.
-  await recordSettledWalletMovement({
+  // Website-first: the adjustment commits locally and mirrors to UB via the
+  // outbox. Admin adjustments may force a wallet negative (that's the
+  // documented escape hatch vs the sink's balance check).
+  const applied = await applyWalletDelta({
     userId: owner.id,
+    discordId: owner.discordId,
     amount,
-    ubTotalAfter: ubResult.total,
     source: "admin",
     kind: "admin",
+    reason: note ?? "Admin adjustment",
     memo: note,
     characterId: c?.id ?? null,
     counterpartyName: req.user!.username,
     idempotencyKey,
+    allowNegative: true,
+    gate: "none",
   });
+  if (!applied.ok) {
+    res.status(502).json({ error: applied.error ?? "Wallet adjustment failed" });
+    return;
+  }
   const targetLabel = c ? c.name : owner.globalName || owner.username;
   await recordAudit({
     req,
@@ -1341,57 +1337,31 @@ router.post("/admin/wallet/sink", adminOnly, async (req, res): Promise<void> => 
     typeof req.body?.idempotencyKey === "string" && req.body.idempotencyKey.trim()
       ? `sink:${req.body.idempotencyKey.trim().slice(0, 80)}`
       : null;
-  if (sinkKey) {
-    const [done] = await db
-      .select({ id: walletTransactions.id })
-      .from(walletTransactions)
-      .where(and(eq(walletTransactions.idempotencyKey, sinkKey), eq(walletTransactions.syncStatus, "synced")));
-    if (done) {
-      const cur = await getBalance(owner.discordId);
-      res.json({
-        characterId,
-        balance: cur?.total ?? 0,
-        cash: cur?.cash ?? 0,
-        bank: cur?.bank ?? 0,
-        source: cur?.source ?? "unbelievaboat",
-      });
-      return;
-    }
-  }
-  const bal = await getBalance(owner.discordId);
-  if (!bal) {
-    res.status(502).json({ error: "Wallet provider unavailable" });
-    return;
-  }
-  if (bal.cash < amount) {
-    if (bal.total >= amount) {
-      res.status(400).json({
-        error: `Not enough cash on hand. ${c.name} has ${bal.cash.toLocaleString()} €$ in cash — withdraw from bank first, or use Manual Wallet Adjustment to force-remove.`,
-      });
-      return;
-    }
-    res.status(400).json({ error: "Insufficient funds" });
-    return;
-  }
-  const debited = await patchBalance(owner.discordId, {
-    cash: -amount,
-    reason: note ?? "Paid Night City Bot",
-  });
-  if (!debited) {
-    res.status(502).json({ error: "Wallet provider rejected debit" });
-    return;
-  }
-  await recordSettledWalletMovement({
+  // Website-first debit, authorized against the website balance (the source of
+  // truth). Keyed idempotency + the overdraw check live inside applyWalletDelta.
+  const debited = await applyWalletDelta({
     userId: owner.id,
+    discordId: owner.discordId,
     amount: -amount,
-    ubTotalAfter: debited.total,
     source: "admin",
     kind: "sink",
+    reason: note ?? "Paid Night City Bot",
     memo: note,
     characterId,
     counterpartyName: "Night City Bot",
     idempotencyKey: sinkKey,
+    gate: "none",
   });
+  if (!debited.ok) {
+    if (debited.status === "insufficient_funds") {
+      res.status(400).json({
+        error: `Insufficient funds — ${c.name}'s owner has ${debited.balance.toLocaleString()} €$. Use Manual Wallet Adjustment to force-remove beyond balance.`,
+      });
+      return;
+    }
+    res.status(502).json({ error: debited.error ?? "Wallet debit failed" });
+    return;
+  }
   await recordAudit({
     req,
     category: "wallet",
@@ -1401,14 +1371,31 @@ router.post("/admin/wallet/sink", adminOnly, async (req, res): Promise<void> => 
     message: `${req.user!.username} burned ${amount} from ${c.name} (paid Night City Bot)`,
     after: { characterId, amount, memo: note, ownerDiscordId: owner.discordId },
   });
-  const ub = await getBalance(owner.discordId);
-  res.json({
-    characterId,
-    balance: ub?.total ?? 0,
-    cash: ub?.cash ?? 0,
-    bank: ub?.bank ?? 0,
-    source: ub?.source ?? "unbelievaboat",
+  res.json({ characterId, ...(await websiteWalletPayload(owner.id, owner.discordId)) });
+});
+
+// ---- UB mirror health (System Admin panel) --------------------------------
+// The website wallet is the source of truth; these endpoints surface the
+// health of the UnbelievaBoat mirror: queued/inflight pushes, last successful
+// push, recent push failures, and per-user queue depth vs the expected UB
+// total, plus manual "push now" / "reconcile now" triggers.
+router.get("/admin/wallet/mirror-health", adminOnly, async (_req, res): Promise<void> => {
+  res.json(await getMirrorHealth());
+});
+
+router.post("/admin/wallet/mirror-push", adminOnly, async (req, res): Promise<void> => {
+  const userId = typeof req.body?.userId === "string" && req.body.userId.trim() ? req.body.userId.trim() : undefined;
+  const result = await drainUbPushOutbox({ userId });
+  await recordAudit({
+    req,
+    category: "wallet",
+    action: "mirror_push",
+    targetType: userId ? "user" : "system",
+    targetId: null,
+    message: `Manual UB mirror push${userId ? ` for user ${userId}` : ""}: pushed ${result.pushed}, failed ${result.failed}, suppressed ${result.suppressed}`,
+    after: { userId: userId ?? null, ...result },
   });
+  res.json(result);
 });
 
 router.get("/admin/jobs", adminOnly, async (_req, res): Promise<void> => {

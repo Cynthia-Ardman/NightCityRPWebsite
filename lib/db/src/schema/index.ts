@@ -361,6 +361,44 @@ export const walletTransactions = pgTable("wallet_transactions", {
   ripperdocIdx: index("wt_ripperdoc_idx").on(t.ripperdocId),
 }));
 
+// ---- UB push outbox: website -> UnbelievaBoat mirroring ----
+// The website wallet is the source of truth; every website-side player money
+// change enqueues one row here (in the SAME transaction as the balance/ledger
+// write) and a background drain pushes it to UnbelievaBoat. Per-user ordering
+// is strict: a user's rows push in id order, and a failed push blocks that
+// user's later rows until it succeeds (retry with backoff). A successful push
+// advances users.lastSyncedUbBalance (the "expected UB total" baseline the
+// reconcile cron diffs against) by the row's amount, so reconcile attributes
+// only genuinely external (Discord-side) deltas.
+export const ubPushOutbox = pgTable("ub_push_outbox", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  discordId: text("discord_id").notNull(),
+  // Signed cash delta to mirror into UB.
+  amount: integer("amount").notNull(),
+  // Human-readable reason shown in UB's own audit trail.
+  reason: text("reason"),
+  // Optional pointer to the wallet_transactions row this push mirrors.
+  ledgerId: integer("ledger_id"),
+  // pending   -> waiting to push (or retrying after a failure)
+  // inflight  -> a worker is pushing right now (stale inflight rows older than
+  //              UB_PUSH_STALE_CLAIM_MS are reclaimed as pending)
+  // pushed    -> UB confirmed; baseline advanced
+  // suppressed-> external writes disabled in this environment (dev); never
+  //              pushed, baseline NOT advanced
+  status: text("status").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  pushedAt: timestamp("pushed_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  statusIdx: index("ub_outbox_status_idx").on(t.status, t.nextAttemptAt),
+  userIdx: index("ub_outbox_user_idx").on(t.userId, t.id),
+}));
+export type UbPushOutboxRow = typeof ubPushOutbox.$inferSelect;
+
 export const stores = pgTable("stores", {
   id: serial("id").primaryKey(),
   ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),

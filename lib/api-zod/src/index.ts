@@ -24,5 +24,7 @@ export { SetCharacterKindBody } from "./generated/api";
 export type { SetCharacterKindBody as SetCharacterKindBodyType } from "./generated/types";
 export { UpdateCharacterTagsBody } from "./generated/api";
 export type { UpdateCharacterTagsBody as UpdateCharacterTagsBodyType } from "./generated/types";
+export { AdminWalletMirrorPushBody } from "./generated/api";
+export type { AdminWalletMirrorPushBody as AdminWalletMirrorPushBodyType } from "./generated/types";
 export { GetEventParams } from "./generated/api";
 export type { GetEventParams as GetEventQueryParamsType } from "./generated/types";

@@ -3069,6 +3069,38 @@ paths:
         "404": { description: Unknown user }
         "502": { description: UnbelievaBoat unreachable }
 
+  /admin/wallet/mirror-health:
+    get:
+      operationId: adminWalletMirrorHealth
+      tags: [admin]
+      summary: "Health of the UnbelievaBoat mirror push outbox (website wallet is the source of truth)."
+      responses:
+        "200":
+          description: Mirror health snapshot
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalletMirrorHealth" }
+
+  /admin/wallet/mirror-push:
+    post:
+      operationId: adminWalletMirrorPush
+      tags: [admin]
+      summary: "Drain the UnbelievaBoat push outbox now (optionally for one user)."
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId: { type: string, description: "Restrict the drain to one user's queued pushes." }
+      responses:
+        "200":
+          description: Drain result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalletMirrorPushResult" }
+
   /admin/maintenance/rehost-event-images:
     post:
       operationId: adminRehostEventImages
@@ -9330,6 +9362,55 @@ components:
         balance: { type: integer, description: "Live run: resulting wallet balance." }
         delta: { type: integer }
         error: { type: ["string", "null"] }
+
+    WalletMirrorHealth:
+      type: object
+      required: [counts, oldestPendingAt, lastPushedAt, recentFailures, users]
+      properties:
+        counts:
+          type: object
+          required: [pending, inflight, pushed24h, suppressed]
+          properties:
+            pending: { type: integer }
+            inflight: { type: integer }
+            pushed24h: { type: integer }
+            suppressed: { type: integer }
+        oldestPendingAt: { type: ["string", "null"] }
+        lastPushedAt: { type: ["string", "null"] }
+        recentFailures:
+          type: array
+          items:
+            type: object
+            required: [id, userId, amount, attempts, lastError, nextAttemptAt]
+            properties:
+              id: { type: integer }
+              userId: { type: string }
+              amount: { type: integer }
+              attempts: { type: integer }
+              lastError: { type: ["string", "null"] }
+              nextAttemptAt: { type: string }
+        users:
+          type: array
+          description: "Users with queued pushes or drift vs the expected UnbelievaBoat total."
+          items:
+            type: object
+            required: [userId, username, websiteBalance, expectedUbTotal, queuedAmount, queuedCount, lastSyncedAt]
+            properties:
+              userId: { type: string }
+              username: { type: string }
+              websiteBalance: { type: integer }
+              expectedUbTotal: { type: ["integer", "null"] }
+              queuedAmount: { type: integer }
+              queuedCount: { type: integer }
+              lastSyncedAt: { type: ["string", "null"] }
+
+    WalletMirrorPushResult:
+      type: object
+      required: [pushed, suppressed, failed]
+      properties:
+        pushed: { type: integer }
+        suppressed: { type: integer }
+        failed: { type: integer }
 
     RehostEventImagesResult:
       type: object

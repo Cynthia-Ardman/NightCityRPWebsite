@@ -7713,6 +7713,52 @@ export const AdminEconomyReconcileResponse = zod.object({
 
 
 /**
+ * @summary Health of the UnbelievaBoat mirror push outbox (website wallet is the source of truth).
+ */
+export const AdminWalletMirrorHealthResponse = zod.object({
+  "counts": zod.object({
+  "pending": zod.number(),
+  "inflight": zod.number(),
+  "pushed24h": zod.number(),
+  "suppressed": zod.number()
+}),
+  "oldestPendingAt": zod.string().nullable(),
+  "lastPushedAt": zod.string().nullable(),
+  "recentFailures": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "amount": zod.number(),
+  "attempts": zod.number(),
+  "lastError": zod.string().nullable(),
+  "nextAttemptAt": zod.string()
+})),
+  "users": zod.array(zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "websiteBalance": zod.number(),
+  "expectedUbTotal": zod.number().nullable(),
+  "queuedAmount": zod.number(),
+  "queuedCount": zod.number(),
+  "lastSyncedAt": zod.string().nullable()
+})).describe('Users with queued pushes or drift vs the expected UnbelievaBoat total.')
+})
+
+
+/**
+ * @summary Drain the UnbelievaBoat push outbox now (optionally for one user).
+ */
+export const AdminWalletMirrorPushBody = zod.object({
+  "userId": zod.string().optional().describe('Restrict the drain to one user\'s queued pushes.')
+})
+
+export const AdminWalletMirrorPushResponse = zod.object({
+  "pushed": zod.number(),
+  "suppressed": zod.number(),
+  "failed": zod.number()
+})
+
+
+/**
  * @summary Re-host expired Discord CDN event banners to object storage (dryRun previews).
  */
 export const AdminRehostEventImagesBody = zod.object({

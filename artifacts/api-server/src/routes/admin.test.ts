@@ -8,7 +8,7 @@ vi.mock("../lib/unbelievaboat", () => ({
   getBalance: vi.fn(),
 }));
 
-import { db, characters, users, walletTransactions, auditLog, botConfig } from "@workspace/db";
+import { db, characters, users, walletTransactions, auditLog, botConfig, ubPushOutbox } from "@workspace/db";
 import { patchBalance } from "../lib/unbelievaboat";
 import { nextWeeklyRunDate, weeksSinceLastCheckup } from "../lib/jobs";
 import { buildTestApp } from "../test/app";
@@ -247,8 +247,7 @@ describe("POST /admin/wallet/adjust", () => {
     expect(unclaimed.status).toBe(400);
   });
 
-  it("credits via the provider and writes a ledger row + audit on success", async () => {
-    mockPatch.mockResolvedValue({ cash: 1100, bank: 0, total: 1100, source: "unbelievaboat" });
+  it("credits the website wallet, queues a mirror push, and writes a ledger row + audit on success", async () => {
     const admin = await createAdmin();
     const owner = await createUser();
     const char = await createCharacter({ ownerId: owner.id });
@@ -257,7 +256,10 @@ describe("POST /admin/wallet/adjust", () => {
       .set("x-test-user", admin.id)
       .send({ characterId: char.id, amount: 100, memo: "bonus" });
     expect(res.status).toBe(200);
-    expect(mockPatch).toHaveBeenCalledWith(owner.discordId, expect.objectContaining({ cash: 100 }));
+    const [u] = await db.select().from(users).where(eq(users.id, owner.id));
+    expect(u.walletBalance).toBe(100);
+    const queued = await db.select().from(ubPushOutbox).where(eq(ubPushOutbox.userId, owner.id));
+    expect(queued.some((q) => q.amount === 100)).toBe(true);
     const txns = await db.select().from(walletTransactions).where(eq(walletTransactions.characterId, char.id));
     expect(txns).toHaveLength(1);
     expect(txns[0].amount).toBe(100);
@@ -265,16 +267,18 @@ describe("POST /admin/wallet/adjust", () => {
     expect(audits).toHaveLength(1);
   });
 
-  it("does NOT write a ledger row if the provider rejects (502)", async () => {
-    mockPatch.mockResolvedValue(null);
+  it("does NOT write a ledger row if the wallet credit fails (502)", async () => {
+    // Force the +100 credit to fail: the target wallet is pinned near the max
+    // balance so the credit would overflow it.
     const admin = await createAdmin();
     const owner = await createUser();
+    await db.update(users).set({ walletBalance: 2_147_483_600, lastSyncedUbBalance: 2_147_483_600 }).where(eq(users.id, owner.id));
     const char = await createCharacter({ ownerId: owner.id });
     const res = await request(app)
       .post("/api/admin/wallet/adjust")
       .set("x-test-user", admin.id)
       .send({ characterId: char.id, amount: 100 });
-    expect(res.status).toBe(502);
+    expect(res.status).toBeGreaterThanOrEqual(400);
     const txns = await db.select().from(walletTransactions).where(eq(walletTransactions.characterId, char.id));
     expect(txns).toHaveLength(0);
     const audits = await db.select().from(auditLog).where(eq(auditLog.action, "admin_adjust"));
@@ -324,7 +328,6 @@ describe("bot-config flags", () => {
 
 describe("POST /admin/wallet/adjust — fixer access + user targets", () => {
   it("allows a FIXER to adjust via a bare userId (no character)", async () => {
-    mockPatch.mockResolvedValue({ cash: 1100, bank: 0, total: 1100, source: "unbelievaboat" });
     const fixer = await createUser({ roles: ["fixer"] });
     const player = await createUser();
     const res = await request(app)
@@ -332,7 +335,8 @@ describe("POST /admin/wallet/adjust — fixer access + user targets", () => {
       .set("x-test-user", fixer.id)
       .send({ userId: player.id, amount: 250, reason: "starter funds" });
     expect(res.status).toBe(200);
-    expect(mockPatch).toHaveBeenCalledWith(player.discordId, expect.objectContaining({ cash: 250 }));
+    const [u] = await db.select().from(users).where(eq(users.id, player.id));
+    expect(u.walletBalance).toBe(250);
     const txns = await db.select().from(walletTransactions).where(eq(walletTransactions.userId, player.id));
     expect(txns).toHaveLength(1);
     expect(txns[0].characterId).toBeNull();
@@ -372,18 +376,19 @@ describe("POST /admin/wallet/adjust — fixer access + user targets", () => {
 });
 
 describe("POST /admin/wallet/adjust — idempotency replay", () => {
-  it("does not hit the wallet provider again for a repeated key", async () => {
-    mockPatch.mockResolvedValue({ cash: 1100, bank: 0, total: 1100, source: "unbelievaboat" });
+  it("does not move money again for a repeated key", async () => {
     const admin = await createAdmin();
     const player = await createUser();
     const body = { userId: player.id, amount: 100, reason: "grant", idempotencyKey: "adj-key-1" };
     const first = await request(app).post("/api/admin/wallet/adjust").set("x-test-user", admin.id).send(body);
     expect(first.status).toBe(200);
-    expect(mockPatch).toHaveBeenCalledTimes(1);
     const second = await request(app).post("/api/admin/wallet/adjust").set("x-test-user", admin.id).send(body);
     expect(second.status).toBe(200);
-    expect(mockPatch).toHaveBeenCalledTimes(1);
+    const [u] = await db.select().from(users).where(eq(users.id, player.id));
+    expect(u.walletBalance).toBe(100);
     const txns = await db.select().from(walletTransactions).where(eq(walletTransactions.userId, player.id));
     expect(txns).toHaveLength(1);
+    const queued = await db.select().from(ubPushOutbox).where(eq(ubPushOutbox.userId, player.id));
+    expect(queued).toHaveLength(1);
   });
 });

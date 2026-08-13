@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { db, attendanceClaims, activityEvents, botAttendanceLog, type AttendanceClaim } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
-import { patchBalance } from "../lib/unbelievaboat";
+import { applyWalletDelta } from "../lib/economy";
 import { logger } from "../lib/logger";
 import { recordAudit } from "../lib/audit";
 import {
@@ -120,23 +120,32 @@ router.post("/attendance/claim", requireAuth, async (req, res): Promise<void> =>
     return;
   }
 
-  const ub = await patchBalance(discordId, {
-    cash: WEEKLY_ATTEND_PAYOUT,
+  // Website-first credit: commits locally (works during a UB outage) and
+  // mirrors to UB via the outbox. Keyed on the claim row so a retry that
+  // somehow bypasses the unique index still can't double-pay.
+  const credit = await applyWalletDelta({
+    userId,
+    discordId,
+    amount: WEEKLY_ATTEND_PAYOUT,
+    source: "website",
+    kind: "attendance",
     reason: `Weekly attendance bonus (${weekStart})`,
+    memo: `Weekly attendance bonus (${weekStart})`,
+    idempotencyKey: `attendance:${userId}:${weekStart}`,
+    gate: "none",
   });
-  if (!ub) {
-    // UB credit failed — release the reservation so the user can retry cleanly.
-    // (No refund needed: no money was credited.)
+  if (!credit.ok) {
+    // Overflow/unknown-user only — release the reservation so the user can retry.
     try {
       await db.delete(attendanceClaims).where(eq(attendanceClaims.id, row.id));
     } catch (e) {
       logger.error(
         { err: e, userId, weekStart, claimId: row.id },
-        "attendance/claim: failed to release reservation after UB failure — manual cleanup may be needed",
+        "attendance/claim: failed to release reservation after credit failure — manual cleanup may be needed",
       );
     }
-    logger.warn({ userId, weekStart }, "attendance/claim UB credit failed");
-    res.status(502).json({ error: "UnbelievaBoat unavailable, try again shortly" });
+    logger.warn({ userId, weekStart, status: credit.status }, "attendance/claim wallet credit failed");
+    res.status(502).json({ error: credit.error ?? "Wallet credit failed, try again shortly" });
     return;
   }
 
@@ -163,7 +172,7 @@ router.post("/attendance/claim", requireAuth, async (req, res): Promise<void> =>
     weekStart: row.weekStart,
     amount: row.amount,
     claimedAt: row.claimedAt,
-    newBalance: ub.total,
+    newBalance: credit.balance,
   });
 });
 

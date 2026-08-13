@@ -1,4 +1,4 @@
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import {
   db,
   stores,
@@ -932,6 +932,46 @@ export async function approveOffer(offerId: number, actor: Actor): Promise<Offer
 // venue-sale path in createOffer/createRemoveOffer. Self-contained from the
 // economy-mode gate onward: the caller is responsible for loading the offer,
 // authorizing the actor, and the pending/expiry/already-approved checks.
+// Retry-safe buyer debit for an offer. The naive fixed key `offer:<id>:buyer`
+// is unsafe across a failed-then-refunded attempt: the retry's debit would come
+// back "duplicate" (already charged once) even though that charge was refunded,
+// letting the completion proceed for free. So each refund gets a key derived
+// from the debit ledger row it compensates, and this settle loop re-charges
+// with a fresh attempt key whenever the previous debit was refunded.
+export function offerRefundKeyFor(offerId: number, debitLedgerId: number | null | undefined): string {
+  // Legacy fallback: pre-cutover refunds used one fixed key per offer.
+  return debitLedgerId ? `offer:${offerId}:refund:${debitLedgerId}` : `offer:${offerId}:buyer-refund`;
+}
+
+async function settleOfferBuyerDebit(
+  base: Omit<Parameters<typeof applyWalletDelta>[0], "idempotencyKey">,
+  offerId: number,
+): Promise<{ result: Awaited<ReturnType<typeof applyWalletDelta>>; debitLedgerId: number | null }> {
+  let key = `offer:${offerId}:buyer`;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const result = await applyWalletDelta({ ...base, idempotencyKey: key });
+    if (!result.ok) return { result, debitLedgerId: null };
+    if (result.status !== "duplicate") return { result, debitLedgerId: result.ledgerId ?? null };
+    // A prior attempt already charged this key. If that charge was later
+    // refunded, this retry must charge again under a fresh attempt key.
+    const ledgerId = result.ledgerId ?? null;
+    const refundKeys = [offerRefundKeyFor(offerId, ledgerId)];
+    if (key === `offer:${offerId}:buyer`) refundKeys.push(`offer:${offerId}:buyer-refund`); // legacy fixed key
+    const refunds = ledgerId
+      ? await db
+          .select({ id: walletTransactions.id, idempotencyKey: walletTransactions.idempotencyKey })
+          .from(walletTransactions)
+          .where(inArray(walletTransactions.idempotencyKey, refundKeys))
+      : [];
+    if (refunds.length === 0) return { result, debitLedgerId: ledgerId }; // still settled — genuine duplicate
+    key = `offer:${offerId}:buyer:r${refunds[0].id}`;
+  }
+  return {
+    result: { ok: false, status: "failed", balance: 0, previousBalance: 0, proposedBalance: 0, error: "Debit settle loop exceeded retries" },
+    debitLedgerId: null,
+  };
+}
+
 async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferResult> {
   const offerId = offer.id;
   const mode = await getEconomyMode();
@@ -975,32 +1015,36 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
 
   // 1) Reserve-before-call buyer debit (idempotent on retry). Skipped entirely
   // for free offers (give, or a zero-fee removal) — no money moves.
+  let buyerDebitLedgerId: number | null = null;
   if (hasMoney) {
     const debitReason =
       offerType === "install" || isInstallOwned ? `Cyberware install: ${offer.itemName} @ ${venue.name}`
       : offerType === "remove" ? `Cyberware removal: ${offer.itemName} @ ${venue.name}`
       : isService ? `Service: ${offer.itemName} @ ${venue.name}`
       : `Purchase: ${offer.itemName} x${offer.quantity} @ ${venue.name}`;
-    const debit = await applyWalletDelta({
-      userId: buyerUser.id,
-      discordId: buyerUser.discordId,
-      amount: -offer.totalPrice,
-      source: kind,
-      kind: "shop",
-      reason: debitReason,
-      memo: offer.memo ?? debitReason,
-      characterId: buyer.id,
-      counterpartyName: venue.name,
-      relatedEntityType: "sale_offer",
-      relatedEntityId: offer.id,
-      storeId: kind === "store" ? venueId : null,
-      ripperdocId: kind === "ripperdoc" ? venueId : null,
-      idempotencyKey: `offer:${offer.id}:buyer`,
-    });
+    const { result: debit, debitLedgerId } = await settleOfferBuyerDebit(
+      {
+        userId: buyerUser.id,
+        discordId: buyerUser.discordId,
+        amount: -offer.totalPrice,
+        source: kind,
+        kind: "shop",
+        reason: debitReason,
+        memo: offer.memo ?? debitReason,
+        characterId: buyer.id,
+        counterpartyName: venue.name,
+        relatedEntityType: "sale_offer",
+        relatedEntityId: offer.id,
+        storeId: kind === "store" ? venueId : null,
+        ripperdocId: kind === "ripperdoc" ? venueId : null,
+      },
+      offer.id,
+    );
     if (!debit.ok) {
       if (debit.status === "insufficient_funds") return { status: 400, body: { error: "Buyer has insufficient funds" } };
       return { status: 502, body: { error: debit.error ?? "Wallet provider unavailable" } };
     }
+    buyerDebitLedgerId = debitLedgerId;
   }
 
   // 2) Atomic completion: flip status, move the item (stock->inventory for
@@ -1255,7 +1299,7 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
         counterpartyName: venue.name,
         relatedEntityType: "sale_offer",
         relatedEntityId: offer.id,
-        idempotencyKey: `offer:${offer.id}:buyer-refund`,
+        idempotencyKey: offerRefundKeyFor(offer.id, buyerDebitLedgerId),
         allowNegative: true,
       });
       if (!refund.ok) {
@@ -1291,7 +1335,7 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
         counterpartyName: venue.name,
         relatedEntityType: "sale_offer",
         relatedEntityId: offer.id,
-        idempotencyKey: `offer:${offer.id}:buyer-refund`,
+        idempotencyKey: offerRefundKeyFor(offer.id, buyerDebitLedgerId),
         allowNegative: true,
       });
       if (!refund.ok) {

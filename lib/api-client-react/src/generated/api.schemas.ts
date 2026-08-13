@@ -3493,6 +3493,52 @@ export interface EconomyReconcileResult {
   error?: string | null;
 }
 
+export type WalletMirrorHealthCounts = {
+  pending: number;
+  inflight: number;
+  pushed24h: number;
+  suppressed: number;
+};
+
+export type WalletMirrorHealthRecentFailuresItem = {
+  id: number;
+  userId: string;
+  amount: number;
+  attempts: number;
+  /** @nullable */
+  lastError: string | null;
+  nextAttemptAt: string;
+};
+
+export type WalletMirrorHealthUsersItem = {
+  userId: string;
+  username: string;
+  websiteBalance: number;
+  /** @nullable */
+  expectedUbTotal: number | null;
+  queuedAmount: number;
+  queuedCount: number;
+  /** @nullable */
+  lastSyncedAt: string | null;
+};
+
+export interface WalletMirrorHealth {
+  counts: WalletMirrorHealthCounts;
+  /** @nullable */
+  oldestPendingAt: string | null;
+  /** @nullable */
+  lastPushedAt: string | null;
+  recentFailures: WalletMirrorHealthRecentFailuresItem[];
+  /** Users with queued pushes or drift vs the expected UnbelievaBoat total. */
+  users: WalletMirrorHealthUsersItem[];
+}
+
+export interface WalletMirrorPushResult {
+  pushed: number;
+  suppressed: number;
+  failed: number;
+}
+
 export type RehostEventImagesResultTargetsItem = {
   id: number;
   title: string;
@@ -8600,6 +8646,11 @@ beforeId?: number;
  * @maximum 500
  */
 limit?: number;
+};
+
+export type AdminWalletMirrorPushBody = {
+  /** Restrict the drain to one user's queued pushes. */
+  userId?: string;
 };
 
 export type SearchInventoryByOwnerParams = {

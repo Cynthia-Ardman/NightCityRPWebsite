@@ -1,9 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { and, eq, sql } from "drizzle-orm";
-import { db, incomeCommandUses } from "@workspace/db";
+import { db, incomeCommandUses, users } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { applyWalletDelta } from "../lib/economy";
-import { getBalance } from "../lib/unbelievaboat";
 import { fetchGuildMemberRoleIdsViaBot } from "../lib/discord";
 import { logger } from "../lib/logger";
 
@@ -75,8 +74,8 @@ async function isJoytoy(discordId: string): Promise<boolean | null> {
 // dashboard card can render the buttons, countdowns, and eligibility.
 router.get("/economy/income", requireAuth, async (req: Request, res: Response): Promise<void> => {
   const uid = req.user!.id;
-  const [ub, rows, joytoy] = await Promise.all([
-    getBalance(req.user!.discordId),
+  const [[me], rows, joytoy] = await Promise.all([
+    db.select({ balance: users.walletBalance }).from(users).where(eq(users.id, uid)),
     db.select().from(incomeCommandUses).where(eq(incomeCommandUses.userId, uid)),
     isJoytoy(req.user!.discordId),
   ]);
@@ -91,7 +90,7 @@ router.get("/economy/income", requireAuth, async (req: Request, res: Response): 
   const work = status(WORK.command);
   const slut = status(SLUT.command);
   res.json({
-    balance: ub?.total ?? null,
+    balance: me?.balance ?? null,
     work,
     slut: { eligible: joytoy === true, ...slut },
   });
@@ -157,12 +156,10 @@ router.post("/economy/income/slut", requireAuth, async (req: Request, res: Respo
     return;
   }
 
-  // Need the current total up front to size a potential fine.
-  const ub = await getBalance(req.user!.discordId);
-  if (!ub) {
-    res.status(502).json({ error: "Wallet provider unavailable. Try again shortly." });
-    return;
-  }
+  // Need the current total up front to size a potential fine. Website wallet
+  // is the source of truth.
+  const [me] = await db.select({ balance: users.walletBalance }).from(users).where(eq(users.id, uid));
+  const totalForFine = Math.max(0, me?.balance ?? 0);
 
   const reservedAt = await reserveCooldown(uid, SLUT.command);
   if (!reservedAt) {
@@ -181,7 +178,7 @@ router.post("/economy/income/slut", requireAuth, async (req: Request, res: Respo
   let amount: number;
   if (fined) {
     const pct = SLUT_FINE_MIN_PCT + Math.random() * (SLUT_FINE_MAX_PCT - SLUT_FINE_MIN_PCT);
-    const fine = Math.max(0, Math.round(ub.total * pct));
+    const fine = Math.max(0, Math.round(totalForFine * pct));
     amount = -fine;
   } else {
     amount = randInt(SLUT.min, SLUT.max);

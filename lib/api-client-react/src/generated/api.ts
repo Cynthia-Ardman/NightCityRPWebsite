@@ -47,6 +47,7 @@ import type {
   AdminSearchDiscordMembersParams,
   AdminSinkInput,
   AdminUser,
+  AdminWalletMirrorPushBody,
   AnalyticsCharacterRow,
   AnalyticsCharacterTrendWeek,
   AnalyticsEconomyTransactions,
@@ -378,6 +379,8 @@ import type {
   VrchatVerifyRequest,
   Wallet,
   WalletAdjustmentInput,
+  WalletMirrorHealth,
+  WalletMirrorPushResult,
   WalletMoveInput,
   WalletTransaction,
   WithdrawEventNpcSignupParams
@@ -13830,6 +13833,154 @@ export const useAdminEconomyReconcile = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminEconomyReconcileMutationOptions(options));
+    }
+
+export const getAdminWalletMirrorHealthUrl = () => {
+
+
+
+
+  return `/api/admin/wallet/mirror-health`
+}
+
+/**
+ * @summary Health of the UnbelievaBoat mirror push outbox (website wallet is the source of truth).
+ */
+export const adminWalletMirrorHealth = async ( options?: RequestInit): Promise<WalletMirrorHealth> => {
+
+  return customFetch<WalletMirrorHealth>(getAdminWalletMirrorHealthUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminWalletMirrorHealthQueryKey = () => {
+    return [
+    `/api/admin/wallet/mirror-health`
+    ] as const;
+    }
+
+
+export const getAdminWalletMirrorHealthQueryOptions = <TData = Awaited<ReturnType<typeof adminWalletMirrorHealth>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminWalletMirrorHealth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminWalletMirrorHealthQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminWalletMirrorHealth>>> = ({ signal }) => adminWalletMirrorHealth({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminWalletMirrorHealth>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminWalletMirrorHealthQueryResult = NonNullable<Awaited<ReturnType<typeof adminWalletMirrorHealth>>>
+export type AdminWalletMirrorHealthQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Health of the UnbelievaBoat mirror push outbox (website wallet is the source of truth).
+ */
+
+export function useAdminWalletMirrorHealth<TData = Awaited<ReturnType<typeof adminWalletMirrorHealth>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminWalletMirrorHealth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminWalletMirrorHealthQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminWalletMirrorPushUrl = () => {
+
+
+
+
+  return `/api/admin/wallet/mirror-push`
+}
+
+/**
+ * @summary Drain the UnbelievaBoat push outbox now (optionally for one user).
+ */
+export const adminWalletMirrorPush = async (adminWalletMirrorPushBody?: AdminWalletMirrorPushBody, options?: RequestInit): Promise<WalletMirrorPushResult> => {
+
+  return customFetch<WalletMirrorPushResult>(getAdminWalletMirrorPushUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminWalletMirrorPushBody,)
+  }
+);}
+
+
+
+
+export const getAdminWalletMirrorPushMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminWalletMirrorPush>>, TError,{data?: BodyType<AdminWalletMirrorPushBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminWalletMirrorPush>>, TError,{data?: BodyType<AdminWalletMirrorPushBody>}, TContext> => {
+
+const mutationKey = ['adminWalletMirrorPush'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminWalletMirrorPush>>, {data?: BodyType<AdminWalletMirrorPushBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminWalletMirrorPush(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminWalletMirrorPushMutationResult = NonNullable<Awaited<ReturnType<typeof adminWalletMirrorPush>>>
+    export type AdminWalletMirrorPushMutationBody = BodyType<AdminWalletMirrorPushBody> | undefined
+    export type AdminWalletMirrorPushMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Drain the UnbelievaBoat push outbox now (optionally for one user).
+ */
+export const useAdminWalletMirrorPush = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminWalletMirrorPush>>, TError,{data?: BodyType<AdminWalletMirrorPushBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminWalletMirrorPush>>,
+        TError,
+        {data?: BodyType<AdminWalletMirrorPushBody>},
+        TContext
+      > => {
+      return useMutation(getAdminWalletMirrorPushMutationOptions(options));
     }
 
 export const getAdminRehostEventImagesUrl = () => {

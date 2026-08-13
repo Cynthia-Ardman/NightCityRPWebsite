@@ -1,4 +1,4 @@
-import { useAdminListUsers, useAdminHydrateUsers, useAdminSetCyberpsychoAccess, useAdminListCharacters, useAdminAdjustWallet, useAdminSinkWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminGetVrchatCalendarSync, getAdminGetVrchatCalendarSyncQueryKey, useAdminSetVrchatCalendarSync, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey, useAdminMissionThreadBackfill, useAdminEconomyReconcile, useAdminRehostEventImages, useAdminGuidebookLinkRepair, type MissionThreadBackfillResult, type EconomyReconcileResult, type RehostEventImagesResult, type GuidebookLinkRepairResult, type AuditLogRow } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminHydrateUsers, useAdminSetCyberpsychoAccess, useAdminListCharacters, useAdminAdjustWallet, useAdminSinkWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminGetVrchatCalendarSync, getAdminGetVrchatCalendarSyncQueryKey, useAdminSetVrchatCalendarSync, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey, useAdminMissionThreadBackfill, useAdminEconomyReconcile, useAdminWalletMirrorHealth, useAdminWalletMirrorPush, useAdminRehostEventImages, useAdminGuidebookLinkRepair, type MissionThreadBackfillResult, type EconomyReconcileResult, type RehostEventImagesResult, type GuidebookLinkRepairResult, type AuditLogRow } from "@workspace/api-client-react";
 import { formatEddies, formatDateTime } from "@/lib/format";
 import { useState, useEffect, Fragment } from "react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
@@ -2074,6 +2074,7 @@ export function MaintenanceTab() {
       <PortraitBackfillCard />
       <RipperdocBackfillCard />
       <MissionThreadBackfillCard />
+      <WalletMirrorCard />
       <EconomyReconcileCard />
       <RehostEventImagesCard />
       <GuidebookLinkRepairCard />
@@ -2153,6 +2154,89 @@ function MissionThreadBackfillCard() {
                   </li>
                 ))}
               </ul>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function WalletMirrorCard() {
+  const { toast } = useToast();
+  const health = useAdminWalletMirrorHealth();
+  const push = useAdminWalletMirrorPush();
+  const h = health.data;
+
+  async function pushNow() {
+    try {
+      const r = await push.mutateAsync({ data: {} });
+      toast({
+        title: "Mirror push complete",
+        description: `Pushed ${r.pushed}, failed ${r.failed}, suppressed ${r.suppressed}.`,
+      });
+      void health.refetch();
+    } catch (e) {
+      toast({ title: "Mirror push failed", description: (e as Error).message, variant: "destructive" });
+    }
+  }
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest">UNBELIEVABOAT MIRROR HEALTH</CardTitle>
+        <CardDescription className="font-mono text-xs">
+          The website wallet is the source of truth; every website-side balance change queues a push
+          that mirrors it into UnbelievaBoat. This shows the push queue, recent failures, and any
+          users whose Discord balance hasn't caught up yet.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 font-mono text-xs">
+        <div className="flex flex-wrap gap-2 items-center">
+          <Button variant="outline" className="rounded-none" onClick={() => void health.refetch()} disabled={health.isFetching} data-testid="button-mirror-refresh">
+            {health.isFetching ? "Loading…" : "Refresh"}
+          </Button>
+          <Button variant="default" className="rounded-none" onClick={() => void pushNow()} disabled={push.isPending} data-testid="button-mirror-push-now">
+            {push.isPending ? "Pushing…" : "Push now"}
+          </Button>
+        </div>
+        {h && (
+          <div className="space-y-3" data-testid="mirror-health-result">
+            <div className="text-muted-foreground">
+              Queue: <span className={h.counts.pending > 0 ? "text-nc-yellow" : "text-nc-cyan"}>{h.counts.pending} pending</span>, {h.counts.inflight} in-flight,
+              {" "}{h.counts.pushed24h} pushed (24h), {h.counts.suppressed} suppressed.
+              {" "}Oldest pending: {h.oldestPendingAt ? new Date(h.oldestPendingAt).toLocaleString() : "—"}.
+              {" "}Last push: {h.lastPushedAt ? new Date(h.lastPushedAt).toLocaleString() : "never"}.
+            </div>
+            {h.recentFailures.length > 0 && (
+              <div>
+                <div className="text-destructive mb-1">Recent push failures</div>
+                <ul className="max-h-40 overflow-auto border border-border p-2 space-y-0.5">
+                  {h.recentFailures.map((f) => (
+                    <li key={f.id} className="flex justify-between gap-2">
+                      <span>{f.userId} {f.amount >= 0 ? "+" : ""}{f.amount.toLocaleString()} (try {f.attempts})</span>
+                      <span className="text-muted-foreground truncate max-w-64">{f.lastError ?? ""}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {h.users.length > 0 ? (
+              <div>
+                <div className="mb-1">Users with queued pushes / drift</div>
+                <ul className="max-h-48 overflow-auto border border-border p-2 space-y-0.5">
+                  {h.users.map((u) => (
+                    <li key={u.userId} className="flex justify-between gap-2">
+                      <span>{u.username || u.userId}</span>
+                      <span className="text-muted-foreground">
+                        site {u.websiteBalance.toLocaleString()} · expected UB {u.expectedUbTotal?.toLocaleString() ?? "unseeded"} · queued {u.queuedCount} ({u.queuedAmount >= 0 ? "+" : ""}{u.queuedAmount.toLocaleString()})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="text-nc-cyan">Mirror is fully caught up.</div>
             )}
           </div>
         )}

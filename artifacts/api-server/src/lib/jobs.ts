@@ -11,7 +11,7 @@ import { sumCwpByCharacter } from "./cyberware";
 import { runMissionAutoPay, runMissionNpcAnnouncements, runMissionThreadBackfill } from "./missionsService";
 import { reconcileDiscordEvents, backfillMainSessions, reconcileVrchatCalendar } from "./eventsService";
 import { isSystemLive, type LiveSystem } from "./liveMode";
-import { runEconomyReconcile, getEconomyMode, advanceSettledWalletBalance } from "./economy";
+import { runEconomyReconcile, getEconomyMode, settleReservedCharge, drainUbPushOutbox } from "./economy";
 import { pollGroupInstances } from "./vrchatInstances";
 import { vrchatCredsConfigured, maintainVrchatSession, claimVrchatPollTick, isVrchatPollOwner } from "./vrchatClient";
 import { ingestDiscordMembershipEvents, ingestVrchatMembershipEvents } from "./membershipEvents";
@@ -274,23 +274,24 @@ async function chargePersonalFeeWithReservation(opts: {
     })
     .returning({ id: walletTransactions.id });
   opts.reserve();
-  const ub = await patchBalance(opts.discordId, { cash: -opts.cost, reason: opts.reason });
-  if (!ub) {
-    await db.delete(walletTransactions).where(eq(walletTransactions.id, row.id));
-    opts.unreserve();
-    return false;
-  }
-  // Advance the website wallet balance in lockstep with the UB debit so it
-  // doesn't drift until the next reconcile (the ledger row was already written
-  // above). Best-effort: a failure here is folded by reconcile later.
-  await advanceSettledWalletBalance({ userId: opts.userId, amount: -opts.cost, ubTotalAfter: ub.total }).catch(() => {});
+  // Website-first settle: advances the website balance (source of truth) and
+  // enqueues the UB mirror push atomically. Bills always succeed locally —
+  // they may overdraw, matching UB's old always-debit behavior — so the old
+  // "clean UB failure → roll reservation back" branch no longer exists.
+  const { balance } = await settleReservedCharge({
+    userId: opts.userId,
+    discordId: opts.discordId,
+    amount: -opts.cost,
+    reason: opts.reason,
+    ledgerId: row.id,
+  });
   void notifyAutoCharge({
     discordId: opts.discordId,
     userId: opts.userId,
     amount: opts.cost,
     label: opts.dmLabel,
     characterName: opts.characterName,
-    newBalance: ub.cash,
+    newBalance: balance,
   });
   return true;
 }
@@ -612,50 +613,18 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           .set({ paidThrough: base })
           .where(eq(housing.id, lease.id));
 
-        const ub = await patchBalance(owner.discordId, {
-          cash: -rent,
+        // Website-first settle: the debit commits locally (may overdraw —
+        // parity with UB's old always-debit behavior) and mirrors to UB via
+        // the outbox. Rent always charges now, so the old "UB outage →
+        // delinquent" branch is gone: delinquency only ever meant "the debit
+        // didn't happen", which can no longer occur.
+        const { balance: rentBalance } = await settleReservedCharge({
+          userId: owner.id,
+          discordId: owner.discordId,
+          amount: -rent,
           reason: `${reasonLabel}: ${lease.address}`,
+          ledgerId: reservedRent.id,
         });
-        if (!ub) {
-          // Clean UB failure (not a crash): roll the reservation back so the
-          // lease isn't shown as paid and the next run can retry the debit.
-          await db.delete(walletTransactions).where(eq(walletTransactions.id, reservedRent.id));
-          await db
-            .update(housing)
-            .set({ paidThrough: lease.paidThrough ?? null })
-            .where(eq(housing.id, lease.id));
-          logger.warn(
-            { characterId: c.id, leaseId: lease.id, kind: lease.kind },
-            "monthly_rent UB debit failed; lease will show delinquent",
-          );
-          // Stamp the lease as delinquent on the FIRST failed cycle only —
-          // subsequent failures preserve the original timestamp so the
-          // eviction grace clock counts from the first miss, not the most
-          // recent retry.
-          if (!lease.delinquentSince) {
-            await db
-              .update(housing)
-              .set({ delinquentSince: new Date() })
-              .where(eq(housing.id, lease.id));
-            await db.insert(activityEvents).values({
-              kind: "housing_delinquent",
-              actorId: c.ownerId,
-              message: `${c.name} could not pay rent on ${lease.address} (€$${rent})`,
-            });
-            await recordAudit({
-              category: "housing",
-              action: "housing.delinquent",
-              actorId: c.ownerId,
-              targetType: "character",
-              targetId: String(c.id),
-              message: `${c.name} could not pay rent on ${lease.address} (€$${rent})`,
-              after: { leaseId: lease.id, address: lease.address, rent },
-            });
-          }
-          continue;
-        }
-        // Keep the website wallet balance in lockstep with the UB debit.
-        await advanceSettledWalletBalance({ userId: owner.id, amount: -rent, ubTotalAfter: ub.total }).catch(() => {});
         // Clear delinquentSince on every successful debit — a paid month
         // resets the eviction clock, even if the lease had previously
         // entered the grace period.
@@ -671,7 +640,7 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           amount: rent,
           label: `${reasonLabel}: ${lease.address}`,
           characterName: c.name,
-          newBalance: ub.cash,
+          newBalance: rentBalance,
         });
         affected++;
       }
@@ -922,24 +891,21 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           })
           .returning({ id: walletTransactions.id });
         recentMedsUserSet.add(ownerId);
-        const ub = await patchBalance(owner.discordId, {
-          cash: -proj.charge,
+        // Website-first settle: commits locally (may overdraw) and mirrors to
+        // UB via the outbox — no UB-failure rollback branch anymore.
+        const { balance: medsBalance } = await settleReservedCharge({
+          userId: ownerId,
+          discordId: owner.discordId,
+          amount: -proj.charge,
           reason: `Cyberpsychosis meds (${proj.level}, week ${weeksUnpaid}, household x${proj.multiplier.toFixed(2)})`,
+          ledgerId: medsRow.id,
         });
-        if (!ub) {
-          await db.delete(walletTransactions).where(eq(walletTransactions.id, medsRow.id));
-          recentMedsUserSet.delete(ownerId);
-          logger.warn({ ownerId }, "cyberware_humanity UB debit failed; rolled back local ledger reservation");
-          continue;
-        }
-        // Keep the website wallet balance in lockstep with the UB debit.
-        await advanceSettledWalletBalance({ userId: ownerId, amount: -proj.charge, ubTotalAfter: ub.total }).catch(() => {});
         void notifyAutoCharge({
           discordId: owner.discordId,
           userId: ownerId,
           amount: proj.charge,
           label: `Weekly cyberpsychosis meds (${proj.level})`,
-          newBalance: ub.cash,
+          newBalance: medsBalance,
         });
         affected++;
       }
@@ -1209,6 +1175,15 @@ export function startCron() {
         return;
       }
       runJob("economy_reconcile").catch((err) => logger.error({ err }, "economy_reconcile cron"));
+    });
+    // UB push outbox drain every minute: mirrors website-origin wallet deltas
+    // into UnbelievaBoat. Most pushes land within seconds via the per-write
+    // fire-and-forget kick; this cadence is the safety net that retries failed
+    // pushes (backoff) and drains the queue after a UB outage. Not a runJob
+    // (no jobRuns row per tick — it would flood the history) and not gated:
+    // outside the deployed environment rows are marked suppressed internally.
+    cron.schedule("* * * * *", () => {
+      drainUbPushOutbox().catch((err) => logger.error({ err }, "ub_push_drain cron"));
     });
     // Bidirectional Discord scheduled-event ↔ calendar sync every 10 minutes.
     // Imports new Discord events and reconciles edits/deletions both ways. Gated

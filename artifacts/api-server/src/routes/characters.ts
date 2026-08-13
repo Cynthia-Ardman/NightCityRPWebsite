@@ -26,8 +26,7 @@ import {
 } from "@workspace/db";
 import { gte } from "drizzle-orm";
 import { requireAuth, requireRole, requireAnyRole } from "../middlewares/auth";
-import { getBalance, patchBalance } from "../lib/unbelievaboat";
-import { recordSettledWalletMovement } from "../lib/economy";
+import { applyWalletDelta, websiteWalletPayload } from "../lib/economy";
 import { mergeTags, splitDesiredTags, resolveRegistryTags } from "../lib/characterTags";
 import { syncTagRolesForCharacter } from "../lib/tagRoles";
 import { announceRequest } from "./requests";
@@ -1003,61 +1002,61 @@ router.post("/characters/:cid/inventory/:itemId/transfer", requireAuth, async (r
       res.status(400).json({ error: "price (positive integer) required for sell" });
       return;
     }
-    const buyerBal = await getBalance(toOwner.discordId);
-    if (!buyerBal) {
-      res.status(502).json({ error: "Wallet provider unavailable" });
-      return;
-    }
-    if (buyerBal.cash < amount) {
-      res.status(400).json({ error: "Recipient has insufficient funds" });
-      return;
-    }
-    const debited = await patchBalance(toOwner.discordId, {
-      cash: -amount,
-      reason: memo ?? `Purchase: ${item.name} x${qty} from ${sender.name}`,
-    });
-    if (!debited) {
-      res.status(502).json({ error: "Wallet provider rejected debit" });
-      return;
-    }
-    moneyDebited = true;
-    const credited = await patchBalance(req.user!.discordId, {
-      cash: amount,
-      reason: memo ?? `Sale: ${item.name} x${qty} to ${to.name}`,
-    });
-    if (!credited) {
-      await patchBalance(toOwner.discordId, {
-        cash: amount,
-        reason: `Refund: credit to ${sender.name} failed`,
-      });
-      res.status(502).json({ error: "Wallet provider rejected credit; recipient refunded" });
-      return;
-    }
-    // Record both legs through recordSettledWalletMovement so each owner's
-    // website wallet balance advances immediately (instead of drifting until the
-    // next reconcile), matching the documented economy invariant.
-    await recordSettledWalletMovement({
-      userId: req.user!.id,
-      amount,
-      ubTotalAfter: credited.total,
-      source: "website",
-      kind: "shop",
-      memo: memo ?? `Sold ${item.name} x${qty}`,
-      characterId: cid,
-      counterpartyCharacterId: to.id,
-      counterpartyName: to.name,
-    });
-    await recordSettledWalletMovement({
+    // Website wallet is the source of truth: debit the buyer first (authorized
+    // against their website balance), then credit the seller. Each leg commits
+    // locally and enqueues its own UB mirror push.
+    const debited = await applyWalletDelta({
       userId: toOwner.id,
+      discordId: toOwner.discordId,
       amount: -amount,
-      ubTotalAfter: debited.total,
       source: "website",
       kind: "shop",
+      reason: memo ?? `Purchase: ${item.name} x${qty} from ${sender.name}`,
       memo: memo ?? `Bought ${item.name} x${qty}`,
       characterId: to.id,
       counterpartyCharacterId: cid,
       counterpartyName: sender.name,
+      gate: "none",
     });
+    if (!debited.ok) {
+      if (debited.status === "insufficient_funds") {
+        res.status(400).json({ error: "Recipient has insufficient funds" });
+        return;
+      }
+      res.status(502).json({ error: debited.error ?? "Wallet debit failed" });
+      return;
+    }
+    moneyDebited = true;
+    const credited = await applyWalletDelta({
+      userId: req.user!.id,
+      discordId: req.user!.discordId,
+      amount,
+      source: "website",
+      kind: "shop",
+      reason: memo ?? `Sale: ${item.name} x${qty} to ${to.name}`,
+      memo: memo ?? `Sold ${item.name} x${qty}`,
+      characterId: cid,
+      counterpartyCharacterId: to.id,
+      counterpartyName: to.name,
+      gate: "none",
+    });
+    if (!credited.ok) {
+      // Only reachable on an overflow/unknown-user credit failure: refund the buyer.
+      await applyWalletDelta({
+        userId: toOwner.id,
+        discordId: toOwner.discordId,
+        amount,
+        source: "website",
+        kind: "shop",
+        reason: `Refund: credit to ${sender.name} failed`,
+        memo: `Refund: credit to ${sender.name} failed`,
+        characterId: to.id,
+        gate: "none",
+        allowNegative: true,
+      });
+      res.status(502).json({ error: "Seller credit failed; recipient refunded" });
+      return;
+    }
   }
 
   // Move the item. If sender keeps any (partial transfer) decrement and insert
@@ -1066,18 +1065,71 @@ router.post("/characters/:cid/inventory/:itemId/transfer", requireAuth, async (r
   let movedUuid: string = item.instanceUuid;
   let movedName: string = item.name;
   let splitParentUuid: string | null = null;
+  // Undo the sale money if the item can't actually move (concurrent transfer /
+  // consume mutated the row between our read and the conditional write).
+  const compensateSale = async () => {
+    if (!moneyDebited) return;
+    const amount = Number(price);
+    await applyWalletDelta({
+      userId: toOwner.id,
+      discordId: toOwner.discordId,
+      amount,
+      source: "website",
+      kind: "shop_refund",
+      reason: `Refund: ${item.name} was no longer available`,
+      characterId: to.id,
+      gate: "none",
+      allowNegative: true,
+    });
+    await applyWalletDelta({
+      userId: req.user!.id,
+      discordId: req.user!.discordId,
+      amount: -amount,
+      source: "website",
+      kind: "shop_refund",
+      reason: `Reversal: sale of ${item.name} did not complete`,
+      characterId: cid,
+      gate: "none",
+      allowNegative: true,
+    });
+  };
   try {
     if (qty === item.quantity) {
       // Whole stack moves: reassign characterId + ownerId. Preserve instanceUuid.
-      await db
+      // Conditioned on the quantity we read so a concurrent mutation no-ops.
+      const moved = await db
         .update(inventoryItems)
         .set({ characterId: to.id, ownerId: to.ownerId, equipped: false })
-        .where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
+        .where(
+          and(
+            eq(inventoryItems.id, itemId),
+            eq(inventoryItems.characterId, cid),
+            eq(inventoryItems.quantity, item.quantity),
+          ),
+        )
+        .returning({ id: inventoryItems.id });
+      if (moved.length === 0) {
+        await compensateSale();
+        res.status(409).json({ error: "Item changed while transferring (already moved or consumed); nothing was charged." });
+        return;
+      }
     } else {
-      await db
+      const decremented = await db
         .update(inventoryItems)
         .set({ quantity: item.quantity - qty })
-        .where(and(eq(inventoryItems.id, itemId), eq(inventoryItems.characterId, cid)));
+        .where(
+          and(
+            eq(inventoryItems.id, itemId),
+            eq(inventoryItems.characterId, cid),
+            eq(inventoryItems.quantity, item.quantity),
+          ),
+        )
+        .returning({ id: inventoryItems.id });
+      if (decremented.length === 0) {
+        await compensateSale();
+        res.status(409).json({ error: "Item changed while transferring (already moved or consumed); nothing was charged." });
+        return;
+      }
       const [inserted] = await db.insert(inventoryItems).values({
         characterId: to.id,
         ownerId: to.ownerId,
@@ -1379,15 +1431,9 @@ router.get("/characters/:id/wallet", requireAuth, async (req, res): Promise<void
     res.status(404).json({ error: "Not found" });
     return;
   }
-  // UB is the source of truth — never fall back to a local-sum read.
-  const ub = await getBalance(req.user!.discordId);
-  if (!ub) {
-    res.status(502).json({ error: "Wallet provider unavailable" });
-    return;
-  }
-  // Conform to the OpenAPI Wallet schema (characterId + balance required); keep
-  // cash/bank for the detailed breakdown. `balance` is the UB total.
-  res.json({ characterId: id, balance: ub.total, cash: ub.cash, bank: ub.bank, source: "unbelievaboat" });
+  // The WEBSITE wallet is the source of truth — `balance` is users.walletBalance.
+  // cash/bank remain as a best-effort UB mirror snapshot for the breakdown UI.
+  res.json({ characterId: id, ...(await websiteWalletPayload(req.user!.id, req.user!.discordId)) });
 });
 
 router.get("/characters/:id/wallet/transactions", requireAuth, async (req, res): Promise<void> => {
@@ -1476,96 +1522,91 @@ async function handleEddieTransfer(
     typeof req.body?.idempotencyKey === "string" && req.body.idempotencyKey.trim()
       ? `transfer:${req.body.idempotencyKey.trim().slice(0, 80)}`
       : null;
-  if (transferKey) {
-    const [done] = await db
-      .select({ id: walletTransactions.id })
-      .from(walletTransactions)
-      .where(and(eq(walletTransactions.idempotencyKey, `${transferKey}:out`), eq(walletTransactions.syncStatus, "synced")));
-    if (done) {
-      const cur = await getBalance(req.user!.discordId);
-      res.json({
-        ...(fromChar ? { characterId: fromChar.id } : {}),
-        balance: cur?.total ?? 0,
-        cash: cur?.cash ?? 0,
-        bank: cur?.bank ?? 0,
-        source: cur?.source ?? "unbelievaboat",
-      });
-      return;
-    }
-  }
-  // UB is authoritative — require a successful balance read before attempting writes.
-  const senderBal = await getBalance(req.user!.discordId);
-  if (!senderBal) {
-    res.status(502).json({ error: "Wallet provider unavailable" });
-    return;
-  }
-  if (senderBal.cash < amount) {
-    // Distinguish "you genuinely don't have enough" from "you have enough total
-    // but it's sitting in the bank" — transfers only spend cash, so the latter
-    // is fixable by withdrawing first. Point the player there instead of the
-    // old generic message.
-    if (senderBal.total >= amount) {
-      res.status(400).json({
-        error: `Not enough cash on hand. You have ${senderBal.cash.toLocaleString()} €$ in cash — withdraw at least ${(amount - senderBal.cash).toLocaleString()} €$ from your bank first, then try again.`,
-      });
-      return;
-    }
-    res.status(400).json({ error: "Insufficient funds" });
-    return;
-  }
-  // Debit sender via UB — must succeed.
-  const debited = await patchBalance(req.user!.discordId, { cash: -amount, reason: memo ?? `Transfer to ${toName}` });
-  if (!debited) {
-    res.status(502).json({ error: "Wallet provider rejected debit" });
-    return;
-  }
-  const credited = await patchBalance(toOwner.discordId, { cash: amount, reason: memo ?? `From ${fromName}` });
-  if (!credited) {
-    // Compensate: refund sender to keep UB consistent. If the refund itself
-    // fails the sender has been debited with no offsetting credit and no
-    // record — surface a loud, structured log so an operator can reconcile by
-    // hand, and tell the caller the truth rather than a clean refund message.
-    const refund = await patchBalance(req.user!.discordId, { cash: amount, reason: `Refund: credit to ${toName} failed` });
-    if (!refund) {
-      logger.error(
-        { fromDiscordId: req.user!.discordId, toCharacterId: to?.id ?? null, toUserId: toOwner.id, amount },
-        "TRANSFER_REFUND_FAILED: sender debited but credit AND refund failed — manual reconciliation required",
-      );
-      res.status(502).json({ error: "Transfer failed and refund failed; contact staff for reconciliation." });
-      return;
-    }
-    res.status(502).json({ error: "Wallet provider rejected credit; sender refunded" });
-    return;
-  }
-  // Only after confirmed UB writes do we record local history. Route both legs
-  // through recordSettledWalletMovement so each owner's website wallet balance
-  // (users.walletBalance) advances immediately instead of drifting until the
-  // next reconcile, and so a keyed retry never double-records.
-  await recordSettledWalletMovement({
+  // Website-first: the sender's WEBSITE balance authorizes the debit (an
+  // internal live-UB self-heal retry covers a mirror that lags external
+  // Discord-side earnings). Both legs commit locally and enqueue UB mirror
+  // pushes. The idempotency keys make a retry / double-click safe.
+  const debited = await applyWalletDelta({
     userId: req.user!.id,
+    discordId: req.user!.discordId,
     amount: -amount,
-    ubTotalAfter: debited.total,
     source: "website",
     kind: "transfer_out",
+    reason: memo ?? `Transfer to ${toName}`,
     memo: memo ?? null,
     characterId: fromChar?.id ?? null,
     counterpartyCharacterId: to?.id ?? null,
     counterpartyName: toName,
     idempotencyKey: transferKey ? `${transferKey}:out` : null,
+    gate: "none",
   });
-  await recordSettledWalletMovement({
-    userId: toOwner.id,
-    amount,
-    ubTotalAfter: credited.total,
-    source: "website",
-    kind: "transfer_in",
-    memo: memo ?? null,
-    characterId: to?.id ?? null,
-    counterpartyCharacterId: fromChar?.id ?? null,
-    counterpartyName: fromName,
-    idempotencyKey: transferKey ? `${transferKey}:in` : null,
-  });
-  const ub = await getBalance(req.user!.discordId);
+  if (!debited.ok) {
+    if (debited.status === "insufficient_funds") {
+      res.status(400).json({ error: "Insufficient funds" });
+      return;
+    }
+    res.status(502).json({ error: debited.error ?? "Wallet debit failed" });
+    return;
+  }
+  // A "duplicate" debit means a prior attempt with this key already charged the
+  // sender. That attempt may have crashed before crediting the recipient, or
+  // failed and been refunded — neither may be treated as a completed transfer.
+  if (debited.status === "duplicate" && transferKey) {
+    const [refundRow] = await db
+      .select({ id: walletTransactions.id })
+      .from(walletTransactions)
+      .where(eq(walletTransactions.idempotencyKey, `${transferKey}:refund`));
+    if (refundRow) {
+      res.status(409).json({
+        error: "This transfer previously failed and was refunded. Submit it again as a new transfer.",
+      });
+      return;
+    }
+    // No refund: fall through and (re-)run the credit — its own `:in` key makes
+    // a true duplicate a no-op, and it resumes a crashed half-done transfer.
+  }
+  {
+    const credited = await applyWalletDelta({
+      userId: toOwner.id,
+      discordId: toOwner.discordId,
+      amount,
+      source: "website",
+      kind: "transfer_in",
+      reason: memo ?? `From ${fromName}`,
+      memo: memo ?? null,
+      characterId: to?.id ?? null,
+      counterpartyCharacterId: fromChar?.id ?? null,
+      counterpartyName: fromName,
+      idempotencyKey: transferKey ? `${transferKey}:in` : null,
+      gate: "none",
+    });
+    if (!credited.ok) {
+      // Only reachable on overflow/unknown-user: refund the sender in full.
+      const refund = await applyWalletDelta({
+        userId: req.user!.id,
+        discordId: req.user!.discordId,
+        amount,
+        source: "website",
+        kind: "transfer_refund",
+        reason: `Refund: credit to ${toName} failed`,
+        memo: `Refund: credit to ${toName} failed`,
+        characterId: fromChar?.id ?? null,
+        idempotencyKey: transferKey ? `${transferKey}:refund` : null,
+        gate: "none",
+        allowNegative: true,
+      });
+      if (!refund.ok) {
+        logger.error(
+          { fromUserId: req.user!.id, toCharacterId: to?.id ?? null, toUserId: toOwner.id, amount },
+          "TRANSFER_REFUND_FAILED: sender debited but credit AND refund failed — manual reconciliation required",
+        );
+        res.status(502).json({ error: "Transfer failed and refund failed; contact staff for reconciliation." });
+        return;
+      }
+      res.status(502).json({ error: credited.error ?? "Recipient credit failed; sender refunded" });
+      return;
+    }
+  }
   await recordAudit({
     req,
     category: "wallet",
@@ -1581,14 +1622,11 @@ async function handleEddieTransfer(
       memo: memo ?? null,
     },
   });
-  // Return the documented Wallet shape (characterId + balance) for the sender's
-  // post-transfer balance, instead of the raw UbBalance (which used `total`).
+  // Return the documented Wallet shape for the sender's post-transfer balance
+  // (website source of truth; cash/bank as a best-effort mirror snapshot).
   res.json({
     ...(fromChar ? { characterId: fromChar.id } : {}),
-    balance: ub?.total ?? 0,
-    cash: ub?.cash ?? 0,
-    bank: ub?.bank ?? 0,
-    source: ub?.source ?? "unbelievaboat",
+    ...(await websiteWalletPayload(req.user!.id, req.user!.discordId)),
   });
 }
 
@@ -1630,58 +1668,29 @@ router.post("/characters/:id/wallet/sink", requireAuth, async (req, res): Promis
     typeof req.body?.idempotencyKey === "string" && req.body.idempotencyKey.trim()
       ? `sink:${req.body.idempotencyKey.trim().slice(0, 80)}`
       : null;
-  if (sinkKey) {
-    const [done] = await db
-      .select({ id: walletTransactions.id })
-      .from(walletTransactions)
-      .where(and(eq(walletTransactions.idempotencyKey, sinkKey), eq(walletTransactions.syncStatus, "synced")));
-    if (done) {
-      const cur = await getBalance(req.user!.discordId);
-      res.json({
-        characterId: id,
-        balance: cur?.total ?? 0,
-        cash: cur?.cash ?? 0,
-        bank: cur?.bank ?? 0,
-        source: cur?.source ?? "unbelievaboat",
-      });
-      return;
-    }
-  }
-  // UB is authoritative — require a successful balance read before writing.
-  const bal = await getBalance(req.user!.discordId);
-  if (!bal) {
-    res.status(502).json({ error: "Wallet provider unavailable" });
-    return;
-  }
-  if (bal.cash < amount) {
-    if (bal.total >= amount) {
-      res.status(400).json({
-        error: `Not enough cash on hand. You have ${bal.cash.toLocaleString()} €$ in cash — withdraw at least ${(amount - bal.cash).toLocaleString()} €$ from your bank first, then try again.`,
-      });
-      return;
-    }
-    res.status(400).json({ error: "Insufficient funds" });
-    return;
-  }
-  const debited = await patchBalance(req.user!.discordId, {
-    cash: -amount,
-    reason: memo ?? "Paid Night City Bot",
-  });
-  if (!debited) {
-    res.status(502).json({ error: "Wallet provider rejected debit" });
-    return;
-  }
-  await recordSettledWalletMovement({
+  // Website-first debit (authorized against the website balance; the keyed
+  // idempotency check happens inside applyWalletDelta so a retry can't burn twice).
+  const debited = await applyWalletDelta({
     userId: req.user!.id,
+    discordId: req.user!.discordId,
     amount: -amount,
-    ubTotalAfter: debited.total,
     source: "website",
     kind: "sink",
+    reason: memo ?? "Paid Night City Bot",
     memo: memo ?? null,
     characterId: id,
     counterpartyName: "Night City Bot",
     idempotencyKey: sinkKey,
+    gate: "none",
   });
+  if (!debited.ok) {
+    if (debited.status === "insufficient_funds") {
+      res.status(400).json({ error: "Insufficient funds" });
+      return;
+    }
+    res.status(502).json({ error: debited.error ?? "Wallet debit failed" });
+    return;
+  }
   await recordAudit({
     req,
     category: "wallet",
@@ -1691,14 +1700,7 @@ router.post("/characters/:id/wallet/sink", requireAuth, async (req, res): Promis
     message: `${c.name} paid Night City Bot: ${amount}`,
     after: { characterId: id, amount, memo: memo ?? null },
   });
-  const ub = await getBalance(req.user!.discordId);
-  res.json({
-    characterId: id,
-    balance: ub?.total ?? 0,
-    cash: ub?.cash ?? 0,
-    bank: ub?.bank ?? 0,
-    source: ub?.source ?? "unbelievaboat",
-  });
+  res.json({ characterId: id, ...(await websiteWalletPayload(req.user!.id, req.user!.discordId)) });
 });
 
 // Status
@@ -1982,29 +1984,30 @@ router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<
   }
   const row = outcome.row;
 
-  // Instant shop income: credit the owner's cash the moment they open shop,
-  // like the weekly attendance bonus. loadOwnedChar guarantees the caller IS
-  // the owner, so req.user is the payee. On a clean UB failure we roll the open
-  // back so the owner can retry cleanly (no money moved).
+  // Instant shop income: credit the owner the moment they open shop, like the
+  // weekly attendance bonus. loadOwnedChar guarantees the caller IS the owner.
+  // Website-first: the credit commits locally (works even during a UB outage)
+  // and mirrors to UB via the outbox. Keyed on the open row id so a retry can
+  // never double-credit.
   const payoutMemo = `Shop income: ${shopLabel}`;
-  const ub = await patchBalance(req.user!.discordId, { cash: SHOP_OPEN_PAYOUT, reason: payoutMemo });
-  if (!ub) {
-    await db.delete(shopOpens).where(eq(shopOpens.id, row.id)).catch(() => {});
-    res.status(502).json({ error: "UnbelievaBoat unavailable, try again shortly" });
-    return;
-  }
-  // Record the settled ledger row + advance the website wallet balance. Keyed
-  // on the open row id so a retry can never double-record.
-  await recordSettledWalletMovement({
+  const credit = await applyWalletDelta({
     userId: req.user!.id,
+    discordId: req.user!.discordId,
     amount: SHOP_OPEN_PAYOUT,
-    ubTotalAfter: ub.total,
     source: "website",
     kind: "shop_income",
+    reason: payoutMemo,
     memo: payoutMemo,
     characterId: id,
     idempotencyKey: `shop-open:${row.id}`,
+    gate: "none",
   });
+  if (!credit.ok) {
+    // Overflow/unknown-user only — roll the open back so the owner can retry.
+    await db.delete(shopOpens).where(eq(shopOpens.id, row.id)).catch(() => {});
+    res.status(502).json({ error: credit.error ?? "Wallet credit failed, try again shortly" });
+    return;
+  }
 
   await db.insert(activityEvents).values({
     kind: "shop_opened",

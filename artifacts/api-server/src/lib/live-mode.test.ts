@@ -121,8 +121,8 @@ describe("runJob Test/Live gate", () => {
     await seedRentDue();
     await runJob("monthly_rent");
     // monthly_rent runs several bill types; the key property is that real
-    // debits now happen and a rent ledger row is written.
-    expect(mockPatch).toHaveBeenCalled();
+    // debits now happen and a rent ledger row is written. (The UB mirror push
+    // is queued in the outbox, not patched inline.)
     const rent = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "rent"));
     expect(rent).toHaveLength(1);
   });

@@ -7,7 +7,7 @@ vi.mock("../lib/unbelievaboat", () => ({
   patchBalance: vi.fn(),
 }));
 
-import { db, characterSheets, walletTransactions, catalogCyberware } from "@workspace/db";
+import { db, characterSheets, walletTransactions, catalogCyberware, users } from "@workspace/db";
 import { getBalance, patchBalance } from "../lib/unbelievaboat";
 import { buildTestApp } from "../test/app";
 import { createUser, createCharacter } from "../test/testDb";
@@ -22,6 +22,13 @@ beforeEach(() => {
 });
 
 const bal = (cash: number) => ({ cash, bank: 0, total: cash, source: "unbelievaboat" as const });
+
+// Website wallet is the source of truth; give a user local funds directly.
+async function fund(userId: string, amount: number) {
+  await db.update(users).set({ walletBalance: amount, lastSyncedUbBalance: amount }).where(eq(users.id, userId));
+}
+const walletOf = async (userId: string) =>
+  (await db.select().from(users).where(eq(users.id, userId)))[0].walletBalance;
 
 describe("POST /characters/:id/wallet/transfer", () => {
   it("404 when the sender character is not owned by the caller", async () => {
@@ -75,7 +82,9 @@ describe("POST /characters/:id/wallet/transfer", () => {
     expect(ledger).toHaveLength(0);
   });
 
-  it("502 when the wallet provider cannot return the sender balance", async () => {
+  it("400 when the sender has no local funds and UB cannot be reached for the self-heal", async () => {
+    // Website wallet is empty and the live-UB self-heal can't fetch a balance,
+    // so the transfer is refused as insufficient funds — never a partial move.
     mockGet.mockResolvedValue(null);
     const owner = await createUser();
     const recipientOwner = await createUser();
@@ -85,8 +94,9 @@ describe("POST /characters/:id/wallet/transfer", () => {
       .post(`/api/characters/${from.id}/wallet/transfer`)
       .set("x-test-user", owner.id)
       .send({ toCharacterId: to.id, amount: 50 });
-    expect(res.status).toBe(502);
-    expect(mockPatch).not.toHaveBeenCalled();
+    expect(res.status).toBe(400);
+    const ledger = await db.select().from(walletTransactions);
+    expect(ledger).toHaveLength(0);
   });
 
   it("400 on insufficient funds", async () => {
@@ -104,14 +114,12 @@ describe("POST /characters/:id/wallet/transfer", () => {
   });
 
   it("refunds the sender and 502s when the recipient credit fails", async () => {
-    mockGet.mockResolvedValue(bal(500));
-    // debit ok, credit fails, refund ok
-    mockPatch
-      .mockResolvedValueOnce(bal(450))
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(bal(500));
     const owner = await createUser();
     const recipientOwner = await createUser();
+    await fund(owner.id, 500);
+    // Force the +50 recipient credit to fail: the recipient wallet is pinned
+    // near the max balance so the credit would overflow it.
+    await fund(recipientOwner.id, 2_147_483_620);
     const from = await createCharacter({ ownerId: owner.id });
     const to = await createCharacter({ ownerId: recipientOwner.id });
     const res = await request(app)
@@ -119,25 +127,17 @@ describe("POST /characters/:id/wallet/transfer", () => {
       .set("x-test-user", owner.id)
       .send({ toCharacterId: to.id, amount: 50 });
     expect(res.status).toBe(502);
-    expect(mockPatch).toHaveBeenCalledTimes(3); // debit, credit, refund
-    // Verify each leg hit the right account with the right sign — a refund to
-    // the wrong identity or amount would leave UB inconsistent.
-    expect(mockPatch.mock.calls[0][0]).toBe(owner.discordId);
-    expect(mockPatch.mock.calls[0][1]).toMatchObject({ cash: -50 });
-    expect(mockPatch.mock.calls[1][0]).toBe(recipientOwner.discordId);
-    expect(mockPatch.mock.calls[1][1]).toMatchObject({ cash: 50 });
-    // Refund must return the debited amount to the SENDER.
-    expect(mockPatch.mock.calls[2][0]).toBe(owner.discordId);
-    expect(mockPatch.mock.calls[2][1]).toMatchObject({ cash: 50 });
-    const ledger = await db.select().from(walletTransactions);
-    expect(ledger).toHaveLength(0);
+    // Sender fully refunded; recipient untouched — no money vanished.
+    expect(await walletOf(owner.id)).toBe(500);
+    expect(await walletOf(recipientOwner.id)).toBe(2_147_483_620);
+    const inn = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "transfer_in"));
+    expect(inn).toHaveLength(0);
   });
 
   it("writes paired ledger rows on a successful transfer", async () => {
-    mockGet.mockResolvedValue(bal(500));
-    mockPatch.mockResolvedValue(bal(450));
     const owner = await createUser();
     const recipientOwner = await createUser();
+    await fund(owner.id, 500);
     const from = await createCharacter({ ownerId: owner.id });
     const to = await createCharacter({ ownerId: recipientOwner.id });
     const res = await request(app)
@@ -157,10 +157,9 @@ describe("POST /characters/:id/wallet/transfer", () => {
   });
 
   it("is idempotent: a retry with the same idempotencyKey does not move eddies twice", async () => {
-    mockGet.mockResolvedValue(bal(500));
-    mockPatch.mockResolvedValue(bal(450));
     const owner = await createUser();
     const recipientOwner = await createUser();
+    await fund(owner.id, 500);
     const from = await createCharacter({ ownerId: owner.id });
     const to = await createCharacter({ ownerId: recipientOwner.id });
     const body = { toCharacterId: to.id, amount: 50, memo: "rent", idempotencyKey: "dup-key-1" };
@@ -170,7 +169,7 @@ describe("POST /characters/:id/wallet/transfer", () => {
       .set("x-test-user", owner.id)
       .send(body);
     expect(first.status).toBe(200);
-    const debitsAfterFirst = mockPatch.mock.calls.filter(([, p]) => (p as { cash: number }).cash < 0).length;
+    expect(await walletOf(owner.id)).toBe(450);
 
     const second = await request(app)
       .post(`/api/characters/${from.id}/wallet/transfer`)
@@ -178,10 +177,9 @@ describe("POST /characters/:id/wallet/transfer", () => {
       .send(body);
     expect(second.status).toBe(200);
 
-    // The retry must short-circuit: no additional debit UB call, and still
+    // The retry must short-circuit: no additional wallet movement, and still
     // exactly one paired set of ledger rows.
-    const debitsAfterSecond = mockPatch.mock.calls.filter(([, p]) => (p as { cash: number }).cash < 0).length;
-    expect(debitsAfterSecond).toBe(debitsAfterFirst);
+    expect(await walletOf(owner.id)).toBe(450);
     const out = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "transfer_out"));
     const inn = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "transfer_in"));
     expect(out).toHaveLength(1);
@@ -351,18 +349,17 @@ describe("wallet transfers — user targets & account-level sender", () => {
   });
 
   it("transfers to a bare player account via toUserId (no character)", async () => {
-    mockGet.mockResolvedValue(bal(500));
-    mockPatch.mockResolvedValueOnce(bal(400)).mockResolvedValueOnce(bal(100));
     const owner = await createUser();
     const recipient = await createUser();
+    await fund(owner.id, 500);
     const from = await createCharacter({ ownerId: owner.id });
     const res = await request(app)
       .post(`/api/characters/${from.id}/wallet/transfer`)
       .set("x-test-user", owner.id)
       .send({ toUserId: recipient.id, amount: 100 });
     expect(res.status).toBe(200);
-    expect(mockPatch).toHaveBeenNthCalledWith(1, owner.discordId, expect.objectContaining({ cash: -100 }));
-    expect(mockPatch).toHaveBeenNthCalledWith(2, recipient.discordId, expect.objectContaining({ cash: 100 }));
+    expect(await walletOf(owner.id)).toBe(400);
+    expect(await walletOf(recipient.id)).toBe(100);
     const rows = await db.select().from(walletTransactions);
     const inLeg = rows.find((r) => r.kind === "transfer_in");
     expect(inLeg?.userId).toBe(recipient.id);
@@ -381,10 +378,9 @@ describe("wallet transfers — user targets & account-level sender", () => {
   });
 
   it("POST /wallet/transfer sends from the account with no character context", async () => {
-    mockGet.mockResolvedValue(bal(500));
-    mockPatch.mockResolvedValueOnce(bal(400)).mockResolvedValueOnce(bal(100));
     const sender = await createUser();
     const recipientOwner = await createUser();
+    await fund(sender.id, 500);
     const to = await createCharacter({ ownerId: recipientOwner.id });
     const res = await request(app)
       .post("/api/wallet/transfer")
@@ -401,22 +397,22 @@ describe("wallet transfers — user targets & account-level sender", () => {
   });
 
   it("account-level idempotency: same key does not double-move", async () => {
-    mockGet.mockResolvedValue(bal(500));
-    mockPatch.mockResolvedValue(bal(400));
     const sender = await createUser();
     const recipient = await createUser();
+    await fund(sender.id, 500);
     const key = "abc-123";
     const first = await request(app)
       .post("/api/wallet/transfer")
       .set("x-test-user", sender.id)
       .send({ toUserId: recipient.id, amount: 100, idempotencyKey: key });
     expect(first.status).toBe(200);
-    const callsAfterFirst = mockPatch.mock.calls.length;
+    expect(await walletOf(sender.id)).toBe(400);
     const second = await request(app)
       .post("/api/wallet/transfer")
       .set("x-test-user", sender.id)
       .send({ toUserId: recipient.id, amount: 100, idempotencyKey: key });
     expect(second.status).toBe(200);
-    expect(mockPatch.mock.calls.length).toBe(callsAfterFirst);
+    expect(await walletOf(sender.id)).toBe(400);
+    expect(await walletOf(recipient.id)).toBe(100);
   });
 });

@@ -21,7 +21,7 @@ import { hasRole, sendDirectMessage } from "../lib/discord";
 import { createNotification } from "../lib/notifications";
 import { hrefInbox } from "../lib/notificationHrefs";
 import { recordAudit } from "../lib/audit";
-import { getBalance } from "../lib/unbelievaboat";
+
 import { applyWalletDelta } from "../lib/economy";
 
 const router: IRouter = Router();
@@ -166,7 +166,10 @@ router.get("/ncpd/characters/:id/record", requireAuth, requireNcpd, async (req, 
         })
         .from(housing)
         .where(eq(housing.characterId, id)),
-      c.ownerId ? getBalance(c.ownerId, { allowStale: true }) : Promise.resolve(null),
+      // Website wallet is the source of truth for the display balance.
+      c.ownerId
+        ? db.select({ balance: users.walletBalance }).from(users).where(eq(users.id, c.ownerId)).then((r) => r[0] ?? null)
+        : Promise.resolve(null),
     ]);
   const tagSet = new Set<string>();
   for (const t of [...(c.appliedTags ?? []), ...(c.manualTags ?? [])]) {
@@ -197,7 +200,7 @@ router.get("/ncpd/characters/:id/record", requireAuth, requireNcpd, async (req, 
       ...ownedClinics.map((b) => ({ ...b, venueType: "ripperdoc" as const })),
     ],
     housing: leases,
-    balance: typeof balance?.total === "number" ? balance.total : null,
+    balance: typeof balance?.balance === "number" ? balance.balance : null,
   });
 });
 

@@ -32,6 +32,8 @@ import {
   missionNpcSignups,
   customRequests,
   botConfig,
+  users,
+  ubPushOutbox,
 } from "@workspace/db";
 import { patchBalance } from "../lib/unbelievaboat";
 import {
@@ -70,6 +72,11 @@ const mockDeleteEvent = vi.mocked(deleteGuildScheduledEvent);
 const AVAIL = [new Date(Date.now() + 7 * 86_400_000).toISOString()];
 
 const bal = (cash: number) => ({ cash, bank: 0, total: cash, source: "unbelievaboat" as const });
+
+// Website-first economy: payouts credit the website wallet and queue a UB
+// mirror push in the outbox instead of patching UnbelievaBoat inline.
+const outboxFor = (userId: string) =>
+  db.select().from(ubPushOutbox).where(eq(ubPushOutbox.userId, userId));
 
 // Narrow payMissionActors' union result (it may return null or a completion
 // "blocked" sentinel) to the success payload for assertions.
@@ -226,9 +233,11 @@ describe("Live mode player payout", () => {
     const result = await payMissionPlayers(m.id, { source: "manual" });
     expect(result!.live).toBe(true);
     expect(result!.paid).toBe(1);
-    expect(mockPatch).toHaveBeenCalledTimes(1);
-    expect(mockPatch.mock.calls[0][0]).toBe(player.discordId);
-    expect(mockPatch.mock.calls[0][1]).toMatchObject({ cash: 100 });
+    const [u] = await db.select().from(users).where(eq(users.id, player.id));
+    expect(u.walletBalance).toBe(100);
+    const queued = await outboxFor(player.id);
+    expect(queued).toHaveLength(1);
+    expect(queued[0].amount).toBe(100);
     expect(mockPost).toHaveBeenCalledTimes(1); // banking summary
 
     const [a] = await db.select().from(missionAssignments).where(eq(missionAssignments.missionId, m.id));
@@ -247,10 +256,12 @@ describe("Live mode player payout", () => {
     expect(mockPost).not.toHaveBeenCalled();
   });
 
-  it("records 'failed' and does not advance status when the UB payout fails", async () => {
+  it("records 'failed' and does not advance status when the wallet credit fails", async () => {
     await setLiveMode(true);
-    mockPatch.mockResolvedValue(null); // UB rejected
     const player = await createUser();
+    // Force the website-wallet credit to fail: +100 would push past the max
+    // wallet balance, so applyWalletDelta refuses.
+    await db.update(users).set({ walletBalance: 2_147_483_600, lastSyncedUbBalance: 2_147_483_600 }).where(eq(users.id, player.id));
     const m = await seedMission({ playerPay: 100, status: "completed" });
     await seedAssignment(m.id, player.id);
 
@@ -293,7 +304,7 @@ describe("Player pay idempotency", () => {
     expect(first!.paid).toBe(1);
     expect(second!.paid).toBe(0);
     expect(second!.skipped).toBe(1);
-    expect(mockPatch).toHaveBeenCalledTimes(1); // paid exactly once
+    expect(await outboxFor(player.id)).toHaveLength(1); // paid exactly once
   });
 
   it("concurrent pay calls credit the player exactly once", async () => {
@@ -309,7 +320,7 @@ describe("Player pay idempotency", () => {
     ]);
     // Exactly one worker paid; the other saw the row already claimed/paid.
     expect((r1!.paid ?? 0) + (r2!.paid ?? 0)).toBe(1);
-    expect(mockPatch).toHaveBeenCalledTimes(1);
+    expect(await outboxFor(player.id)).toHaveLength(1);
     const [a] = await db.select().from(missionAssignments).where(eq(missionAssignments.missionId, m.id));
     expect(a.paymentStatus).toBe("paid");
   });
@@ -327,7 +338,7 @@ describe("Actor pay idempotency", () => {
     expect(first.paid).toBe(1);
     expect(second.paid).toBe(0);
     expect(second.skipped).toBe(1);
-    expect(mockPatch).toHaveBeenCalledTimes(1);
+    expect(await outboxFor(actor.id)).toHaveLength(1);
     const paidRows = await db
       .select()
       .from(missionActorPayments)
@@ -366,7 +377,7 @@ describe("Actor pay idempotency", () => {
       ])
     ).map(actorPay);
     expect(r1.paid + r2.paid).toBe(1);
-    expect(mockPatch).toHaveBeenCalledTimes(1);
+    expect(await outboxFor(actor.id)).toHaveLength(1);
     // The partial unique index guarantees a single successful (mission, actor) row.
     const paidRows = await db
       .select()
@@ -502,7 +513,7 @@ describe("Mission completion lock", () => {
       .from(missionActorPayments)
       .where(eq(missionActorPayments.paymentStatus, "paid"));
     expect(paidRows.length).toBeLessThanOrEqual(1);
-    expect(mockPatch.mock.calls.length).toBe(paidRows.length);
+    expect((await outboxFor(actor.id)).length).toBe(paidRows.length);
   });
 
   it("paying actors on a completed mission now SUCCEEDS (lock removed in #185)", async () => {
@@ -521,7 +532,7 @@ describe("Mission completion lock", () => {
       .set("x-test-user", admin.id)
       .send({ userIds: [actor.id], amount: 50 });
     expect(res.status).toBe(200);
-    expect(mockPatch).toHaveBeenCalledTimes(1);
+    expect(await outboxFor(actor.id)).toHaveLength(1);
     const rows = await db.select().from(missionActorPayments).where(eq(missionActorPayments.missionId, m.id));
     expect(rows).toHaveLength(1);
     expect(rows[0].paymentStatus).toBe("paid");
@@ -609,7 +620,7 @@ describe("NPC sign-ups", () => {
       viewer: { id: admin.id, isManager: true, isAdmin: true, isArchivist: false, isTrialAuthor: false },
     });
     expect(r2.ok).toBe(true);
-    expect(mockPatch).toHaveBeenCalledTimes(1);
+    expect(await outboxFor(player.id)).toHaveLength(1);
 
     const payments = await db
       .select()
@@ -2913,6 +2924,6 @@ describe("Remove assigned player", () => {
       expect(paid).toBe(1);
     }
     // Money moved exactly when (and only when) the player was actually paid.
-    expect(mockPatch).toHaveBeenCalledTimes(paid);
+    expect((await outboxFor(player.id)).length).toBe(paid);
   });
 });
