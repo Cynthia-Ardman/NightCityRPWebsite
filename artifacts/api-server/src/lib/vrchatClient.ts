@@ -569,17 +569,55 @@ const DISCONNECT_ALERT_GRACE_MS = 20 * 60 * 1000;
 // starve polling if the previous winner dies mid-cycle.
 const POLL_TICK_CLAIM_MS = 100 * 1000;
 
+// Sticky poll ownership (2026-08-13). The per-tick claim alone still let
+// consecutive ticks be won by DIFFERENT autoscaled instances — each with its
+// own egress IP — and VRChat invalidates a session it sees hopping between
+// IPs, causing the evening expire→auto-reconnect churn (fresh cookies dying
+// within minutes, only during traffic peaks when >1 instance was up). The
+// claim is now sticky to one per-boot owner id; another instance may take
+// over only after the owner has gone silent for a full takeover window
+// (owner died / scaled down), so the shared account is only ever used from
+// one IP at a time.
+const POLL_OWNER_TAKEOVER_MS = 5 * 60 * 1000;
+const POLL_INSTANCE_ID = crypto.randomBytes(8).toString("hex");
+
+// Non-consuming ownership check for OTHER VRChat-calling crons (calendar
+// reconcile). Those must also run only on the owner instance — an hourly
+// calendar write from a non-owner's egress IP re-creates exactly the
+// IP-hopping invalidation the sticky claim prevents. True when we own the
+// session, nobody owns it yet, or the owner has gone silent past the
+// takeover window (the next poll tick will transfer ownership to someone;
+// running once from here is no worse than the takeover itself).
+export async function isVrchatPollOwner(): Promise<boolean> {
+  const [row] = await db
+    .select({ pollOwner: vrchatSessions.pollOwner, lastPollTickAt: vrchatSessions.lastPollTickAt })
+    .from(vrchatSessions)
+    .where(eq(vrchatSessions.id, SESSION_ID));
+  if (!row) return true;
+  if (!row.pollOwner || row.pollOwner === POLL_INSTANCE_ID) return true;
+  return !row.lastPollTickAt || row.lastPollTickAt.getTime() < Date.now() - POLL_OWNER_TAKEOVER_MS;
+}
+
 export async function claimVrchatPollTick(): Promise<boolean> {
   const now = new Date();
+  const tickCutoff = new Date(now.getTime() - POLL_TICK_CLAIM_MS);
+  const takeoverCutoff = new Date(now.getTime() - POLL_OWNER_TAKEOVER_MS);
   const claimed = await db
     .update(vrchatSessions)
-    .set({ lastPollTickAt: now })
+    .set({ lastPollTickAt: now, pollOwner: POLL_INSTANCE_ID })
     .where(
       and(
         eq(vrchatSessions.id, SESSION_ID),
         or(
           isNull(vrchatSessions.lastPollTickAt),
-          sql`${vrchatSessions.lastPollTickAt} < ${new Date(now.getTime() - POLL_TICK_CLAIM_MS)}`,
+          // Current owner renews on the normal tick cadence…
+          and(
+            eq(vrchatSessions.pollOwner, POLL_INSTANCE_ID),
+            sql`${vrchatSessions.lastPollTickAt} < ${tickCutoff}`,
+          ),
+          // …anyone else must wait out the takeover window (owner is gone).
+          isNull(vrchatSessions.pollOwner),
+          sql`${vrchatSessions.lastPollTickAt} < ${takeoverCutoff}`,
         ),
       ),
     )

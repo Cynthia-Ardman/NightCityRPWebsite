@@ -6,6 +6,8 @@ import {
   maintainVrchatSession,
   SESSION_EXPIRED_MSG,
   __resetAutoReconnectCooldownForTests,
+  claimVrchatPollTick,
+  isVrchatPollOwner,
 } from "./vrchatClient";
 
 // Unit-level coverage for the session-drop fix: a lone 401 must NOT wipe the
@@ -381,5 +383,59 @@ describe("vrchatClient cookie rotation", () => {
     const row = await readSession();
     expect(row?.authCookie).toBe("cookie-A");
     expect(row?.twoFactorCookie).toBe("tfa-A");
+  });
+});
+
+describe("claimVrchatPollTick sticky ownership", () => {
+  const setClaim = (pollOwner: string | null, ageMs: number | null) =>
+    db
+      .update(vrchatSessions)
+      .set({
+        pollOwner,
+        lastPollTickAt: ageMs == null ? null : new Date(Date.now() - ageMs),
+      })
+      .where(eq(vrchatSessions.id, SESSION_ID));
+
+  beforeEach(async () => {
+    await seedSession();
+  });
+
+  it("claims when nobody has ticked yet (bootstrap) and records ownership", async () => {
+    await setClaim(null, null);
+    await expect(claimVrchatPollTick()).resolves.toBe(true);
+    const [row] = await db.select().from(vrchatSessions).where(eq(vrchatSessions.id, SESSION_ID));
+    expect(row?.pollOwner).toBeTruthy();
+    // Immediate re-claim by the SAME instance is rejected (tick window).
+    await expect(claimVrchatPollTick()).resolves.toBe(false);
+  });
+
+  it("owner renews after the tick window elapses", async () => {
+    await setClaim(null, null);
+    await expect(claimVrchatPollTick()).resolves.toBe(true);
+    const [row] = await db.select().from(vrchatSessions).where(eq(vrchatSessions.id, SESSION_ID));
+    // Backdate our own tick past the 100s window but well inside takeover.
+    await setClaim(row!.pollOwner, 120 * 1000);
+    await expect(claimVrchatPollTick()).resolves.toBe(true);
+  });
+
+  it("rejects a different instance while the owner is alive, even past the tick window", async () => {
+    await setClaim("some-other-instance", 120 * 1000);
+    await expect(claimVrchatPollTick()).resolves.toBe(false);
+    await expect(isVrchatPollOwner()).resolves.toBe(false);
+  });
+
+  it("takes over from a dead owner after the takeover window", async () => {
+    await setClaim("some-other-instance", 6 * 60 * 1000);
+    await expect(isVrchatPollOwner()).resolves.toBe(true);
+    await expect(claimVrchatPollTick()).resolves.toBe(true);
+    const [row] = await db.select().from(vrchatSessions).where(eq(vrchatSessions.id, SESSION_ID));
+    expect(row?.pollOwner).not.toBe("some-other-instance");
+  });
+
+  it("isVrchatPollOwner is true for the owning instance and non-consuming", async () => {
+    await setClaim(null, null);
+    await expect(claimVrchatPollTick()).resolves.toBe(true);
+    await expect(isVrchatPollOwner()).resolves.toBe(true);
+    await expect(isVrchatPollOwner()).resolves.toBe(true);
   });
 });

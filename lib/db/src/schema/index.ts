@@ -2359,6 +2359,11 @@ export const vrchatSessions = pgTable("vrchat_sessions", {
   // other instance's fresh session and looping expire/reconnect every ~14 min
   // whenever autoscale runs >1 instance (observed 2026-07-26).
   lastPollTickAt: timestamp("last_poll_tick_at", { withTimezone: true }),
+  // Which server instance currently "owns" VRChat polling (random per-boot id).
+  // Autoscaled instances have different egress IPs; VRChat invalidates a
+  // session it sees hopping between IPs, so the poll claim is sticky to one
+  // owner and only transfers after the owner has gone silent.
+  pollOwner: text("poll_owner"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()

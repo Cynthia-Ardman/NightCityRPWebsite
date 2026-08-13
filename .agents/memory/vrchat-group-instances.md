@@ -151,3 +151,18 @@ logs in; after claiming, if the stored authCookie differs from the cookie
 that 401'd, another instance already reconnected — release own claim
 (exact-timestamp match) and report restored. ANY in-process cooldown/dedupe
 state in this module is a bug: prod is multi-instance.
+
+## Sticky poll ownership — one egress IP per session (2026-08-13)
+The 7/27 guards did NOT stop the churn: bursts (7/26, 8/6, 8/12 evenings)
+returned whenever autoscale ran >1 instance. Deployment logs showed different
+pids alternately winning poll ticks, and a freshly reconnected cookie getting a
+CONFIRMED-dead 401 within ~2 min — VRChat invalidates a session used from
+multiple egress IPs (each autoscale instance has its own). Fix:
+`vrchat_sessions.poll_owner` (per-boot random id) makes `claimVrchatPollTick`
+sticky — only the owner renews (100s cadence); others take over only after
+5 min of owner silence (POLL_OWNER_TAKEOVER_MS). `isVrchatPollOwner()` is the
+non-consuming check; the calendar-reconcile cron is gated on it too.
+Residual (accepted): user-triggered calendar writes on event CRUD and staff
+Connect/verify still run on the arbitrary instance handling the HTTP request —
+rare one-offs, not loops. If churn ever returns, funnel those through the
+owner (outbox) before suspecting anything else.

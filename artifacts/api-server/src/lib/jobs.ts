@@ -13,7 +13,7 @@ import { reconcileDiscordEvents, backfillMainSessions, reconcileVrchatCalendar }
 import { isSystemLive, type LiveSystem } from "./liveMode";
 import { runEconomyReconcile, getEconomyMode, advanceSettledWalletBalance } from "./economy";
 import { pollGroupInstances } from "./vrchatInstances";
-import { vrchatCredsConfigured, maintainVrchatSession, claimVrchatPollTick } from "./vrchatClient";
+import { vrchatCredsConfigured, maintainVrchatSession, claimVrchatPollTick, isVrchatPollOwner } from "./vrchatClient";
 import { ingestDiscordMembershipEvents, ingestVrchatMembershipEvents } from "./membershipEvents";
 import {
   DEFAULT_BASELINE_LIVING_COST,
@@ -1016,7 +1016,14 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       // Mirror upcoming Main Sessions + social events to the VRChat group
       // calendar. Self-gated (kill-switch + deployment gate); a no-op otherwise,
       // and bounded per cycle to respect VRChat's write rate limit.
-      const vr = await reconcileVrchatCalendar();
+      // VRChat-session safety: calendar writes share the poller's auth cookie,
+      // so only the instance that owns VRChat polling may talk to VRChat —
+      // a write from another autoscaled instance's egress IP gets the whole
+      // session invalidated (IP-hopping detection). Non-owners skip; the
+      // owner's next cycle catches up (reconcile is idempotent + bounded).
+      const vr = (await isVrchatPollOwner())
+        ? await reconcileVrchatCalendar()
+        : { synced: 0, failed: 0 };
       affected += vr.synced;
       const vrchatNote = vr.synced || vr.failed ? `; vrchat synced ${vr.synced}, failed ${vr.failed}` : "";
       message = `discord events sync${live ? " [live]" : " [test: website only]"}: imported ${r.imported}, pulled ${r.pulled}, pushed ${r.pushed}, cancelled ${r.cancelled}, completed ${r.completed}${deferredNote}${r.error ? `, error: ${r.error}` : ""}${vrchatNote}`;
