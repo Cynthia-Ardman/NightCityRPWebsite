@@ -22,7 +22,7 @@ import { hasRole, sendDirectMessage } from "./discord";
 import { recordInventoryEvent } from "./inventoryEvents";
 import { cwpForItem, parseCwp, sumCwpByCharacter } from "./cyberware";
 import { buildCyberwareCostMap, checkCwpCapacity } from "./cyberware-cap";
-import { installSlotClashError } from "./cyberwareSlots";
+import { installSlotClashError, loadCyberwareSlotByName, resolveSlotForItem } from "./cyberwareSlots";
 import { logger } from "./logger";
 import { normalizeName } from "./strings";
 import { portalLink } from "./portalUrl";
@@ -1013,6 +1013,19 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
     if (!cap.ok) return { status: 409, body: { error: cap.reason } };
   }
 
+  // Installed cyberware notes should carry the slot (trailing "slot: <x>"
+  // segment, the CyberwareEditor convention) so the staff editor and slot-cap
+  // logic don't fall back to "unknown slot". Resolve from the catalog by item
+  // name; unknown/custom items simply get no slot segment. Loaded BEFORE the
+  // buyer debit so a transient lookup failure can never charge a buyer without
+  // completing the offer, and outside the tx to keep it short.
+  const cyberSlotByName =
+    offerType === "install" || isInstallOwned ? await loadCyberwareSlotByName() : null;
+  const withInstallSlot = (base: string, name: string | null): string => {
+    const slot = cyberSlotByName ? resolveSlotForItem({ name, notes: null }, cyberSlotByName) : "";
+    return slot ? `${base} · slot: ${slot}` : base;
+  };
+
   // 1) Reserve-before-call buyer debit (idempotent on retry). Skipped entirely
   // for free offers (give, or a zero-fee removal) — no money moves.
   let buyerDebitLedgerId: number | null = null;
@@ -1132,7 +1145,7 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
         .set({
           category: "cyberware",
           equipped: true,
-          notes: `CWP ${offer.cwp ?? 0} · Installed at ${venue.name} on ${today}`,
+          notes: withInstallSlot(`CWP ${offer.cwp ?? 0} · Installed at ${venue.name} on ${today}`, target.name),
         })
         .where(eq(inventoryItems.id, target.id))
         .returning();
@@ -1206,7 +1219,13 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
       // and band derivation pick it up. A plain ripperdoc sale/give lands the
       // product in inventory uninstalled (no CWP tag => 0 CWP until installed).
       const installNotes = offerType === "install"
-        ? `CWP ${offer.cwp ?? 0} · Installed at ${venue.name} on ${today}`
+        ? withInstallSlot(
+            // Resolve from offer.itemName — the same name persisted on the
+            // inventory row — not decremented.name, which staff can rename
+            // while the offer is pending.
+            `CWP ${offer.cwp ?? 0} · Installed at ${venue.name} on ${today}`,
+            offer.itemName,
+          )
         : null;
       // Gun-store sales land in the buyer's inventory as category "gun" (the
       // stock row's own category is the FIRING CLASS — Power/Tech/Smart — not
