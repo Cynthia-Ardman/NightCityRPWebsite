@@ -19,3 +19,5 @@ Portal cash = `users.walletBalance − UB bank`. When UB total > website wallet,
 **Bulk repair (runUbBalanceRepair) is accuracy-safe** because drift = wallet − lastSynced BASELINE, not live UB — unreconciled recent Discord activity (work/gambling) is preserved and folded by the next reconcile. It skips negative wallets and users with unfinished outbox pushes, and baseline-guards against reconcile races.
 
 **Player comms trap:** the repair drops UB balances with only an audit reason — players see "money vanished from the bot" and file theft reports (happened with the first manual repair). Announce before a live run. Distinct look-alike reports that are NOT drift: real UB gamble losses folded by reconcile (dispute is with UB logs), and meds billing on characters that should be LOA (billing policy, not sync).
+
+**Amnesty aftermath (Aug 2026):** players who saw the amnesty UB credit sometimes "returned" it by paying the legacy bot (external UB debit the ledger never sees) → website > UB drift reappears. If the player disclaims the money, settle by debiting the WEBSITE wallet to match UB (reconcile row + baseline advance), not by re-crediting UB.
