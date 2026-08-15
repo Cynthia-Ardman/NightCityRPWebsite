@@ -13,3 +13,9 @@ Portal cash = `users.walletBalance − UB bank`. When UB total > website wallet,
 3. Insert a 0-amount `reconcile`/`reconciliation` wallet_transactions row for forensics.
 
 **Why:** Aug 2026 — 144 of 480 synced prod users drifted (−36k…+94k); AlienCowboy's "6k deficit" was exactly this. Some users also have NEGATIVE website wallets (allowNegative debits) — don't blindly push UB negative.
+
+**Drift causes are mixed:** NULL-balance legacy charges are only part of it; most drift is old website spends whose direct UB patches silently failed pre-cutover. Verify a ledger with `seed.new_balance + sum(amount after seed) = walletBalance` — if it chains exactly, the website figure is the truth regardless of drift decomposition.
+
+**Bulk repair (runUbBalanceRepair) is accuracy-safe** because drift = wallet − lastSynced BASELINE, not live UB — unreconciled recent Discord activity (work/gambling) is preserved and folded by the next reconcile. It skips negative wallets and users with unfinished outbox pushes, and baseline-guards against reconcile races.
+
+**Player comms trap:** the repair drops UB balances with only an audit reason — players see "money vanished from the bot" and file theft reports (happened with the first manual repair). Announce before a live run. Distinct look-alike reports that are NOT drift: real UB gamble losses folded by reconcile (dispute is with UB logs), and meds billing on characters that should be LOA (billing policy, not sync).
