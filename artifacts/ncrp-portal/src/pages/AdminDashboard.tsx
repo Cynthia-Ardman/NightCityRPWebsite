@@ -1,4 +1,4 @@
-import { useAdminListUsers, useAdminHydrateUsers, useAdminSetCyberpsychoAccess, useAdminListCharacters, useAdminAdjustWallet, useAdminSinkWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminGetVrchatCalendarSync, getAdminGetVrchatCalendarSyncQueryKey, useAdminSetVrchatCalendarSync, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey, useAdminMissionThreadBackfill, useAdminEconomyReconcile, useAdminWalletMirrorHealth, useAdminWalletMirrorPush, useAdminRehostEventImages, useAdminGuidebookLinkRepair, type MissionThreadBackfillResult, type EconomyReconcileResult, type RehostEventImagesResult, type GuidebookLinkRepairResult, type AuditLogRow } from "@workspace/api-client-react";
+import { useAdminListUsers, useAdminHydrateUsers, useAdminSetCyberpsychoAccess, useAdminListCharacters, useAdminAdjustWallet, useAdminSinkWallet, useAdminListJobs, useAdminRunJob, useAdminAssignCharacterOwner, useAdminClearCharacterOwner, useAdminListAudit, useAdminListAuditLog, useAdminListBotConfig, useAdminSetBotConfig, useAdminDeleteBotConfig, useGetMissionConfig, useUpdateMissionConfig, getGetMissionConfigQueryKey, useAdminGetLiveMode, getAdminGetLiveModeQueryKey, useAdminSetLiveMode, useAdminGetSiteAccess, getAdminGetSiteAccessQueryKey, useAdminSetSiteAccess, useAdminGetVrchatCalendarSync, getAdminGetVrchatCalendarSyncQueryKey, useAdminSetVrchatCalendarSync, useAdminScanVrchatLinks, useAdminGetEconomyOutOfSync, useAdminRetryEconomySync, getAdminGetEconomyOutOfSyncQueryKey, type LiveModeUpdate, type VrchatScanResult, getAdminListJobsQueryKey, getAdminListCharactersQueryKey, getAdminListAuditQueryKey, getAdminListAuditLogQueryKey, getAdminListBotConfigQueryKey, getAdminListUsersQueryKey, useAdminMissionThreadBackfill, useAdminEconomyReconcile, useAdminWalletMirrorHealth, useAdminWalletMirrorPush, useAdminRehostEventImages, useAdminGuidebookLinkRepair, useAdminUbBalanceRepair, type MissionThreadBackfillResult, type EconomyReconcileResult, type RehostEventImagesResult, type GuidebookLinkRepairResult, type UbBalanceRepairResult, type AuditLogRow } from "@workspace/api-client-react";
 import { formatEddies, formatDateTime } from "@/lib/format";
 import { useState, useEffect, Fragment } from "react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
@@ -2075,6 +2075,7 @@ export function MaintenanceTab() {
       <RipperdocBackfillCard />
       <MissionThreadBackfillCard />
       <WalletMirrorCard />
+      <UbBalanceRepairCard />
       <EconomyReconcileCard />
       <RehostEventImagesCard />
       <GuidebookLinkRepairCard />
@@ -2221,6 +2222,11 @@ function WalletMirrorCard() {
                 </ul>
               </div>
             )}
+            {h.driftedCount > 0 && (
+              <div className="text-nc-yellow">
+                ⚠ {h.driftedCount} user(s) have a wallet/UB baseline mismatch — use the UB Balance Repair card below to fix.
+              </div>
+            )}
             {h.users.length > 0 ? (
               <div>
                 <div className="mb-1">Users with queued pushes / drift</div>
@@ -2236,7 +2242,126 @@ function WalletMirrorCard() {
                 </ul>
               </div>
             ) : (
-              <div className="text-nc-cyan">Mirror is fully caught up.</div>
+              <div className={h.driftedCount === 0 ? "text-nc-cyan" : "text-muted-foreground"}>
+                {h.driftedCount === 0 ? "Mirror is fully caught up." : "Push queue is clear."}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function UbBalanceRepairCard() {
+  const { toast } = useToast();
+  const [result, setResult] = useState<UbBalanceRepairResult | null>(null);
+  const mutation = useAdminUbBalanceRepair();
+
+  async function call(dryRun: boolean) {
+    try {
+      const body = await mutation.mutateAsync({ data: { dryRun } });
+      setResult(body);
+      if (!dryRun) {
+        toast({
+          title: "UB balance repair complete",
+          description: `Repaired ${body.repaired} / ${body.totalDrifted} drifted user(s). Skipped: ${body.skippedNegativeTarget} negative-wallet, ${body.skippedPendingPushes} pending-push, ${body.skippedUbUnreachable} UB-unreachable.`,
+        });
+      }
+    } catch (e) {
+      toast({ title: dryRun ? "Preview failed" : "Repair failed", description: (e as Error).message, variant: "destructive" });
+    }
+  }
+
+  function run() {
+    if (!result?.dryRun) return;
+    const ok = window.confirm(
+      `Repair ${result.eligible} eligible drifted user(s) (${result.totalDrifted} total drifted)?\n\n` +
+      `This patches each user's UnbelievaBoat balance to match their website wallet, advances the sync baseline, and writes a forensic ledger row. ` +
+      `Users with a negative website balance (${result.skippedNegativeTarget}) or pending push outbox rows (${result.skippedPendingPushes}) are skipped.\n\n` +
+      `Only run this in the DEPLOYED environment — UB writes are suppressed in dev.`,
+    );
+    if (!ok) return;
+    void call(false);
+  }
+
+  const eligibleUsers = result?.users?.filter((u) => !u.skippedNegativeTarget && !u.skippedPendingPushes) ?? [];
+  const skippedUsers = result?.users?.filter((u) => u.skippedNegativeTarget || u.skippedPendingPushes) ?? [];
+
+  return (
+    <Card className="rounded-none border-border bg-card/50">
+      <CardHeader>
+        <CardTitle className="font-display tracking-widest">UB BALANCE REPAIR</CardTitle>
+        <CardDescription className="font-mono text-xs">
+          Finds users whose Discord (UnbelievaBoat) balance is ahead of their website wallet due to
+          historical charges that were never mirrored. Patches UB by the drift amount (bank preferred),
+          advances the sync baseline, and writes a forensic ledger row per user. Preview first — the
+          live run issues real UB writes and requires the deployed environment.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="rounded-none" onClick={() => void call(true)} disabled={mutation.isPending} data-testid="button-ub-repair-scan">
+            {mutation.isPending && result === null ? "Working…" : "Preview drifted users"}
+          </Button>
+          <Button variant="default" className="rounded-none" onClick={run} disabled={!result?.dryRun || (result?.eligible ?? 0) === 0 || mutation.isPending} data-testid="button-ub-repair-run">
+            {mutation.isPending && result?.dryRun ? "Repairing…" : "Run repair"}
+          </Button>
+        </div>
+        {result && (
+          <div className="font-mono text-xs space-y-2" data-testid="ub-repair-result">
+            <div className="text-muted-foreground">
+              {result.dryRun ? "Preview" : "Done"} — {result.totalDrifted} drifted, {result.eligible} eligible
+              {!result.dryRun && `, repaired ${result.repaired}, failed ${result.failed}, raced ${result.skippedRaced}`}.
+              {" "}Skipped: {result.skippedNegativeTarget} negative-wallet, {result.skippedPendingPushes} pending-push
+              {!result.dryRun && `, ${result.skippedUbUnreachable} UB-unreachable`}.
+              {result.dryRun && !result.externalWritesAllowed && (
+                <span className="text-nc-yellow"> ⚠ External writes disabled — live run will suppress UB patches.</span>
+              )}
+            </div>
+            {result.dryRun && eligibleUsers.length > 0 && (
+              <div>
+                <div className="mb-1 text-foreground">Eligible users ({eligibleUsers.length})</div>
+                <ul className="max-h-48 overflow-auto border border-border p-2 space-y-0.5">
+                  {eligibleUsers.map((u) => (
+                    <li key={u.userId} className="flex justify-between gap-2">
+                      <span>{u.username || u.userId}</span>
+                      <span className={u.drift < 0 ? "text-nc-yellow" : "text-nc-cyan"}>
+                        site {u.websiteBalance.toLocaleString()} · baseline {u.lastSyncedUbBalance.toLocaleString()} · drift {u.drift >= 0 ? "+" : ""}{u.drift.toLocaleString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {result.dryRun && skippedUsers.length > 0 && (
+              <div>
+                <div className="mb-1 text-muted-foreground">Skipped ({skippedUsers.length})</div>
+                <ul className="max-h-32 overflow-auto border border-border/50 p-2 space-y-0.5 text-muted-foreground">
+                  {skippedUsers.map((u) => (
+                    <li key={u.userId} className="flex justify-between gap-2">
+                      <span>{u.username || u.userId}</span>
+                      <span>{u.skippedNegativeTarget ? "negative wallet" : "pending pushes"} · drift {u.drift >= 0 ? "+" : ""}{u.drift.toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {!result.dryRun && result.outcomes && result.outcomes.length > 0 && (
+              <div>
+                <div className="mb-1 text-foreground">Outcomes</div>
+                <ul className="max-h-48 overflow-auto border border-border p-2 space-y-0.5">
+                  {result.outcomes.map((o, i) => (
+                    <li key={`${o.userId}-${i}`} className="flex justify-between gap-2">
+                      <span>{o.username || o.userId}</span>
+                      <span className={o.status === "repaired" ? "text-nc-cyan" : "text-nc-yellow"}>
+                        {o.status} · drift {o.drift >= 0 ? "+" : ""}{o.drift.toLocaleString()}
+                        {o.error ? ` (${o.error})` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
         )}

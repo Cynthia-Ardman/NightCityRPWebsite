@@ -3493,6 +3493,39 @@ export interface EconomyReconcileResult {
   error?: string | null;
 }
 
+export type UbBalanceRepairUser = {
+  userId: string;
+  username: string;
+  websiteBalance: number;
+  lastSyncedUbBalance: number;
+  drift: number;
+  skippedPendingPushes?: boolean;
+  skippedNegativeTarget?: boolean;
+};
+
+export type UbBalanceRepairOutcome = {
+  userId: string;
+  username: string;
+  drift: number;
+  status: string;
+  error?: string;
+};
+
+export interface UbBalanceRepairResult {
+  dryRun: boolean;
+  totalDrifted: number;
+  eligible: number;
+  repaired: number;
+  skippedPendingPushes: number;
+  skippedNegativeTarget: number;
+  skippedUbUnreachable: number;
+  skippedRaced: number;
+  failed: number;
+  externalWritesAllowed: boolean;
+  users?: UbBalanceRepairUser[];
+  outcomes?: UbBalanceRepairOutcome[];
+}
+
 export type WalletMirrorHealthCounts = {
   pending: number;
   inflight: number;
@@ -3531,6 +3564,8 @@ export interface WalletMirrorHealth {
   recentFailures: WalletMirrorHealthRecentFailuresItem[];
   /** Users with queued pushes or drift vs the expected UnbelievaBoat total. */
   users: WalletMirrorHealthUsersItem[];
+  /** Count of users where wallet_balance ≠ last_synced_ub_balance (repair candidates). */
+  driftedCount: number;
 }
 
 export interface WalletMirrorPushResult {

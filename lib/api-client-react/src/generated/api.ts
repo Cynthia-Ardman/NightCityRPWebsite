@@ -377,6 +377,7 @@ import type {
   VrchatSessionInfo,
   VrchatStatusResponse,
   VrchatVerifyRequest,
+  UbBalanceRepairResult,
   Wallet,
   WalletAdjustmentInput,
   WalletMirrorHealth,
@@ -14052,6 +14053,57 @@ export const useAdminRehostEventImages = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAdminRehostEventImagesMutationOptions(options));
+    }
+
+export const getAdminUbBalanceRepairUrl = () => {
+  return `/api/admin/maintenance/ub-balance-repair`
+}
+
+/**
+ * @summary Repair UB balances for users whose Discord balance diverges from the website wallet (dryRun previews targets).
+ */
+export const adminUbBalanceRepair = async (maintenanceRunInput: MaintenanceRunInput, options?: RequestInit): Promise<UbBalanceRepairResult> => {
+  return customFetch<UbBalanceRepairResult>(getAdminUbBalanceRepairUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(maintenanceRunInput)
+  }
+);}
+
+export const getAdminUbBalanceRepairMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUbBalanceRepair>>, TError,{data: BodyType<MaintenanceRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminUbBalanceRepair>>, TError,{data: BodyType<MaintenanceRunInput>}, TContext> => {
+const mutationKey = ['adminUbBalanceRepair'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminUbBalanceRepair>>, {data: BodyType<MaintenanceRunInput>}> = (props) => {
+          const {data} = props ?? {};
+          return adminUbBalanceRepair(data, requestOptions)
+        }
+  return { mutationFn, ...mutationOptions }
+}
+
+    export type AdminUbBalanceRepairMutationResult = NonNullable<Awaited<ReturnType<typeof adminUbBalanceRepair>>>
+    export type AdminUbBalanceRepairMutationBody = BodyType<MaintenanceRunInput>
+    export type AdminUbBalanceRepairMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Repair UB balances for users whose Discord balance diverges from the website wallet (dryRun previews targets).
+ */
+export const useAdminUbBalanceRepair = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUbBalanceRepair>>, TError,{data: BodyType<MaintenanceRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminUbBalanceRepair>>,
+        TError,
+        {data: BodyType<MaintenanceRunInput>},
+        TContext
+      > => {
+      return useMutation(getAdminUbBalanceRepairMutationOptions(options));
     }
 
 export const getAdminGuidebookLinkRepairUrl = () => {

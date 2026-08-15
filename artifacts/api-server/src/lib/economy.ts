@@ -809,6 +809,11 @@ export interface MirrorHealth {
     queuedCount: number;
     lastSyncedAt: string | null;
   }>;
+  /**
+   * Number of synced users whose wallet_balance differs from last_synced_ub_balance.
+   * These are candidates for the UB balance repair maintenance op.
+   */
+  driftedCount: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -884,6 +889,14 @@ export async function getMirrorHealth(): Promise<MirrorHealth> {
     lastSyncedAt: r.last_synced_at ? new Date(r.last_synced_at as string | Date).toISOString() : null,
   }));
 
+  const driftedRes = await db.execute(sql`
+    SELECT count(*)::int AS cnt
+    FROM users
+    WHERE last_synced_ub_balance IS NOT NULL
+      AND wallet_balance <> last_synced_ub_balance
+  `);
+  const driftedCount = Number((driftedRes.rows?.[0] as Record<string, unknown>)?.cnt ?? 0);
+
   return {
     counts: {
       pending: Number(c.pending ?? 0),
@@ -902,5 +915,250 @@ export async function getMirrorHealth(): Promise<MirrorHealth> {
       nextAttemptAt: f.nextAttemptAt.toISOString(),
     })),
     users: usersOut,
+    driftedCount,
   };
+}
+
+// ---------------------------------------------------------------------------
+// UB balance repair: fix users whose wallet_balance ≠ last_synced_ub_balance.
+// ---------------------------------------------------------------------------
+//
+// These are users for whom historical website charges (monthly living costs,
+// meds, etc.) were written to the ledger but never mirrored to UnbelievaBoat
+// under the old system. The website wallet is the source of truth; we push
+// the delta directly to UB and advance the baseline, writing a forensic
+// zero-amount reconcile ledger row + an audit row per user.
+//
+// Guard: patch UB first, then advance the baseline guarded on the old value.
+// If the guard fails (concurrent reconcile or push), we skip.
+// Users with pending/inflight push outbox rows are skipped entirely.
+// Users with wallet_balance < 0 are skipped (policy: never push a negative
+// target to UB — see mirror-repair policy comment above getMirrorHealth).
+
+export interface UbBalanceRepairUser {
+  userId: string;
+  username: string;
+  websiteBalance: number;
+  lastSyncedUbBalance: number;
+  /** wallet_balance - last_synced_ub_balance. Negative = UB is ahead of website. */
+  drift: number;
+  skippedPendingPushes?: boolean;
+  skippedNegativeTarget?: boolean;
+}
+
+export interface UbBalanceRepairOutcome {
+  userId: string;
+  username: string;
+  drift: number;
+  /** "repaired" | "skipped_pending" | "skipped_negative_target" | "ub_unreachable" | "raced" | "failed" */
+  status: string;
+  error?: string;
+}
+
+export interface UbBalanceRepairResult {
+  dryRun: boolean;
+  totalDrifted: number;
+  eligible: number;
+  repaired: number;
+  skippedPendingPushes: number;
+  skippedNegativeTarget: number;
+  skippedUbUnreachable: number;
+  skippedRaced: number;
+  failed: number;
+  externalWritesAllowed: boolean;
+  /** Preview only: all drifted users (incl. those that would be skipped). */
+  users?: UbBalanceRepairUser[];
+  /** Live run only: per-user outcome. */
+  outcomes?: UbBalanceRepairOutcome[];
+}
+
+/**
+ * Admin maintenance op: correct UB balances for users whose website
+ * `wallet_balance` diverges from `last_synced_ub_balance`. On dryRun=true,
+ * returns the affected users with drift amounts but writes nothing. On
+ * dryRun=false, patches UB by the drift amount, advances the baseline
+ * (guarded on old value), and writes a forensic ledger + audit row.
+ *
+ * The `recordAuditFn` callback receives `(tx, userId, username, drift)` and
+ * should commit the per-user audit row inside the wallet transaction.
+ */
+export async function runUbBalanceRepair(opts: {
+  dryRun: boolean;
+  recordAuditFn?: (
+    tx: Pick<typeof db, "insert">,
+    userId: string,
+    username: string,
+    drift: number,
+  ) => Promise<void>;
+}): Promise<UbBalanceRepairResult> {
+  const { dryRun, recordAuditFn } = opts;
+
+  // Fetch all drifted users: last_synced_ub_balance IS NOT NULL AND wallet_balance <> last_synced_ub_balance
+  const driftedUsers = await db
+    .select({
+      id: users.id,
+      discordId: users.discordId,
+      username: users.username,
+      walletBalance: users.walletBalance,
+      lastSyncedUbBalance: users.lastSyncedUbBalance,
+      lastSyncedUbCash: users.lastSyncedUbCash,
+      lastSyncedUbBank: users.lastSyncedUbBank,
+    })
+    .from(users)
+    .where(
+      and(
+        sql`${users.lastSyncedUbBalance} IS NOT NULL`,
+        sql`${users.walletBalance} <> ${users.lastSyncedUbBalance}`,
+      ),
+    );
+
+  const result: UbBalanceRepairResult = {
+    dryRun,
+    totalDrifted: driftedUsers.length,
+    eligible: 0,
+    repaired: 0,
+    skippedPendingPushes: 0,
+    skippedNegativeTarget: 0,
+    skippedUbUnreachable: 0,
+    skippedRaced: 0,
+    failed: 0,
+    externalWritesAllowed: externalWritesAllowed(),
+    users: dryRun ? [] : undefined,
+    outcomes: dryRun ? undefined : [],
+  };
+
+  for (const u of driftedUsers) {
+    const lastSynced = Number(u.lastSyncedUbBalance!);
+    const websiteBalance = u.walletBalance;
+    const drift = websiteBalance - lastSynced; // negative = UB is ahead (most common case)
+    const username = u.username ?? u.id;
+
+    // Skip: website wallet is negative — never push a negative UB target.
+    if (websiteBalance < 0) {
+      result.skippedNegativeTarget++;
+      if (dryRun) {
+        result.users!.push({
+          userId: u.id,
+          username,
+          websiteBalance,
+          lastSyncedUbBalance: lastSynced,
+          drift,
+          skippedNegativeTarget: true,
+        });
+      }
+      continue;
+    }
+
+    // Skip: pending/inflight outbox pushes — baseline math is in flux.
+    if (await hasUnfinishedPushes(u.id)) {
+      result.skippedPendingPushes++;
+      if (dryRun) {
+        result.users!.push({
+          userId: u.id,
+          username,
+          websiteBalance,
+          lastSyncedUbBalance: lastSynced,
+          drift,
+          skippedPendingPushes: true,
+        });
+      }
+      continue;
+    }
+
+    result.eligible++;
+    if (dryRun) {
+      result.users!.push({
+        userId: u.id,
+        username,
+        websiteBalance,
+        lastSyncedUbBalance: lastSynced,
+        drift,
+      });
+      continue;
+    }
+
+    // ---- live run ----
+    // Fetch live UB balance to determine the actual bank/cash split for patching.
+    const ub = await getBalance(u.discordId);
+    if (!ub) {
+      result.skippedUbUnreachable++;
+      result.outcomes!.push({ userId: u.id, username, drift, status: "ub_unreachable", error: "Could not reach UnbelievaBoat" });
+      continue;
+    }
+
+    // Patch amount = wallet_balance - last_synced_ub_balance.
+    // Prefer bank (larger pocket, no gameplay impact); fall back to cash if bank
+    // would go negative. For credits (UB lower than website), always use cash.
+    const patchAmount = drift; // drift = wallet_balance - last_synced_ub_balance
+    let ubPatch: { cash?: number; bank?: number };
+    if (patchAmount < 0) {
+      // Debiting UB: prefer bank.
+      if (ub.bank >= Math.abs(patchAmount)) {
+        ubPatch = { bank: patchAmount };
+      } else {
+        ubPatch = { cash: patchAmount };
+      }
+    } else {
+      // Crediting UB (UB was behind the website): add to cash.
+      ubPatch = { cash: patchAmount };
+    }
+
+    const patched = await patchBalance(u.discordId, {
+      ...ubPatch,
+      reason: `NCRP portal balance repair (historical sync correction, ${patchAmount >= 0 ? "+" : ""}${patchAmount})`,
+    });
+
+    if (!patched) {
+      result.failed++;
+      result.outcomes!.push({ userId: u.id, username, drift, status: "failed", error: "UB patch failed" });
+      continue;
+    }
+
+    // Advance the baseline guarded on the old value; insert forensic ledger row +
+    // optional audit row in the same transaction.
+    let raced = false;
+    await db.transaction(async (tx) => {
+      const updated = await tx
+        .update(users)
+        .set({
+          lastSyncedUbBalance: websiteBalance,
+          lastSyncedAt: new Date(),
+          lastSyncStatus: "synced",
+          lastSyncError: null,
+        })
+        .where(and(eq(users.id, u.id), eq(users.lastSyncedUbBalance, lastSynced)))
+        .returning({ id: users.id });
+
+      if (updated.length === 0) {
+        raced = true;
+        return;
+      }
+
+      // Forensic zero-amount ledger row so the operation is traceable in the
+      // wallet history without affecting the balance.
+      await tx.insert(walletTransactions).values({
+        userId: u.id,
+        amount: 0,
+        kind: "reconcile",
+        source: "reconciliation",
+        syncStatus: "reconciled",
+        memo: `UB balance repair: advanced sync baseline by ${patchAmount >= 0 ? "+" : ""}${patchAmount} (UB patched to match website wallet)`,
+        previousBalance: websiteBalance,
+        newBalance: websiteBalance,
+      });
+
+      if (recordAuditFn) await recordAuditFn(tx, u.id, username, drift);
+    });
+
+    if (raced) {
+      result.skippedRaced++;
+      result.outcomes!.push({ userId: u.id, username, drift, status: "raced" });
+    } else {
+      result.repaired++;
+      result.outcomes!.push({ userId: u.id, username, drift, status: "repaired" });
+    }
+  }
+
+  logger.info({ ...result, users: undefined, outcomes: undefined }, "UB balance repair complete");
+  return result;
 }

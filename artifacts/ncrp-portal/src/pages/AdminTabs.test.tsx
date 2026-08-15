@@ -84,6 +84,9 @@ vi.mock("@workspace/api-client-react", () => ({
   useAdminScanVrchatLinks: () => ({ mutate: h.mutate, isPending: false }),
   // Maintenance operations (rendered by MaintenanceTab's op cards)
   useAdminMissionThreadBackfill: () => ({ mutate: h.mutate, mutateAsync: h.mutate, isPending: false }),
+  useAdminWalletMirrorHealth: () => ({ data: undefined, isFetching: false, refetch: vi.fn() }),
+  useAdminWalletMirrorPush: () => ({ mutate: h.mutate, mutateAsync: h.mutate, isPending: false }),
+  useAdminUbBalanceRepair: () => ({ mutate: h.mutate, mutateAsync: h.mutate, isPending: false }),
   useAdminEconomyReconcile: () => ({ mutate: h.mutate, mutateAsync: h.mutate, isPending: false }),
   useAdminRehostEventImages: () => ({ mutate: h.mutate, mutateAsync: h.mutate, isPending: false }),
   useAdminGuidebookLinkRepair: () => ({ mutate: h.mutate, mutateAsync: h.mutate, isPending: false }),

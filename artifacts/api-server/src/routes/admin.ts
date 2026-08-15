@@ -42,6 +42,7 @@ import {
   websiteWalletPayload,
   getMirrorHealth,
   drainUbPushOutbox,
+  runUbBalanceRepair,
 } from "../lib/economy";
 import {
   computeAdminAnalytics,
@@ -2895,7 +2896,69 @@ router.post(
   },
 );
 
-// 3) Re-host raw Discord guild-events CDN banners (signed URLs that 401 after
+// 3) Repair UB balances for users whose last_synced_ub_balance diverges from
+// wallet_balance (historical website charges that never mirrored to UB).
+// dryRun=true lists all drifted users with drift amounts; the live run patches
+// UB by the drift, advances the baseline under a guard, and writes a forensic
+// ledger + audit row per user. Skips negative-wallet and pending-push users.
+router.post(
+  "/admin/maintenance/ub-balance-repair",
+  adminOnly,
+  async (req, res): Promise<void> => {
+    const dryRun = (req.body as { dryRun?: boolean } | null)?.dryRun === true;
+
+    if (dryRun) {
+      const result = await runUbBalanceRepair({ dryRun: true });
+      await recordAuditInline(db, {
+        req,
+        category: "wallet",
+        action: "maintenance_ub_balance_repair",
+        targetType: "system",
+        message: `UB balance repair DRY RUN — ${result.totalDrifted} drifted users, ${result.eligible} eligible`,
+        after: { dryRun: true, totalDrifted: result.totalDrifted, eligible: result.eligible },
+      });
+      res.json(result);
+      return;
+    }
+
+    // Live run: recordAuditFn is called inside each user's wallet transaction
+    // so the audit row commits atomically with the baseline advance.
+    const result = await runUbBalanceRepair({
+      dryRun: false,
+      recordAuditFn: async (tx, userId, username, drift) => {
+        await recordAuditInline(tx, {
+          req,
+          category: "wallet",
+          action: "maintenance_ub_balance_repair",
+          targetType: "user",
+          targetId: userId,
+          message: `UB balance repair for ${username}: advanced sync baseline by ${drift >= 0 ? "+" : ""}${drift}`,
+          after: { userId, username, drift, dryRun: false },
+        });
+      },
+    });
+    // One summary audit row for the whole run.
+    await recordAuditInline(db, {
+      req,
+      category: "wallet",
+      action: "maintenance_ub_balance_repair",
+      targetType: "system",
+      message: `UB balance repair complete — repaired ${result.repaired} / ${result.totalDrifted} drifted users`,
+      after: {
+        dryRun: false,
+        repaired: result.repaired,
+        totalDrifted: result.totalDrifted,
+        skippedPendingPushes: result.skippedPendingPushes,
+        skippedNegativeTarget: result.skippedNegativeTarget,
+        skippedUbUnreachable: result.skippedUbUnreachable,
+        failed: result.failed,
+      },
+    });
+    res.json(result);
+  },
+);
+
+// 4) Re-host raw Discord guild-events CDN banners (signed URLs that 401 after
 // ~24h) into object storage at 2048px. Read-only against Discord's CDN, so no
 // deployment gate is needed; idempotent because rewritten rows no longer match.
 router.post(
