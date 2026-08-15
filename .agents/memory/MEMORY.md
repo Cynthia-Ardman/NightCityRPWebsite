@@ -90,6 +90,7 @@
 - [Fixer NPCs are characters](fixer-npcs-are-characters.md) — NPCs = characters kind='npc' (view /characters/:id); legacy fixer_npcs table empty, its /fixer/npcs/:id detail+create+patch endpoints are orphaned dead code.
 - Main Sessions: [discrete weekly rows, never recurrence — now enforced by API 400s + DB CHECK](main-sessions-discrete.md); [needsNpcs is DERIVED — read via eventNeedsNpcs(e)](session-npc-derivation.md).
 - Wallet writes: [website wallet is source of truth, live-UB self-heal on refusal](wallet-debit-live-authorization.md); [UB mirror via ub_push_outbox + how to test wallet paths](ub-push-outbox.md); [int4 ceiling](wallet-int4-ceiling.md); [atomic increments](wallet-atomic-increments.md) relative SQL increments only.
+- [UB mirror drift repair](ub-mirror-drift-repair.md) — portal negative cash = UB total > website wallet (unmirrored legacy charges), not theft; patch UB FIRST, then advance baseline guarded.
 - UB economy quirks: [WORK/SLUT "command failed" = economy toggled off](economy-disabled-symptom.md); [native !work/!slut have no cooldown/config API — only fix is disabling in UB dashboard](ub-native-commands.md).
 - [react-query auth gate loop](react-query-auth-loop.md) — root gate on useQuery(authMe).isLoading + errored query + retryOnMount default true = 1Hz mount/unmount loop; see topic for QueryClient defaults.
 - Calendar dup: [mission+event sharing one discord_event_id render twice, reconcile auto-heals](calendar-mission-event-dup.md); [convert = REPLACE in one tx, hand off discord_event_id](event-mission-convert-handoff.md).
