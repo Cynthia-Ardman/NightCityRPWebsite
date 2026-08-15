@@ -394,11 +394,14 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           // for "no roles" and a transient names-fetch failure, so it stays
           // conservative and never clears on empty.
           let definite: boolean;
+          // Guild-membership presence, only meaningful on a definite read.
+          let presentInGuild = true;
           if (bulk) {
             const entry = bulk.get(u.discordId);
             roles = entry ? entry.names : [];
             roleIds = entry ? entry.ids : [];
             definite = true;
+            presentInGuild = !!entry;
           } else {
             roles = await fetchGuildMemberRolesViaBot(u.discordId);
             // Recompute the 18+ gate flag from raw role ids so removing the
@@ -441,11 +444,42 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
           // who lost their last role or left the guild is reconciled instead of
           // keeping stale names. Otherwise keep the conservative behavior: only
           // overwrite when we actually saw role names.
+          // Guild-membership billing pause (Task: auto-pause billing on leave).
+          // Only a DEFINITE snapshot may flip the flag either way — a partial
+          // fallback read never marks anyone absent, and never "resumes" a
+          // paused user on the strength of an untrusted fetch either.
+          const membershipPatch: { inGuild?: boolean; guildLeftAt?: Date | null } = {};
+          if (definite && !presentInGuild && u.inGuild) {
+            membershipPatch.inGuild = false;
+            membershipPatch.guildLeftAt = new Date();
+            await recordAudit({
+              category: "wallet",
+              action: "billing.guild_absence_paused",
+              actorName: "role_sync cron",
+              targetType: "user",
+              targetId: u.id,
+              message: `${u.username} left the Discord server — weekly meds/household billing paused (rent still charges)`,
+              after: { discordId: u.discordId, inGuild: false },
+            });
+          } else if (definite && presentInGuild && !u.inGuild) {
+            membershipPatch.inGuild = true;
+            membershipPatch.guildLeftAt = null;
+            await recordAudit({
+              category: "wallet",
+              action: "billing.guild_rejoin_resumed",
+              actorName: "role_sync cron",
+              targetType: "user",
+              targetId: u.id,
+              message: `${u.username} rejoined the Discord server — weekly meds/household billing resumed`,
+              after: { discordId: u.discordId, inGuild: true, absentSince: u.guildLeftAt?.toISOString() ?? null },
+            });
+          }
           if (definite || roles.length || roleIds !== null) {
             await db
               .update(users)
               .set({
                 ...(definite || roles.length ? { roles } : {}),
+                ...membershipPatch,
                 verified18,
                 rolesSyncedAt: new Date(),
               })
@@ -796,6 +830,15 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
       // it pauses rent in monthly_rent. This is separate from the headline
       // lifeStatus="loa" the importer/admin sets; a player on hiatus flips the
       // transient flag and expects ALL personal billing to stop, so honor both.
+      // Guild-absence pause: owners the role_sync cron flagged as no longer in
+      // the Discord server (users.inGuild=false) owe no weekly meds and their
+      // characters don't count toward anyone's household multiplier — same
+      // exclusion tier as LOA. Rent deliberately still charges (staff policy).
+      const absentOwnerRows = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.inGuild, false));
+      const absentOwners = new Set(absentOwnerRows.map((r) => r.id));
       const medsStatusRows = await db.select().from(characterStatus);
       const medsLoaByCharacter = new Map<number, boolean>();
       for (const s of medsStatusRows) medsLoaByCharacter.set(s.characterId, !!s.loa);
@@ -807,7 +850,9 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         // household multiplier — drop them before any household grouping. This
         // covers both the headline lifeStatus (countsForCyberwareBilling) and
         // the transient self-service character_status.loa toggle.
-        .filter((c) => countsForCyberwareBilling(c) && medsLoaByCharacter.get(c.id) !== true);
+        .filter((c) => countsForCyberwareBilling(c)
+          && medsLoaByCharacter.get(c.id) !== true
+          && !(c.ownerId && absentOwners.has(c.ownerId)));
 
       // Per-character CWP totals (sum of "CWP n" parsed from each
       // cyberware item's notes, not a row count). Bands (7/10/13) are

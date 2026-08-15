@@ -55,6 +55,16 @@ export const users = pgTable(
     // rules splash. While false the SPA shows a blocking rules gate; accepting it
     // also grants the "rules read" Discord role. Never re-appears once true.
     rulesAccepted: boolean("rules_accepted").notNull().default(false),
+    // Guild-membership flag maintained by the hourly role_sync cron. Flipped to
+    // false ONLY on a DEFINITE (complete bulk) member snapshot that no longer
+    // contains this user's Discord id — a partial/fallback read never clears it.
+    // While false, weekly cyberware meds/household billing skips every character
+    // this user owns (same exclusion tier as LOA; rent still charges by policy).
+    // Flipping back true on rejoin writes an audit-log note for staff.
+    inGuild: boolean("in_guild").notNull().default(true),
+    // When the role_sync cron last observed this user as absent from the guild
+    // (set alongside inGuild=false; cleared on rejoin). Display/forensics only.
+    guildLeftAt: timestamp("guild_left_at", { withTimezone: true }),
     // Per-user grant for the CyberPsycho (VRChat security agent) control panel.
     // Fixers/admins always have access; this flag lets admins hand the tool to
     // specific non-staff users from the portal without touching Discord roles.

@@ -28,6 +28,7 @@
 - Cyberware derivation: [band from inventory_items CWP](cyberware-band-source.md) not characters.cyberwareLevel; [installed-ness from CWP notes tag presence](cyberware-installed-derivation.md), installed transfers blocked.
 - [Cyberware installed-uniqueness guards](cyberware-slot-cap-install-paths.md) — one installed copy per item (any slot), no installed qty>1, one per capped slot; per-item + batch guards on every install path.
 - [Legacy bot dual-billing](legacy-bot-dual-billing.md) — old NightCityBot still bills cyberware meds in prod alongside our live cron → double charges + divergent week counts; disable legacy job, don't match its math.
+- [Guild-absence billing pause](guild-absence-billing-pause.md) — users.inGuild flipped only on DEFINITE role_sync bulk reads; false pauses meds/household (not rent), rejoin resumes + audits.
 - Billing exclusions: [LOA dual-flag](loa-dual-flag-billing.md) crons must honor BOTH loa flags; [cyberware-only scope](cyberware-vs-general-billing-scope.md) LOA/retired/dead excluded from cyber household+meds only, not rent.
 - Ripperdoc: [console medical](ripperdoc-console-medical.md) staff medical console presets+locks existing dialogs, never fork approval; [role grant](ripperdoc-role-grant.md) sheet flag grants id-pinned role on sheet CLOSE, backfill unions sheet-signal + clinic owners.
 - Cyberware edit surfaces: [non-staff lock spans API+editor+UI rows](cyberware-review-enforcement-surfaces.md) gating one is a bypass; [custom installs under real catalog slots](cyberware-custom-install-surfaces.md) CUSTOM_NAME pattern.

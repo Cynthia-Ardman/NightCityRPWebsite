@@ -8,7 +8,7 @@ vi.mock("./unbelievaboat", () => ({
 
 import {
   db, botConfig, housing, characterStatus, inventoryItems, walletTransactions,
-  characters, shopOpens, ubPushOutbox,
+  characters, shopOpens, ubPushOutbox, users,
 } from "@workspace/db";
 import { patchBalance } from "./unbelievaboat";
 import { runJob, isAutobillEnabled, AUTOBILL_FLAGS } from "./jobs";
@@ -146,6 +146,37 @@ describe("runJob('cyberware_humanity')", () => {
     expect(mockPatch).not.toHaveBeenCalled();
     const meds = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "meds"));
     expect(meds).toHaveLength(0);
+  });
+
+  it("skips meds for a player who left the Discord server (users.inGuild=false)", async () => {
+    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    const owner = await createUser();
+    await db.update(users).set({ inGuild: false, guildLeftAt: new Date() }).where(eq(users.id, owner.id));
+    const char = await createCharacter({ ownerId: owner.id });
+    await addChrome(char.id, owner.id, 8); // medium band — would normally bill
+    await backdateCreation(char.id); // avoid the vacuous-pass trap: age past the checkup window
+
+    await runJob("cyberware_humanity");
+    expect(mockPatch).not.toHaveBeenCalled();
+    const meds = await db.select().from(walletTransactions).where(eq(walletTransactions.kind, "meds"));
+    expect(meds).toHaveLength(0);
+  });
+
+  it("still charges residential rent for an absent-from-guild owner (staff policy default)", async () => {
+    mockPatch.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+    const owner = await createUser();
+    await db.update(users).set({ inGuild: false, guildLeftAt: new Date() }).where(eq(users.id, owner.id));
+    const char = await createCharacter({ ownerId: owner.id });
+    await db.insert(housing).values({
+      characterId: char.id, address: "Megabuilding H10", monthlyRent: 500, kind: "residential",
+    });
+
+    await runJob("monthly_rent");
+    const rent = await db
+      .select()
+      .from(walletTransactions)
+      .where(and(eq(walletTransactions.kind, "rent"), eq(walletTransactions.userId, owner.id)));
+    expect(rent.length).toBeGreaterThanOrEqual(1);
   });
 
   it("does not let an LOA household member inflate the multiplier for active members", async () => {
