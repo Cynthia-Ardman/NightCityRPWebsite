@@ -39,3 +39,6 @@ for read-only display where a degraded estimate is acceptable, and propagate
 module is inert; every suite mocks `../lib/unbelievaboat`. There is intentionally
 no unit test that drives the real cache — adding one needs resetModules + env
 injection + fetch stub, which fights the harness convention.
+
+## Bulk reads: leaderboard endpoint
+Per-user GET /guilds/:g/users/:id at ~4/s trips UB rate limits (economy_reconcile used to fail ~330/483 users per run, silently skipping them). Bulk read via `listGuildBalances()` — GET /guilds/:g/users?limit=100&page=N returns `{users:[{user_id,cash,bank,total}],total_pages}`; ~5 calls covers the guild. Contract gotchas encoded in the reconcile: any failed page → return null (partial map misreads absent users as "no UB row"); leaderboard membership of zero/negative accounts is NOT documented, so map-absent users with a non-null lastSyncedUbBalance get a per-user re-check; economy_reconcile is in NO_OVERLAP_JOBS so runs can't stack.

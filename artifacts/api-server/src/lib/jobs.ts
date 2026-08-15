@@ -317,6 +317,11 @@ const NO_OVERLAP_JOBS = new Set<JobName>([
   // shared channel cursor (writes are monotonic, but overlap wastes the
   // Discord rate budget and can double-hit the join-dedupe window).
   "membership_sync",
+  // economy_reconcile: baseline guards prevent double-folds, but overlapping
+  // runs duplicate the UB leaderboard sweep + per-user fallback fetches,
+  // restoring the very rate-limit pressure the 5-minute cadence relies on
+  // having removed.
+  "economy_reconcile",
 ]);
 const inFlightJobs = new Set<JobName>();
 
@@ -1211,10 +1216,11 @@ export function startCron() {
     cron.schedule("*/5 * * * *", () => {
       runJob("mission_npc_announce").catch((err) => logger.error({ err }, "mission_npc_announce cron"));
     });
-    // UB->website wallet reconciliation every 30 minutes. Skipped entirely when
-    // the economy system is disabled (kill switch off); runs as a dry-run in
-    // Test mode and performs live balance folds only when economy is Enabled.
-    cron.schedule("*/30 * * * *", async () => {
+    // UB->website wallet reconciliation every 5 minutes (bulk leaderboard
+    // fetch keeps this to a handful of UB API calls per run). Skipped entirely
+    // when the economy system is disabled (kill switch off); runs as a dry-run
+    // in Test mode and performs live balance folds only when economy is Enabled.
+    cron.schedule("*/5 * * * *", async () => {
       if ((await getEconomyMode()) === "disabled") {
         logger.info("economy_reconcile cron skipped (economy disabled)");
         return;

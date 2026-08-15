@@ -154,6 +154,58 @@ export async function getBalance(
   return opts?.allowStale ? await localBalanceFallback(discordUserId) : null;
 }
 
+/**
+ * Bulk-read every guild member's UB balance via the leaderboard endpoint
+ * (100 rows per call) instead of one request per user. Built for the
+ * reconcile job: 483 individual reads at ~4/s trip UB's rate limit, so most
+ * per-user fetches 429 and those users silently skip the cycle.
+ *
+ * Returns a discordId -> balance map, or null if ANY page fails — a partial
+ * map is indistinguishable from "user has no UB row", and treating rate-limit
+ * gaps as absent users would mis-skip them. Users genuinely absent from the
+ * leaderboard have no UB economy row.
+ *
+ * Deliberately does NOT populate the per-user balance cache: these reads race
+ * concurrent website writes and the generation guard is per-fetch. Split
+ * snapshots (display-only) are persisted via the same deduped path as single
+ * reads.
+ */
+export async function listGuildBalances(): Promise<Map<string, UbBalance> | null> {
+  if (!TOKEN || !DISCORD_GUILD_ID) return null;
+  const out = new Map<string, UbBalance>();
+  try {
+    for (let page = 1; page <= 100; page++) {
+      const res = await fetch(`${API}/guilds/${DISCORD_GUILD_ID}/users?limit=100&page=${page}`, {
+        headers: { Authorization: TOKEN },
+        signal: AbortSignal.timeout(UB_TIMEOUT_MS),
+      });
+      if (!res.ok) {
+        logger.warn({ status: res.status, page }, "UB leaderboard fetch failed");
+        return null;
+      }
+      const data = (await res.json()) as
+        | Array<{ user_id: string; cash: number; bank: number; total: number }>
+        | { users: Array<{ user_id: string; cash: number; bank: number; total: number }>; total_pages?: number };
+      const rows = Array.isArray(data) ? data : data.users;
+      for (const r of rows) {
+        const value: UbBalance = { cash: r.cash, bank: r.bank, total: r.total, source: "unbelievaboat" };
+        out.set(r.user_id, value);
+        persistSplitSnapshot(r.user_id, r.cash, r.bank);
+      }
+      const totalPages = Array.isArray(data) ? undefined : data.total_pages;
+      if (rows.length < 100 || (totalPages !== undefined && page >= totalPages)) return out;
+    }
+    // Page cap hit without a terminal page: the map is (or may be) partial.
+    // A partial map is worse than no map — absent users would be misread as
+    // "no UB row" — so treat it as a bulk failure.
+    logger.warn("UB listGuildBalances hit the page cap without terminating; treating as failure");
+    return null;
+  } catch (err) {
+    logger.error({ err }, "UB listGuildBalances error");
+    return null;
+  }
+}
+
 export async function patchBalance(
   discordUserId: string,
   delta: { cash?: number; bank?: number; reason?: string },

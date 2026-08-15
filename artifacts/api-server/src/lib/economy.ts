@@ -3,7 +3,7 @@ import { eq, and, isNull, sql, inArray, asc, desc } from "drizzle-orm";
 import { logger } from "./logger";
 import { isSystemLive } from "./liveMode";
 import { externalWritesAllowed } from "./discord";
-import { getBalance, patchBalance } from "./unbelievaboat";
+import { getBalance, listGuildBalances, patchBalance } from "./unbelievaboat";
 
 // ---------------------------------------------------------------------------
 // Economy foundation: the WEBSITE wallet is the source of truth.
@@ -590,10 +590,25 @@ export async function runEconomyReconcile(): Promise<ReconcileResult> {
     return result;
   }
 
+  // One bulk leaderboard sweep (≈5 API calls) instead of a per-user fetch per
+  // row: 483 serial reads at ~4/s trip UB's rate limit, so most users 429'd
+  // and silently skipped the cycle. Falls back to per-user reads only if the
+  // bulk fetch fails outright (partial data would mis-read rate-limit gaps as
+  // "no UB account").
+  const bulk = await listGuildBalances();
   const allUsers = await db.select().from(users);
   for (const u of allUsers) {
     result.scanned++;
-    const ub = await getBalance(u.discordId);
+    // Leaderboard-absent users are USUALLY "no UB economy row", but UB's
+    // leaderboard membership for zero/negative accounts isn't a documented
+    // contract — so anyone we've previously synced (non-null baseline) gets a
+    // per-user re-check instead of being silently skipped. That bounds the
+    // fallback fetches to the handful of synced-but-absent users rather than
+    // the whole roster.
+    let ub = bulk ? bulk.get(u.discordId) ?? null : await getBalance(u.discordId);
+    if (!ub && bulk && u.lastSyncedUbBalance !== null && u.lastSyncedUbBalance !== undefined) {
+      ub = await getBalance(u.discordId);
+    }
     if (!ub) {
       result.failed++;
       continue;

@@ -5,10 +5,13 @@ import { eq, and, isNull } from "drizzle-orm";
 vi.mock("../lib/unbelievaboat", () => ({
   getBalance: vi.fn(),
   patchBalance: vi.fn(),
+  // Defaults to null (bulk fetch unavailable) -> reconcile falls back to
+  // per-user getBalance. Individual tests override with a Map.
+  listGuildBalances: vi.fn(async () => null),
 }));
 
 import { db, stores, ripperdocs, walletTransactions, users, botConfig, ubPushOutbox } from "@workspace/db";
-import { getBalance, patchBalance } from "../lib/unbelievaboat";
+import { getBalance, listGuildBalances, patchBalance } from "../lib/unbelievaboat";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin } from "../test/testDb";
 import { runEconomyReconcile, MAX_WALLET_BALANCE } from "../lib/economy";
@@ -16,6 +19,7 @@ import { runEconomyReconcile, MAX_WALLET_BALANCE } from "../lib/economy";
 const app = buildTestApp();
 const mockGetBalance = vi.mocked(getBalance);
 const mockPatch = vi.mocked(patchBalance);
+const mockListGuildBalances = vi.mocked(listGuildBalances);
 
 beforeEach(() => {
   mockGetBalance.mockReset();
@@ -269,6 +273,51 @@ describe("economy reconciliation (UB -> website)", () => {
     expect(u.walletBalance).toBe(1000);
     const ledger = await db.select().from(walletTransactions);
     expect(ledger).toHaveLength(0);
+  });
+
+  it("folds deltas from the bulk leaderboard map without per-user fetches", async () => {
+    await setMode("enabled");
+    const owner = await createUser();
+    await db
+      .update(users)
+      .set({ walletBalance: 1000, lastSyncedUbBalance: 1000 })
+      .where(eq(users.id, owner.id));
+    mockListGuildBalances.mockResolvedValueOnce(
+      new Map([[owner.discordId, { cash: 1300, bank: 0, total: 1300, source: "unbelievaboat" as const }]]),
+    );
+
+    await runEconomyReconcile();
+
+    const [u] = await db.select().from(users).where(eq(users.id, owner.id));
+    expect(u.walletBalance).toBe(1300);
+    expect(u.lastSyncedUbBalance).toBe(1300);
+    expect(mockGetBalance).not.toHaveBeenCalled();
+  });
+
+  it("re-checks a previously-synced user missing from the leaderboard via per-user fetch", async () => {
+    await setMode("enabled");
+    const synced = await createUser();
+    const neverSynced = await createUser();
+    await db
+      .update(users)
+      .set({ walletBalance: 500, lastSyncedUbBalance: 500 })
+      .where(eq(users.id, synced.id));
+    // Bulk map exists but contains neither user.
+    mockListGuildBalances.mockResolvedValueOnce(new Map());
+    // Per-user re-check: the synced user's UB dropped to 0 (e.g. gambled away).
+    mockGetBalance.mockResolvedValue({ cash: 0, bank: 0, total: 0, source: "unbelievaboat" });
+
+    await runEconomyReconcile();
+
+    const [s] = await db.select().from(users).where(eq(users.id, synced.id));
+    expect(s.walletBalance).toBe(0);
+    expect(s.lastSyncedUbBalance).toBe(0);
+    // Only the previously-synced user gets a fallback fetch; the never-synced
+    // one is treated as "no UB row" and skipped.
+    expect(mockGetBalance).toHaveBeenCalledTimes(1);
+    expect(mockGetBalance).toHaveBeenCalledWith(synced.discordId);
+    const [n] = await db.select().from(users).where(eq(users.id, neverSynced.id));
+    expect(n.lastSyncedUbBalance).toBeNull();
   });
 
   it("skips entirely when disabled", async () => {
