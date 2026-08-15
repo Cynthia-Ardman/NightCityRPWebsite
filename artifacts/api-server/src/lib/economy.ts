@@ -811,6 +811,32 @@ export interface MirrorHealth {
   }>;
 }
 
+// ---------------------------------------------------------------------------
+// Mirror repair policy for negative website wallets.
+//
+// Investigation (2026-08-15) found 68 users with negative wallet_balance, all
+// from legitimate paths (autobill overdraw + reconcile folds of external UB
+// gambling losses). No bugs or corrections were needed. See:
+//   src/lib/docs/negative-wallet-investigation-2026-08-15.md
+//
+// POLICY: when implementing any fleet-wide UB mirror repair (push UB to match
+// website balance for users whose UB drifted ahead), NEVER push a negative
+// target to UnbelievaBoat:
+//
+//   if (targetUbBalance < 0) {
+//     // skip — keep the website-side debt website-only.
+//     // UB may reject sub-zero totals; pushing a player from e.g. +41,486
+//     // to −53,164 in one shot is severely disruptive.
+//     continue;
+//   }
+//
+// Users with wallet_balance < 0 and last_synced_ub_balance > 0 have a real
+// website debt that UB hasn't mirrored yet — skip them in repair and let
+// future earnings (reconcile folds + mission payouts) close the gap organically.
+// Users with wallet_balance < 0 and last_synced_ub_balance <= 0 are already
+// in bilateral debt — no push needed.
+// ---------------------------------------------------------------------------
+
 export async function getMirrorHealth(): Promise<MirrorHealth> {
   const countsRes = await db.execute(sql`
     SELECT
