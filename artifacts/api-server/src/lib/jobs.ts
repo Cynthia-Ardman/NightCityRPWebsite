@@ -198,15 +198,15 @@ export function projectedWeeklyMeds(opts: {
 //   T0 (tier 0 / micro): flat eddies by # of opens this month.
 //   T1+ (everything else): rent × multiplier.
 // Bot caps payout at 4 opens / month; opens beyond 4 don't increase income.
-const SHOP_T0_PAYOUTS = [0, 150, 250, 350, 500]; // index = opens (0..4)
-const SHOP_TIER_PLUS_MULT = [0, 0.25, 0.4, 0.6, 0.8]; // index = opens (0..4)
-const SHOP_OPENS_CAP = 4;
+export const SHOP_T0_PAYOUTS = [0, 150, 250, 350, 500]; // index = opens (0..4)
+export const SHOP_TIER_PLUS_MULT = [0, 0.25, 0.4, 0.6, 0.8]; // index = opens (0..4)
+export const SHOP_OPENS_CAP = 4;
 
 // Best-effort tier detection from a housing.address / catalogRent.tier label.
 // Bot uses an explicit tier on the catalog row; here we keep it permissive:
 // anything that looks like tier 0 / micro / micro-business uses the T0 flat
 // schedule, everything else uses the rent-multiplier schedule.
-function isShopTierZero(addr: string, leaseKind: string): boolean {
+export function isShopTierZero(addr: string, leaseKind: string): boolean {
   if (leaseKind !== "business") return false;
   return /\bT?0\b|micro/i.test(addr);
 }

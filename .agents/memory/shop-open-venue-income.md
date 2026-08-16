@@ -48,3 +48,16 @@ lease pass.
   either); `patchBalance` already no-ops in dev via the deployment-write gate.
 - Prod-history caveat: instant pay is forward-only — June/July opens that
   predate this change were never paid and are not back-paid.
+
+## Income model update — TIERED instant payout (replaces flat 150)
+The flat `SHOP_OPEN_PAYOUT` is gone. Each open pays the guidebook's marginal
+step for its ordinal within the current UTC calendar month (counted under the
+same advisory lock as the session guard): tier-0/micro + venue-only owners use
+cumulative table [0,150,250,350,500]; tier-1+ leases pay
+`floor(rent * cumulative [0,.25,.4,.6,.8])`. Opens beyond 4/month record but
+pay 0 (no ledger row, no rollback path). **Tier classification must come from
+`catalog_rent.tier` (via listingId) → `housing.tier` → address regex LAST**:
+prod catalog tiers are labeled "Business Tier 1..3" / "T0" and addresses say
+nothing about tier, so the old `isShopTierZero(address)` heuristic misclassifies
+real leases. Player-facing origin: a Tier-3 owner (rent 4000) reported the flat
+150 "did not double" — flat pay contradicted the published tier schedule.

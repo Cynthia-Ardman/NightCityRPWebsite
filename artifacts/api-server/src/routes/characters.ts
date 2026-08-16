@@ -22,6 +22,7 @@ import {
   classifyWalletCategory,
   customRequests,
   characterTagOptions,
+  catalogRent,
   type Character,
 } from "@workspace/db";
 import { gte } from "drizzle-orm";
@@ -35,6 +36,7 @@ import { recordInventoryEvent } from "../lib/inventoryEvents";
 import { installSlotClashError } from "../lib/cyberwareSlots";
 import { checkCwpCapacity, MAX_PC_CWP } from "../lib/cyberware-cap";
 import { isSessionWindowOpen, nextSessionWindowStart, SESSION_WINDOW_HINT } from "../lib/sessionWindow";
+import { SHOP_T0_PAYOUTS, SHOP_TIER_PLUS_MULT, SHOP_OPENS_CAP, isShopTierZero } from "../lib/jobs";
 import { parseCwp, sumCwpByCharacter } from "../lib/cyberware";
 import { isStaffRoles } from "../lib/roleChecks";
 import { recordAudit } from "../lib/audit";
@@ -44,10 +46,27 @@ import { isStaffUser, loadOwnedChar, loadOwnedOrStaffChar } from "../lib/access"
 
 const router: IRouter = Router();
 
-// Fixed cash paid to a shop owner each time they open shop during a live
-// session (mirrors the weekly attendance bonus). Exactly one payout per
-// session — enforced by the open-shop endpoint's session guard.
-const SHOP_OPEN_PAYOUT = 150;
+// Shop-open income follows the guidebook tier schedule, paid INSTANTLY per
+// open (one open per live session, capped at SHOP_OPENS_CAP paid opens per
+// calendar month):
+//   Tier 0 / micro (and venue-only owners): cumulative flat table
+//     SHOP_T0_PAYOUTS — the nth open this month pays table[n] - table[n-1].
+//   Tier 1+: cumulative % of monthly rent SHOP_TIER_PLUS_MULT — the nth open
+//     pays rent * (mult[n] - mult[n-1]), floored.
+// Opens beyond the cap still record activity but pay 0.
+function shopOpenMarginalPayout(opts: {
+  opensThisMonth: number; // 1-based: this open's ordinal within the month
+  monthlyRent: number | null; // null/0 or tier-0 → flat table
+  tierZero: boolean;
+}): number {
+  const n = Math.min(opts.opensThisMonth, SHOP_OPENS_CAP);
+  const prev = Math.min(opts.opensThisMonth - 1, SHOP_OPENS_CAP);
+  if (n === prev) return 0; // beyond the monthly cap
+  if (opts.tierZero || !opts.monthlyRent || opts.monthlyRent <= 0) {
+    return SHOP_T0_PAYOUTS[n] - SHOP_T0_PAYOUTS[prev];
+  }
+  return Math.floor(opts.monthlyRent * (SHOP_TIER_PLUS_MULT[n] - SHOP_TIER_PLUS_MULT[prev]));
+}
 
 router.get("/characters", requireAuth, async (req, res): Promise<void> => {
   const rows = await db
@@ -1761,13 +1780,13 @@ router.patch("/characters/:id/status", requireAuth, async (req, res): Promise<vo
   res.json(result);
 });
 
-// Open-shop: a character with an active `business` lease can press this
-// once per UTC day. The button drives passive income on the next
-// monthly_rent run — see SHOP_T0_PAYOUTS / SHOP_TIER_PLUS_MULT in
-// lib/jobs.ts. The UNIQUE (characterId, openedOn) index in `shop_opens`
-// is the idempotency guarantee; we still pre-count in this month so the
-// UI can honestly show "X / 4 paying opens this month" without round-trip
-// math on the client.
+// Open-shop: a character with an active `business` lease or an owned venue
+// can press this once per Sunday session. Income is paid INSTANTLY at open
+// time on the tiered marginal schedule (SHOP_T0_PAYOUTS / SHOP_TIER_PLUS_MULT
+// in lib/jobs.ts) — there is no monthly income pass. The UNIQUE
+// (characterId, openedOn) index in `shop_opens` is the idempotency guarantee;
+// we still pre-count this month so the UI can honestly show "X / 4 paying
+// opens this month" without round-trip math on the client.
 router.get("/characters/:id/shop", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const c = await loadOwnedChar(req.user!.id, id);
@@ -1908,7 +1927,7 @@ router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<
     .from(housing)
     .where(and(eq(housing.characterId, id), eq(housing.kind, "business")));
   // Venue owners (storefront / ripperdoc clinic) can open shop too, even
-  // without a business lease — they earn the flat Tier-0 schedule monthly.
+  // without a business lease — they earn the flat Tier-0 schedule instantly.
   const [ownedStores, ownedClinics] = await Promise.all([
     db.select({ id: stores.id, name: stores.name }).from(stores).where(eq(stores.ownerCharacterId, id)),
     db.select({ id: ripperdocs.id, name: ripperdocs.name }).from(ripperdocs).where(eq(ripperdocs.ownerCharacterId, id)),
@@ -1949,7 +1968,10 @@ router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<
   // request that was blocked then sees the committed row on re-check and 409s.
   let outcome:
     | { kind: "already"; openedAt: Date }
-    | { kind: "opened"; row: typeof shopOpens.$inferSelect };
+    | { kind: "opened"; row: typeof shopOpens.$inferSelect; opensThisMonth: number };
+  // Calendar-month window for the tiered schedule (opens are keyed on UTC
+  // `openedOn` dates, so the month boundary is UTC too).
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   try {
     outcome = await db.transaction(async (tx): Promise<typeof outcome> => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(8123, ${id})`);
@@ -1959,6 +1981,12 @@ router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<
         .where(and(eq(shopOpens.characterId, id), gte(shopOpens.openedAt, sessionLookback)))
         .limit(1);
       if (prior) return { kind: "already", openedAt: prior.openedAt };
+      // Count earlier opens this month under the same advisory lock so the
+      // ordinal (which decides the payout step) can't race a concurrent open.
+      const monthPriors = await tx
+        .select({ id: shopOpens.id })
+        .from(shopOpens)
+        .where(and(eq(shopOpens.characterId, id), gte(shopOpens.openedAt, monthStart)));
       const [inserted] = await tx
         .insert(shopOpens)
         .values({
@@ -1968,7 +1996,7 @@ router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<
           notes: typeof req.body?.notes === "string" ? req.body.notes : null,
         })
         .returning();
-      return { kind: "opened", row: inserted };
+      return { kind: "opened", row: inserted, opensThisMonth: monthPriors.length + 1 };
     });
   } catch (err: unknown) {
     const code = (err as { code?: string })?.code;
@@ -1989,24 +2017,52 @@ router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<
   // Website-first: the credit commits locally (works even during a UB outage)
   // and mirrors to UB via the outbox. Keyed on the open row id so a retry can
   // never double-credit.
-  const payoutMemo = `Shop income: ${shopLabel}`;
-  const credit = await applyWalletDelta({
-    userId: req.user!.id,
-    discordId: req.user!.discordId,
-    amount: SHOP_OPEN_PAYOUT,
-    source: "website",
-    kind: "shop_income",
-    reason: payoutMemo,
-    memo: payoutMemo,
-    characterId: id,
-    idempotencyKey: `shop-open:${row.id}`,
-    gate: "none",
+  // Tiered instant income (guidebook schedule): tier-1+ business leases pay a
+  // % of monthly rent per open; tier-0/micro leases and venue-only owners use
+  // the flat table. The nth open this month pays the marginal step; opens
+  // beyond the monthly cap record activity but pay nothing.
+  // Resolve the authoritative tier: catalog listing tier first (canonical),
+  // then the lease's own tier column, and only fall back to the address-text
+  // heuristic when neither is set. Tier labels look like "Business Tier 3",
+  // "T0", "T1" — tier-zero is an explicit 0/micro marker.
+  let tierLabel: string | null = lease?.tier ?? null;
+  if (lease?.listingId) {
+    const [listing] = await db
+      .select({ tier: catalogRent.tier })
+      .from(catalogRent)
+      .where(eq(catalogRent.id, lease.listingId));
+    if (listing?.tier) tierLabel = listing.tier;
+  }
+  const tierZero = !lease
+    ? true // venue-only owners earn the flat table
+    : tierLabel
+      ? /(?:^|[^0-9])(?:t(?:ier)?\s*0)(?:[^0-9]|$)|micro/i.test(tierLabel)
+      : isShopTierZero(lease.address, lease.kind);
+  const payout = shopOpenMarginalPayout({
+    opensThisMonth: outcome.opensThisMonth,
+    monthlyRent: lease?.monthlyRent ?? null,
+    tierZero,
   });
-  if (!credit.ok) {
-    // Overflow/unknown-user only — roll the open back so the owner can retry.
-    await db.delete(shopOpens).where(eq(shopOpens.id, row.id)).catch(() => {});
-    res.status(502).json({ error: credit.error ?? "Wallet credit failed, try again shortly" });
-    return;
+  const payoutMemo = `Shop income: ${shopLabel} (open ${Math.min(outcome.opensThisMonth, SHOP_OPENS_CAP)}/${SHOP_OPENS_CAP} this month)`;
+  if (payout > 0) {
+    const credit = await applyWalletDelta({
+      userId: req.user!.id,
+      discordId: req.user!.discordId,
+      amount: payout,
+      source: "website",
+      kind: "shop_income",
+      reason: payoutMemo,
+      memo: payoutMemo,
+      characterId: id,
+      idempotencyKey: `shop-open:${row.id}`,
+      gate: "none",
+    });
+    if (!credit.ok) {
+      // Overflow/unknown-user only — roll the open back so the owner can retry.
+      await db.delete(shopOpens).where(eq(shopOpens.id, row.id)).catch(() => {});
+      res.status(502).json({ error: credit.error ?? "Wallet credit failed, try again shortly" });
+      return;
+    }
   }
 
   await db.insert(activityEvents).values({
@@ -2014,7 +2070,7 @@ router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<
     actorId: req.user!.id,
     actorName: req.user!.username,
     actorAvatarUrl: req.user!.avatarUrl,
-    message: `${c.name} opened shop at ${shopLabel} (+€${SHOP_OPEN_PAYOUT})`,
+    message: `${c.name} opened shop at ${shopLabel} (+€${payout})`,
   });
   await recordAudit({
     req,
@@ -2022,15 +2078,23 @@ router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<
     action: "open",
     targetType: "character",
     targetId: id,
-    message: `${c.name} opened shop at ${shopLabel} (+€${SHOP_OPEN_PAYOUT})`,
-    after: { leaseId: lease?.id ?? null, address: shopLabel, openedOn: today, payout: SHOP_OPEN_PAYOUT },
+    message: `${c.name} opened shop at ${shopLabel} (+€${payout})`,
+    after: {
+      leaseId: lease?.id ?? null,
+      address: shopLabel,
+      openedOn: today,
+      payout,
+      opensThisMonth: outcome.opensThisMonth,
+      tierZero,
+    },
   });
   res.json({
     characterId: id,
     openedOn: row.openedOn,
     openedAt: row.openedAt,
     leaseAddress: shopLabel,
-    payout: SHOP_OPEN_PAYOUT,
+    payout,
+    opensThisMonth: outcome.opensThisMonth,
   });
 });
 
