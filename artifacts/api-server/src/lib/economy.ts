@@ -597,6 +597,12 @@ export async function runEconomyReconcile(): Promise<ReconcileResult> {
   // "no UB account").
   const bulk = await listGuildBalances();
   const allUsers = await db.select().from(users);
+  // Bound per-user verification reads per cycle: if the leaderboard lags after
+  // a mass payout, hundreds of users show phantom deltas at once — verifying
+  // them all serially recreates the rate-limit storm the bulk sweep replaced.
+  // Unverified users are simply deferred to the next 5-minute cycle.
+  const VERIFY_BUDGET = 50;
+  let verifiesLeft = VERIFY_BUDGET;
   for (const u of allUsers) {
     result.scanned++;
     // Leaderboard-absent users are USUALLY "no UB economy row", but UB's
@@ -606,20 +612,37 @@ export async function runEconomyReconcile(): Promise<ReconcileResult> {
     // fallback fetches to the handful of synced-but-absent users rather than
     // the whole roster.
     let ub = bulk ? bulk.get(u.discordId) ?? null : await getBalance(u.discordId);
+    let fromBulk = bulk != null && ub != null;
     if (!ub && bulk && u.lastSyncedUbBalance !== null && u.lastSyncedUbBalance !== undefined) {
       ub = await getBalance(u.discordId);
+      fromBulk = false;
     }
     if (!ub) {
       result.failed++;
       continue;
     }
-    const ubTotal = ub.total;
+    let ubTotal = ub.total;
     const lastSynced = u.lastSyncedUbBalance;
 
     // First-ever sync: mirror UB into the website wallet. Skipped while pushes
     // are queued — the absolute seed would clobber website-authoritative money.
     if (lastSynced === null || lastSynced === undefined) {
       if (await hasUnfinishedPushes(u.id)) continue;
+      // Never seed an absolute wallet value from the stale bulk snapshot —
+      // confirm with a live per-user read (seeds are rare, so this is cheap).
+      if (fromBulk) {
+        if (verifiesLeft <= 0) {
+          result.failed++;
+          continue;
+        }
+        verifiesLeft--;
+        const fresh = await getBalance(u.discordId, { bypassCache: true });
+        if (!fresh) {
+          result.failed++;
+          continue;
+        }
+        ubTotal = fresh.total;
+      }
       result.seeded++;
       if (mode === "test") {
         logger.info({ userId: u.id, ubTotal }, "reconcile dry-run: would seed wallet from UB");
@@ -654,8 +677,33 @@ export async function runEconomyReconcile(): Promise<ReconcileResult> {
       continue;
     }
 
-    const delta = ubTotal - lastSynced;
+    let delta = ubTotal - lastSynced;
     if (delta === 0) continue;
+
+    // The leaderboard endpoint serves STALE totals (observed lagging ≥1 min
+    // behind writes), so a delta computed from the bulk map may just be our
+    // own recent push not yet reflected — folding it would claw back money we
+    // credited seconds ago, then bounce it back next cycle. Verify any
+    // nonzero bulk-sourced delta with a fresh per-user read (that endpoint is
+    // write-consistent) before folding. bypassCache: a process-local cache
+    // entry could itself predate a push made by another instance.
+    if (fromBulk) {
+      if (verifiesLeft <= 0) {
+        // Budget exhausted — defer this user to the next cycle rather than
+        // trusting the stale bulk figure or hammering the per-user endpoint.
+        result.failed++;
+        continue;
+      }
+      verifiesLeft--;
+      const fresh = await getBalance(u.discordId, { bypassCache: true });
+      if (!fresh) {
+        result.failed++;
+        continue;
+      }
+      delta = fresh.total - lastSynced;
+      if (delta === 0) continue;
+      ubTotal = fresh.total;
+    }
 
     result.changed++;
     const newBalance = u.walletBalance + delta;

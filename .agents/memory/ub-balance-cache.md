@@ -42,3 +42,7 @@ injection + fetch stub, which fights the harness convention.
 
 ## Bulk reads: leaderboard endpoint
 Per-user GET /guilds/:g/users/:id at ~4/s trips UB rate limits (economy_reconcile used to fail ~330/483 users per run, silently skipping them). Bulk read via `listGuildBalances()` — GET /guilds/:g/users?limit=100&page=N returns `{users:[{user_id,cash,bank,total}],total_pages}`; ~5 calls covers the guild. Contract gotchas encoded in the reconcile: any failed page → return null (partial map misreads absent users as "no UB row"); leaderboard membership of zero/negative accounts is NOT documented, so map-absent users with a non-null lastSyncedUbBalance get a per-user re-check; economy_reconcile is in NO_OVERLAP_JOBS so runs can't stack.
+
+## Leaderboard staleness (reconcile trap)
+
+The UB leaderboard endpoint serves STALE totals (observed lagging 1–5 min behind writes). A reconcile delta computed from the bulk map right after our own push looks like a phantom external change (clawback then bounce-back next cycle — real user bug reports). Rule: never move money off a bulk-leaderboard figure — verify any nonzero bulk-sourced delta (and any bulk-sourced first-time seed) with `getBalance(id, { bypassCache: true })` first; `bypassCache` exists because the 30s cache is process-local and multi-instance deploys can hold a pre-push entry. Verification reads are budgeted per cycle (defer overflow to next cycle) so a mass-stale leaderboard can't recreate the per-user rate-limit storm.

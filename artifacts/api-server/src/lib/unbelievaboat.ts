@@ -132,9 +132,15 @@ async function fetchLiveBalance(discordUserId: string): Promise<UbBalance | null
  */
 export async function getBalance(
   discordUserId: string,
-  opts?: { allowStale?: boolean },
+  opts?: { allowStale?: boolean; bypassCache?: boolean },
 ): Promise<UbBalance | null> {
   if (!TOKEN || !DISCORD_GUILD_ID) return null;
+
+  // bypassCache: strict verification reads (reconcile deciding whether to move
+  // money) must not trust a process-local cache entry or a possibly pre-write
+  // in-flight fetch — in multi-instance deployments the write that invalidates
+  // the cache may have happened in another process. Always hit the API.
+  if (opts?.bypassCache) return fetchLiveBalance(discordUserId);
 
   const cached = balanceCache.get(discordUserId);
   if (cached && cached.expires > Date.now()) return cached.value;

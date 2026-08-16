@@ -275,23 +275,62 @@ describe("economy reconciliation (UB -> website)", () => {
     expect(ledger).toHaveLength(0);
   });
 
-  it("folds deltas from the bulk leaderboard map without per-user fetches", async () => {
+  it("folds bulk-map deltas only after a fresh per-user read confirms them", async () => {
     await setMode("enabled");
     const owner = await createUser();
+    const unchanged = await createUser();
     await db
       .update(users)
       .set({ walletBalance: 1000, lastSyncedUbBalance: 1000 })
       .where(eq(users.id, owner.id));
+    await db
+      .update(users)
+      .set({ walletBalance: 500, lastSyncedUbBalance: 500 })
+      .where(eq(users.id, unchanged.id));
     mockListGuildBalances.mockResolvedValueOnce(
-      new Map([[owner.discordId, { cash: 1300, bank: 0, total: 1300, source: "unbelievaboat" as const }]]),
+      new Map([
+        [owner.discordId, { cash: 1300, bank: 0, total: 1300, source: "unbelievaboat" as const }],
+        [unchanged.discordId, { cash: 500, bank: 0, total: 500, source: "unbelievaboat" as const }],
+      ]),
     );
+    // Fresh per-user read confirms the bulk delta.
+    mockGetBalance.mockResolvedValue({ cash: 1300, bank: 0, total: 1300, source: "unbelievaboat" });
 
     await runEconomyReconcile();
 
     const [u] = await db.select().from(users).where(eq(users.id, owner.id));
     expect(u.walletBalance).toBe(1300);
     expect(u.lastSyncedUbBalance).toBe(1300);
-    expect(mockGetBalance).not.toHaveBeenCalled();
+    // Only the user with a nonzero bulk delta gets a verify fetch; zero-delta
+    // users are skipped without any per-user call.
+    expect(mockGetBalance).toHaveBeenCalledTimes(1);
+    expect(mockGetBalance).toHaveBeenCalledWith(owner.discordId, { bypassCache: true });
+  });
+
+  it("does not fold a stale-leaderboard delta the fresh per-user read contradicts", async () => {
+    // Regression: UB's leaderboard lags writes. Right after we push a payout
+    // to UB, the leaderboard still shows the pre-payout total; folding that
+    // phantom negative delta clawed back money we had just credited.
+    await setMode("enabled");
+    const owner = await createUser();
+    await db
+      .update(users)
+      .set({ walletBalance: 3500, lastSyncedUbBalance: 3500 })
+      .where(eq(users.id, owner.id));
+    // Stale leaderboard: pre-push total.
+    mockListGuildBalances.mockResolvedValueOnce(
+      new Map([[owner.discordId, { cash: 1000, bank: 0, total: 1000, source: "unbelievaboat" as const }]]),
+    );
+    // Fresh per-user read: UB already matches the baseline.
+    mockGetBalance.mockResolvedValue({ cash: 3500, bank: 0, total: 3500, source: "unbelievaboat" });
+
+    await runEconomyReconcile();
+
+    const [u] = await db.select().from(users).where(eq(users.id, owner.id));
+    expect(u.walletBalance).toBe(3500);
+    expect(u.lastSyncedUbBalance).toBe(3500);
+    const ledger = await db.select().from(walletTransactions);
+    expect(ledger).toHaveLength(0);
   });
 
   it("re-checks a previously-synced user missing from the leaderboard via per-user fetch", async () => {
