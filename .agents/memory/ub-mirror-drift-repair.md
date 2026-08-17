@@ -20,4 +20,6 @@ Portal cash = `users.walletBalance − UB bank`. When UB total > website wallet,
 
 **Player comms trap:** the repair drops UB balances with only an audit reason — players see "money vanished from the bot" and file theft reports (happened with the first manual repair). Announce before a live run. Distinct look-alike reports that are NOT drift: real UB gamble losses folded by reconcile (dispute is with UB logs), and meds billing on characters that should be LOA (billing policy, not sync).
 
+**Manual-settle re-fold trap (Aug 2026):** a manual "forfeit/settle" that debits UB (or website) WITHOUT advancing `last_synced_ub_balance` gets re-folded by the next reconcile tick — the player is charged twice. Any manual money move outside applyWalletDelta must either advance the baseline in the same operation or be done as a website-side credit/debit only (letting the outbox mirror it). Repair for a double-debit: credit the WEBSITE wallet (audited), no direct UB push.
+
 **Amnesty aftermath (Aug 2026):** players who saw the amnesty UB credit sometimes "returned" it by paying the legacy bot (external UB debit the ledger never sees) → website > UB drift reappears. If the player disclaims the money, settle by debiting the WEBSITE wallet to match UB (reconcile row + baseline advance), not by re-crediting UB.

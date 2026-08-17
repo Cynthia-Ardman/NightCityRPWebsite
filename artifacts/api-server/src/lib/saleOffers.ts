@@ -7,6 +7,7 @@ import {
   ripperdocStock,
   storeEmployees,
   ripperdocEmployees,
+  storeShifts,
   saleOffers,
   characters,
   users,
@@ -1369,11 +1370,19 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
     return { status: 409, body: { error: `Offer was already ${fresh?.status ?? "resolved"}` } };
   }
 
-  // 3) Commission to the selling employee — idempotent and retry-safe. No-ops
-  // when there's no fee (give / zero-fee removal => commissionAmount 0).
-  const settlement = await settleCommission(offer, { balance: venueBalanceAfter, name: venue.name }, kind, venueId);
-  const commissionPaid = settlement.commissionPaid;
-  venueBalanceAfter = settlement.venueBalanceAfter;
+  // 3) Shift wage split (bars): while at least one worker is clocked in and
+  // the store's wage pct is set, the sale splits shiftWagePct% of the total
+  // evenly among active workers and REPLACES the seller's profit commission.
+  // Otherwise commission settles exactly as before. Both paths are idempotent
+  // and retry-safe.
+  const wages = await settleShiftWages(offer, { balance: venueBalanceAfter, name: venue.name }, kind, venueId);
+  venueBalanceAfter = wages.venueBalanceAfter;
+  let commissionPaid = 0;
+  if (!wages.shiftRegime) {
+    const settlement = await settleCommission(offer, { balance: venueBalanceAfter, name: venue.name }, kind, venueId);
+    commissionPaid = settlement.commissionPaid;
+    venueBalanceAfter = settlement.venueBalanceAfter;
+  }
 
   // Inventory event + audit (best-effort, decision already committed).
   if (insertedItem) {
@@ -1439,7 +1448,186 @@ async function completeSaleOffer(offer: SaleOffer, actor: Actor): Promise<OfferR
   });
 
   const [finalOffer] = await db.select().from(saleOffers).where(eq(saleOffers.id, offerId));
-  return { status: 200, body: { offer: finalOffer, inventoryItem: insertedItem, commissionPaid, venueBalance: venueBalanceAfter } };
+  return { status: 200, body: { offer: finalOffer, inventoryItem: insertedItem, commissionPaid, shiftWagesPaid: wages.wagesPaid, venueBalance: venueBalanceAfter } };
+}
+
+// A worker whose shift participates in a sale's wage split.
+type ShiftWorker = { shiftId: number; characterId: number; characterName: string | null; userId: string };
+
+// Load the workers for a sale's wage split from the offer's immutable
+// shiftWageShiftIds snapshot (written atomically with the reserve). Never
+// reconstruct membership from timestamps — a clock-in racing the settlement
+// would make retries divide by a different worker count.
+async function shiftWorkersFromSnapshot(shiftIds: number[]): Promise<ShiftWorker[]> {
+  if (shiftIds.length === 0) return [];
+  return db
+    .select({
+      shiftId: storeShifts.id,
+      characterId: storeShifts.characterId,
+      characterName: characters.name,
+      userId: storeShifts.userId,
+    })
+    .from(storeShifts)
+    .leftJoin(characters, eq(characters.id, storeShifts.characterId))
+    .where(inArray(storeShifts.id, shiftIds));
+}
+
+// Credit each worker their per-sale wage. Idempotent per (offer, shift) via
+// the `offer:<id>:shift:<shiftId>` wallet key — a retry after a crash or a
+// failed credit re-attempts only the unpaid workers. Returns the total that
+// is now confirmed paid.
+async function payShiftWorkers(
+  offer: SaleOffer,
+  workers: ShiftWorker[],
+  perWorker: number,
+  venueId: number,
+  venueName: string,
+): Promise<number> {
+  let paid = 0;
+  for (const w of workers) {
+    const [workerUser] = await db.select().from(users).where(eq(users.id, w.userId));
+    if (!workerUser) continue;
+    const credit = await applyWalletDelta({
+      userId: workerUser.id,
+      discordId: workerUser.discordId,
+      amount: perWorker,
+      source: "shift",
+      kind: "shift_wage",
+      reason: `Shift wages: ${offer.itemName} @ ${venueName}`,
+      characterId: w.characterId,
+      counterpartyName: venueName,
+      relatedEntityType: "sale_offer",
+      relatedEntityId: offer.id,
+      storeId: venueId,
+      idempotencyKey: `offer:${offer.id}:shift:${w.shiftId}`,
+    });
+    if (credit.ok) {
+      paid += perWorker;
+    } else {
+      logger.error(
+        { offerId: offer.id, shiftId: w.shiftId, venueId, perWorker, status: credit.status },
+        "OFFER_SHIFT_WAGE_FAILED: worker wage credit failed; wages reserved (venue debited) but this worker unpaid — re-approve to retry",
+      );
+    }
+  }
+  return paid;
+}
+
+// Idempotent, retry-safe shift wage settlement for an approved store offer.
+// Mirrors settleCommission's two durable phases:
+//   reserve — active shifts locked + `shiftWagesSettledAt` stamped + venue
+//             debited for the whole split + venue ledger row + per-shift
+//             earned totals, committed atomically at most once.
+//   pay     — per-worker `offer:<id>:shift:<shiftId>` wallet credits.
+// shiftRegime=true means the wage split governs this sale and commission must
+// be suppressed (even when the floored per-worker share is 0).
+async function settleShiftWages(
+  offer: SaleOffer,
+  venue: { balance: number; name: string },
+  kind: OfferKind,
+  venueId: number,
+): Promise<{ shiftRegime: boolean; wagesPaid: number; venueBalanceAfter: number }> {
+  let venueBalanceAfter = venue.balance;
+  const inactive = { shiftRegime: false, wagesPaid: 0, venueBalanceAfter };
+  if (kind !== "store" || offer.totalPrice <= 0) return inactive;
+  const [cfg] = await db
+    .select({ shiftsEnabled: stores.shiftsEnabled, pct: stores.shiftWagePct })
+    .from(stores)
+    .where(eq(stores.id, venueId));
+  if (!cfg?.shiftsEnabled || cfg.pct <= 0) return inactive;
+
+  // Recovery: a prior run already reserved the split — re-pay exactly the
+  // snapshotted membership with idempotent credits.
+  if (offer.shiftWagesSettledAt) {
+    const total = offer.shiftWagesAmount ?? 0;
+    const snapshot = offer.shiftWageShiftIds ?? [];
+    if (total <= 0 || snapshot.length === 0) return { shiftRegime: true, wagesPaid: 0, venueBalanceAfter };
+    const workers = await shiftWorkersFromSnapshot(snapshot);
+    const perWorker = Math.floor(total / snapshot.length);
+    const wagesPaid = await payShiftWorkers(offer, workers, perWorker, venueId, venue.name);
+    return { shiftRegime: true, wagesPaid, venueBalanceAfter };
+  }
+
+  // Reserve once: lock the store's active shifts, stamp the settle-once guard,
+  // debit the venue for the whole split, ledger it, and bump per-shift earned
+  // totals — all-or-nothing. The locked re-read inside the tx is authoritative
+  // (a worker clocking out concurrently either makes it into the split or not,
+  // never half-way).
+  const settledAt = new Date();
+  let workers: ShiftWorker[] = [];
+  let perWorker = 0;
+  let reserved = false;
+  await db.transaction(async (tx) => {
+    const lockedShifts = await tx
+      .select({
+        shiftId: storeShifts.id,
+        characterId: storeShifts.characterId,
+        userId: storeShifts.userId,
+      })
+      .from(storeShifts)
+      .where(
+        and(
+          eq(storeShifts.storeId, venueId),
+          sql`${storeShifts.clockOutAt} IS NULL`,
+          sql`${storeShifts.scheduledEndAt} > now()`,
+        ),
+      )
+      .for("update");
+    if (lockedShifts.length === 0) return; // nobody on shift → commission as usual
+    perWorker = Math.floor((offer.totalPrice * cfg.pct) / 100 / lockedShifts.length);
+    const totalWages = perWorker * lockedShifts.length;
+    const [stamped] = await tx
+      .update(saleOffers)
+      .set({
+        shiftWagesSettledAt: settledAt,
+        shiftWagesAmount: totalWages,
+        shiftWageShiftIds: lockedShifts.map((s) => s.shiftId),
+      })
+      .where(and(eq(saleOffers.id, offer.id), sql`${saleOffers.shiftWagesSettledAt} IS NULL`))
+      .returning();
+    if (!stamped) return; // concurrent run reserved first — treat as regime-active, it pays
+    reserved = true;
+    workers = lockedShifts.map((s) => ({ ...s, characterName: null }));
+    if (totalWages <= 0) return; // regime active but floored share is 0 — nothing to move
+    const [debited] = await tx
+      .update(stores)
+      .set({ balance: sql`${stores.balance} - ${totalWages}` })
+      .where(eq(stores.id, venueId))
+      .returning();
+    venueBalanceAfter = debited.balance;
+    await tx.insert(walletTransactions).values({
+      storeId: venueId,
+      counterpartyName: `${lockedShifts.length} on shift`,
+      amount: -totalWages,
+      kind: "shift_wage",
+      source: "shift",
+      memo: `Shift wages ${cfg.pct}% split ${lockedShifts.length} way${lockedShifts.length === 1 ? "" : "s"} (€$${perWorker} each)`,
+      relatedEntityType: "sale_offer",
+      relatedEntityId: offer.id,
+      previousBalance: debited.balance + totalWages,
+      newBalance: debited.balance,
+    } as never);
+    await tx
+      .update(storeShifts)
+      .set({
+        earnedTotal: sql`${storeShifts.earnedTotal} + ${perWorker}`,
+        salesCount: sql`${storeShifts.salesCount} + 1`,
+      })
+      .where(inArray(storeShifts.id, lockedShifts.map((s) => s.shiftId)));
+  });
+
+  if (!reserved) {
+    // Either nobody was on shift (commission applies) or a concurrent call
+    // holds the reservation (regime active; that call pays the credits).
+    const [fresh] = await db
+      .select({ settledAt: saleOffers.shiftWagesSettledAt })
+      .from(saleOffers)
+      .where(eq(saleOffers.id, offer.id));
+    return { shiftRegime: !!fresh?.settledAt, wagesPaid: 0, venueBalanceAfter };
+  }
+  if (perWorker <= 0) return { shiftRegime: true, wagesPaid: 0, venueBalanceAfter };
+  const wagesPaid = await payShiftWorkers(offer, workers, perWorker, venueId, venue.name);
+  return { shiftRegime: true, wagesPaid, venueBalanceAfter };
 }
 
 // Idempotent, retry-safe commission settlement for an approved offer.
@@ -1546,6 +1734,30 @@ async function settleCommission(
 // immutable, so it reports "already approved".
 async function recoverApprovedOffer(offer: SaleOffer, actor: Actor): Promise<OfferResult> {
   const alreadyApproved: OfferResult = { status: 409, body: { error: "Offer already approved" } };
+
+  // Retry unpaid shift wages first (independent of commission). The reserve is
+  // durable on the offer row; per-worker credits are idempotent, so this only
+  // re-attempts workers whose credit never synced.
+  if (
+    offer.kind === "store" &&
+    offer.storeId &&
+    offer.shiftWagesSettledAt &&
+    (offer.shiftWagesAmount ?? 0) > 0 &&
+    (await getEconomyMode()) === "enabled"
+  ) {
+    const snapshot = offer.shiftWageShiftIds ?? [];
+    if (snapshot.length > 0) {
+      const workers = await shiftWorkersFromSnapshot(snapshot);
+      const [venueRow] = await db.select().from(stores).where(eq(stores.id, offer.storeId));
+      const perWorker = Math.floor((offer.shiftWagesAmount ?? 0) / snapshot.length);
+      if (venueRow && perWorker > 0) {
+        await payShiftWorkers(offer, workers, perWorker, offer.storeId, venueRow.name);
+      }
+    }
+  }
+  // A wage-governed sale pays no commission — nothing further to recover.
+  if (offer.shiftWagesSettledAt) return alreadyApproved;
+
   if (!offer.sellerEmployeeId || offer.commissionPct <= 0 || !offer.sellerCharacterId) return alreadyApproved;
 
   // Already paid? A synced ledger row means there is nothing to recover.

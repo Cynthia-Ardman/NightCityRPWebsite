@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { useListMyStores } from "@workspace/api-client-react";
+import { useListMyStores, useGetMyActiveShift } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Store } from "lucide-react";
@@ -7,6 +7,8 @@ import VenueRequestSection from "@/components/catalog/VenueRequestSection";
 
 export default function MyStores() {
   const { data, isLoading } = useListMyStores();
+  // "ON SHIFT" badge on whichever venue I'm currently clocked in at.
+  const { data: myShift } = useGetMyActiveShift();
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <h1 className="text-4xl font-display" data-testid="text-my-stores-title">MY STORES</h1>
@@ -30,7 +32,14 @@ export default function MyStores() {
             {data.map((s) => (
               <Link key={s.id} href={`/stores/${s.id}`}>
                 <Card className="rounded-none border-border bg-card/50 hover:border-nc-cyan transition-all cursor-pointer" data-testid={`card-mystore-${s.id}`}>
-                  <CardHeader><CardTitle className="font-display">{s.name}</CardTitle></CardHeader>
+                  <CardHeader>
+                    <CardTitle className="font-display flex items-center gap-2">
+                      {s.name}
+                      {myShift?.shift?.storeId === s.id && (
+                        <Badge className="rounded-none bg-nc-cyan text-background" data-testid={`badge-on-shift-${s.id}`}>ON SHIFT</Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
                   <CardContent className="flex justify-between">
                     <span className="font-mono text-xs text-muted-foreground">{s.location ?? "—"}</span>
                     <Badge variant="outline" className="rounded-none border-nc-yellow text-nc-yellow uppercase">{s.kind}</Badge>

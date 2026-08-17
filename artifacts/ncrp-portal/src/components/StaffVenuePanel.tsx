@@ -36,6 +36,7 @@ export default function StaffVenuePanel({
   currentOwnerCharacterName,
   currentHousingId,
   currentLeaseLabel,
+  currentShiftsEnabled,
   onChanged,
 }: {
   kind: "store" | "ripperdoc";
@@ -44,6 +45,8 @@ export default function StaffVenuePanel({
   currentOwnerCharacterName?: string | null;
   currentHousingId?: number | null;
   currentLeaseLabel?: string | null;
+  // Stores only: pass to show the staff shifts on/off toggle.
+  currentShiftsEnabled?: boolean;
   onChanged: () => void;
 }) {
   const [, navigate] = useLocation();
@@ -237,6 +240,39 @@ export default function StaffVenuePanel({
             )}
           </div>
         </div>
+        {kind === "store" && currentShiftsEnabled !== undefined && (
+          <div className="space-y-2 pt-2 border-t border-border/30">
+            <p className="font-mono text-xs text-muted-foreground">
+              Shifts: <span className="text-foreground">{currentShiftsEnabled ? "ENABLED" : "DISABLED"}</span>
+            </p>
+            <p className="font-mono text-[11px] text-muted-foreground">
+              When enabled, the owner and employees can clock in for 4-hour shifts and split the owner-set % of each
+              sale as instant wages (replaces per-sale commission while a shift is active).
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() =>
+                updateStore.mutate(
+                  { id: venueId, data: { shiftsEnabled: !currentShiftsEnabled } },
+                  {
+                    onSuccess: () => {
+                      toast({ title: currentShiftsEnabled ? "Shifts disabled" : "Shifts enabled" });
+                      onChanged();
+                    },
+                    onError: () =>
+                      toast({ title: "Update failed", description: "Could not toggle shifts.", variant: "destructive" }),
+                  },
+                )
+              }
+              disabled={updateStore.isPending}
+              className="rounded-none font-display"
+              data-testid="button-toggle-shifts"
+            >
+              {currentShiftsEnabled ? "DISABLE SHIFTS" : "ENABLE SHIFTS"}
+            </Button>
+          </div>
+        )}
         <div className="pt-2 border-t border-border/30">
           {!confirming ? (
             <Button

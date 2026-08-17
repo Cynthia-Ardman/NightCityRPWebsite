@@ -48,6 +48,7 @@ import PurchaseStockDialog from "@/components/PurchaseStockDialog";
 import VenueOffersPanel from "@/components/VenueOffersPanel";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import StaffVenuePanel from "@/components/StaffVenuePanel";
+import StoreShiftPanel from "@/components/StoreShiftPanel";
 import SingleImageUpload from "@/components/SingleImageUpload";
 import VenueWalletPanel from "@/components/VenueWalletPanel";
 import SelectOrCustom from "@/components/SelectOrCustom";
@@ -423,6 +424,15 @@ export default function MyStoreDetail() {
         accent="cyan"
         testIdPrefix="store"
       />
+      )}
+
+      {store.shiftsEnabled && (
+        <StoreShiftPanel
+          storeId={storeId}
+          shiftWagePct={store.shiftWagePct ?? 0}
+          canManage={canManage}
+          canWork={isOwner || isEmployee}
+        />
       )}
 
       {canManage && (
@@ -831,6 +841,7 @@ export default function MyStoreDetail() {
           venueId={storeId}
           currentHousingId={store?.housingId ?? null}
           currentLeaseLabel={store?.lease ? store.lease.address : null}
+          currentShiftsEnabled={store?.shiftsEnabled ?? false}
           onChanged={invalidate}
         />
       )}

@@ -428,6 +428,13 @@ export const stores = pgTable("stores", {
   // owners move money between this and their personal wallet via deposit/
   // withdraw. Reconciliation never touches this.
   balance: integer("balance").notNull().default(0),
+  // Shift clock-in system (bars & similar service venues). Staff toggle
+  // shiftsEnabled per venue; the owner sets shiftWagePct (0-100), the share of
+  // each venue-credited sale that is split evenly among clocked-in workers.
+  // While at least one worker is on shift AND the pct is > 0, the per-sale
+  // wage split REPLACES the seller's profit commission.
+  shiftsEnabled: boolean("shifts_enabled").notNull().default(false),
+  shiftWagePct: integer("shift_wage_pct").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -934,6 +941,16 @@ export const saleOffers = pgTable("sale_offers", {
   // Set once commission is paid out (idempotency guard for the store-side leg).
   commissionAmount: integer("commission_amount"),
   commissionSettledAt: timestamp("commission_settled_at", { withTimezone: true }),
+  // Shift wage split (bars): set once the venue-side wage debit is reserved
+  // (idempotency guard, mirrors commissionSettledAt). Amount is the TOTAL
+  // debited from the venue across all workers for this sale.
+  shiftWagesAmount: integer("shift_wages_amount"),
+  shiftWagesSettledAt: timestamp("shift_wages_settled_at", { withTimezone: true }),
+  // Immutable snapshot of the store_shifts ids that participated in this
+  // sale's wage split, written atomically with the reserve. Recovery re-pays
+  // exactly this membership (never a timestamp reconstruction, which races
+  // with concurrent clock-ins).
+  shiftWageShiftIds: jsonb("shift_wage_shift_ids").$type<number[]>(),
   // Who created the offer (for audit/display).
   createdById: text("created_by_id").notNull().references(() => users.id),
   memo: text("memo"),
@@ -1720,6 +1737,39 @@ export const shopOpens = pgTable("shop_opens", {
   charMonthIdx: index("shop_opens_char_month_idx").on(t.characterId, t.openedAt),
 }));
 export type ShopOpen = typeof shopOpens.$inferSelect;
+
+// Bar/venue employee shifts — one row per clock-in. A shift is "active" while
+// clockOutAt IS NULL and scheduledEndAt is in the future; sales completed at
+// the store during that window split stores.shiftWagePct of the sale total
+// evenly among active workers (paid instantly per sale, floored, remainder
+// stays in the venue account). Shifts auto-expire at scheduledEndAt (4h after
+// clock-in): expiry is applied lazily on every read/payout path plus a
+// periodic sweep, and the wage-split query independently filters
+// scheduledEndAt > now() so a stale open row can never earn.
+export const storeShifts = pgTable("store_shifts", {
+  id: serial("id").primaryKey(),
+  storeId: integer("store_id").notNull().references(() => stores.id, { onDelete: "cascade" }),
+  characterId: integer("character_id").notNull().references(() => characters.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  clockInAt: timestamp("clock_in_at", { withTimezone: true }).notNull().defaultNow(),
+  // Hard end of the shift window (clockInAt + 4h). Never extended.
+  scheduledEndAt: timestamp("scheduled_end_at", { withTimezone: true }).notNull(),
+  // Set when the worker clocks out early or the shift is expired (then equal
+  // to scheduledEndAt). NULL = still open.
+  clockOutAt: timestamp("clock_out_at", { withTimezone: true }),
+  // Running totals for display: wage eddies earned and sales participated in.
+  earnedTotal: integer("earned_total").notNull().default(0),
+  salesCount: integer("sales_count").notNull().default(0),
+}, (t) => ({
+  // One active shift per USER across all venues (a player can't tend two bars
+  // at once, even with different characters).
+  oneActivePerUserIdx: uniqueIndex("store_shifts_one_active_per_user_idx")
+    .on(t.userId)
+    .where(sql`clock_out_at IS NULL`),
+  storeActiveIdx: index("store_shifts_store_active_idx").on(t.storeId, t.clockOutAt),
+  storeStartIdx: index("store_shifts_store_start_idx").on(t.storeId, t.clockInAt),
+}));
+export type StoreShift = typeof storeShifts.$inferSelect;
 
 // Per-user weekly attendance claims. One row = "user collected their
 // €$250 weekly attend bonus for this session week." The week key is the

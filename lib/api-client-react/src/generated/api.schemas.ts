@@ -2903,6 +2903,14 @@ export interface Store {
   description?: string | null;
   /** @nullable */
   bannerUrl?: string | null;
+  /** Staff-toggled: whether the shift clock-in / wage-split system is on for this venue. */
+  shiftsEnabled?: boolean;
+  /**
+     * Owner-set percent of each venue-credited sale that is split evenly among clocked-in workers.
+     * @minimum 0
+     * @maximum 100
+     */
+  shiftWagePct?: number;
   lease?: BusinessLease | null;
   employees: Employee[];
   stock: StockItem[];
@@ -2938,6 +2946,51 @@ export interface StoreUpdate {
      * @nullable
      */
   housingId?: number | null;
+  /** Staff-only: turn the shift clock-in / wage-split system on or off. */
+  shiftsEnabled?: boolean;
+  /**
+     * Owner or staff: percent of each sale split among clocked-in workers.
+     * @minimum 0
+     * @maximum 100
+     */
+  shiftWagePct?: number;
+}
+
+export interface Shift {
+  id: number;
+  storeId: number;
+  storeName?: string;
+  characterId: number;
+  /** @nullable */
+  characterName?: string | null;
+  userId?: string;
+  clockInAt: string;
+  /** Hard end of the 4-hour shift window; the shift auto-expires here. */
+  scheduledEndAt: string;
+  /** @nullable */
+  clockOutAt?: string | null;
+  /** Wage eddies earned so far this shift. */
+  earnedTotal: number;
+  /** Sales this shift participated in. */
+  salesCount: number;
+}
+
+export interface MyActiveShift {
+  shift: Shift | null;
+}
+
+/**
+ * Owner/staff only — wage totals across the listed shifts.
+ */
+export type ShiftReportTotals = {
+  wagesPaid?: number;
+  sales?: number;
+};
+
+export interface ShiftReport {
+  shifts: Shift[];
+  /** Owner/staff only — wage totals across the listed shifts. */
+  totals?: ShiftReportTotals;
 }
 
 export interface Ripperdoc {
@@ -3493,39 +3546,6 @@ export interface EconomyReconcileResult {
   error?: string | null;
 }
 
-export type UbBalanceRepairUser = {
-  userId: string;
-  username: string;
-  websiteBalance: number;
-  lastSyncedUbBalance: number;
-  drift: number;
-  skippedPendingPushes?: boolean;
-  skippedNegativeTarget?: boolean;
-};
-
-export type UbBalanceRepairOutcome = {
-  userId: string;
-  username: string;
-  drift: number;
-  status: string;
-  error?: string;
-};
-
-export interface UbBalanceRepairResult {
-  dryRun: boolean;
-  totalDrifted: number;
-  eligible: number;
-  repaired: number;
-  skippedPendingPushes: number;
-  skippedNegativeTarget: number;
-  skippedUbUnreachable: number;
-  skippedRaced: number;
-  failed: number;
-  externalWritesAllowed: boolean;
-  users?: UbBalanceRepairUser[];
-  outcomes?: UbBalanceRepairOutcome[];
-}
-
 export type WalletMirrorHealthCounts = {
   pending: number;
   inflight: number;
@@ -3564,8 +3584,6 @@ export interface WalletMirrorHealth {
   recentFailures: WalletMirrorHealthRecentFailuresItem[];
   /** Users with queued pushes or drift vs the expected UnbelievaBoat total. */
   users: WalletMirrorHealthUsersItem[];
-  /** Count of users where wallet_balance ≠ last_synced_ub_balance (repair candidates). */
-  driftedCount: number;
 }
 
 export interface WalletMirrorPushResult {
@@ -8455,6 +8473,11 @@ export const ListHousingRequestsStatus = {
   approved: 'approved',
   rejected: 'rejected',
 } as const;
+
+export type ClockInStoreShiftBody = {
+  /** Which of my characters works this shift (defaults to my employed character here, or the owner character). */
+  characterId?: number;
+};
 
 export type ListMissionsParams = {
 status?: string;

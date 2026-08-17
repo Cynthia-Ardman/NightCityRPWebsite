@@ -18,6 +18,8 @@ export { MarkNotificationsReadBody } from "./generated/api";
 export type { MarkNotificationsReadBody as MarkNotificationsReadBodyType } from "./generated/types";
 export { CallTraumaTeamBody } from "./generated/api";
 export type { CallTraumaTeamBody as CallTraumaTeamBodyType } from "./generated/types";
+export { ClockInStoreShiftBody } from "./generated/api";
+export type { ClockInStoreShiftBody as ClockInStoreShiftBodyType } from "./generated/types";
 export { SetTextScalePreferenceBody } from "./generated/api";
 export type { SetTextScalePreferenceBody as SetTextScalePreferenceBodyType } from "./generated/types";
 export { SetCharacterKindBody } from "./generated/api";

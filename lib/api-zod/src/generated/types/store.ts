@@ -32,6 +32,14 @@ export interface Store {
   description?: string | null;
   /** @nullable */
   bannerUrl?: string | null;
+  /** Staff-toggled: whether the shift clock-in / wage-split system is on for this venue. */
+  shiftsEnabled?: boolean;
+  /**
+     * Owner-set percent of each venue-credited sale that is split evenly among clocked-in workers.
+     * @minimum 0
+     * @maximum 100
+     */
+  shiftWagePct?: number;
   lease?: BusinessLease | null;
   employees: Employee[];
   stock: StockItem[];

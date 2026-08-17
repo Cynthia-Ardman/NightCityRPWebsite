@@ -82,6 +82,7 @@ export type WalletSource =
   | "store"
   | "ripperdoc"
   | "commission"
+  | "shift"
   | "admin";
 
 export interface ApplyWalletDeltaInput {

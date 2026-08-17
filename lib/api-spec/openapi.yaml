@@ -1309,6 +1309,69 @@ paths:
       tags: [stores]
       responses:
         "204": { description: Removed }
+  /shifts/me:
+    get:
+      operationId: getMyActiveShift
+      tags: [stores]
+      summary: My active shift anywhere (null when off shift)
+      responses:
+        "200":
+          description: Active shift or null
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MyActiveShift" }
+  /stores/{id}/shifts:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    get:
+      operationId: listStoreShifts
+      tags: [stores]
+      summary: Shift report for a venue (owner/staff see all; employees see the active crew + their own history)
+      responses:
+        "200":
+          description: Shifts, newest first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShiftReport" }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
+  /stores/{id}/shifts/clock-in:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: clockInStoreShift
+      tags: [stores]
+      summary: Clock in for a 4-hour shift (owner or employee; one active shift per player)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                characterId: { type: integer, description: "Which of my characters works this shift (defaults to my employed character here, or the owner character)." }
+      responses:
+        "201":
+          description: Clocked in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Shift" }
+        "403": { description: Not the owner or an employee }
+        "409": { description: "Shifts disabled here, or already clocked in somewhere" }
+  /stores/{id}/shifts/clock-out:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: clockOutStoreShift
+      tags: [stores]
+      summary: Clock out of my active shift at this venue
+      responses:
+        "200":
+          description: Closed shift
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Shift" }
+        "404": { description: No active shift here }
   /stores/{id}/sell:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -8965,6 +9028,8 @@ components:
         location: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
         bannerUrl: { type: ["string", "null"] }
+        shiftsEnabled: { type: boolean, description: "Staff-toggled: whether the shift clock-in / wage-split system is on for this venue." }
+        shiftWagePct: { type: integer, minimum: 0, maximum: 100, description: "Owner-set percent of each venue-credited sale that is split evenly among clocked-in workers." }
         lease:
           oneOf: [{ $ref: "#/components/schemas/BusinessLease" }, { type: "null" }]
         employees:
@@ -8986,6 +9051,45 @@ components:
         ownerId: { type: string }
         ownerCharacterId: { type: ["integer", "null"] }
         housingId: { type: ["integer", "null"], description: "Staff-only: associate (or clear with null) the business lease this venue operates out of." }
+        shiftsEnabled: { type: boolean, description: "Staff-only: turn the shift clock-in / wage-split system on or off." }
+        shiftWagePct: { type: integer, minimum: 0, maximum: 100, description: "Owner or staff: percent of each sale split among clocked-in workers." }
+
+    Shift:
+      type: object
+      required: [id, storeId, characterId, clockInAt, scheduledEndAt, earnedTotal, salesCount]
+      properties:
+        id: { type: integer }
+        storeId: { type: integer }
+        storeName: { type: string }
+        characterId: { type: integer }
+        characterName: { type: ["string", "null"] }
+        userId: { type: string }
+        clockInAt: { type: string, format: date-time }
+        scheduledEndAt: { type: string, format: date-time, description: "Hard end of the 4-hour shift window; the shift auto-expires here." }
+        clockOutAt: { type: ["string", "null"], format: date-time }
+        earnedTotal: { type: integer, description: "Wage eddies earned so far this shift." }
+        salesCount: { type: integer, description: "Sales this shift participated in." }
+
+    MyActiveShift:
+      type: object
+      required: [shift]
+      properties:
+        shift:
+          oneOf: [{ $ref: "#/components/schemas/Shift" }, { type: "null" }]
+
+    ShiftReport:
+      type: object
+      required: [shifts]
+      properties:
+        shifts:
+          type: array
+          items: { $ref: "#/components/schemas/Shift" }
+        totals:
+          type: object
+          description: "Owner/staff only — wage totals across the listed shifts."
+          properties:
+            wagesPaid: { type: integer }
+            sales: { type: integer }
 
     Ripperdoc:
       type: object

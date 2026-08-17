@@ -26,4 +26,12 @@ export interface StoreUpdate {
      * @nullable
      */
   housingId?: number | null;
+  /** Staff-only: turn the shift clock-in / wage-split system on or off. */
+  shiftsEnabled?: boolean;
+  /**
+     * Owner or staff: percent of each sale split among clocked-in workers.
+     * @minimum 0
+     * @maximum 100
+     */
+  shiftWagePct?: number;
 }

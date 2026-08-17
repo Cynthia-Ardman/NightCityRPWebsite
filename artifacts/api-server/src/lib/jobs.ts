@@ -1236,6 +1236,15 @@ export function startCron() {
     cron.schedule("* * * * *", () => {
       drainUbPushOutbox().catch((err) => logger.error({ err }, "ub_push_drain cron"));
     });
+    // Close bar shifts whose 4-hour window has passed. Purely a bookkeeping
+    // sweep — the wage-split payout query already filters on scheduledEndAt,
+    // so a stale open row can never earn; this just keeps clockOutAt honest
+    // for the UI/report. Every 5 minutes, no jobRuns row (too chatty).
+    cron.schedule("*/5 * * * *", () => {
+      import("./shifts").then(({ expireStaleShifts }) => expireStaleShifts()).catch((err) =>
+        logger.error({ err }, "shift_expiry sweep"),
+      );
+    });
     // Bidirectional Discord scheduled-event ↔ calendar sync every 10 minutes.
     // Imports new Discord events and reconciles edits/deletions both ways. Gated
     // on the missions Test/Live switch inside runJob, so Test mode is a no-op.

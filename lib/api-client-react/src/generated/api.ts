@@ -106,6 +106,7 @@ import type {
   CharacterUpdateNote,
   CheckEventConflictsParams,
   CheckMissionConflictsParams,
+  ClockInStoreShiftBody,
   CloseReviewTicket200,
   ConfirmEventNpcSignupInput,
   ConfirmNpcSignupInput,
@@ -260,6 +261,7 @@ import type {
   MissionThreadBackfillResult,
   MissionToEventConvertInput,
   MissionUpdateInput,
+  MyActiveShift,
   MyUnseen,
   NcpdCaseFile,
   NcpdCaseFileInput,
@@ -333,6 +335,8 @@ import type {
   SetTextScalePreferenceBody,
   SheetVoteInput,
   SheetVoteResult,
+  Shift,
+  ShiftReport,
   SinkInput,
   SiteAccessState,
   StandaloneActorPayInput,
@@ -377,7 +381,6 @@ import type {
   VrchatSessionInfo,
   VrchatStatusResponse,
   VrchatVerifyRequest,
-  UbBalanceRepairResult,
   Wallet,
   WalletAdjustmentInput,
   WalletMirrorHealth,
@@ -5923,6 +5926,302 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getRemoveStoreEmployeeMutationOptions(options));
+    }
+
+export const getGetMyActiveShiftUrl = () => {
+
+
+
+
+  return `/api/shifts/me`
+}
+
+/**
+ * @summary My active shift anywhere (null when off shift)
+ */
+export const getMyActiveShift = async ( options?: RequestInit): Promise<MyActiveShift> => {
+
+  return customFetch<MyActiveShift>(getGetMyActiveShiftUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyActiveShiftQueryKey = () => {
+    return [
+    `/api/shifts/me`
+    ] as const;
+    }
+
+
+export const getGetMyActiveShiftQueryOptions = <TData = Awaited<ReturnType<typeof getMyActiveShift>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyActiveShift>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyActiveShiftQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyActiveShift>>> = ({ signal }) => getMyActiveShift({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyActiveShift>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyActiveShiftQueryResult = NonNullable<Awaited<ReturnType<typeof getMyActiveShift>>>
+export type GetMyActiveShiftQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary My active shift anywhere (null when off shift)
+ */
+
+export function useGetMyActiveShift<TData = Awaited<ReturnType<typeof getMyActiveShift>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyActiveShift>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyActiveShiftQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListStoreShiftsUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}/shifts`
+}
+
+/**
+ * @summary Shift report for a venue (owner/staff see all; employees see the active crew + their own history)
+ */
+export const listStoreShifts = async (id: number, options?: RequestInit): Promise<ShiftReport> => {
+
+  return customFetch<ShiftReport>(getListStoreShiftsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStoreShiftsQueryKey = (id: number,) => {
+    return [
+    `/api/stores/${id}/shifts`
+    ] as const;
+    }
+
+
+export const getListStoreShiftsQueryOptions = <TData = Awaited<ReturnType<typeof listStoreShifts>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStoreShifts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStoreShiftsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStoreShifts>>> = ({ signal }) => listStoreShifts(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStoreShifts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStoreShiftsQueryResult = NonNullable<Awaited<ReturnType<typeof listStoreShifts>>>
+export type ListStoreShiftsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Shift report for a venue (owner/staff see all; employees see the active crew + their own history)
+ */
+
+export function useListStoreShifts<TData = Awaited<ReturnType<typeof listStoreShifts>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStoreShifts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStoreShiftsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getClockInStoreShiftUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}/shifts/clock-in`
+}
+
+/**
+ * @summary Clock in for a 4-hour shift (owner or employee; one active shift per player)
+ */
+export const clockInStoreShift = async (id: number,
+    clockInStoreShiftBody?: ClockInStoreShiftBody, options?: RequestInit): Promise<Shift> => {
+
+  return customFetch<Shift>(getClockInStoreShiftUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      clockInStoreShiftBody,)
+  }
+);}
+
+
+
+
+export const getClockInStoreShiftMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clockInStoreShift>>, TError,{id: number;data?: BodyType<ClockInStoreShiftBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof clockInStoreShift>>, TError,{id: number;data?: BodyType<ClockInStoreShiftBody>}, TContext> => {
+
+const mutationKey = ['clockInStoreShift'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof clockInStoreShift>>, {id: number;data?: BodyType<ClockInStoreShiftBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  clockInStoreShift(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClockInStoreShiftMutationResult = NonNullable<Awaited<ReturnType<typeof clockInStoreShift>>>
+    export type ClockInStoreShiftMutationBody = BodyType<ClockInStoreShiftBody> | undefined
+    export type ClockInStoreShiftMutationError = ErrorType<void>
+
+    /**
+ * @summary Clock in for a 4-hour shift (owner or employee; one active shift per player)
+ */
+export const useClockInStoreShift = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clockInStoreShift>>, TError,{id: number;data?: BodyType<ClockInStoreShiftBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof clockInStoreShift>>,
+        TError,
+        {id: number;data?: BodyType<ClockInStoreShiftBody>},
+        TContext
+      > => {
+      return useMutation(getClockInStoreShiftMutationOptions(options));
+    }
+
+export const getClockOutStoreShiftUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}/shifts/clock-out`
+}
+
+/**
+ * @summary Clock out of my active shift at this venue
+ */
+export const clockOutStoreShift = async (id: number, options?: RequestInit): Promise<Shift> => {
+
+  return customFetch<Shift>(getClockOutStoreShiftUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getClockOutStoreShiftMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clockOutStoreShift>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof clockOutStoreShift>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['clockOutStoreShift'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof clockOutStoreShift>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  clockOutStoreShift(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClockOutStoreShiftMutationResult = NonNullable<Awaited<ReturnType<typeof clockOutStoreShift>>>
+
+    export type ClockOutStoreShiftMutationError = ErrorType<void>
+
+    /**
+ * @summary Clock out of my active shift at this venue
+ */
+export const useClockOutStoreShift = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clockOutStoreShift>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof clockOutStoreShift>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getClockOutStoreShiftMutationOptions(options));
     }
 
 export const getSellStoreItemUrl = (id: number,) => {
@@ -14053,57 +14352,6 @@ export const useAdminRehostEventImages = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAdminRehostEventImagesMutationOptions(options));
-    }
-
-export const getAdminUbBalanceRepairUrl = () => {
-  return `/api/admin/maintenance/ub-balance-repair`
-}
-
-/**
- * @summary Repair UB balances for users whose Discord balance diverges from the website wallet (dryRun previews targets).
- */
-export const adminUbBalanceRepair = async (maintenanceRunInput: MaintenanceRunInput, options?: RequestInit): Promise<UbBalanceRepairResult> => {
-  return customFetch<UbBalanceRepairResult>(getAdminUbBalanceRepairUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(maintenanceRunInput)
-  }
-);}
-
-export const getAdminUbBalanceRepairMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUbBalanceRepair>>, TError,{data: BodyType<MaintenanceRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof adminUbBalanceRepair>>, TError,{data: BodyType<MaintenanceRunInput>}, TContext> => {
-const mutationKey = ['adminUbBalanceRepair'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminUbBalanceRepair>>, {data: BodyType<MaintenanceRunInput>}> = (props) => {
-          const {data} = props ?? {};
-          return adminUbBalanceRepair(data, requestOptions)
-        }
-  return { mutationFn, ...mutationOptions }
-}
-
-    export type AdminUbBalanceRepairMutationResult = NonNullable<Awaited<ReturnType<typeof adminUbBalanceRepair>>>
-    export type AdminUbBalanceRepairMutationBody = BodyType<MaintenanceRunInput>
-    export type AdminUbBalanceRepairMutationError = ErrorType<unknown>
-
-    /**
- * @summary Repair UB balances for users whose Discord balance diverges from the website wallet (dryRun previews targets).
- */
-export const useAdminUbBalanceRepair = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUbBalanceRepair>>, TError,{data: BodyType<MaintenanceRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof adminUbBalanceRepair>>,
-        TError,
-        {data: BodyType<MaintenanceRunInput>},
-        TContext
-      > => {
-      return useMutation(getAdminUbBalanceRepairMutationOptions(options));
     }
 
 export const getAdminGuidebookLinkRepairUrl = () => {

@@ -1670,6 +1670,9 @@ export const ListBusinessLeasesResponse = zod.array(ListBusinessLeasesResponseIt
 /**
  * @summary Stores I own or am employed at
  */
+export const listMyStoresResponseShiftWagePctMin = 0;
+export const listMyStoresResponseShiftWagePctMax = 100;
+
 export const listMyStoresResponseEmployeesItemCommissionPctMin = 0;
 export const listMyStoresResponseEmployeesItemCommissionPctMax = 100;
 
@@ -1687,6 +1690,8 @@ export const ListMyStoresResponseItem = zod.object({
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
+  "shiftsEnabled": zod.boolean().optional().describe('Staff-toggled: whether the shift clock-in \/ wage-split system is on for this venue.'),
+  "shiftWagePct": zod.number().min(listMyStoresResponseShiftWagePctMin).max(listMyStoresResponseShiftWagePctMax).optional().describe('Owner-set percent of each venue-credited sale that is split evenly among clocked-in workers.'),
   "lease": zod.union([zod.object({
   "id": zod.number(),
   "address": zod.string(),
@@ -1724,6 +1729,9 @@ export const GetStoreParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getStoreResponseShiftWagePctMin = 0;
+export const getStoreResponseShiftWagePctMax = 100;
+
 export const getStoreResponseEmployeesItemCommissionPctMin = 0;
 export const getStoreResponseEmployeesItemCommissionPctMax = 100;
 
@@ -1741,6 +1749,8 @@ export const GetStoreResponse = zod.object({
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
+  "shiftsEnabled": zod.boolean().optional().describe('Staff-toggled: whether the shift clock-in \/ wage-split system is on for this venue.'),
+  "shiftWagePct": zod.number().min(getStoreResponseShiftWagePctMin).max(getStoreResponseShiftWagePctMax).optional().describe('Owner-set percent of each venue-credited sale that is split evenly among clocked-in workers.'),
   "lease": zod.union([zod.object({
   "id": zod.number(),
   "address": zod.string(),
@@ -1777,6 +1787,11 @@ export const UpdateStoreParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const updateStoreBodyShiftWagePctMin = 0;
+export const updateStoreBodyShiftWagePctMax = 100;
+
+
+
 export const UpdateStoreBody = zod.object({
   "name": zod.string().optional(),
   "kind": zod.enum(['guns', 'gear', 'clothing', 'mixed', 'other']).optional(),
@@ -1786,8 +1801,13 @@ export const UpdateStoreBody = zod.object({
   "bannerUrl": zod.string().nullish(),
   "ownerId": zod.string().optional(),
   "ownerCharacterId": zod.number().nullish(),
-  "housingId": zod.number().nullish().describe('Staff-only: associate (or clear with null) the business lease this venue operates out of.')
+  "housingId": zod.number().nullish().describe('Staff-only: associate (or clear with null) the business lease this venue operates out of.'),
+  "shiftsEnabled": zod.boolean().optional().describe('Staff-only: turn the shift clock-in \/ wage-split system on or off.'),
+  "shiftWagePct": zod.number().min(updateStoreBodyShiftWagePctMin).max(updateStoreBodyShiftWagePctMax).optional().describe('Owner or staff: percent of each sale split among clocked-in workers.')
 })
+
+export const updateStoreResponseShiftWagePctMin = 0;
+export const updateStoreResponseShiftWagePctMax = 100;
 
 export const updateStoreResponseEmployeesItemCommissionPctMin = 0;
 export const updateStoreResponseEmployeesItemCommissionPctMax = 100;
@@ -1806,6 +1826,8 @@ export const UpdateStoreResponse = zod.object({
   "location": zod.string().nullish(),
   "description": zod.string().nullish(),
   "bannerUrl": zod.string().nullish(),
+  "shiftsEnabled": zod.boolean().optional().describe('Staff-toggled: whether the shift clock-in \/ wage-split system is on for this venue.'),
+  "shiftWagePct": zod.number().min(updateStoreResponseShiftWagePctMin).max(updateStoreResponseShiftWagePctMax).optional().describe('Owner-set percent of each venue-credited sale that is split evenly among clocked-in workers.'),
   "lease": zod.union([zod.object({
   "id": zod.number(),
   "address": zod.string(),
@@ -1902,6 +1924,88 @@ export const UpdateStoreEmployeeResponse = zod.object({
 export const RemoveStoreEmployeeParams = zod.object({
   "id": zod.coerce.number(),
   "employeeId": zod.coerce.number()
+})
+
+
+/**
+ * @summary My active shift anywhere (null when off shift)
+ */
+export const GetMyActiveShiftResponse = zod.object({
+  "shift": zod.union([zod.object({
+  "id": zod.number(),
+  "storeId": zod.number(),
+  "storeName": zod.string().optional(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "userId": zod.string().optional(),
+  "clockInAt": zod.coerce.date(),
+  "scheduledEndAt": zod.coerce.date().describe('Hard end of the 4-hour shift window; the shift auto-expires here.'),
+  "clockOutAt": zod.coerce.date().nullish(),
+  "earnedTotal": zod.number().describe('Wage eddies earned so far this shift.'),
+  "salesCount": zod.number().describe('Sales this shift participated in.')
+}),zod.null()])
+})
+
+
+/**
+ * @summary Shift report for a venue (owner/staff see all; employees see the active crew + their own history)
+ */
+export const ListStoreShiftsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListStoreShiftsResponse = zod.object({
+  "shifts": zod.array(zod.object({
+  "id": zod.number(),
+  "storeId": zod.number(),
+  "storeName": zod.string().optional(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "userId": zod.string().optional(),
+  "clockInAt": zod.coerce.date(),
+  "scheduledEndAt": zod.coerce.date().describe('Hard end of the 4-hour shift window; the shift auto-expires here.'),
+  "clockOutAt": zod.coerce.date().nullish(),
+  "earnedTotal": zod.number().describe('Wage eddies earned so far this shift.'),
+  "salesCount": zod.number().describe('Sales this shift participated in.')
+})),
+  "totals": zod.object({
+  "wagesPaid": zod.number().optional(),
+  "sales": zod.number().optional()
+}).optional().describe('Owner\/staff only — wage totals across the listed shifts.')
+})
+
+
+/**
+ * @summary Clock in for a 4-hour shift (owner or employee; one active shift per player)
+ */
+export const ClockInStoreShiftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ClockInStoreShiftBody = zod.object({
+  "characterId": zod.number().optional().describe('Which of my characters works this shift (defaults to my employed character here, or the owner character).')
+})
+
+
+/**
+ * @summary Clock out of my active shift at this venue
+ */
+export const ClockOutStoreShiftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ClockOutStoreShiftResponse = zod.object({
+  "id": zod.number(),
+  "storeId": zod.number(),
+  "storeName": zod.string().optional(),
+  "characterId": zod.number(),
+  "characterName": zod.string().nullish(),
+  "userId": zod.string().optional(),
+  "clockInAt": zod.coerce.date(),
+  "scheduledEndAt": zod.coerce.date().describe('Hard end of the 4-hour shift window; the shift auto-expires here.'),
+  "clockOutAt": zod.coerce.date().nullish(),
+  "earnedTotal": zod.number().describe('Wage eddies earned so far this shift.'),
+  "salesCount": zod.number().describe('Sales this shift participated in.')
 })
 
 
