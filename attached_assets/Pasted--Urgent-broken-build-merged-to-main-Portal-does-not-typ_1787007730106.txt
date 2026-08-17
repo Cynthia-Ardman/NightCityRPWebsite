@@ -1,0 +1,39 @@
+🔴 Urgent — broken build merged to main
+Portal does not typecheck (12 errors, all in AdminDashboard.tsx). The server added POST /admin/maintenance/ub-balance-repair (admin.ts:2905) but it was never added to openapi.yaml and codegen wasn't re-run, yet the portal imports useAdminUbBalanceRepair / UbBalanceRepairResult (don't exist) and reads WalletMirrorHealth.driftedCount (server returns it; spec/generated type omit it). The admin wallet-health tab will crash at runtime. Vite ships anyway (esbuild strips types), which is exactly why this slipped in with no CI. Fix: add the endpoint + driftedCount to openapi.yaml, run codegen. (Verified.)
+🔴 Money correctness (new features) — highest priority
+Both money reviewers independently flagged these:
+
+Event-ticket purchase can double-charge. eventTicketsService.ts:381–467: reserve pending ticket → debit keyed event-ticket:${ticketId}:debit (own tx) → finalize purchased. A crash before finalize leaves a charged pending ticket that listMyTickets hides; the buyer retries → new ticketId → new key → second debit. pending also holds capacity with no TTL cleanup. (Verified.)
+Venue owner deposit/withdraw can double-credit the venue — personal leg is idempotency-keyed but the venue leg isn't (unlike venueGive, which keys ${key}-venue). stores.ts venueDepositWithdraw. Plus the fallback key still uses Date.now().
+Mission player payout can stick in processing after money moved (crash between UB debit and the paid update); retry skips non-unpaid/failed/simulated rows → autopay never completes.
+Standalone actor payouts (no eventId) have no cross-request dedupe — double-submit pays twice.
+NCPD fine payment isn't atomic — applyWalletDelta runs in its own tx while the fine row is locked in an outer tx; a crash leaves the wallet debited but the fine unpaid.
+runEconomyReconcile fold has no int4 overflow guard (unlike applyWalletDelta).
+🟠 Logic / consistency (new features)
+Two divergent "open shop" paths: PATCH /characters/:id/status toggles openShop with no gating/payout; POST /characters/:id/open-shop is the real paid path but doesn't set the flag — and the dashboard counts the flag, so metrics can be inflated without paying.
+Ticket quantity can be set below already-sold count → permanent soldOut/negative remaining.
+NCPD hard-delete of reports/warrants/notes/cases uses the broad requireNcpd (rank-and-file + fixer + admin), while editing statutes uses the narrower requireLawWriter — officers can erase case history but not edit laws.
+Analytics VRChat drilldown durations can disagree with the aggregate charts; refund toast claims "money is back" even in dry-run.
+🟡 Contract & maintainability (trending worse)
+Good news: NCPD, analytics, and event-tickets were added to OpenAPI and codegen is in sync (404/404 operations) — the team followed the contract flow for those. The drift is isolated to ub-balance-repair + driftedCount + ~34 mostly-admin/maintenance endpoints still undocumented (~30 raw-fetch call sites).
+Maintainability regressed: missionsService.ts is now 4,022 lines, admin.ts 3,934, AdminDashboard.tsx 3,726; new ncpd.ts (1,114) repeated the god-route/inline-SQL pattern (tickets/analytics did better with service extraction). Still no CI, no ESLint/Prettier, no DB migrations — none of the prior guardrail recommendations were adopted, and the memory bank grew to 233 files while replit.md is stale (no mention of NCPD/analytics/tickets).
+What I'd do, in order
+Fix the build (ub-balance-repair spec + codegen) — minutes, unblocks the admin panel.
+Add CI (typecheck + tests) — this single change would have caught #1 and prevents the next silent breakage.
+Fix the money bugs — event-ticket idempotency/recovery (#1) first (real double-charge), then venue-leg key, mission processing recovery, actor-payout dedupe, NCPD fine atomicity, reconcile overflow. I can do these against the local Postgres with regression tests, as before.
+Then the consistency items (open-shop unification, ticket-capacity guard, NCPD delete authz) and the maintainability backlog.
+Want me to start on #1 + #2 (fix the build + add CI) right away, then move into the money fixes? I can do it as small, reviewable PRs like last time.
+
+Confirmed. Here's the api-server test baseline result.
+
+Test result: 1,200 / 1,206 passing (6 failed, 97 files)
+The suite has nearly doubled since the last review (was ~715 tests → now 1,206), so coverage of the new NCPD/tickets/analytics/economy work is actually solid.
+
+On the 6 failures — I dug into the one that wasn't in the known env-dependent set:
+
+ripperdoc-cyberware.test.ts → "serializes concurrent installs so the PC cap can't be raced past" — fails reproducibly in isolation (not load flake). But the good news: it's not a cap-bypass. Two concurrent 5-CWP installs correctly resolve to only one success (cap holds at 11, never exceeds 15). The defect is purely error surfacing: the losing request returns 500 instead of a clean 409 Conflict.
+AssertionError: expected [ 200, 500 ] to deeply equal [ 200, 409 ]
+So a concurrent-install collision throws an unhandled serialization/constraint error rather than being mapped to a graceful conflict. Low severity (integrity is safe; just a bad 500 + confusing client behavior), but a real, easy fix — catch the serialization failure / unique-violation in the install path and return 409.
+
+The other 5 are consistent with the known pre-existing environment-dependent failures (Discord scheduled-event sync + admin cosmetic-edit mocks) from prior runs — not regressions from the new features.
+Net: main's server logic is healthy; the only broken build is the portal typecheck (the ub-balance-repair / driftedCount spec drift), which the tests don't cover since it's a codegen gap.
