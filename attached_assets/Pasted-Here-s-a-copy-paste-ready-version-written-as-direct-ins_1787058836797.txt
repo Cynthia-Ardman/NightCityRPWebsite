@@ -1,0 +1,45 @@
+Here's a copy-paste-ready version written as direct instructions to the Replit agent.
+
+---
+
+Hey — I want you to work on the health and maintainability of this codebase, not new features. Below is an outside review of the last few months of work. The architecture is in good shape; the gaps are operational. Please treat the "Action items" as a prioritized punch list and work top-down. Don't start new gameplay features until these are addressed.
+
+## Context (what's already good — don't undo these patterns)
+
+- The **website-first economy** (website wallet = source of truth, UnbelievaBoat mirrored via the `ub_push_outbox` + reconcile) is the right model. Keep it.
+- Every wallet movement is **idempotency-keyed** (e.g. `ncpd-fine:<id>`, `event-ticket:<id>:debit`, `breach-reward-<id>`, `mission_payout:<id>`), uses **guarded status flips** (`WHERE status = 'pending'`), and has **ledger-based recovery** (stale-pending-ticket sweep, mission `processing` recovery). Preserve this discipline in all new code — any new money path MUST have an idempotency key, a guarded flip, and a recovery/reconcile story.
+
+## Action items (do in this order)
+
+**1. Add CI (highest priority).** Create a GitHub Actions workflow that runs on every PR and blocks merge on failure:
+- `pnpm install`
+- portal typecheck (`pnpm --filter @workspace/ncrp-portal run typecheck`)
+- lib typecheck (`pnpm run typecheck:libs`)
+- api-server test suite against a Postgres service container (set `DATABASE_URL` and a capped `VITEST_WORKER_COUNT`, e.g. 4, to avoid connection saturation)
+- a check that regenerating codegen (`pnpm --filter @workspace/api-spec run codegen`) produces **no git diff** — i.e. `openapi.yaml` and the generated clients are in sync.
+Rationale: a broken portal build and OpenAPI/codegen drift already reached `main`. This must be a gate, not a manual step.
+
+**2. Get the test suite fully green.** There are ~6 persistently failing/flaky tests. Drive them to zero:
+- **`src/lib/breach-reward.test.ts` is stale** — it asserts the old UB-first behavior (`rewardPaid: false` / `rewardPaidAt` null when the UnbelievaBoat call fails). Under the website-first model, `applyWalletDelta` commits the wallet change locally with `syncStatus: "synced"` and enqueues the UB push to the outbox; it does not call `patchBalance` synchronously. Update the two test cases so they expect the reward to **settle locally on first submit** (`rewardPaid: true`, `rewardPaidAt` stamped), and assert UB mirroring via the outbox row instead of the `patchBalance` mock. Keep the exactly-once/no-double-mint guarantees.
+- The Discord-mock/retry-timing tests (`roleGrants` "alerts staff ONCE", `requests.draft` "announces it") and the load-order-flaky ones (`give-to-clinic`, `sheets.pipeline`) should be stabilized (deterministic mocks / fake timers, or per-test isolation) or explicitly `.skip`-ped with a comment explaining why. A perpetually-red suite trains everyone to ignore failures.
+
+**3. Adopt versioned DB migrations.** Move off Drizzle `push`-only to generated, checked-in migration files (`drizzle-kit generate` + a migrate step on deploy). The economy tables hold real player balances now; push-only means no history and no safe rollback. Wire the migrate step into deploy and document it.
+
+**4. Break up the mega-files.** These are past the size where changes are safe to reason about:
+- `artifacts/api-server/src/lib/missionsService.ts` (~4,000 lines)
+- `artifacts/api-server/src/routes/admin.ts` (~3,900)
+- `artifacts/ncrp-portal/src/pages/AdminDashboard.tsx` (~3,700)
+- `artifacts/api-server/src/routes/stores.ts` (~2,500)
+Extract cohesive modules (e.g. split `stores.ts` into venue-accounts / stock-offers / employment; split `AdminDashboard.tsx` into per-tab components). Pure refactor — no behavior change, tests stay green. Do these one file per PR so they're reviewable.
+
+**5. Verify deploy config.** `.replit` is set to `autoscale`, but `replit.md` says the cron jobs (reconcile, outbox push, stale-ticket sweep, mission auto-pay) require a Reserved VM. Autoscale can idle instances down and silently stop those crons — which the website-first model depends on for eventual consistency. Confirm the crons are actually running continuously in the deployed environment; if not, switch to a Reserved VM (or move crons to a dedicated always-on worker).
+
+## Constraints
+
+- Keep PRs small and single-purpose (especially the refactors).
+- No new money path without: idempotency key + guarded flip + recovery/reconcile.
+- Every PR must pass the new CI before merge.
+
+---
+
+Want me to tweak the tone (more terse / more detailed), or drop any items you'd rather not hand off?
