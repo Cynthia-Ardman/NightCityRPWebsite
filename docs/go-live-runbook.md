@@ -95,20 +95,21 @@ anywhere; set them through the Replit Secrets UI.
 
 ### 1.2 Production database schema parity
 
-The production schema is managed by Replit's **Publish** flow, **not** by hand.
+The production schema is managed by **versioned Drizzle migrations** (see
+"Database migrations" in `replit.md`), superseding the earlier Publish-diff
+guidance.
 
-- When you click Publish, Replit diffs the development schema against production,
-  prompts you to resolve any column/table renames in the Publish UI, and applies
-  the diff to production.
-- **Do not** write migration scripts, deploy-build DDL hooks, or startup-time
-  schema changes. The supported path is dev schema → Publish → prod.
+- Schema changes ship as generated files in `lib/db/migrations/` committed with
+  the schema edit.
+- On production deploy, the api-server applies pending migrations at boot,
+  before serving (advisory-locked; a failed migration aborts startup).
 - The append-only history guards (DB triggers on `bot_*`/audit/activity tables)
   are re-applied by the post-merge `db:guards` step; confirm they exist in prod
-  after the first publish (a quick read-only check that the triggers are present).
+  after major schema work (a quick read-only check that the triggers are present).
 
 > If, after deploy, the app logs `column ... does not exist` / `relation ... does
-> not exist`, production schema is behind — re-run Publish and resolve the diff;
-> do not patch prod directly.
+> not exist`, a migration is missing — generate one from the schema diff and
+> redeploy; do not patch prod directly.
 
 ### 1.3 Pre-flight verification (still in Test)
 

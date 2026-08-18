@@ -23,6 +23,7 @@
     "backfill-review-closed": "tsx ./src/backfill-review-closed.ts",
     "backfill-practice-clears": "tsx ./src/backfill-practice-clears.ts",
     "db:guards": "tsx ./src/apply-db-guards.ts",
+    "db:baseline-migrations": "tsx ./src/db-baseline-migrations.ts",
     "migrate-guidebook-sections": "tsx ./src/migrate-guidebook-sections.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

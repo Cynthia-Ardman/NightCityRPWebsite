@@ -8,7 +8,8 @@ Web portal for the Night City RP Cyberpunk Discord community — replaces the le
 - `pnpm --filter @workspace/ncrp-portal run dev` — run the React portal
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate React Query hooks + Zod schemas from `lib/api-spec/openapi.yaml`
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- `pnpm --filter @workspace/db run generate` — generate a versioned migration from schema changes (see "Database migrations")
+- `pnpm --filter @workspace/db run migrate` — apply pending migrations to the dev DB
 - Required secrets: `DATABASE_URL`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_GUILD_ID`
 - Optional: `DISCORD_BOT_TOKEN` (role sync, channel posts), `UNBELIEVABOAT_TOKEN` (wallet sync), `CS_APPROVAL_CHANNEL_ID` (sheet review pings)
 
@@ -31,6 +32,18 @@ Web portal for the Night City RP Cyberpunk Discord community — replaces the le
 - Cron jobs: `artifacts/api-server/src/lib/jobs.ts`
 - Portal pages: `artifacts/ncrp-portal/src/pages/`
 - Layout/HUD: `artifacts/ncrp-portal/src/components/layout/AppLayout.tsx`
+
+## Database migrations
+
+Schema changes ship as generated, checked-in migration files (`lib/db/migrations/`) — do NOT use `drizzle-kit push` against dev or prod anymore (the push scripts remain only for the api-server test harness's throwaway databases). End-to-end flow for a schema change:
+
+1. Edit the schema in `lib/db/src/schema/`.
+2. `pnpm --filter @workspace/db run generate` — writes a new SQL file + journal entry under `lib/db/migrations/`. Review the SQL (mind the deploy trap: no expression indexes with space-containing literals; partial-index predicate changes need an explicit DROP/CREATE in the migration since diffs don't alter predicates in place).
+3. `pnpm --filter @workspace/db run migrate` — applies it to the dev DB.
+4. Commit the migration files together with the schema change.
+5. On production deploy, the api-server applies pending migrations at boot (before serving; `REPLIT_DEPLOYMENT=1` gate, advisory-locked for concurrent instances; `artifacts/api-server/src/lib/runMigrations.ts`). A failed migration aborts startup.
+
+Post-merge setup runs `migrate` then re-asserts the append-only history guards (`db:guards`). Baseline: the initial `0000_baseline` migration was marked already-applied on dev + live prod via `pnpm --filter @workspace/scripts run db:baseline-migrations <ENV_VAR_NAME>` (also the tool to baseline any future pre-existing database).
 
 ## Architecture decisions
 

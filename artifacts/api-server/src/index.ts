@@ -1,6 +1,5 @@
-import app from "./app";
 import { logger } from "./lib/logger";
-import { flushSiteActivity } from "./lib/siteActivity";
+import { runMigrations, shouldRunMigrations } from "./lib/runMigrations";
 
 const rawPort = process.env["PORT"];
 
@@ -15,6 +14,22 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
+
+// In production deployments, apply pending DB migrations BEFORE the app module
+// loads (importing ./app starts cron jobs and session storage against the DB).
+// Fail closed: a failed migration must not serve traffic against a
+// half-migrated schema.
+if (shouldRunMigrations()) {
+  try {
+    await runMigrations();
+  } catch (err) {
+    logger.error({ err }, "Database migration failed; refusing to start");
+    process.exit(1);
+  }
+}
+
+const { default: app } = await import("./app");
+const { flushSiteActivity } = await import("./lib/siteActivity");
 
 app.listen(port, (err) => {
   if (err) {
