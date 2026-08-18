@@ -2030,7 +2030,7 @@ export const SellStoreItemResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service', 'player_sell']).optional().describe('What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays).'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -2077,7 +2077,11 @@ export const SellStoreItemResponse = zod.object({
   "dryRun": zod.boolean().optional().describe('True in Test mode — nothing was written.'),
   "wouldDebitBuyer": zod.number().optional(),
   "wouldCreditStore": zod.number().optional(),
-  "wouldPayCommission": zod.number().optional()
+  "wouldPayCommission": zod.number().optional(),
+  "wouldDebitVenue": zod.number().optional().describe('Test-mode preview for stock_add\/player_sell: what the venue account would pay.'),
+  "wouldCreditSeller": zod.number().optional().describe('Test-mode preview for player_sell: what the selling player would receive.'),
+  "wouldAddStock": zod.number().optional().describe('Test-mode preview: stock quantity that would be added.'),
+  "payoutFailed": zod.boolean().optional().describe('player_sell only: the venue paid and stock moved, but the seller wallet credit failed — re-approving retries it.')
 })
 
 
@@ -2113,7 +2117,7 @@ export const ListStoreOffersParams = zod.object({
 export const ListStoreOffersResponseItem = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service', 'player_sell']).optional().describe('What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays).'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -2676,7 +2680,7 @@ export const RemoveRipperdocEmployeeParams = zod.object({
 export const ListMyOffersResponseItem = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service', 'player_sell']).optional().describe('What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays).'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -2710,6 +2714,45 @@ export const ListMyOffersResponse = zod.array(ListMyOffersResponseItem)
 
 
 /**
+ * @summary Sell offers the caller has made to venues (player_sell), pending + history
+ */
+export const ListMyOutgoingSellOffersResponseItem = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['store', 'ripperdoc']),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service', 'player_sell']).optional().describe('What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays).'),
+  "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
+  "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
+  "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
+  "storeId": zod.number().nullish(),
+  "ripperdocId": zod.number().nullish(),
+  "stockId": zod.number().nullish(),
+  "itemName": zod.string(),
+  "itemCategory": zod.string().nullish(),
+  "unitPrice": zod.number(),
+  "quantity": zod.number(),
+  "totalPrice": zod.number(),
+  "costBasis": zod.number().nullish().describe('Shop\'s total acquisition cost for this offer, snapshotted at offer time. Commission is a % of (totalPrice - costBasis).'),
+  "buyerCharacterId": zod.number(),
+  "buyerUserId": zod.string(),
+  "sellerCharacterId": zod.number().nullish(),
+  "sellerEmployeeId": zod.number().nullish(),
+  "commissionPct": zod.number(),
+  "commissionAmount": zod.number().nullish(),
+  "commissionSettledAt": zod.coerce.date().nullish(),
+  "createdById": zod.string().optional(),
+  "memo": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'denied', 'expired']),
+  "expiresAt": zod.coerce.date().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date().optional(),
+  "venueName": zod.string().nullish(),
+  "buyerName": zod.string().nullish(),
+  "sellerName": zod.string().nullish().describe('Name of the employee character who handled the offer; null when the venue owner handled it themselves.')
+})
+export const ListMyOutgoingSellOffersResponse = zod.array(ListMyOutgoingSellOffersResponseItem)
+
+
+/**
  * @summary A single offer (buyer, venue operator, or staff)
  */
 export const GetOfferParams = zod.object({
@@ -2719,7 +2762,7 @@ export const GetOfferParams = zod.object({
 export const GetOfferResponse = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service', 'player_sell']).optional().describe('What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays).'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -2762,7 +2805,7 @@ export const ApproveOfferResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service', 'player_sell']).optional().describe('What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays).'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -2809,7 +2852,11 @@ export const ApproveOfferResponse = zod.object({
   "dryRun": zod.boolean().optional().describe('True in Test mode — nothing was written.'),
   "wouldDebitBuyer": zod.number().optional(),
   "wouldCreditStore": zod.number().optional(),
-  "wouldPayCommission": zod.number().optional()
+  "wouldPayCommission": zod.number().optional(),
+  "wouldDebitVenue": zod.number().optional().describe('Test-mode preview for stock_add\/player_sell: what the venue account would pay.'),
+  "wouldCreditSeller": zod.number().optional().describe('Test-mode preview for player_sell: what the selling player would receive.'),
+  "wouldAddStock": zod.number().optional().describe('Test-mode preview: stock quantity that would be added.'),
+  "payoutFailed": zod.boolean().optional().describe('player_sell only: the venue paid and stock moved, but the seller wallet credit failed — re-approving retries it.')
 })
 
 
@@ -2823,7 +2870,7 @@ export const DenyOfferParams = zod.object({
 export const DenyOfferResponse = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service', 'player_sell']).optional().describe('What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays).'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -8092,7 +8139,7 @@ export const SellRipperdocItemResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service', 'player_sell']).optional().describe('What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays).'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -8139,7 +8186,11 @@ export const SellRipperdocItemResponse = zod.object({
   "dryRun": zod.boolean().optional().describe('True in Test mode — nothing was written.'),
   "wouldDebitBuyer": zod.number().optional(),
   "wouldCreditStore": zod.number().optional(),
-  "wouldPayCommission": zod.number().optional()
+  "wouldPayCommission": zod.number().optional(),
+  "wouldDebitVenue": zod.number().optional().describe('Test-mode preview for stock_add\/player_sell: what the venue account would pay.'),
+  "wouldCreditSeller": zod.number().optional().describe('Test-mode preview for player_sell: what the selling player would receive.'),
+  "wouldAddStock": zod.number().optional().describe('Test-mode preview: stock quantity that would be added.'),
+  "payoutFailed": zod.boolean().optional().describe('player_sell only: the venue paid and stock moved, but the seller wallet credit failed — re-approving retries it.')
 })
 
 
@@ -8170,7 +8221,7 @@ export const InstallRipperdocCyberwareResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service', 'player_sell']).optional().describe('What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays).'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -8217,7 +8268,11 @@ export const InstallRipperdocCyberwareResponse = zod.object({
   "dryRun": zod.boolean().optional().describe('True in Test mode — nothing was written.'),
   "wouldDebitBuyer": zod.number().optional(),
   "wouldCreditStore": zod.number().optional(),
-  "wouldPayCommission": zod.number().optional()
+  "wouldPayCommission": zod.number().optional(),
+  "wouldDebitVenue": zod.number().optional().describe('Test-mode preview for stock_add\/player_sell: what the venue account would pay.'),
+  "wouldCreditSeller": zod.number().optional().describe('Test-mode preview for player_sell: what the selling player would receive.'),
+  "wouldAddStock": zod.number().optional().describe('Test-mode preview: stock quantity that would be added.'),
+  "payoutFailed": zod.boolean().optional().describe('player_sell only: the venue paid and stock moved, but the seller wallet credit failed — re-approving retries it.')
 })
 
 
@@ -8242,7 +8297,7 @@ export const GiveRipperdocItemResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service', 'player_sell']).optional().describe('What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays).'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -8289,7 +8344,11 @@ export const GiveRipperdocItemResponse = zod.object({
   "dryRun": zod.boolean().optional().describe('True in Test mode — nothing was written.'),
   "wouldDebitBuyer": zod.number().optional(),
   "wouldCreditStore": zod.number().optional(),
-  "wouldPayCommission": zod.number().optional()
+  "wouldPayCommission": zod.number().optional(),
+  "wouldDebitVenue": zod.number().optional().describe('Test-mode preview for stock_add\/player_sell: what the venue account would pay.'),
+  "wouldCreditSeller": zod.number().optional().describe('Test-mode preview for player_sell: what the selling player would receive.'),
+  "wouldAddStock": zod.number().optional().describe('Test-mode preview: stock quantity that would be added.'),
+  "payoutFailed": zod.boolean().optional().describe('player_sell only: the venue paid and stock moved, but the seller wallet credit failed — re-approving retries it.')
 })
 
 
@@ -8316,7 +8375,7 @@ export const RemoveRipperdocCyberwareResponse = zod.object({
   "offer": zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service', 'player_sell']).optional().describe('What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays).'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -8363,7 +8422,11 @@ export const RemoveRipperdocCyberwareResponse = zod.object({
   "dryRun": zod.boolean().optional().describe('True in Test mode — nothing was written.'),
   "wouldDebitBuyer": zod.number().optional(),
   "wouldCreditStore": zod.number().optional(),
-  "wouldPayCommission": zod.number().optional()
+  "wouldPayCommission": zod.number().optional(),
+  "wouldDebitVenue": zod.number().optional().describe('Test-mode preview for stock_add\/player_sell: what the venue account would pay.'),
+  "wouldCreditSeller": zod.number().optional().describe('Test-mode preview for player_sell: what the selling player would receive.'),
+  "wouldAddStock": zod.number().optional().describe('Test-mode preview: stock quantity that would be added.'),
+  "payoutFailed": zod.boolean().optional().describe('player_sell only: the venue paid and stock moved, but the seller wallet credit failed — re-approving retries it.')
 })
 
 
@@ -8471,7 +8534,7 @@ export const ListRipperdocOffersParams = zod.object({
 export const ListRipperdocOffersResponseItem = zod.object({
   "id": zod.number(),
   "kind": zod.enum(['store', 'ripperdoc']),
-  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service']).optional().describe('What the offer does. Defaults to sale.'),
+  "offerType": zod.enum(['sale', 'install', 'remove', 'give', 'stock_add', 'install_owned', 'service', 'player_sell']).optional().describe('What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays).'),
   "cwp": zod.number().nullish().describe('Per-unit cyberware points (install) or the points removed (remove).'),
   "removedItemId": zod.number().nullish().describe('The installed inventory item a remove offer uninstalls.'),
   "installItemId": zod.number().nullish().describe('The buyer-owned uninstalled inventory item an install_owned offer fits.'),
@@ -8647,6 +8710,48 @@ export const CreateStoreStockOfferBody = zod.object({
   "cwp": zod.number().min(createStoreStockOfferBodyCwpMin).nullish().describe('Per-unit cyberware points.'),
   "memo": zod.string().nullish()
 }).describe('Admin proposal to add a cyberware piece to a venue\'s stock, billed to the venue on owner approval.')
+
+
+/**
+ * @summary Player: offer an item from my inventory to this store (owner approves; venue pays, item becomes stock).
+ */
+export const CreateStoreSellItemOfferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const createStoreSellItemOfferBodyUnitPriceMin = 0;
+
+export const createStoreSellItemOfferBodyQuantityDefault = 1;
+
+
+
+export const CreateStoreSellItemOfferBody = zod.object({
+  "inventoryItemId": zod.number().describe('The caller\'s inventory row to sell (must belong to a character they own; installed cyberware is rejected).'),
+  "unitPrice": zod.number().min(createStoreSellItemOfferBodyUnitPriceMin).describe('Asking price per unit.'),
+  "quantity": zod.number().min(1).default(createStoreSellItemOfferBodyQuantityDefault),
+  "memo": zod.string().nullish()
+})
+
+
+/**
+ * @summary Player: offer an item from my inventory to this clinic (owner approves; venue pays, item becomes stock).
+ */
+export const CreateRipperdocSellItemOfferParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const createRipperdocSellItemOfferBodyUnitPriceMin = 0;
+
+export const createRipperdocSellItemOfferBodyQuantityDefault = 1;
+
+
+
+export const CreateRipperdocSellItemOfferBody = zod.object({
+  "inventoryItemId": zod.number().describe('The caller\'s inventory row to sell (must belong to a character they own; installed cyberware is rejected).'),
+  "unitPrice": zod.number().min(createRipperdocSellItemOfferBodyUnitPriceMin).describe('Asking price per unit.'),
+  "quantity": zod.number().min(1).default(createRipperdocSellItemOfferBodyQuantityDefault),
+  "memo": zod.string().nullish()
+})
 
 
 /**

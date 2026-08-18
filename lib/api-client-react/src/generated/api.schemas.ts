@@ -3103,7 +3103,7 @@ export const SaleOfferKind = {
 } as const;
 
 /**
- * What the offer does. Defaults to sale.
+ * What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays).
  */
 export type SaleOfferOfferType = typeof SaleOfferOfferType[keyof typeof SaleOfferOfferType];
 
@@ -3116,6 +3116,7 @@ export const SaleOfferOfferType = {
   stock_add: 'stock_add',
   install_owned: 'install_owned',
   service: 'service',
+  player_sell: 'player_sell',
 } as const;
 
 export type SaleOfferStatus = typeof SaleOfferStatus[keyof typeof SaleOfferStatus];
@@ -3131,7 +3132,7 @@ export const SaleOfferStatus = {
 export interface SaleOffer {
   id: number;
   kind: SaleOfferKind;
-  /** What the offer does. Defaults to sale. */
+  /** What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays). */
   offerType?: SaleOfferOfferType;
   /**
      * Per-unit cyberware points (install) or the points removed (remove).
@@ -3208,6 +3209,28 @@ export interface ApproveOfferResult {
   wouldDebitBuyer?: number;
   wouldCreditStore?: number;
   wouldPayCommission?: number;
+  /** Test-mode preview for stock_add/player_sell: what the venue account would pay. */
+  wouldDebitVenue?: number;
+  /** Test-mode preview for player_sell: what the selling player would receive. */
+  wouldCreditSeller?: number;
+  /** Test-mode preview: stock quantity that would be added. */
+  wouldAddStock?: number;
+  /** player_sell only: the venue paid and stock moved, but the seller wallet credit failed — re-approving retries it. */
+  payoutFailed?: boolean;
+}
+
+export interface SellItemInput {
+  /** The caller's inventory row to sell (must belong to a character they own; installed cyberware is rejected). */
+  inventoryItemId: number;
+  /**
+     * Asking price per unit.
+     * @minimum 0
+     */
+  unitPrice: number;
+  /** @minimum 1 */
+  quantity?: number;
+  /** @nullable */
+  memo?: string | null;
 }
 
 export interface StockInput {

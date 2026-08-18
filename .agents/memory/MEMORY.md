@@ -44,6 +44,8 @@
 - [Legacy actors are lobby-only](legacy-actor-data.md) — bot_actor_attendance is ~16 generic lobby rows, NULL mission_id; no per-mission actor history to backfill.
 - [Deploy expression-index trap](deploy-expression-index-trap.md) — space-containing literals in index expressions break publish migrations; use two partial indexes.
 - [Event actor payout pay-once](event-actor-payout-once.md) — event payouts need a SEPARATE partial unique index on (event_id,user_id); legacy eventId-null standalone path stays unguarded; getEventDetail.paidActorUserIds locks paid NPCs.
+- [player_sell offers](player-sell-offers.md) — venue buys FROM a player; approve gates on CURRENT venue owner, tx re-checks char ownership; expense in venue P&L.
+- [Drizzle dynamic insert keys](drizzle-dynamic-insert-key.md) — `col.name` = SQL name, not TS key; `values({[col.name]:v})` silently drops the value.
 - [Venue sale instant completion](venue-sale-instant-completion.md) — sales charge buyer on operator action via create→completeSaleOffer→delete-if-pending; keep row on needsReconcile; TEST mode returns dryRun 200 leaving pending.
 - Financial/owner decisions: [gate on CURRENT ownerId, not the requestedById snapshotted at creation](financial-decision-current-owner.md); [same rule for owner-action request endpoints](owner-decision-current-ownership.md).
 - [Sheet approval materialization](sheet-approval-materialization.md) — approving a character_sheet must create+link a characters row (atomically); sheet.characterId is user-supplied, validate ownership before any write.

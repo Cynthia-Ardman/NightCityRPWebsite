@@ -4,6 +4,8 @@ import { useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListMyOffers,
+  useListMyOutgoingSellOffers,
+  getListMyOutgoingSellOffersQueryKey,
   useApproveOffer,
   useDenyOffer,
   useListMyNcpdFines,
@@ -53,9 +55,11 @@ export default function Inbox() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: offers, isLoading } = useListMyOffers();
+  const { data: outgoing } = useListMyOutgoingSellOffers();
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: getListMyOffersQueryKey() });
+    qc.invalidateQueries({ queryKey: getListMyOutgoingSellOffersQueryKey() });
     qc.invalidateQueries({ queryKey: getGetMyWalletQueryKey() });
   };
   const approve = useApproveOffer({ mutation: { onSuccess: invalidate } });
@@ -373,6 +377,11 @@ export default function Inbox() {
                     {o.memo && (
                       <div className="font-mono text-xs italic text-muted-foreground mt-1">"{o.memo}"</div>
                     )}
+                    {o.offerType === "player_sell" && (
+                      <div className="font-mono text-[11px] text-nc-yellow mt-1">
+                        A player wants to sell this to your venue · approving pays them from the venue account and adds the item to your stock
+                      </div>
+                    )}
                     {o.offerType === "stock_add" && (
                       <div className="font-mono text-[11px] text-nc-yellow mt-1">
                         Adds to your venue's stock · charged to the venue account
@@ -422,6 +431,48 @@ export default function Inbox() {
           )}
         </CardContent>
       </Card>
+
+      {(outgoing ?? []).length > 0 && (
+        <Card className="rounded-none border-border bg-card/50">
+          <CardHeader>
+            <CardTitle className="font-display tracking-widest text-nc-yellow">MY SELL OFFERS</CardTitle>
+            <p className="text-muted-foreground font-mono text-xs">
+              Items you've offered to sell to a venue — the shop owner confirms the price before anything moves.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {(outgoing ?? []).map((o) => (
+              <div
+                key={o.id}
+                className="flex items-center justify-between gap-3 font-mono text-xs py-1"
+                data-testid={`row-outgoing-offer-${o.id}`}
+              >
+                <span className="truncate text-muted-foreground">
+                  {o.itemName}
+                  {o.quantity > 1 ? ` ×${o.quantity}` : ""} → {o.venueName ?? (o.kind === "store" ? "Store" : "Clinic")}
+                  <span className="text-nc-yellow"> · {formatEddies(o.totalPrice)}</span>
+                </span>
+                <span className="flex items-center gap-2 whitespace-nowrap">
+                  {o.createdAt ? formatDate(o.createdAt) : ""}
+                  <OfferStatusBadge status={o.status} />
+                  {o.status === "pending" && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => deny.mutate({ id: o.id })}
+                      className="rounded-none font-display text-destructive h-7 px-2"
+                      data-testid={`button-withdraw-offer-${o.id}`}
+                    >
+                      WITHDRAW
+                    </Button>
+                  )}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <h2 className="font-display text-sm tracking-widest text-nc-cyan" data-testid="text-inbox-history">
         HISTORY

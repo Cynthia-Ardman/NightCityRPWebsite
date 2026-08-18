@@ -27,7 +27,7 @@ import { hasRole, sendDirectMessage } from "../lib/discord";
 import { reconcileBusinessChannelAccess } from "../lib/businessChannelAccess";
 import { logger } from "../lib/logger";
 import { applyWalletDelta, MAX_WALLET_BALANCE } from "../lib/economy";
-import { createOffer, createRemoveOffer, createStockAddOffer, createInstallOwnedOffer, createServiceBillOffer } from "../lib/saleOffers";
+import { createOffer, createRemoveOffer, createStockAddOffer, createInstallOwnedOffer, createServiceBillOffer, createPlayerSellOffer } from "../lib/saleOffers";
 import { cwpForItem, parseCwp } from "../lib/cyberware";
 import { checkCwpCapacity } from "../lib/cyberware-cap";
 import { isStaffRoles as isStaff } from "../lib/roleChecks";
@@ -2025,6 +2025,37 @@ async function createStockOffer(req: Request, res: Response, kind: "store" | "ri
 
 router.post("/stores/:id/stock-offer", requireAuth, (req, res) => createStockOffer(req, res, "store"));
 router.post("/ripperdocs/:id/stock-offer", requireAuth, (req, res) => createStockOffer(req, res, "ripperdoc"));
+
+// Player-initiated: offer an item from one of my characters' inventories to a
+// venue. The venue owner approves/denies at /inbox; on approval the venue
+// account pays the player and the item moves into venue stock.
+async function createSellItemOffer(req: Request, res: Response, kind: "store" | "ripperdoc"): Promise<void> {
+  const venueId = parseInt(String(req.params.id), 10);
+  const { inventoryItemId, unitPrice, quantity, memo } = req.body ?? {};
+  const itemId = parseInt(String(inventoryItemId), 10);
+  if (!Number.isInteger(venueId) || !Number.isInteger(itemId)) {
+    res.status(400).json({ error: "inventoryItemId is required" });
+    return;
+  }
+  const result = await createPlayerSellOffer({
+    kind,
+    venueId,
+    inventoryItemId: itemId,
+    unitPrice: Number(unitPrice) || 0,
+    quantity: Math.max(1, Number(quantity) || 1),
+    memo: memo ?? null,
+    actor: {
+      id: req.user!.id,
+      roles: req.user!.roles,
+      username: req.user!.username,
+      avatarUrl: req.user!.avatarUrl,
+    },
+  });
+  res.status(result.status).json(result.body);
+}
+
+router.post("/stores/:id/sell-item", requireAuth, (req, res) => createSellItemOffer(req, res, "store"));
+router.post("/ripperdocs/:id/sell-item", requireAuth, (req, res) => createSellItemOffer(req, res, "ripperdoc"));
 
 // ===== Venue accounts: deposit / withdraw / transaction history =====
 // Stores and ripperdocs each have a website-only `balance`. The OWNER can move

@@ -327,6 +327,7 @@ import type {
   SearchFixerVrchatPlayersParams,
   SearchInventoryByOwnerParams,
   SearchMissionActorsParams,
+  SellItemInput,
   ServiceBillInput,
   SetCharacterKindBody,
   SetEventCheckinStaffBody,
@@ -7787,6 +7788,83 @@ export function useListMyOffers<TData = Awaited<ReturnType<typeof listMyOffers>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListMyOffersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListMyOutgoingSellOffersUrl = () => {
+
+
+
+
+  return `/api/offers/outgoing`
+}
+
+/**
+ * @summary Sell offers the caller has made to venues (player_sell), pending + history
+ */
+export const listMyOutgoingSellOffers = async ( options?: RequestInit): Promise<SaleOffer[]> => {
+
+  return customFetch<SaleOffer[]>(getListMyOutgoingSellOffersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyOutgoingSellOffersQueryKey = () => {
+    return [
+    `/api/offers/outgoing`
+    ] as const;
+    }
+
+
+export const getListMyOutgoingSellOffersQueryOptions = <TData = Awaited<ReturnType<typeof listMyOutgoingSellOffers>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyOutgoingSellOffers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyOutgoingSellOffersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyOutgoingSellOffers>>> = ({ signal }) => listMyOutgoingSellOffers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyOutgoingSellOffers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyOutgoingSellOffersQueryResult = NonNullable<Awaited<ReturnType<typeof listMyOutgoingSellOffers>>>
+export type ListMyOutgoingSellOffersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Sell offers the caller has made to venues (player_sell), pending + history
+ */
+
+export function useListMyOutgoingSellOffers<TData = Awaited<ReturnType<typeof listMyOutgoingSellOffers>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyOutgoingSellOffers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyOutgoingSellOffersQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -15873,6 +15951,150 @@ export const useCreateStoreStockOffer = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateStoreStockOfferMutationOptions(options));
+    }
+
+export const getCreateStoreSellItemOfferUrl = (id: number,) => {
+
+
+
+
+  return `/api/stores/${id}/sell-item`
+}
+
+/**
+ * @summary Player: offer an item from my inventory to this store (owner approves; venue pays, item becomes stock).
+ */
+export const createStoreSellItemOffer = async (id: number,
+    sellItemInput: SellItemInput, options?: RequestInit): Promise<SaleOffer> => {
+
+  return customFetch<SaleOffer>(getCreateStoreSellItemOfferUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      sellItemInput,)
+  }
+);}
+
+
+
+
+export const getCreateStoreSellItemOfferMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStoreSellItemOffer>>, TError,{id: number;data: BodyType<SellItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStoreSellItemOffer>>, TError,{id: number;data: BodyType<SellItemInput>}, TContext> => {
+
+const mutationKey = ['createStoreSellItemOffer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStoreSellItemOffer>>, {id: number;data: BodyType<SellItemInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createStoreSellItemOffer(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStoreSellItemOfferMutationResult = NonNullable<Awaited<ReturnType<typeof createStoreSellItemOffer>>>
+    export type CreateStoreSellItemOfferMutationBody = BodyType<SellItemInput>
+    export type CreateStoreSellItemOfferMutationError = ErrorType<void>
+
+    /**
+ * @summary Player: offer an item from my inventory to this store (owner approves; venue pays, item becomes stock).
+ */
+export const useCreateStoreSellItemOffer = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStoreSellItemOffer>>, TError,{id: number;data: BodyType<SellItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStoreSellItemOffer>>,
+        TError,
+        {id: number;data: BodyType<SellItemInput>},
+        TContext
+      > => {
+      return useMutation(getCreateStoreSellItemOfferMutationOptions(options));
+    }
+
+export const getCreateRipperdocSellItemOfferUrl = (id: number,) => {
+
+
+
+
+  return `/api/ripperdocs/${id}/sell-item`
+}
+
+/**
+ * @summary Player: offer an item from my inventory to this clinic (owner approves; venue pays, item becomes stock).
+ */
+export const createRipperdocSellItemOffer = async (id: number,
+    sellItemInput: SellItemInput, options?: RequestInit): Promise<SaleOffer> => {
+
+  return customFetch<SaleOffer>(getCreateRipperdocSellItemOfferUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      sellItemInput,)
+  }
+);}
+
+
+
+
+export const getCreateRipperdocSellItemOfferMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRipperdocSellItemOffer>>, TError,{id: number;data: BodyType<SellItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createRipperdocSellItemOffer>>, TError,{id: number;data: BodyType<SellItemInput>}, TContext> => {
+
+const mutationKey = ['createRipperdocSellItemOffer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createRipperdocSellItemOffer>>, {id: number;data: BodyType<SellItemInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createRipperdocSellItemOffer(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateRipperdocSellItemOfferMutationResult = NonNullable<Awaited<ReturnType<typeof createRipperdocSellItemOffer>>>
+    export type CreateRipperdocSellItemOfferMutationBody = BodyType<SellItemInput>
+    export type CreateRipperdocSellItemOfferMutationError = ErrorType<void>
+
+    /**
+ * @summary Player: offer an item from my inventory to this clinic (owner approves; venue pays, item becomes stock).
+ */
+export const useCreateRipperdocSellItemOffer = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRipperdocSellItemOffer>>, TError,{id: number;data: BodyType<SellItemInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createRipperdocSellItemOffer>>,
+        TError,
+        {id: number;data: BodyType<SellItemInput>},
+        TContext
+      > => {
+      return useMutation(getCreateRipperdocSellItemOfferMutationOptions(options));
     }
 
 export const getListMyFixerNpcsUrl = () => {

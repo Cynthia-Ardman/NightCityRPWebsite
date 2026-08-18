@@ -10,7 +10,9 @@ import { OfferTypeBadge, OfferStatusBadge } from "@/components/offers/offerBadge
 // is the venue BUYING stock, so it shows as a negative (an expense). Free
 // give-aways with no cost basis show as zero.
 function offerProfit(o: SaleOffer): number | null {
-  if (o.offerType === "stock_add") return -o.totalPrice;
+  // stock_add and player_sell are the venue BUYING items (from a supplier or
+  // a player, respectively) — both are expenses, not revenue.
+  if (o.offerType === "stock_add" || o.offerType === "player_sell") return -o.totalPrice;
   const gross = o.totalPrice - (o.costBasis ?? 0);
   const commission = o.status === "approved" && o.commissionAmount != null ? o.commissionAmount : 0;
   return gross - commission;
@@ -88,9 +90,13 @@ export default function VenueOffersPanel({ offers }: { offers: SaleOffer[] }) {
                         <OfferTypeBadge offer={o} />
                       </div>
                     </td>
-                    <td className="p-3 text-muted-foreground whitespace-nowrap">{o.buyerName ?? "—"}</td>
+                    <td className="p-3 text-muted-foreground whitespace-nowrap">
+                      {/* player_sell reverses the parties: the VENUE is the buyer
+                          and the listed character is the seller. */}
+                      {o.offerType === "player_sell" ? (o.sellerName ? `from ${o.sellerName}` : "from a player") : (o.buyerName ?? "—")}
+                    </td>
                     <td className="p-3 text-muted-foreground whitespace-nowrap" data-testid={`text-offer-seller-${o.id}`}>
-                      {o.sellerName ?? "Owner"}
+                      {o.offerType === "player_sell" ? "Owner" : (o.sellerName ?? "Owner")}
                     </td>
                     <td className="p-3 text-right text-nc-yellow whitespace-nowrap">
                       {formatEddies(o.totalPrice)}

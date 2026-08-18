@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 export function offerNeedsMyDecision(o: SaleOffer): boolean {
   return (
     o.status === "pending" &&
-    (o.offerType === "stock_add" || o.offerType === "install_owned" || o.offerType === "service")
+    (o.offerType === "stock_add" || o.offerType === "install_owned" || o.offerType === "service" || o.offerType === "player_sell")
   );
 }
 
@@ -23,11 +23,19 @@ export function OfferTypeBadge({ offer }: { offer: SaleOffer }) {
       ? "bg-nc-magenta text-background"
       : t === "remove"
         ? "bg-destructive text-destructive-foreground"
-        : t === "stock_add"
+        : t === "stock_add" || t === "player_sell"
           ? "bg-nc-yellow text-background"
           : "bg-nc-cyan text-background";
   const label =
-    t === "stock_add" ? "STOCK ADD" : t === "install_owned" ? "INSTALL (OWNED)" : t === "service" ? "BILL" : t.toUpperCase();
+    t === "stock_add"
+      ? "STOCK ADD"
+      : t === "player_sell"
+        ? "PLAYER SELL"
+        : t === "install_owned"
+          ? "INSTALL (OWNED)"
+          : t === "service"
+            ? "BILL"
+            : t.toUpperCase();
   return (
     <Badge className={`rounded-none font-mono ${cls}`}>
       {label}

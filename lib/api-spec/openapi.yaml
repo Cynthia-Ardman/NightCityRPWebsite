@@ -1742,6 +1742,19 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/SaleOffer" }
+  /offers/outgoing:
+    get:
+      operationId: listMyOutgoingSellOffers
+      tags: [offers]
+      summary: Sell offers the caller has made to venues (player_sell), pending + history
+      responses:
+        "200":
+          description: Offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SaleOffer" }
   /offers/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -3593,6 +3606,50 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SaleOffer" }
+
+  /stores/{id}/sell-item:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: createStoreSellItemOffer
+      tags: [stores]
+      summary: "Player: offer an item from my inventory to this store (owner approves; venue pays, item becomes stock)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SellItemInput" }
+      responses:
+        "201":
+          description: Offer created (pending owner approval)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SaleOffer" }
+        "400": { description: Bad input / not enough quantity }
+        "404": { description: Item or venue not found }
+        "409": { description: "Installed cyberware, or a pending sell offer already exists for this item" }
+
+  /ripperdocs/{id}/sell-item:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: integer } }
+    post:
+      operationId: createRipperdocSellItemOffer
+      tags: [ripperdocs]
+      summary: "Player: offer an item from my inventory to this clinic (owner approves; venue pays, item becomes stock)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SellItemInput" }
+      responses:
+        "201":
+          description: Offer created (pending owner approval)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SaleOffer" }
+        "400": { description: Bad input / not enough quantity }
+        "404": { description: Item or venue not found }
+        "409": { description: "Installed cyberware, or a pending sell offer already exists for this item" }
 
   # ---------------- FIXER HUB ----------------
   /fixer/npcs/mine:
@@ -9206,7 +9263,7 @@ components:
       properties:
         id: { type: integer }
         kind: { type: string, enum: [store, ripperdoc] }
-        offerType: { type: string, enum: [sale, install, remove, give, stock_add, install_owned, service], description: "What the offer does. Defaults to sale." }
+        offerType: { type: string, enum: [sale, install, remove, give, stock_add, install_owned, service, player_sell], description: "What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays)." }
         cwp: { type: ["integer", "null"], description: "Per-unit cyberware points (install) or the points removed (remove)." }
         removedItemId: { type: ["integer", "null"], description: "The installed inventory item a remove offer uninstalls." }
         installItemId: { type: ["integer", "null"], description: "The buyer-owned uninstalled inventory item an install_owned offer fits." }
@@ -9248,6 +9305,19 @@ components:
         wouldDebitBuyer: { type: integer }
         wouldCreditStore: { type: integer }
         wouldPayCommission: { type: integer }
+        wouldDebitVenue: { type: integer, description: "Test-mode preview for stock_add/player_sell: what the venue account would pay." }
+        wouldCreditSeller: { type: integer, description: "Test-mode preview for player_sell: what the selling player would receive." }
+        wouldAddStock: { type: integer, description: "Test-mode preview: stock quantity that would be added." }
+        payoutFailed: { type: boolean, description: "player_sell only: the venue paid and stock moved, but the seller wallet credit failed — re-approving retries it." }
+
+    SellItemInput:
+      type: object
+      required: [inventoryItemId, unitPrice]
+      properties:
+        inventoryItemId: { type: integer, description: "The caller's inventory row to sell (must belong to a character they own; installed cyberware is rejected)." }
+        unitPrice: { type: integer, minimum: 0, description: "Asking price per unit." }
+        quantity: { type: integer, minimum: 1, default: 1 }
+        memo: { type: ["string", "null"] }
 
     StockItem:
       type: object

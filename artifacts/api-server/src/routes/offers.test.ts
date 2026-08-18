@@ -428,3 +428,290 @@ describe("GET /offers/mine", () => {
     expect(res.body).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// player_sell: a player offers an inventory item TO a venue; the venue owner
+// approves (venue account pays the player, item becomes stock).
+
+async function seedPlayerSell(opts: { price?: number; qty?: number; itemQty?: number; venueBalance?: number; category?: string; notes?: string | null } = {}) {
+  const owner = await createUser();
+  const ownerChar = await createCharacter({ ownerId: owner.id });
+  const seller = await createUser();
+  const sellerChar = await createCharacter({ ownerId: seller.id });
+  const [store] = await db
+    .insert(stores)
+    .values({ ownerId: owner.id, ownerCharacterId: ownerChar.id, name: "Chrome Bazaar", balance: opts.venueBalance ?? 1000 })
+    .returning();
+  const [item] = await db
+    .insert(inventoryItems)
+    .values({
+      characterId: sellerChar.id,
+      name: "Militech Pistol",
+      category: opts.category ?? "Weapon",
+      quantity: opts.itemQty ?? 2,
+      notes: opts.notes ?? null,
+    })
+    .returning();
+  return { owner, ownerChar, seller, sellerChar, store, item, price: opts.price ?? 100, qty: opts.qty ?? 1 };
+}
+
+describe("player_sell offers", () => {
+  beforeEach(async () => {
+    await setEconomyMode("enabled");
+    mockGetBalance.mockResolvedValue({ cash: 100000, bank: 0, total: 100000, source: "unbelievaboat" });
+  });
+
+  it("creates a pending offer the venue owner can see, and rejects a second pending offer for the same item", async () => {
+    const { seller, store, item } = await seedPlayerSell();
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/sell-item`)
+      .set("x-test-user", seller.id)
+      .send({ inventoryItemId: item.id, unitPrice: 100, quantity: 1 });
+    expect(res.status).toBe(201);
+    expect(res.body.offerType).toBe("player_sell");
+    expect(res.body.status).toBe("pending");
+
+    const dup = await request(app)
+      .post(`/api/stores/${store.id}/sell-item`)
+      .set("x-test-user", seller.id)
+      .send({ inventoryItemId: item.id, unitPrice: 50, quantity: 1 });
+    expect(dup.status).toBe(409);
+  });
+
+  it("rejects selling an item the caller does not own", async () => {
+    const { store, item } = await seedPlayerSell();
+    const stranger = await createUser();
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/sell-item`)
+      .set("x-test-user", stranger.id)
+      .send({ inventoryItemId: item.id, unitPrice: 100 });
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects selling INSTALLED cyberware", async () => {
+    const { seller, store } = await seedPlayerSell();
+    const [chrome] = await db
+      .insert(inventoryItems)
+      .values({
+        characterId: (await db.select().from(characters).where(eq(characters.ownerId, seller.id)))[0].id,
+        name: "Kiroshi Optics",
+        category: "cyberware",
+        quantity: 1,
+        notes: "CWP 2 · Installed at Clinic · slot: eyes",
+      })
+      .returning();
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/sell-item`)
+      .set("x-test-user", seller.id)
+      .send({ inventoryItemId: chrome.id, unitPrice: 100 });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/installed/i);
+  });
+
+  it("allows selling UNINSTALLED cyberware", async () => {
+    const { seller, store } = await seedPlayerSell();
+    const [chrome] = await db
+      .insert(inventoryItems)
+      .values({
+        characterId: (await db.select().from(characters).where(eq(characters.ownerId, seller.id)))[0].id,
+        name: "Spare Optics",
+        category: "cyberware",
+        quantity: 1,
+        notes: "slot: eyes",
+      })
+      .returning();
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/sell-item`)
+      .set("x-test-user", seller.id)
+      .send({ inventoryItemId: chrome.id, unitPrice: 100 });
+    expect(res.status).toBe(201);
+  });
+
+  it("owner approve: debits the venue, moves the item into stock, credits the seller", async () => {
+    const { owner, seller, sellerChar, store, item } = await seedPlayerSell({ venueBalance: 500, itemQty: 2 });
+    const created = await request(app)
+      .post(`/api/stores/${store.id}/sell-item`)
+      .set("x-test-user", seller.id)
+      .send({ inventoryItemId: item.id, unitPrice: 150, quantity: 2, memo: "good condition" });
+    expect(created.status).toBe(201);
+
+    const res = await request(app).post(`/api/offers/${created.body.id}/approve`).set("x-test-user", owner.id);
+    expect(res.status).toBe(200);
+
+    // Venue account debited + ledger row written.
+    const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(s.balance).toBe(200);
+
+    // Item left the seller's inventory entirely (sold both).
+    const remaining = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.id));
+    expect(remaining).toHaveLength(0);
+
+    // Stock row created at the asking price.
+    const stock = await db.select().from(storeStock).where(and(eq(storeStock.storeId, store.id), eq(storeStock.name, "Militech Pistol")));
+    expect(stock).toHaveLength(1);
+    expect(stock[0].quantity).toBe(2);
+    expect(stock[0].price).toBe(150);
+
+    // Seller credited exactly once (idempotency-keyed).
+    const credits = await db
+      .select()
+      .from(walletTransactions)
+      .where(eq(walletTransactions.idempotencyKey, `offer:${created.body.id}:player-sell-credit`));
+    expect(credits).toHaveLength(1);
+    expect(credits[0].amount).toBe(300);
+    expect(credits[0].userId).toBe(seller.id);
+    expect(credits[0].characterId).toBe(sellerChar.id);
+
+    // Re-approve is an idempotent no-op (no double debit/credit).
+    const again = await request(app).post(`/api/offers/${created.body.id}/approve`).set("x-test-user", owner.id);
+    expect(again.status).toBe(200);
+    expect(again.body.duplicate).toBe(true);
+    const [s2] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(s2.balance).toBe(200);
+    const credits2 = await db
+      .select()
+      .from(walletTransactions)
+      .where(eq(walletTransactions.idempotencyKey, `offer:${created.body.id}:player-sell-credit`));
+    expect(credits2).toHaveLength(1);
+  });
+
+  it("partial quantity sale decrements the seller's row", async () => {
+    const { owner, seller, store, item } = await seedPlayerSell({ itemQty: 5 });
+    const created = await request(app)
+      .post(`/api/stores/${store.id}/sell-item`)
+      .set("x-test-user", seller.id)
+      .send({ inventoryItemId: item.id, unitPrice: 10, quantity: 2 });
+    const res = await request(app).post(`/api/offers/${created.body.id}/approve`).set("x-test-user", owner.id);
+    expect(res.status).toBe(200);
+    const [remaining] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.id));
+    expect(remaining.quantity).toBe(3);
+  });
+
+  it("approve fails without debiting when the venue cannot afford it", async () => {
+    const { owner, seller, store, item } = await seedPlayerSell({ venueBalance: 50 });
+    const created = await request(app)
+      .post(`/api/stores/${store.id}/sell-item`)
+      .set("x-test-user", seller.id)
+      .send({ inventoryItemId: item.id, unitPrice: 100, quantity: 1 });
+    const res = await request(app).post(`/api/offers/${created.body.id}/approve`).set("x-test-user", owner.id);
+    expect(res.status).toBe(400);
+    const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(s.balance).toBe(50);
+    // Offer stays pending (tx rolled back) and the item never moved.
+    const [o] = await db.select().from(saleOffers).where(eq(saleOffers.id, created.body.id));
+    expect(o.status).toBe("pending");
+    const [inv] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.id));
+    expect(inv.quantity).toBe(2);
+  });
+
+  it("approve 409s (and rolls back) when the item has since left the seller's inventory", async () => {
+    const { owner, seller, store, item } = await seedPlayerSell();
+    const created = await request(app)
+      .post(`/api/stores/${store.id}/sell-item`)
+      .set("x-test-user", seller.id)
+      .send({ inventoryItemId: item.id, unitPrice: 100, quantity: 1 });
+    await db.delete(inventoryItems).where(eq(inventoryItems.id, item.id));
+    const res = await request(app).post(`/api/offers/${created.body.id}/approve`).set("x-test-user", owner.id);
+    expect(res.status).toBe(409);
+    const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(s.balance).toBe(1000);
+    const [o] = await db.select().from(saleOffers).where(eq(saleOffers.id, created.body.id));
+    expect(o.status).toBe("pending");
+  });
+
+  it("only the venue owner can approve — the seller and admins cannot", async () => {
+    const { seller, store, item } = await seedPlayerSell();
+    const admin = await createAdmin();
+    const created = await request(app)
+      .post(`/api/stores/${store.id}/sell-item`)
+      .set("x-test-user", seller.id)
+      .send({ inventoryItemId: item.id, unitPrice: 100 });
+    const bySeller = await request(app).post(`/api/offers/${created.body.id}/approve`).set("x-test-user", seller.id);
+    expect(bySeller.status).toBe(403);
+    const byAdmin = await request(app).post(`/api/offers/${created.body.id}/approve`).set("x-test-user", admin.id);
+    expect(byAdmin.status).toBe(403);
+  });
+
+  it("the seller can WITHDRAW (deny) their own pending offer; strangers cannot", async () => {
+    const { seller, store, item } = await seedPlayerSell();
+    const stranger = await createUser();
+    const created = await request(app)
+      .post(`/api/stores/${store.id}/sell-item`)
+      .set("x-test-user", seller.id)
+      .send({ inventoryItemId: item.id, unitPrice: 100 });
+    const byStranger = await request(app).post(`/api/offers/${created.body.id}/deny`).set("x-test-user", stranger.id);
+    expect(byStranger.status).toBe(403);
+    const bySeller = await request(app).post(`/api/offers/${created.body.id}/deny`).set("x-test-user", seller.id);
+    expect(bySeller.status).toBe(200);
+    expect(bySeller.body.status).toBe("denied");
+  });
+
+  it("test mode approve is a dry run — nothing moves", async () => {
+    const { owner, seller, store, item } = await seedPlayerSell();
+    const created = await request(app)
+      .post(`/api/stores/${store.id}/sell-item`)
+      .set("x-test-user", seller.id)
+      .send({ inventoryItemId: item.id, unitPrice: 100 });
+    await setEconomyMode("test");
+    const res = await request(app).post(`/api/offers/${created.body.id}/approve`).set("x-test-user", owner.id);
+    expect(res.status).toBe(200);
+    expect(res.body.dryRun).toBe(true);
+    const [o] = await db.select().from(saleOffers).where(eq(saleOffers.id, created.body.id));
+    expect(o.status).toBe("pending");
+    const [inv] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.id));
+    expect(inv.quantity).toBe(2);
+  });
+
+  it("GET /offers/outgoing returns only the caller's player_sell offers", async () => {
+    const { seller, store, item } = await seedPlayerSell();
+    await request(app)
+      .post(`/api/stores/${store.id}/sell-item`)
+      .set("x-test-user", seller.id)
+      .send({ inventoryItemId: item.id, unitPrice: 100 });
+    const mine = await request(app).get("/api/offers/outgoing").set("x-test-user", seller.id);
+    expect(mine.status).toBe(200);
+    expect(mine.body).toHaveLength(1);
+    expect(mine.body[0].offerType).toBe("player_sell");
+    const other = await createUser();
+    const theirs = await request(app).get("/api/offers/outgoing").set("x-test-user", other.id);
+    expect(theirs.body).toHaveLength(0);
+  });
+});
+
+describe("player_sell ownership-change races", () => {
+  beforeEach(async () => {
+    await setEconomyMode("enabled");
+    mockGetBalance.mockResolvedValue({ cash: 100000, bank: 0, total: 100000, source: "unbelievaboat" });
+  });
+
+  it("a FORMER venue owner cannot approve after the venue changes hands", async () => {
+    const { owner, seller, store, item } = await seedPlayerSell();
+    const created = await request(app)
+      .post(`/api/stores/${store.id}/sell-item`)
+      .set("x-test-user", seller.id)
+      .send({ inventoryItemId: item.id, unitPrice: 100 });
+    const newOwner = await createUser();
+    await db.update(stores).set({ ownerId: newOwner.id }).where(eq(stores.id, store.id));
+    const res = await request(app).post(`/api/offers/${created.body.id}/approve`).set("x-test-user", owner.id);
+    expect(res.status).toBe(403);
+    // The CURRENT owner can approve.
+    const ok = await request(app).post(`/api/offers/${created.body.id}/approve`).set("x-test-user", newOwner.id);
+    expect(ok.status).toBe(200);
+  });
+
+  it("approve rolls back when the selling character changed hands since creation", async () => {
+    const { owner, seller, sellerChar, store, item } = await seedPlayerSell();
+    const created = await request(app)
+      .post(`/api/stores/${store.id}/sell-item`)
+      .set("x-test-user", seller.id)
+      .send({ inventoryItemId: item.id, unitPrice: 100 });
+    const newCharOwner = await createUser();
+    await db.update(characters).set({ ownerId: newCharOwner.id }).where(eq(characters.id, sellerChar.id));
+    const res = await request(app).post(`/api/offers/${created.body.id}/approve`).set("x-test-user", owner.id);
+    expect(res.status).toBe(409);
+    const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
+    expect(s.balance).toBe(1000);
+    const [inv] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.id));
+    expect(inv.quantity).toBe(2);
+  });
+});

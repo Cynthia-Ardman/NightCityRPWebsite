@@ -47,7 +47,15 @@ import { hrefInbox } from "./notificationHrefs";
 //               just debits the buyer and credits the clinic (commission via
 //               the normal path, costBasis null => full amount is profit).
 //               Leaves a PENDING offer the player approves from their Inbox.
-export type OfferType = "sale" | "install" | "remove" | "give" | "stock_add" | "install_owned" | "service";
+//   player_sell — reverse direction: a PLAYER offers an item from their
+//               character's inventory to the venue. The venue OWNER approves
+//               from /inbox; on approval the venue account is debited, the
+//               item moves from the player's inventory into venue stock, and
+//               the player's wallet is credited. References installItemId
+//               (the seller's inventory row) and sellerCharacterId (the
+//               selling character); createdById is the selling player and may
+//               withdraw (deny) their own pending offer.
+export type OfferType = "sale" | "install" | "remove" | "give" | "stock_add" | "install_owned" | "service" | "player_sell";
 
 // ---------------------------------------------------------------------------
 // Buyer-approval sale offers. The store/ripperdoc operator creates an offer;
@@ -808,7 +816,7 @@ async function approveStockAddOffer(offer: SaleOffer, actor: Actor): Promise<Off
           .where(eq(stockTable.id, existing.id));
       } else {
         await tx.insert(stockTable).values({
-          [stockVenueCol.name]: venueId,
+          [venueColName(kind)]: venueId,
           name: offer.itemName,
           category: "cyberware",
           price: offer.unitPrice,
@@ -855,15 +863,415 @@ async function approveStockAddOffer(offer: SaleOffer, actor: Actor): Promise<Off
   return { status: 200, body: { offer: finalOffer, venueBalance: venueBalanceAfter } };
 }
 
-// Authorization for approve/deny: the buyer (offer owner) or an admin.
-function canDecide(offer: SaleOffer, actor: Actor): boolean {
-  return offer.buyerUserId === actor.id || hasRole(actor.roles, "ADMIN");
+// ---------------------------------------------------------------------------
+// player_sell: a player offers an item FROM their character's inventory TO a
+// venue. Mirrors stock_add's owner-approval shape, but with an inventory leg
+// (item leaves the seller) and a seller wallet credit on top of the venue
+// debit + stock add.
+
+export async function createPlayerSellOffer(opts: {
+  kind: OfferKind;
+  venueId: number;
+  inventoryItemId: number;
+  unitPrice: number;
+  quantity: number;
+  memo?: string | null;
+  actor: Actor;
+}): Promise<OfferResult> {
+  const { kind, venueId, actor } = opts;
+  const unitPrice = Math.max(0, Math.floor(Number(opts.unitPrice) || 0));
+  const quantity = Math.max(1, Math.floor(Number(opts.quantity) || 1));
+
+  // The item must sit in a character the acting player owns.
+  const [row] = await db
+    .select({ item: inventoryItems, character: characters })
+    .from(inventoryItems)
+    .innerJoin(characters, eq(characters.id, inventoryItems.characterId))
+    .where(eq(inventoryItems.id, opts.inventoryItemId));
+  if (!row || row.character.ownerId !== actor.id) {
+    return { status: 404, body: { error: "Item not found in your inventory" } };
+  }
+  if (quantity > row.item.quantity) {
+    return { status: 400, body: { error: `You only have ${row.item.quantity} of this item` } };
+  }
+  // Installed chrome (a "CWP n" note tag) is part of the character's body —
+  // it must go through a ripperdoc removal first, never a direct sale.
+  const isCyberware = (row.item.category ?? "").trim().toLowerCase() === "cyberware";
+  if (isCyberware && parseCwp(row.item.notes) != null) {
+    return { status: 409, body: { error: "Installed cyberware cannot be sold — have it removed at a ripperdoc first." } };
+  }
+
+  const venueTable = venueTableFor(kind);
+  const [venue] = await db.select().from(venueTable).where(eq(venueTable.id, venueId));
+  if (!venue) return { status: 404, body: { error: "Venue not found" } };
+
+  // At most one pending offer per inventory item keeps the approve-time
+  // quantity guard honest (two pending offers could both pass creation checks
+  // but only one can be fulfilled).
+  const [dup] = await db
+    .select({ id: saleOffers.id })
+    .from(saleOffers)
+    .where(and(eq(saleOffers.installItemId, row.item.id), eq(saleOffers.offerType, "player_sell"), eq(saleOffers.status, "pending")))
+    .limit(1);
+  if (dup) {
+    return { status: 409, body: { error: "You already have a pending sell offer for this item." } };
+  }
+
+  const totalPrice = unitPrice * quantity;
+  const expiresAt = new Date(Date.now() + OFFER_TTL_DAYS * 24 * 60 * 60 * 1000);
+  const [offer] = await db
+    .insert(saleOffers)
+    .values({
+      kind,
+      offerType: "player_sell",
+      [venueColName(kind)]: venueId,
+      stockId: null,
+      cwp: null,
+      installItemId: row.item.id,
+      itemName: row.item.name,
+      itemCategory: row.item.category,
+      unitPrice,
+      quantity,
+      totalPrice,
+      // The venue OWNER is the deciding "buyer" — the money comes out of the
+      // venue account they control.
+      buyerCharacterId: venue.ownerCharacterId ?? row.item.characterId,
+      buyerUserId: venue.ownerId,
+      sellerCharacterId: row.item.characterId,
+      sellerEmployeeId: null,
+      commissionPct: 0,
+      createdById: actor.id,
+      memo: opts.memo ?? null,
+      status: "pending",
+      expiresAt,
+    } as never)
+    .returning();
+
+  const priceLabel = totalPrice > 0 ? `for €$${totalPrice}` : "for free";
+  await db.insert(auditLog).values({
+    category: "shop",
+    action: "sale_offer_create",
+    actorId: actor.id,
+    actorName: actor.username,
+    targetType: "sale_offer",
+    targetId: String(offer.id),
+    message: `${row.character.name} offered to sell ${row.item.name} x${quantity} to ${venue.name} ${priceLabel}`,
+    afterJson: { offerType: "player_sell", totalPrice, quantity, venueId, venueKind: kind, inventoryItemId: row.item.id } as never,
+  });
+
+  // Portal bell + best-effort DM to the venue owner.
+  void createNotification({
+    userId: venue.ownerId,
+    type: "sale_offer",
+    title: `Sell offer at ${venue.name}`,
+    body: `${row.character.name} wants to sell ${row.item.name} x${quantity} ${priceLabel}.`,
+    href: hrefInbox(),
+  });
+  try {
+    const [u] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, venue.ownerId));
+    if (u?.discordId) {
+      await sendDirectMessage(
+        u.discordId,
+        `**${row.character.name}** wants to sell **${row.item.name}** x${quantity} to **${venue.name}** ${priceLabel} (billed to the venue account).\n` +
+          `Approve or deny it here: ${offerLink()}`,
+      );
+    }
+  } catch (err) {
+    logger.warn({ err, offerId: offer.id }, "player-sell owner DM failed");
+  }
+
+  return { status: 201, body: offer };
+}
+
+// Approve a player_sell offer: debit the venue account, move the item from the
+// seller's inventory into venue stock (one tx), then credit the seller's
+// wallet (idempotency-keyed, after the tx since applyWalletDelta commits its
+// own transaction).
+async function approvePlayerSellOffer(offer: SaleOffer, actor: Actor): Promise<OfferResult> {
+  // Venue-account debits are accepted by the venue owner only — admins can
+  // deny, but cannot approve a charge against someone else's account. Gate on
+  // the venue's CURRENT owner, not the buyerUserId snapshot taken at offer
+  // creation: if the venue changed hands while pending, the former owner must
+  // not be able to spend the new owner's money.
+  {
+    const vt = venueTableFor(offer.kind as OfferKind);
+    const vid = ((offer.kind as OfferKind) === "store" ? offer.storeId : offer.ripperdocId)!;
+    const [v] = await db.select({ ownerId: vt.ownerId }).from(vt).where(eq(vt.id, vid));
+    if (!v) return { status: 404, body: { error: "Venue not found" } };
+    if (v.ownerId !== actor.id) {
+      return { status: 403, body: { error: "Only the venue owner can approve a sell offer." } };
+    }
+  }
+  if (offer.status === "approved") {
+    // Re-entry: the only thing that can remain unfinished is the seller
+    // credit; retry it idempotently.
+    const payout = await settlePlayerSellCredit(offer);
+    return { status: 200, body: { offer, duplicate: true, ...(payout ? {} : { payoutFailed: true }) } };
+  }
+  if (offer.status !== "pending") {
+    return { status: 409, body: { error: `Offer already ${offer.status}` } };
+  }
+  if (offer.expiresAt && offer.expiresAt.getTime() < Date.now()) {
+    await db
+      .update(saleOffers)
+      .set({ status: "expired", decidedAt: new Date() })
+      .where(and(eq(saleOffers.id, offer.id), eq(saleOffers.status, "pending")));
+    return { status: 409, body: { error: "Offer has expired" } };
+  }
+
+  const mode = await getEconomyMode();
+  if (mode === "disabled") {
+    return { status: 409, body: { error: "Economy is disabled; offers cannot be approved right now." } };
+  }
+  if (mode === "test") {
+    return {
+      status: 200,
+      body: { dryRun: true, offer, wouldDebitVenue: offer.totalPrice, wouldCreditSeller: offer.totalPrice, wouldAddStock: offer.quantity },
+    };
+  }
+
+  const kind = offer.kind as OfferKind;
+  const venueTable = venueTableFor(kind);
+  const stockTable = stockTableFor(kind);
+  const venueId = (kind === "store" ? offer.storeId : offer.ripperdocId)!;
+  const hasMoney = offer.totalPrice > 0;
+
+  const [venue] = await db.select().from(venueTable).where(eq(venueTable.id, venueId));
+  if (!venue) return { status: 404, body: { error: "Venue not found" } };
+
+  let insufficient = false;
+  let alreadyResolved = false;
+  let itemGone: string | null = null;
+  let completionError: unknown = null;
+  let venueBalanceAfter = venue.balance;
+  let soldItem: typeof inventoryItems.$inferSelect | null = null;
+  await db
+    .transaction(async (tx) => {
+      const [flipped] = await tx
+        .update(saleOffers)
+        .set({ status: "approved", decidedAt: new Date() })
+        .where(and(eq(saleOffers.id, offer.id), eq(saleOffers.status, "pending")))
+        .returning();
+      if (!flipped) {
+        alreadyResolved = true;
+        return;
+      }
+
+      // Lock and re-validate the seller's inventory row: still on the same
+      // character, enough quantity, and (for chrome) still uninstalled.
+      const [item] = await tx
+        .select()
+        .from(inventoryItems)
+        .where(eq(inventoryItems.id, offer.installItemId!))
+        .for("update");
+      if (!item || item.characterId !== offer.sellerCharacterId) {
+        itemGone = "The item is no longer in the seller's inventory.";
+        throw new Error("player-sell-item-gone");
+      }
+      // The selling character must still belong to the user who gets paid
+      // (offer.createdById). A character ownership transfer between creation
+      // and approval must not let the FORMER owner collect for the NEW
+      // owner's item.
+      const [sellerChar] = await tx
+        .select({ ownerId: characters.ownerId })
+        .from(characters)
+        .where(eq(characters.id, item.characterId!))
+        .for("update");
+      if (!sellerChar || sellerChar.ownerId !== offer.createdById) {
+        itemGone = "The selling character has changed hands — the offer is no longer valid.";
+        throw new Error("player-sell-owner-changed");
+      }
+      if (item.quantity < offer.quantity) {
+        itemGone = `The seller only has ${item.quantity} of this item now.`;
+        throw new Error("player-sell-item-short");
+      }
+      const isCyberware = (item.category ?? "").trim().toLowerCase() === "cyberware";
+      if (isCyberware && parseCwp(item.notes) != null) {
+        itemGone = "The item has since been installed and can no longer be sold.";
+        throw new Error("player-sell-item-installed");
+      }
+      soldItem = item;
+
+      if (hasMoney) {
+        // Guarded debit: only succeeds when the venue can cover it.
+        const [debited] = await tx
+          .update(venueTable)
+          .set({ balance: sql`${venueTable.balance} - ${offer.totalPrice}` })
+          .where(and(eq(venueTable.id, venueId), gte(venueTable.balance, offer.totalPrice)))
+          .returning();
+        if (!debited) {
+          insufficient = true;
+          throw new Error("venue-insufficient-funds");
+        }
+        venueBalanceAfter = debited.balance;
+        await tx.insert(walletTransactions).values({
+          [venueColName(kind)]: venueId,
+          characterId: venue.ownerCharacterId ?? null,
+          amount: -offer.totalPrice,
+          kind: "shop",
+          source: kind,
+          memo: `Bought from player: ${offer.itemName} x${offer.quantity}`,
+          relatedEntityType: "sale_offer",
+          relatedEntityId: offer.id,
+          previousBalance: venueBalanceAfter + offer.totalPrice,
+          newBalance: venueBalanceAfter,
+        } as never);
+      }
+
+      // Inventory leg: decrement (delete at zero).
+      if (item.quantity === offer.quantity) {
+        await tx.delete(inventoryItems).where(eq(inventoryItems.id, item.id));
+      } else {
+        await tx
+          .update(inventoryItems)
+          .set({ quantity: sql`${inventoryItems.quantity} - ${offer.quantity}` })
+          .where(eq(inventoryItems.id, item.id));
+      }
+
+      // Stock leg: fold into an identical line (same name/price) or create.
+      const stockVenueCol = stockVenueColFor(kind);
+      const [existing] = await tx
+        .select()
+        .from(stockTable)
+        .where(and(eq(stockVenueCol, venueId), eq(stockTable.name, offer.itemName), eq(stockTable.price, offer.unitPrice)))
+        .limit(1);
+      if (existing) {
+        await tx
+          .update(stockTable)
+          .set({ quantity: sql`${stockTable.quantity} + ${offer.quantity}` })
+          .where(eq(stockTable.id, existing.id));
+      } else {
+        await tx.insert(stockTable).values({
+          [venueColName(kind)]: venueId,
+          name: offer.itemName,
+          category: item.category,
+          price: offer.unitPrice,
+          quantity: offer.quantity,
+          notes: item.notes,
+        } as never);
+      }
+    })
+    .catch((err) => {
+      completionError = err;
+    });
+
+  if (insufficient) {
+    return { status: 400, body: { error: "Venue account has insufficient funds" } };
+  }
+  if (itemGone) {
+    return { status: 409, body: { error: itemGone } };
+  }
+  if (completionError) {
+    logger.error({ err: completionError, offerId: offer.id }, "player-sell approve failed");
+    return { status: 409, body: { error: "Offer could not be completed" } };
+  }
+  if (alreadyResolved) {
+    const [fresh] = await db.select().from(saleOffers).where(eq(saleOffers.id, offer.id));
+    if (fresh?.status === "approved") return { status: 200, body: { offer: fresh, duplicate: true } };
+    return { status: 409, body: { error: `Offer was already ${fresh?.status ?? "resolved"}` } };
+  }
+
+  // Seller credit — outside the tx (applyWalletDelta commits its own), keyed
+  // on the offer so retries (re-approve) settle exactly once.
+  const paid = await settlePlayerSellCredit(offer);
+
+  await db.insert(auditLog).values({
+    category: "shop",
+    action: "sale_offer_approve",
+    actorId: actor.id,
+    actorName: actor.username,
+    targetType: "sale_offer",
+    targetId: String(offer.id),
+    message: `Approved player sale: bought ${offer.itemName} x${offer.quantity} for €$${offer.totalPrice} @ ${venue.name}`,
+    afterJson: { offerType: "player_sell", totalPrice: offer.totalPrice, quantity: offer.quantity, venueBalanceAfter, sellerPaid: paid } as never,
+  });
+  await db.insert(activityEvents).values({
+    kind: "shop",
+    actorId: actor.id,
+    actorName: actor.username,
+    actorAvatarUrl: actor.avatarUrl,
+    message: `${venue.name} bought ${offer.itemName} x${offer.quantity} from a player${hasMoney ? ` for €$${offer.totalPrice}` : ""}`,
+  });
+  if (soldItem) {
+    await recordInventoryEvent({
+      instanceUuid: (soldItem as typeof inventoryItems.$inferSelect).instanceUuid,
+      kind: "adjusted",
+      actorId: actor.id,
+      actorName: actor.username,
+      fromCharacterId: offer.sellerCharacterId ?? undefined,
+      itemName: offer.itemName,
+      quantity: offer.quantity,
+      price: offer.totalPrice,
+      reason: `Sold to ${venue.name}`,
+      metadata: { venueKind: kind, venueId, venueName: venue.name, offerId: offer.id, offerType: "player_sell" },
+    });
+  }
+
+  const [finalOffer] = await db.select().from(saleOffers).where(eq(saleOffers.id, offer.id));
+  return { status: 200, body: { offer: finalOffer, venueBalance: venueBalanceAfter, ...(paid ? {} : { payoutFailed: true }) } };
+}
+
+// Idempotent seller payout for a player_sell offer. Returns true when the
+// credit is settled (including duplicate = already settled).
+async function settlePlayerSellCredit(offer: SaleOffer): Promise<boolean> {
+  if (offer.totalPrice <= 0) return true;
+  const [seller] = await db.select().from(users).where(eq(users.id, offer.createdById));
+  if (!seller) return false;
+  const result = await applyWalletDelta({
+    userId: seller.id,
+    discordId: seller.discordId,
+    amount: offer.totalPrice,
+    source: "website",
+    kind: "shop",
+    reason: `Sold ${offer.itemName} x${offer.quantity} to a venue`,
+    characterId: offer.sellerCharacterId ?? null,
+    relatedEntityType: "sale_offer",
+    relatedEntityId: offer.id,
+    idempotencyKey: `offer:${offer.id}:player-sell-credit`,
+  });
+  if (!result.ok) {
+    logger.error({ offerId: offer.id, result }, "player-sell seller credit failed — re-approve to retry");
+    return false;
+  }
+  void createNotification({
+    userId: seller.id,
+    type: "sale_offer",
+    title: "Your sell offer was accepted",
+    body: `${offer.itemName} x${offer.quantity} sold for €$${offer.totalPrice}.`,
+    href: hrefInbox(),
+  });
+  if (seller.discordId) {
+    void sendDirectMessage(
+      seller.discordId,
+      `Your sell offer was accepted: **${offer.itemName}** x${offer.quantity} for **€$${offer.totalPrice}**. The eddies are in your wallet.`,
+    ).catch(() => {});
+  }
+  return true;
+}
+
+// Authorization for approve/deny: the buyer (offer owner) or an admin. For
+// player_sell offers the CREATOR (the selling player) may also act — but only
+// to WITHDRAW: approvePlayerSellOffer re-checks buyer-only, so a seller (or an
+// admin) can never approve a charge against someone else's venue account.
+async function canDecide(offer: SaleOffer, actor: Actor): Promise<boolean> {
+  if (offer.buyerUserId === actor.id || hasRole(actor.roles, "ADMIN")) return true;
+  if ((offer.offerType as OfferType) !== "player_sell") return false;
+  // The selling player may withdraw their own pending offer…
+  if (offer.createdById === actor.id) return true;
+  // …and the venue's CURRENT owner may decide even if the venue changed hands
+  // after the offer snapshotted the then-owner into buyerUserId. (Approve
+  // additionally re-checks live ownership as the authoritative gate.)
+  const vt = venueTableFor(offer.kind as OfferKind);
+  const vid = (offer.kind as OfferKind) === "store" ? offer.storeId : offer.ripperdocId;
+  if (vid == null) return false;
+  const [v] = await db.select({ ownerId: vt.ownerId }).from(vt).where(eq(vt.id, vid));
+  return !!v && v.ownerId === actor.id;
 }
 
 export async function denyOffer(offerId: number, actor: Actor): Promise<OfferResult> {
   const [offer] = await db.select().from(saleOffers).where(eq(saleOffers.id, offerId));
   if (!offer) return { status: 404, body: { error: "Offer not found" } };
-  if (!canDecide(offer, actor)) return { status: 403, body: { error: "Forbidden" } };
+  if (!(await canDecide(offer, actor))) return { status: 403, body: { error: "Forbidden" } };
   // Guarded flip: only a pending offer can be denied. A concurrent approve that
   // committed first leaves status != pending and this returns 409.
   const [denied] = await db
@@ -890,11 +1298,16 @@ export async function denyOffer(offerId: number, actor: Actor): Promise<OfferRes
 export async function approveOffer(offerId: number, actor: Actor): Promise<OfferResult> {
   const [offer] = await db.select().from(saleOffers).where(eq(saleOffers.id, offerId));
   if (!offer) return { status: 404, body: { error: "Offer not found" } };
-  if (!canDecide(offer, actor)) return { status: 403, body: { error: "Forbidden" } };
+  if (!(await canDecide(offer, actor))) return { status: 403, body: { error: "Forbidden" } };
   // stock_add bills the venue account (internal balance) and adds to stock —
   // an entirely different money/stock path, handled in its own function.
   if ((offer.offerType as OfferType) === "stock_add") {
     return await approveStockAddOffer(offer, actor);
+  }
+  // player_sell debits the venue account and credits the SELLING PLAYER —
+  // reverse money/stock direction, handled in its own function.
+  if ((offer.offerType as OfferType) === "player_sell") {
+    return await approvePlayerSellOffer(offer, actor);
   }
   // Re-entry for an already-approved offer: the only thing that can remain
   // unfinished is an unpaid commission, so retry that idempotent credit.

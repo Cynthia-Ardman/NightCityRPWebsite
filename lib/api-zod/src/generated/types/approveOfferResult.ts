@@ -20,4 +20,12 @@ export interface ApproveOfferResult {
   wouldDebitBuyer?: number;
   wouldCreditStore?: number;
   wouldPayCommission?: number;
+  /** Test-mode preview for stock_add/player_sell: what the venue account would pay. */
+  wouldDebitVenue?: number;
+  /** Test-mode preview for player_sell: what the selling player would receive. */
+  wouldCreditSeller?: number;
+  /** Test-mode preview: stock quantity that would be added. */
+  wouldAddStock?: number;
+  /** player_sell only: the venue paid and stock moved, but the seller wallet credit failed — re-approving retries it. */
+  payoutFailed?: boolean;
 }

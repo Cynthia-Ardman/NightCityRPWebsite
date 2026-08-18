@@ -645,6 +645,7 @@ export * from './searchFixerVrchatPlayersParams';
 export * from './searchInventoryByOwnerParams';
 export * from './searchMissionActorsParams';
 export * from './searchResultItem';
+export * from './sellItemInput';
 export * from './serviceBillInput';
 export * from './setCharacterKindBody';
 export * from './setCharacterKindBodyKind';

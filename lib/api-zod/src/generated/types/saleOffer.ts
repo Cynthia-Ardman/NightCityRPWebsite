@@ -12,7 +12,7 @@ import type { SaleOfferStatus } from './saleOfferStatus';
 export interface SaleOffer {
   id: number;
   kind: SaleOfferKind;
-  /** What the offer does. Defaults to sale. */
+  /** What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays). */
   offerType?: SaleOfferOfferType;
   /**
      * Per-unit cyberware points (install) or the points removed (remove).

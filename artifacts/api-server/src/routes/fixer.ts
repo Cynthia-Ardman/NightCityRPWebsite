@@ -31,6 +31,7 @@ import {
   isCappedSlot,
   normalizeSlot,
 } from "../lib/cyberwareSlots";
+import { parseCwp } from "../lib/cyberware";
 import { createNotification } from "../lib/notifications";
 import { hrefCharacter } from "../lib/notificationHrefs";
 import { sendDirectMessage } from "../lib/discord";
@@ -912,6 +913,10 @@ async function computeCyberwareViolations(): Promise<
   const byChar = new Map<number, ViolationEntry>();
   for (const r of rows) {
     if (r.characterId == null || r.characterKind === "npc") continue;
+    // Only INSTALLED chrome (a "CWP n" note tag) occupies a slot. Uninstalled
+    // pieces sitting in inventory are just cargo — they don't count toward
+    // slot caps and must not flag violations.
+    if (parseCwp(r.notes) == null) continue;
     const slot = resolveSlotForItem({ name: r.itemName, notes: r.notes }, catalogByName);
     if (!isCappedSlot(slot)) continue;
     const key = normalizeSlot(slot);

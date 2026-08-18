@@ -78,6 +78,17 @@ router.get("/offers/mine", requireAuth, async (req, res): Promise<void> => {
   res.json(await shapeOffers(rows));
 });
 
+// Offers the caller CREATED as a selling player (player_sell), so they can see
+// pending/decided sell offers they've made to venues.
+router.get("/offers/outgoing", requireAuth, async (req, res): Promise<void> => {
+  const rows = await db
+    .select()
+    .from(saleOffers)
+    .where(and(eq(saleOffers.createdById, req.user!.id), eq(saleOffers.offerType, "player_sell")))
+    .orderBy(desc(saleOffers.createdAt));
+  res.json(await shapeOffers(rows));
+});
+
 // Offers for a venue the caller operates (owner/admin/employee), so the seller
 // side can see offer states + commission in history.
 async function listVenueOffers(

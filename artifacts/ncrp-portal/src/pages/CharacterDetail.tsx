@@ -10,6 +10,9 @@ import {
   useTransferInventoryItem,
   useGiveInventoryItemToClinic,
   useListRipperdocs,
+  useListStores,
+  useCreateStoreSellItemOffer,
+  useCreateRipperdocSellItemOffer,
   getListRipperdocsQueryKey,
   getGetRipperdocPublicQueryKey,
   useGetCharacterHousing,
@@ -28,12 +31,13 @@ import {
   useListCharacterBreachPuzzles,
 } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, ShieldAlert, Package, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil, Briefcase, History, Cpu, Lock, Tag as TagIcon } from "lucide-react";
+import { Shield, ShieldAlert, Package, Terminal, Plus, Trash2, Send, DollarSign, X, Home, Pencil, Briefcase, History, Cpu, Lock, Tag as TagIcon, Store } from "lucide-react";
 import EditCharacterDialog from "@/components/EditCharacterDialog";
 import EditCharacterTagsDialog from "@/components/EditCharacterTagsDialog";
 import LifeStatusPill from "@/components/LifeStatusPill";
@@ -964,7 +968,9 @@ function InventoryTab({ characterId }: { characterId: number }) {
   // Cyberware-only fields (packed into the shared "CWP n · … · slot: x" note).
   const [cyber, setCyber] = useState({ slot: "", cwp: "" });
   const [transferItemId, setTransferItemId] = useState<number | null>(null);
+  const [sellItemId, setSellItemId] = useState<number | null>(null);
   const [editItemId, setEditItemId] = useState<number | null>(null);
+  const isOwner = !!char?.ownerId && char.ownerId === me.data?.id;
 
   const resetForm = () => {
     setName("");
@@ -1301,6 +1307,23 @@ function InventoryTab({ characterId }: { characterId: number }) {
                         <History className="w-3 h-3" />
                       </Button>
                     </Link>
+                    {/* Owners can offer any UNINSTALLED item to a shop — the
+                        shop owner confirms the price from their Inbox before
+                        anything moves. Installed chrome must be removed at a
+                        ripperdoc first. */}
+                    {isOwner && !hasCwpTag(it.notes) && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-nc-yellow h-8 px-2"
+                        onClick={() => setSellItemId(it.id)}
+                        title="Offer this item to a shop"
+                        data-testid={`button-sell-item-${it.id}`}
+                      >
+                        <Store className="w-3 h-3 mr-1" /> SELL
+                      </Button>
+                    )}
                     {/* Cyberware edits/removals must go through review — only
                         staff get the direct edit/delete controls. Players use
                         the cyberware request flow instead. */}
@@ -1354,6 +1377,17 @@ function InventoryTab({ characterId }: { characterId: number }) {
           onClose={() => setTransferItemId(null)}
           onDone={() => {
             setTransferItemId(null);
+            invalidate();
+          }}
+        />
+      )}
+
+      {sellItemId !== null && (
+        <SellToShopDialog
+          item={items?.find((i) => i.id === sellItemId) ?? null}
+          onClose={() => setSellItemId(null)}
+          onDone={() => {
+            setSellItemId(null);
             invalidate();
           }}
         />
@@ -1524,6 +1558,155 @@ function EditItemDialog({
                 data-testid="button-save-edit-item"
               >
                 {update.isPending ? "SAVING..." : "SAVE"}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Offer an item from this character's inventory to a store or clinic. Nothing
+// moves until the venue OWNER confirms the price from their Inbox — on
+// approval the venue account pays the asking price, the item becomes venue
+// stock, and the eddies land in the seller's wallet.
+function SellToShopDialog({
+  item,
+  onClose,
+  onDone,
+}: {
+  item: { id: number; name: string; quantity: number; category?: string | null } | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [venueKind, setVenueKind] = useState<"store" | "ripperdoc">("store");
+  const [venueId, setVenueId] = useState<number | null>(null);
+  const [qty, setQty] = useState(1);
+  const [price, setPrice] = useState(0);
+  const [memo, setMemo] = useState("");
+  const { data: storeList } = useListStores();
+  const { data: clinicList } = useListRipperdocs();
+  const { toast } = useToast();
+  const opts = {
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Offer sent", description: "The shop owner will confirm the price from their Inbox." });
+        onDone();
+      },
+    },
+  };
+  const sellToStore = useCreateStoreSellItemOffer(opts);
+  const sellToClinic = useCreateRipperdocSellItemOffer(opts);
+  if (!item) return null;
+  const venues = venueKind === "store" ? (storeList ?? []) : (clinicList ?? []);
+  const active = venueKind === "store" ? sellToStore : sellToClinic;
+  const errMsg =
+    (active.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+    (active.error ? "Could not send the offer" : null);
+  const pending = sellToStore.isPending || sellToClinic.isPending;
+  const canSubmit = venueId != null && qty >= 1 && qty <= item.quantity && price > 0;
+  return (
+    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="dialog-sell-to-shop">
+      <Card className="rounded-none border-nc-yellow bg-card w-full max-w-lg">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="font-display tracking-widest text-nc-yellow">SELL TO SHOP: {item.name}</CardTitle>
+          <Button variant="ghost" size="icon" onClick={onClose} data-testid="button-close-sell">
+            <X className="w-4 h-4" />
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="space-y-4 font-mono text-sm"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!canSubmit || venueId == null) return;
+              const payload = {
+                id: venueId,
+                data: { inventoryItemId: item.id, unitPrice: price, quantity: qty, ...(memo ? { memo } : {}) },
+              };
+              if (venueKind === "store") sellToStore.mutate(payload);
+              else sellToClinic.mutate(payload);
+            }}
+          >
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                onClick={() => { setVenueKind("store"); setVenueId(null); }}
+                className={`flex-1 rounded-none font-display ${venueKind === "store" ? "bg-nc-cyan text-background" : "bg-transparent border border-border text-muted-foreground"}`}
+                data-testid="button-sell-kind-store"
+              >
+                <Store className="w-4 h-4 mr-2" /> STORE
+              </Button>
+              <Button
+                type="button"
+                onClick={() => { setVenueKind("ripperdoc"); setVenueId(null); }}
+                className={`flex-1 rounded-none font-display ${venueKind === "ripperdoc" ? "bg-nc-magenta text-background" : "bg-transparent border border-border text-muted-foreground"}`}
+                data-testid="button-sell-kind-clinic"
+              >
+                <Cpu className="w-4 h-4 mr-2" /> CLINIC
+              </Button>
+            </div>
+            <div>
+              <Label className="text-xs">{venueKind === "store" ? "STORE" : "CLINIC"}</Label>
+              <select
+                className="w-full h-9 bg-background border border-border rounded-none px-2 font-mono text-sm"
+                value={venueId ?? ""}
+                onChange={(e) => setVenueId(e.target.value ? Number(e.target.value) : null)}
+                data-testid="select-sell-venue"
+              >
+                <option value="">Select...</option>
+                {venues.map((v) => (
+                  <option key={v.id} value={v.id}>{v.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">QUANTITY (of {item.quantity})</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={item.quantity}
+                  value={qty}
+                  onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
+                  className="rounded-none font-mono"
+                  data-testid="input-sell-qty"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">ASKING PRICE / UNIT (€$)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={price || ""}
+                  onChange={(e) => setPrice(Math.max(0, Number(e.target.value) || 0))}
+                  className="rounded-none font-mono"
+                  data-testid="input-sell-price"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">NOTE TO THE OWNER (optional)</Label>
+              <Input
+                value={memo}
+                onChange={(e) => setMemo(e.target.value)}
+                placeholder="e.g. lightly used, firm on price"
+                className="rounded-none font-mono"
+                data-testid="input-sell-memo"
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Total asking price: <span className="text-nc-yellow">{formatEddies(price * qty)}</span>. The venue owner
+              approves or declines from their Inbox; you're paid when they approve.
+            </p>
+            {errMsg && <p className="text-destructive text-xs">{errMsg}</p>}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={onClose} className="rounded-none font-display" data-testid="button-cancel-sell">
+                CANCEL
+              </Button>
+              <Button type="submit" disabled={!canSubmit || pending} className="rounded-none bg-nc-yellow text-background hover:bg-nc-yellow/80 font-display" data-testid="button-submit-sell">
+                <DollarSign className="w-4 h-4 mr-1" /> SEND OFFER
               </Button>
             </div>
           </form>

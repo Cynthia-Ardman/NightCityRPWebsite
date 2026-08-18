@@ -7,7 +7,7 @@
  */
 
 /**
- * What the offer does. Defaults to sale.
+ * What the offer does. Defaults to sale. player_sell = a player sells an inventory item TO the venue (owner approves, venue pays).
  */
 export type SaleOfferOfferType = typeof SaleOfferOfferType[keyof typeof SaleOfferOfferType];
 
@@ -20,4 +20,5 @@ export const SaleOfferOfferType = {
   stock_add: 'stock_add',
   install_owned: 'install_owned',
   service: 'service',
+  player_sell: 'player_sell',
 } as const;
