@@ -1,4 +1,5 @@
 import { formatDate, formatEddies, formatDateTime } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import {
   useGetCharacter,
   useSetCharacterKind,
@@ -1000,9 +1001,7 @@ function InventoryTab({ characterId }: { characterId: number }) {
     !!name.trim() &&
     (category === "Misc" || (category === "Weapon" && gunComplete) || (category === "Cyberware" && cyberComplete));
 
-  const addErr =
-    (addItem.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-    (addItem.error ? "Could not add item" : null);
+  const addErr = addItem.error ? apiErrorMessage(addItem.error, "Could not add item") : null;
 
   const submitAdd = () => {
     if (!canSubmitAdd) return;
