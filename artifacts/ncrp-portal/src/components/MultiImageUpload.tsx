@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ImagePlus, Upload, X } from "lucide-react";
 import { uploadImage } from "@/lib/uploadImage";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 
 // Multi-image uploader: thumbnails of every uploaded image, each with its own
 // remove control, plus an "add image" button while under the cap. Used by the
@@ -42,8 +43,7 @@ export default function MultiImageUpload({
       onChange([...value, ...urls.filter((u) => !value.includes(u))]);
       toast({ title: urls.length > 1 ? `${urls.length} uploads complete` : "Upload complete" });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Upload failed";
-      toast({ title: "Upload failed", description: msg, variant: "destructive" });
+      toast({ title: "Upload failed", description: apiErrorMessage(err, "Upload failed"), variant: "destructive" });
     } finally {
       setUploading(false);
     }

@@ -1,4 +1,5 @@
 import { formatEddies } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useState } from "react";
 import { Link } from "wouter";
 import {
@@ -26,9 +27,7 @@ function fmtDateTime(d: string | null | undefined): string {
 }
 
 function errOf(e: unknown): string | null {
-  if (!e) return null;
-  const anyErr = e as { response?: { data?: { error?: string } }; message?: string };
-  return anyErr.response?.data?.error ?? anyErr.message ?? "Something went wrong.";
+  return e ? apiErrorMessage(e, "Something went wrong.") : null;
 }
 
 function todayInput(): string {

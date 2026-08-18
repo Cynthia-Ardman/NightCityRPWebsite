@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListTagOptions,
@@ -41,10 +42,7 @@ function TagRow({ option }: { option: TagOption }) {
           void qc.invalidateQueries({ queryKey: getListTagOptionsQueryKey() });
         },
         onError: (e: unknown) => {
-          const msg =
-            (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-            "Could not save.";
-          toast({ title: "Failed to update tag", description: msg, variant: "destructive" });
+          toast({ title: "Failed to update tag", description: apiErrorMessage(e, "Could not save."), variant: "destructive" });
         },
       },
     );
@@ -125,10 +123,7 @@ function CreateTagForm() {
           void qc.invalidateQueries({ queryKey: getListTagOptionsQueryKey() });
         },
         onError: (e: unknown) => {
-          const msg =
-            (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-            "Could not create tag.";
-          toast({ title: "Failed to create tag", description: msg, variant: "destructive" });
+          toast({ title: "Failed to create tag", description: apiErrorMessage(e, "Could not create tag."), variant: "destructive" });
         },
       },
     );

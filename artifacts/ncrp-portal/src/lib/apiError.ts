@@ -5,6 +5,9 @@
  * `err.data` (e.g. `{ error: "..." }`). Some older call sites read
  * `err.response.data`, which is a raw fetch Response and never has the body —
  * use this helper instead so the server's actual reason reaches the user.
+ *
+ * Falls back to `err.message` for plain Error objects (e.g. upload failures),
+ * and finally to the provided fallback string when neither is available.
  */
 export function apiErrorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === "object") {
@@ -14,5 +17,6 @@ export function apiErrorMessage(err: unknown, fallback: string): string {
       if (typeof msg === "string" && msg.trim()) return msg;
     }
   }
+  if (err instanceof Error && err.message.trim()) return err.message;
   return fallback;
 }

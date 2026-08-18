@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { formatEddies } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useParams, Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -77,7 +78,7 @@ export default function BreachPlay() {
       // reloading. Reconciled authoritatively on the next load.
       toast({
         title: "Result not recorded",
-        description: e instanceof Error ? e.message : "The server rejected this submission. Reload to retry.",
+        description: apiErrorMessage(e, "The server rejected this submission. Reload to retry."),
         variant: "destructive",
       });
     }

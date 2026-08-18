@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListTagOptions,
@@ -84,10 +85,7 @@ export default function EditCharacterTagsDialog({
           onOpenChange(false);
         },
         onError: (e: unknown) => {
-          const msg =
-            (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-            "Could not save tags.";
-          toast({ title: "Failed to update tags", description: msg, variant: "destructive" });
+          toast({ title: "Failed to update tags", description: apiErrorMessage(e, "Could not save tags."), variant: "destructive" });
         },
       },
     );

@@ -79,8 +79,7 @@ export default function CharacterDetail() {
         void qcKind.invalidateQueries({ queryKey: getGetCharacterQueryKey(charId) });
       },
       onError: (err) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-        window.alert(msg ?? "Conversion failed");
+        window.alert(apiErrorMessage(err, "Conversion failed"));
       },
     },
   });
@@ -1542,9 +1541,7 @@ function EditItemDialog({
           : category;
   const isOtherCategory = !STD_CATEGORIES.includes(normalizedCategory);
   const editCategoryValue = isOtherCategory ? KEEP_CATEGORY : normalizedCategory;
-  const errMsg =
-    (update.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-    (update.error ? "Update failed" : null);
+  const errMsg = update.error ? apiErrorMessage(update.error, "Update failed") : null;
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="dialog-edit-item">
       <Card className="rounded-none border-nc-cyan bg-card w-full max-w-lg">
@@ -1680,9 +1677,7 @@ function SellToShopDialog({
   if (!item) return null;
   const venues = venueKind === "store" ? (storeList ?? []) : (clinicList ?? []);
   const active = venueKind === "store" ? sellToStore : sellToClinic;
-  const errMsg =
-    (active.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-    (active.error ? "Could not send the offer" : null);
+  const errMsg = active.error ? apiErrorMessage(active.error, "Could not send the offer") : null;
   const pending = sellToStore.isPending || sellToClinic.isPending;
   const canSubmit = venueId != null && qty >= 1 && qty <= item.quantity && price > 0;
   return (
@@ -1830,9 +1825,7 @@ function TransferItemDialog({
   });
   if (!item) return null;
   const activeErr = mode === "clinic" ? giveToClinic.error : transfer.error;
-  const errMsg =
-    (activeErr as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-    (activeErr ? "Transfer failed" : null);
+  const errMsg = activeErr ? apiErrorMessage(activeErr, "Transfer failed") : null;
   const pending = transfer.isPending || giveToClinic.isPending;
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="dialog-transfer-item">

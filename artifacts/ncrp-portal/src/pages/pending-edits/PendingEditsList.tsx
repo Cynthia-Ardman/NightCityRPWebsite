@@ -1,4 +1,5 @@
 import { formatDateTime } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -343,8 +344,7 @@ function ReviewerEditsList({ embedded, activeOnly = false }: { embedded: boolean
     qc.invalidateQueries({ queryKey: getGetReviewUnreadDetailQueryKey() });
   };
   const actions = useReviewTicketActions(invalidate);
-  const errMsg = (err: unknown, fallback: string) =>
-    (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback;
+  const errMsg = (err: unknown, fallback: string) => apiErrorMessage(err, fallback);
   const vote = useVotePendingEdit({
     mutation: {
       onSuccess: (res, vars) => {

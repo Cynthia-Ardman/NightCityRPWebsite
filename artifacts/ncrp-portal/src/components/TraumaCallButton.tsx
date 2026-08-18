@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiErrorMessage } from "@/lib/apiError";
 import {
   useGetTraumaStatus,
   getGetTraumaStatusQueryKey,
@@ -57,10 +58,7 @@ export default function TraumaCallButton() {
         });
       },
       onError: (err) => {
-        const msg =
-          (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-          "Could not call Trauma Team. Try again shortly.";
-        toast({ title: "Call failed", description: msg, variant: "destructive" });
+        toast({ title: "Call failed", description: apiErrorMessage(err, "Could not call Trauma Team. Try again shortly."), variant: "destructive" });
       },
     },
   });

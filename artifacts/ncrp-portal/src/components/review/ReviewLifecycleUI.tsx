@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 import { BUCKET_LABEL, type LifecycleBucket } from "@/lib/reviewLifecycle";
 import { SheetCloseDialog } from "@/components/review/SheetCloseDialog";
 
@@ -42,10 +43,7 @@ export function UnseenDot({ show, testid }: { show: boolean; testid: string }) {
 export function useReviewTicketActions(invalidate: () => void) {
   const { toast } = useToast();
   const onError = (err: unknown) => {
-    const msg =
-      (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-      (err instanceof Error ? err.message : "Please try again.");
-    toast({ title: "Action failed", description: msg, variant: "destructive" });
+    toast({ title: "Action failed", description: apiErrorMessage(err, "Please try again."), variant: "destructive" });
   };
   const close = useCloseReviewTicket({
     mutation: { onSuccess: () => { invalidate(); toast({ title: "Ticket closed & archived" }); }, onError },

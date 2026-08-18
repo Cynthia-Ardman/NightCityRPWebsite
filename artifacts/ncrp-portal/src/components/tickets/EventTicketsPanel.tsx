@@ -12,10 +12,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 
 function errOf(e: unknown): string | null {
-  const r = (e as { response?: { data?: { error?: string } } } | null)?.response?.data?.error;
-  return r ?? (e ? "Request failed" : null);
+  return e ? apiErrorMessage(e, "Request failed") : null;
 }
 
 function statusBadge(t: EventTicketView) {

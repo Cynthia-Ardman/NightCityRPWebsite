@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
@@ -316,7 +317,7 @@ export default function EditCharacterDialog({
         if (editId) navigate(`/pending-edits/${editId}`);
       },
       onError: (err) => {
-        const data = (err as { response?: { data?: { error?: string; pendingEditId?: number } } } | null)?.response?.data;
+        const data = (err as { data?: { error?: string; pendingEditId?: number } } | null)?.data;
         if (data?.pendingEditId) {
           toast({
             title: "Edit already pending",
@@ -326,7 +327,7 @@ export default function EditCharacterDialog({
           navigate(`/pending-edits/${data.pendingEditId}`);
           return;
         }
-        toast({ title: "Save failed", description: data?.error ?? "Save failed", variant: "destructive" });
+        toast({ title: "Save failed", description: apiErrorMessage(err, "Save failed"), variant: "destructive" });
       },
     },
   });
@@ -346,10 +347,9 @@ export default function EditCharacterDialog({
         navigate("/characters");
       },
       onError: (err) => {
-        const data = (err as { response?: { data?: { error?: string } } } | null)?.response?.data;
         toast({
           title: "Delete failed",
-          description: data?.error ?? "Could not delete this character.",
+          description: apiErrorMessage(err, "Could not delete this character."),
           variant: "destructive",
         });
       },
@@ -467,10 +467,9 @@ export default function EditCharacterDialog({
       toast({ title: "Cyberware saved", description: `${character.name}'s chrome is updated.` });
       return true;
     } catch (err) {
-      const data = (err as { response?: { data?: { error?: string } } } | null)?.response?.data;
       toast({
         title: "Cyberware save failed",
-        description: data?.error ?? "Could not update cyberware. Re-saving is safe.",
+        description: apiErrorMessage(err, "Could not update cyberware. Re-saving is safe."),
         variant: "destructive",
       });
       return false;

@@ -2,6 +2,7 @@ import { Link, useParams } from "wouter";
 import { useGetLore, useDeleteLore, getListLoreQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +49,7 @@ export default function DirectoryLoreDetail() {
         navigate("/directory/lore");
       },
       onError: (err) =>
-        toast({ title: "Could not delete", description: err instanceof Error ? err.message : "Try again.", variant: "destructive" }),
+        toast({ title: "Could not delete", description: apiErrorMessage(err, "Try again."), variant: "destructive" }),
     },
   });
 

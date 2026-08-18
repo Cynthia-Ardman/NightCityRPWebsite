@@ -4,6 +4,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import {
   useNotificationRoles,
@@ -179,7 +180,7 @@ function NotificationsSection() {
       qc.invalidateQueries({ queryKey: NOTIFICATION_ROLES_KEY });
       toast({
         title: "Couldn't update notifications",
-        description: err instanceof Error ? err.message : "Please try again later.",
+        description: apiErrorMessage(err, "Please try again later."),
         variant: "destructive",
       });
     },

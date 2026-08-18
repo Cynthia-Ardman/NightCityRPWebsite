@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 import { formatEddies } from "@/lib/format";
 
 // Live countdown to the end of the 4-hour shift window.
@@ -63,7 +64,7 @@ export default function StoreShiftPanel({
       onError: (err) =>
         toast({
           title: "Could not clock in",
-          description: err instanceof Error ? err.message : "Please try again.",
+          description: apiErrorMessage(err, "Please try again."),
           variant: "destructive",
         }),
     },
@@ -77,7 +78,7 @@ export default function StoreShiftPanel({
       onError: (err) =>
         toast({
           title: "Could not clock out",
-          description: err instanceof Error ? err.message : "Please try again.",
+          description: apiErrorMessage(err, "Please try again."),
           variant: "destructive",
         }),
     },

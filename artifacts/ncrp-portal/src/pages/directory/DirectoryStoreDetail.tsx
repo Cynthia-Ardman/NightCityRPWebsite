@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Settings, Gift } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 
 export default function DirectoryStoreDetail() {
@@ -51,9 +52,7 @@ export default function DirectoryStoreDetail() {
       }
       toast({ title: "Gift sent", description: `${formatEddies(sent)} given to ${data?.name ?? "this store"}.` });
     } catch (err) {
-      const msg = (err as { data?: { error?: string } })?.data?.error
-        || (err instanceof Error ? err.message : "Something went wrong — no money moved.");
-      toast({ title: "Gift failed", description: msg, variant: "destructive" });
+      toast({ title: "Gift failed", description: apiErrorMessage(err, "Something went wrong — no money moved."), variant: "destructive" });
     }
   };
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING...</div>;

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 import { format } from "date-fns";
 
 const diceSchema = z.object({
@@ -82,8 +83,8 @@ export default function DiceRoller() {
         queryClient.invalidateQueries({ queryKey: getGetDiceHistoryQueryKey() });
         // Don't toast success, it shows visually in history immediately
       },
-      onError: (err: any) => {
-        toast({ title: "Roll Failed", description: err.message || "Invalid dice expression.", variant: "destructive" });
+      onError: (err) => {
+        toast({ title: "Roll Failed", description: apiErrorMessage(err, "Invalid dice expression."), variant: "destructive" });
       }
     });
   };

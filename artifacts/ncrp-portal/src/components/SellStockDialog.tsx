@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiErrorMessage } from "@/lib/apiError";
 import { formatEddies } from "@/lib/format";
 import { useSellStoreItem, useSellRipperdocItem } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,9 +24,7 @@ export default function SellStockDialog({ kind, venueId, stock, onClose, onDone 
   const sellStore = useSellStoreItem({ mutation: { onSuccess: onDone } });
   const sellDoc = useSellRipperdocItem({ mutation: { onSuccess: onDone } });
   const m = kind === "store" ? sellStore : sellDoc;
-  const errMsg =
-    (m.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-    (m.error ? "Offer failed" : null);
+  const errMsg = m.error ? apiErrorMessage(m.error, "Offer failed") : null;
   const q = Math.max(1, qty || 1);
   const total = stock.price * q;
   const hasCost = typeof stock.cost === "number" && stock.cost > 0;

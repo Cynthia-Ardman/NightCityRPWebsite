@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 import { X, AlertTriangle } from "lucide-react";
 import type { CwpBand } from "@/components/directory/CharacterBadges";
 
@@ -154,10 +155,9 @@ export default function ArchiveEditDialog({
         navigate("/directory/characters");
       },
       onError: (err) => {
-        const data = (err as { response?: { data?: { error?: string } } } | null)?.response?.data;
         toast({
           title: "Delete failed",
-          description: data?.error ?? "Could not delete this character.",
+          description: apiErrorMessage(err, "Could not delete this character."),
           variant: "destructive",
         });
       },

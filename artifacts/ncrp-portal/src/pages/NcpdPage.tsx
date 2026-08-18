@@ -1,4 +1,5 @@
 import { formatDate } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useState } from "react";
 import { Link } from "wouter";
 import {
@@ -281,10 +282,10 @@ function NewWarrantDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
                       onOpenChange(false);
                       reset();
                     },
-                    onError: (e: any) =>
+                    onError: (e: unknown) =>
                       toast({
                         title: "Could not issue warrant",
-                        description: String(e?.data?.error ?? e?.message ?? e),
+                        description: apiErrorMessage(e, "Could not issue warrant"),
                         variant: "destructive",
                       }),
                   },
@@ -398,10 +399,10 @@ function IssueFineSection() {
                         toast({ title: "Fine issued", description: `Fine of €$${amt.toLocaleString()} issued to ${name}.` });
                         reset();
                       },
-                      onError: (e: any) =>
+                      onError: (e: unknown) =>
                         toast({
                           title: "Could not issue fine",
-                          description: String(e?.data?.error ?? e?.message ?? e),
+                          description: apiErrorMessage(e, "Could not issue fine"),
                           variant: "destructive",
                         }),
                     },

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListNcpdLaws,
@@ -18,12 +19,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Markdown from "@/components/Markdown";
 import { Scale, Plus, Pencil, Trash2, X, Lock } from "lucide-react";
-
-function apiErrorMessage(err: unknown, fallback: string): string {
-  const data = (err as { data?: unknown } | null)?.data;
-  const msg = (data as { error?: unknown } | null)?.error;
-  return typeof msg === "string" && msg.trim() ? msg : fallback;
-}
 
 function severityBadge(severity?: string | null) {
   if (!severity) return null;

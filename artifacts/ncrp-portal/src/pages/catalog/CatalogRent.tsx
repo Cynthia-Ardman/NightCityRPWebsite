@@ -27,6 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { X, Home, ImageIcon, ImagePlus, Upload, Briefcase, UserMinus, History, UserPlus, Receipt, Clock, Pencil } from "lucide-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 import { uploadImage } from "@/lib/uploadImage";
 import CatalogRequestSection from "@/components/catalog/CatalogRequestSection";
 import CustomCatalogTab from "@/components/catalog/CustomCatalogTab";
@@ -736,10 +737,7 @@ function PropertyHistoryDialog({
                         toast({ title: "Listing updated" });
                       },
                       onError: (err) => {
-                        const msg =
-                          (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-                          "Could not update listing";
-                        toast({ title: msg, variant: "destructive" });
+                        toast({ title: apiErrorMessage(err, "Could not update listing"), variant: "destructive" });
                       },
                     },
                   );
@@ -830,10 +828,7 @@ function PropertyHistoryDialog({
                       onError: (err) => {
                         // The API returns 409 with an explanatory message when
                         // the property is still occupied; surface that directly.
-                        const msg =
-                          (err as { response?: { data?: { error?: string } } } | null)?.response
-                            ?.data?.error ?? "Could not delete listing";
-                        toast({ title: msg, variant: "destructive" });
+                        toast({ title: apiErrorMessage(err, "Could not delete listing"), variant: "destructive" });
                       },
                     },
                   );
@@ -1024,7 +1019,7 @@ function ListingImage({
     } catch (err: unknown) {
       toast({
         title: "Upload failed",
-        description: err instanceof Error ? err.message : "Try again.",
+        description: apiErrorMessage(err, "Try again."),
         variant: "destructive",
       });
     } finally {
@@ -1149,9 +1144,7 @@ function LeaseDialog({
       },
     },
   });
-  const errMsg =
-    (lease.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-    (lease.error ? "Lease failed" : null);
+  const errMsg = lease.error ? apiErrorMessage(lease.error, "Lease failed") : null;
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="dialog-lease">
       <Card className="rounded-none border-nc-cyan bg-card w-full max-w-lg">
@@ -1260,9 +1253,7 @@ function BusinessLeaseDialog({
       },
     },
   });
-  const errMsg =
-    (submit.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-    (submit.error ? "Submission failed" : null);
+  const errMsg = submit.error ? apiErrorMessage(submit.error, "Submission failed") : null;
   const canSubmit = !!characterId && !!businessName.trim() && !!purpose.trim() && !submit.isPending;
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="dialog-business-lease">

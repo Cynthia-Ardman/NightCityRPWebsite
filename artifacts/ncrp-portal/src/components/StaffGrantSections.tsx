@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatEddies } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetCharacterInventory,
@@ -71,8 +72,7 @@ export default function StaffGrantSections({
       await invalidate();
       toast({ title: "Added", description: `${trimmed} added to ${characterName}.` });
     } catch (err) {
-      const data = (err as { response?: { data?: { error?: string } } } | null)?.response?.data;
-      toast({ title: "Add failed", description: data?.error ?? "Could not add item.", variant: "destructive" });
+      toast({ title: "Add failed", description: apiErrorMessage(err, "Could not add item."), variant: "destructive" });
     }
   }
 
@@ -82,8 +82,7 @@ export default function StaffGrantSections({
       await invalidate();
       toast({ title: "Removed", description: `${name} removed.` });
     } catch (err) {
-      const data = (err as { response?: { data?: { error?: string } } } | null)?.response?.data;
-      toast({ title: "Remove failed", description: data?.error ?? "Could not remove item.", variant: "destructive" });
+      toast({ title: "Remove failed", description: apiErrorMessage(err, "Could not remove item."), variant: "destructive" });
     }
   }
 
@@ -110,8 +109,7 @@ export default function StaffGrantSections({
       toast({ title: "Property leased", description: `${l.name} leased to ${characterName}.` });
       setListingId("");
     } catch (err) {
-      const data = (err as { response?: { data?: { error?: string } } } | null)?.response?.data;
-      toast({ title: "Lease failed", description: data?.error ?? "Could not lease property.", variant: "destructive" });
+      toast({ title: "Lease failed", description: apiErrorMessage(err, "Could not lease property."), variant: "destructive" });
     }
   }
 

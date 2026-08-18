@@ -1,4 +1,5 @@
 import { formatDateTime } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useParams, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -127,8 +128,7 @@ export default function PendingEditDetail() {
         invalidate();
       },
       onError: (err) => {
-        const msg = (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? "Vote failed";
-        toast({ title: "Vote failed", description: msg, variant: "destructive" });
+        toast({ title: "Vote failed", description: apiErrorMessage(err, "Vote failed"), variant: "destructive" });
       },
     },
   });
@@ -141,14 +141,12 @@ export default function PendingEditDetail() {
         navigate(queueHref);
       },
       onError: (err) => {
-        const msg = (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? "Cancel failed";
-        toast({ title: "Cancel failed", description: msg, variant: "destructive" });
+        toast({ title: "Cancel failed", description: apiErrorMessage(err, "Cancel failed"), variant: "destructive" });
       },
     },
   });
 
-  const errMsg = (err: unknown, fallback: string) =>
-    (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? fallback;
+  const errMsg = (err: unknown, fallback: string) => apiErrorMessage(err, fallback);
 
   const override = useOverridePendingEdit({
     mutation: {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatEddies, formatDateTime } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { Link, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -38,8 +39,7 @@ import {
 } from "@/lib/missionStatus";
 
 function errOf(e: unknown): string | null {
-  const r = (e as { response?: { data?: { error?: string } } } | null)?.response?.data?.error;
-  return r ?? (e ? "Save failed" : null);
+  return e ? apiErrorMessage(e, "Save failed") : null;
 }
 
 // Convert a value like "2026-05-30T18:00" (datetime-local) to an ISO string,

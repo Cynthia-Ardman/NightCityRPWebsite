@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiErrorMessage } from "@/lib/apiError";
 import { formatEddies } from "@/lib/format";
 import {
   useRemoveRipperdocCyberware,
@@ -38,9 +39,7 @@ export default function RemoveCyberwareDialog({ venueId, onClose, onDone, preset
     },
   });
 
-  const errMsg =
-    (remove.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-    (remove.error ? "Removal offer failed" : null);
+  const errMsg = remove.error ? apiErrorMessage(remove.error, "Removal offer failed") : null;
 
   const installed = cap?.installed ?? [];
 

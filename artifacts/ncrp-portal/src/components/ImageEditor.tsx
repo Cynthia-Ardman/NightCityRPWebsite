@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Upload, Star, X, ImagePlus } from "lucide-react";
 import { uploadImage } from "@/lib/uploadImage";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 
 // Multi-image uploader with an optional "set profile" affordance. Shared by the
 // character editor and the new-character sheet form.
@@ -47,8 +48,7 @@ export default function ImageEditor({
       }
       toast({ title: "Upload complete", description: `${added.length} image(s) added.` });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Upload failed";
-      toast({ title: "Upload failed", description: msg, variant: "destructive" });
+      toast({ title: "Upload failed", description: apiErrorMessage(err, "Upload failed"), variant: "destructive" });
     } finally {
       setUploading(false);
     }

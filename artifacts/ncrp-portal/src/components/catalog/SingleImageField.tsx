@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { uploadImage } from "@/lib/uploadImage";
+import { apiErrorMessage } from "@/lib/apiError";
 
 // A single-image picker used by the catalog editors (guns + housing). Holds
 // one optional image path; uploading a new file replaces the existing one.
@@ -34,8 +35,7 @@ export default function SingleImageField({
       onChange(url);
       toast({ title: "Image uploaded" });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Upload failed";
-      toast({ title: "Upload failed", description: msg, variant: "destructive" });
+      toast({ title: "Upload failed", description: apiErrorMessage(err, "Upload failed"), variant: "destructive" });
     } finally {
       setUploading(false);
     }

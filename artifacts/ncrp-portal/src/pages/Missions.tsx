@@ -1,4 +1,5 @@
 import { formatDate, formatEddies } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -912,8 +913,7 @@ function MissionCard({
 }
 
 function errOf(e: unknown): string | null {
-  const r = (e as { response?: { data?: { error?: string } } } | null)?.response?.data?.error;
-  return r ?? (e ? "Request failed" : null);
+  return e ? apiErrorMessage(e, "Request failed") : null;
 }
 
 // Inline apply / NPC sign-up controls on an Open-tab mission card. Lets a player

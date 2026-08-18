@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useSearch, useLocation } from "wouter";
 import {
@@ -200,10 +201,7 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
     qc.invalidateQueries({ queryKey: getGetReviewUnreadDetailQueryKey() });
   };
   const onMutationError = (title: string) => (err: unknown) => {
-    const msg =
-      (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-      (err instanceof Error ? err.message : "Please try again.");
-    toast({ title, description: msg, variant: "destructive" });
+    toast({ title, description: apiErrorMessage(err, "Please try again."), variant: "destructive" });
   };
 
   const voteMut = useVoteCustomRequest({
@@ -709,10 +707,7 @@ function RequestCloseDialog({
         onClose();
       },
       onError: (err) => {
-        const msg =
-          (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-          (err instanceof Error ? err.message : "Please try again.");
-        toast({ title: "Could not close", description: msg, variant: "destructive" });
+        toast({ title: "Could not close", description: apiErrorMessage(err, "Please try again."), variant: "destructive" });
       },
     },
   });
@@ -1090,7 +1085,7 @@ function MissionApprovalSection({
       onError: (e) =>
         toast({
           title: "Approval failed",
-          description: e instanceof Error ? e.message : "Please try again.",
+          description: apiErrorMessage(e, "Please try again."),
           variant: "destructive",
         }),
     },
@@ -1205,8 +1200,7 @@ function NewCharactersTab() {
     qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
     qc.invalidateQueries({ queryKey: getGetReviewUnreadDetailQueryKey() });
   };
-  const errMsg = (err: unknown, fallback: string) =>
-    (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback;
+  const errMsg = (err: unknown, fallback: string) => apiErrorMessage(err, fallback);
 
   const vote = useVoteSheet({
     mutation: {
@@ -1460,10 +1454,7 @@ function LoreEditCard({ edit, unseen }: { edit: LorePendingEdit; unseen: boolean
     qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
   };
   const onMutationError = (title: string) => (err: unknown) => {
-    const msg =
-      (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-      (err instanceof Error ? err.message : "Please try again.");
-    toast({ title, description: msg, variant: "destructive" });
+    toast({ title, description: apiErrorMessage(err, "Please try again."), variant: "destructive" });
   };
 
   const voteMut = useVoteLoreEdit({
@@ -1706,13 +1697,13 @@ function GuidebookEditCard({ edit }: { edit: GuidebookPendingEdit }) {
   const approve = useApproveGuidebookEdit({
     mutation: {
       onSuccess: () => { invalidate(); toast({ title: "Guidebook change approved & published" }); },
-      onError: (err) => toast({ title: "Could not approve", description: err instanceof Error ? err.message : "Try again.", variant: "destructive" }),
+      onError: (err) => toast({ title: "Could not approve", description: apiErrorMessage(err, "Try again."), variant: "destructive" }),
     },
   });
   const reject = useRejectGuidebookEdit({
     mutation: {
       onSuccess: () => { invalidate(); setRejecting(false); setNote(""); toast({ title: "Guidebook change rejected" }); },
-      onError: (err) => toast({ title: "Could not reject", description: err instanceof Error ? err.message : "Try again.", variant: "destructive" }),
+      onError: (err) => toast({ title: "Could not reject", description: apiErrorMessage(err, "Try again."), variant: "destructive" }),
     },
   });
 

@@ -204,7 +204,7 @@ describe("SellStockDialog", () => {
 
   it("surfaces the API error message when the mutation fails", () => {
     h.state.storeError = {
-      response: { data: { error: "Out of stock, choomba" } },
+      data: { error: "Out of stock, choomba" },
     };
     renderDialog();
     expect(screen.getByTestId("text-sell-error")).toHaveTextContent(

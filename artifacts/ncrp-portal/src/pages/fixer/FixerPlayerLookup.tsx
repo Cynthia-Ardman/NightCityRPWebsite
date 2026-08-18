@@ -10,6 +10,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -683,10 +684,7 @@ function WalletAdjustCard({ userId }: { userId: string }) {
                   qc.invalidateQueries({ queryKey: getGetFixerPlayerActivityQueryKey(userId) });
                 },
                 onError: (err: unknown) => {
-                  const msg =
-                    (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-                    (err instanceof Error ? err.message : "Adjustment failed");
-                  toast({ title: "Adjustment failed", description: msg, variant: "destructive" });
+                  toast({ title: "Adjustment failed", description: apiErrorMessage(err, "Adjustment failed"), variant: "destructive" });
                 },
               },
             );

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ImagePlus, Upload, X } from "lucide-react";
 import { uploadImage } from "@/lib/uploadImage";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 
 // Single-image uploader: an upload button that becomes a preview with a remove
 // control once an image is set. Used by the custom-request and mission forms,
@@ -32,8 +33,7 @@ export default function SingleImageUpload({
       onChange(url);
       toast({ title: "Upload complete" });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Upload failed";
-      toast({ title: "Upload failed", description: msg, variant: "destructive" });
+      toast({ title: "Upload failed", description: apiErrorMessage(err, "Upload failed"), variant: "destructive" });
     } finally {
       setUploading(false);
     }

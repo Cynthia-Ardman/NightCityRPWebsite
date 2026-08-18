@@ -439,7 +439,7 @@ describe("EditCharacterDialog", () => {
     expect(h.state.capturedOptions?.mutation?.onError).toBeTypeOf("function");
 
     h.state.capturedOptions!.mutation!.onError!({
-      response: { data: { pendingEditId: 42 } },
+      data: { pendingEditId: 42 },
     });
 
     expect(h.toast).toHaveBeenCalledWith(
@@ -452,7 +452,7 @@ describe("EditCharacterDialog", () => {
   it("on a generic error: shows a destructive 'Save failed' toast", () => {
     renderDialog();
     h.state.capturedOptions!.mutation!.onError!({
-      response: { data: { error: "boom" } },
+      data: { error: "boom" },
     });
     expect(h.toast).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -635,7 +635,7 @@ describe("EditCharacterDialog", () => {
     it("aborts the main submission when the cyberware flush fails", async () => {
       renderStaffWithChrome();
       h.updateInventoryAsync.mockRejectedValue({
-        response: { data: { error: "boom" } },
+        data: { error: "boom" },
       });
 
       fireEvent.change(screen.getByTestId("input-cyber-notes-edit-0"), {

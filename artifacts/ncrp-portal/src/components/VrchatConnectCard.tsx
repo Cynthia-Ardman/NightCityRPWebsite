@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetVrchatSession,
@@ -40,7 +41,7 @@ export function VrchatConnectCard() {
       onError: (err) =>
         toast({
           title: "Connect failed",
-          description: (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Could not start the VRChat login.",
+          description: apiErrorMessage(err, "Could not start the VRChat login."),
           variant: "destructive",
         }),
     },
@@ -56,7 +57,7 @@ export function VrchatConnectCard() {
       onError: (err) =>
         toast({
           title: "Verification failed",
-          description: (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "That code was rejected.",
+          description: apiErrorMessage(err, "That code was rejected."),
           variant: "destructive",
         }),
     },

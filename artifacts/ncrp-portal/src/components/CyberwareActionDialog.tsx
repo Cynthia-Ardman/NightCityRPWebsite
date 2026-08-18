@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatEddies } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import {
   useSellRipperdocItem,
   useGiveRipperdocItem,
@@ -58,10 +59,7 @@ export default function CyberwareActionDialog({ venueId, stock, onClose, onDone,
   // `.response.data` — `.response` is the raw Response. Read `.data.error`
   // first, then the formatted `.message`, before any generic fallback so the
   // real backend reason ("at capacity", "insufficient funds", etc.) surfaces.
-  const errMsg =
-    (m.error as { data?: { error?: string } } | null)?.data?.error ??
-    (m.error instanceof Error ? m.error.message : null) ??
-    (m.error ? "Offer failed" : null);
+  const errMsg = m.error ? apiErrorMessage(m.error, "Offer failed") : null;
 
   const q = Math.max(1, qty || 1);
   const total = action === "give" ? 0 : stock.price * q;

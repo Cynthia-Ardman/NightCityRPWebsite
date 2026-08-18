@@ -1,4 +1,5 @@
 import { formatDate, formatDateTime } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
@@ -239,8 +240,7 @@ export default function MySubmissions() {
     qc.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey() });
     qc.invalidateQueries({ queryKey: getGetMyUnseenQueryKey() });
   };
-  const errMsg = (err: unknown, fallback: string) =>
-    (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? fallback;
+  const errMsg = (err: unknown, fallback: string) => apiErrorMessage(err, fallback);
   const decide = useDecideStockCostRequest({
     mutation: {
       onSuccess: () => invalidateMine(),

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetCharacterInventory,
@@ -89,10 +90,9 @@ export default function StaffCyberwareCard({
       await invalidateCharacterQueries(qc, characterId);
       toast({ title: "Cyberware saved", description: `${characterName}'s chrome is updated.` });
     } catch (err) {
-      const data = (err as { response?: { data?: { error?: string } } } | null)?.response?.data;
       toast({
         title: "Cyberware save failed",
-        description: data?.error ?? "Could not update cyberware. Re-saving is safe.",
+        description: apiErrorMessage(err, "Could not update cyberware. Re-saving is safe."),
         variant: "destructive",
       });
     } finally {

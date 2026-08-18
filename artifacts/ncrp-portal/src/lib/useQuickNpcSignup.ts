@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { apiErrorMessage } from "@/lib/apiError";
 import {
   useSignUpAsNpc,
   useSignUpAsEventNpc,
@@ -10,8 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 export type QuickNpcKind = "mission" | "event";
 
 function msgOf(err: unknown): string {
-  const e = err as { response?: { data?: { error?: string } }; message?: string } | undefined;
-  return e?.response?.data?.error || e?.message || "Please try again later.";
+  return apiErrorMessage(err, "Please try again later.");
 }
 
 // One-tap "sign up as an NPC" used by the calendar, the dashboard "NPCs needed"

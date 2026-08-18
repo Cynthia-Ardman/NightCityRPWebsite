@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useAdminCreateCharacter,
@@ -60,8 +61,8 @@ export default function CreateCharacterCard() {
         reset();
         setOpen(false);
       },
-      onError: (err: any) =>
-        toast({ title: "Create failed", description: err?.response?.data?.error ?? err.message, variant: "destructive" }),
+      onError: (err) =>
+        toast({ title: "Create failed", description: apiErrorMessage(err, "Create failed"), variant: "destructive" }),
     },
   });
 

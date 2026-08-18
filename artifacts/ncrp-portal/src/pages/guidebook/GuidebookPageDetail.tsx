@@ -21,6 +21,7 @@ import BecomeNpcButton from "@/components/BecomeNpcButton";
 import { Pencil, Trash2, ArrowLeft, ExternalLink, FileEdit } from "lucide-react";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 
 export default function GuidebookPageDetail() {
   const { id } = useParams<{ id: string }>();
@@ -42,7 +43,7 @@ export default function GuidebookPageDetail() {
         navigate("/guidebook");
       },
       onError: (err) =>
-        toast({ title: "Could not delete", description: err instanceof Error ? err.message : "Try again.", variant: "destructive" }),
+        toast({ title: "Could not delete", description: apiErrorMessage(err, "Try again."), variant: "destructive" }),
     },
   });
 

@@ -1,4 +1,5 @@
 import { useParams, Redirect, useLocation } from "wouter";
+import { apiErrorMessage } from "@/lib/apiError";
 import { formatEddies, formatDate } from "@/lib/format";
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -166,7 +167,7 @@ export default function MyStoreDetail() {
       onError: (err) => {
         toast({
           title: "Could not invite",
-          description: err instanceof Error ? err.message : "Please try again.",
+          description: apiErrorMessage(err, "Please try again."),
           variant: "destructive",
         });
       },
@@ -184,7 +185,7 @@ export default function MyStoreDetail() {
       onError: (err) => {
         toast({
           title: "Could not submit request",
-          description: err instanceof Error ? err.message : "Please try again.",
+          description: apiErrorMessage(err, "Please try again."),
           variant: "destructive",
         });
       },
@@ -215,7 +216,7 @@ export default function MyStoreDetail() {
       onError: (err) => {
         toast({
           title: "Could not submit request",
-          description: err instanceof Error ? err.message : "Please try again.",
+          description: apiErrorMessage(err, "Please try again."),
           variant: "destructive",
         });
       },
@@ -373,7 +374,7 @@ export default function MyStoreDetail() {
                   onError: (err) =>
                     toast({
                       title: "Could not save",
-                      description: err instanceof Error ? err.message : "Please try again.",
+                      description: apiErrorMessage(err, "Please try again."),
                       variant: "destructive",
                     }),
                 },

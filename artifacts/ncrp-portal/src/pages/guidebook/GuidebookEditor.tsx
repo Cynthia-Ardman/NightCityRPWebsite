@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useParams, useLocation, Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -277,5 +278,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function msg(err: unknown): string {
-  return err instanceof Error ? err.message : "Please try again.";
+  return apiErrorMessage(err, "Please try again.");
 }

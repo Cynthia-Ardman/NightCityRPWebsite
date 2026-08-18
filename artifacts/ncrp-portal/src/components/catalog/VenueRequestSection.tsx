@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
 
 type VenueType = "store" | "ripperdoc";
@@ -110,7 +111,7 @@ export default function VenueRequestSection({
       onError: (err) => {
         toast({
           title: "Could not submit",
-          description: err instanceof Error ? err.message : "Please try again.",
+          description: apiErrorMessage(err, "Please try again."),
           variant: "destructive",
         });
       },

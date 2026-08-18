@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 import { UserPlus, UserMinus, X } from "lucide-react";
 
 // Per-device dismissal for the dashboard "Become an NPC" CTA so it can be
@@ -80,7 +81,7 @@ export default function BecomeNpcButton({ variant }: { variant: "dashboard" | "g
     onError: (err) => {
       toast({
         title: "Couldn't grant the NPC role",
-        description: err instanceof Error ? err.message : "Please try again later.",
+        description: apiErrorMessage(err, "Please try again later."),
         variant: "destructive",
       });
     },
@@ -109,7 +110,7 @@ export default function BecomeNpcButton({ variant }: { variant: "dashboard" | "g
     onError: (err) => {
       toast({
         title: "Couldn't remove the NPC role",
-        description: err instanceof Error ? err.message : "Please try again later.",
+        description: apiErrorMessage(err, "Please try again later."),
         variant: "destructive",
       });
     },

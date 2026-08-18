@@ -1,4 +1,5 @@
 import { formatDate, formatEddies } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -30,12 +31,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Markdown from "@/components/Markdown";
 import { FileText, AlertTriangle, StickyNote, Plus, Trash2, Pencil, X, UserSearch, Banknote } from "lucide-react";
-
-function apiErrorMessage(err: unknown, fallback: string): string {
-  const data = (err as { data?: unknown } | null)?.data;
-  const msg = (data as { error?: unknown } | null)?.error;
-  return typeof msg === "string" && msg.trim() ? msg : fallback;
-}
 
 function fmtDate(iso?: string | null): string {
   if (!iso) return "—";

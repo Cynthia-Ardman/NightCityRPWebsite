@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatEddies } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListRentListings,
@@ -43,8 +44,7 @@ export default function StaffLeaseCard({
       toast({ title: "Property leased", description: `${l.name} leased to ${characterName}.` });
       setListingId("");
     } catch (err) {
-      const data = (err as { response?: { data?: { error?: string } } } | null)?.response?.data;
-      toast({ title: "Lease failed", description: data?.error ?? "Could not lease property.", variant: "destructive" });
+      toast({ title: "Lease failed", description: apiErrorMessage(err, "Could not lease property."), variant: "destructive" });
     }
   }
 

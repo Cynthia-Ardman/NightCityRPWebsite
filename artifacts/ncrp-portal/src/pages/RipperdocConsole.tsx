@@ -1,4 +1,5 @@
 import { formatDate, formatEddies, formatDateTime } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -165,7 +166,7 @@ export default function RipperdocConsole() {
         refreshPatient();
       },
       onError: (err) => {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(apiErrorMessage(err, String(err)));
         setFeedback(null);
       },
     },
@@ -190,7 +191,7 @@ export default function RipperdocConsole() {
       refreshPatient();
     },
     onError: (err) => {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(apiErrorMessage(err, String(err)));
       setFeedback(null);
     },
   });
@@ -210,8 +211,7 @@ export default function RipperdocConsole() {
         refreshPatient();
       },
       onError: (err) => {
-        const data = (err as { data?: { error?: string } } | null)?.data;
-        setError(data?.error ?? (err instanceof Error ? err.message : String(err)));
+        setError(apiErrorMessage(err, String(err)));
         setFeedback(null);
       },
     },

@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { ArrowLeft, Download, Inbox, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 
 type Category = (typeof LoreImportDraftUpdateProposedCategory)[keyof typeof LoreImportDraftUpdateProposedCategory];
 
@@ -57,7 +58,7 @@ export default function LoreImportReview() {
           description: `Scanned ${res.scanned} · ${res.created} new drafts · ${res.duplicates} duplicates${res.errors.length ? ` · ${res.errors.length} errors` : ""}`,
         });
       },
-      onError: (err) => toast({ title: "Import failed", description: err instanceof Error ? err.message : "Try again.", variant: "destructive" }),
+      onError: (err) => toast({ title: "Import failed", description: apiErrorMessage(err, "Try again."), variant: "destructive" }),
     },
   });
 
@@ -310,5 +311,5 @@ function F({ label, children }: { label: string; children: React.ReactNode }) {
 }
 
 function m(err: unknown): string {
-  return err instanceof Error ? err.message : "Please try again.";
+  return apiErrorMessage(err, "Please try again.");
 }

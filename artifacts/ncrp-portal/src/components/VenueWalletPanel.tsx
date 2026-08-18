@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowDownToLine, ArrowUpFromLine, Wallet, Banknote } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 
 export interface VenueTransaction {
   id: number;
@@ -73,11 +74,9 @@ export default function VenueWalletPanel({
         description: `${formatEddies(moved)} ${v.flow} this account.`,
       });
     } catch (err) {
-      const data = (err as { data?: { error?: string } })?.data;
-      const msg = data?.error || (err instanceof Error ? err.message : "Something went wrong — no money moved.");
       toast({
         title: v.failed,
-        description: msg,
+        description: apiErrorMessage(err, "Something went wrong — no money moved."),
         variant: "destructive",
       });
     }

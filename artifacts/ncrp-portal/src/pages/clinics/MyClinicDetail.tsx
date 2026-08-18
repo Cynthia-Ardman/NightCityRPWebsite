@@ -1,4 +1,5 @@
 import { useParams, Redirect } from "wouter";
+import { apiErrorMessage } from "@/lib/apiError";
 import { formatEddies } from "@/lib/format";
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -70,7 +71,7 @@ export default function MyClinicDetail() {
       onError: (err) => {
         toast({
           title: "Could not invite",
-          description: err instanceof Error ? err.message : "Please try again.",
+          description: apiErrorMessage(err, "Please try again."),
           variant: "destructive",
         });
       },
@@ -88,7 +89,7 @@ export default function MyClinicDetail() {
       onError: (err) => {
         toast({
           title: "Could not submit request",
-          description: err instanceof Error ? err.message : "Please try again.",
+          description: apiErrorMessage(err, "Please try again."),
           variant: "destructive",
         });
       },
@@ -151,10 +152,9 @@ export default function MyClinicDetail() {
         qc.invalidateQueries({ queryKey: getListRipperdocOffersQueryKey(rid) });
       },
       onError: (err) => {
-        const data = (err as { data?: { error?: string } } | null)?.data;
         toast({
           title: "Could not send bill",
-          description: data?.error ?? (err instanceof Error ? err.message : "Please try again."),
+          description: apiErrorMessage(err, "Please try again."),
           variant: "destructive",
         });
       },
@@ -530,8 +530,7 @@ export default function MyClinicDetail() {
             )}
             {stockOffer.isError && (
               <div className="font-mono text-xs text-destructive" data-testid="text-offer-error">
-                {(stockOffer.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-                  "Could not send offer."}
+                {apiErrorMessage(stockOffer.error, "Could not send offer.")}
               </div>
             )}
           </CardContent>

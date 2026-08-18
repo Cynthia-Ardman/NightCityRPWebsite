@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/command";
 import { looseGunKey, bestGunSuggestion } from "@/lib/gunMatch";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 import { CHARACTER_CREATION_LINKS, guidebookSectionHref } from "@/lib/guidebookLinks";
 
 interface CW {
@@ -556,8 +557,8 @@ function SheetForm({ initialSheet, draftId: initialDraftId }: SheetFormProps) {
       invalidateLists();
       toast({ title: "Draft discarded" });
       setLocation("/characters");
-    } catch (e: any) {
-      toast({ title: "Could not discard", description: String(e?.message ?? e), variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Could not discard", description: apiErrorMessage(e, "Could not discard draft"), variant: "destructive" });
     }
   }
 

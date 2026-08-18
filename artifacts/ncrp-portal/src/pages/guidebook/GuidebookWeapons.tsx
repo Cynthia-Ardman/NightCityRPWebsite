@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiErrorMessage } from "@/lib/apiError";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -241,8 +242,7 @@ function WeaponsEditDialog({
         onClose();
       },
       onError: (err) => {
-        const data = (err as { data?: { error?: string } } | null)?.data;
-        setError(data?.error ?? (err instanceof Error ? err.message : String(err)));
+        setError(apiErrorMessage(err, String(err)));
       },
     },
   });

@@ -26,18 +26,10 @@ import { Label } from "@/components/ui/label";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import { Receipt, ArrowDownLeft, ArrowUpRight, Flame } from "lucide-react";
 import { Link } from "wouter";
+import { apiErrorMessage } from "@/lib/apiError";
 
 function humanizeKind(kind: string): string {
   return kind.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-// Pull the human-readable message off a failed API mutation. The custom fetch
-// client throws an ApiError whose `.data` carries the server's `{ error }`
-// payload; fall back to a generic message when it's missing.
-function apiErrorMessage(err: unknown, fallback: string): string {
-  const data = (err as { data?: unknown } | null)?.data;
-  const msg = (data as { error?: unknown } | null)?.error;
-  return typeof msg === "string" && msg.trim() ? msg : fallback;
 }
 
 // The Type column prefers the coarse `category` (rent, cyberware, mission, …)

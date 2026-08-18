@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Download, Inbox } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 
 export default function GuidebookImportReview() {
   const { toast } = useToast();
@@ -34,7 +35,7 @@ export default function GuidebookImportReview() {
           description: `${res.created} new · ${res.updated} updated · ${res.conflicts} conflict(s) · ${res.unchanged} unchanged${res.errors ? ` · ${res.errors} error(s)` : ""}`,
         });
       },
-      onError: (err) => toast({ title: "Import failed", description: err instanceof Error ? err.message : "Try again.", variant: "destructive" }),
+      onError: (err) => toast({ title: "Import failed", description: apiErrorMessage(err, "Try again."), variant: "destructive" }),
     },
   });
 
@@ -184,5 +185,5 @@ function ConflictCard({ conflict, onChanged }: { conflict: GuidebookImportConfli
 }
 
 function m(err: unknown): string {
-  return err instanceof Error ? err.message : "Please try again.";
+  return apiErrorMessage(err, "Please try again.");
 }

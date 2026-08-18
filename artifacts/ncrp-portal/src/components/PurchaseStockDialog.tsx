@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { apiErrorMessage } from "@/lib/apiError";
 import { formatEddies } from "@/lib/format";
 import {
   useListGuns,
@@ -99,9 +100,7 @@ export default function PurchaseStockDialog({
   const routesApproval = usesOverride && unitCost > 0;
   const insufficient = !!selected && !routesApproval && totalCost > balance;
   const accent = isStore ? "nc-cyan" : "nc-magenta";
-  const errMsg =
-    (m.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-    (m.error ? "Purchase failed" : null);
+  const errMsg = m.error ? apiErrorMessage(m.error, "Purchase failed") : null;
 
   if (pending) {
     return (

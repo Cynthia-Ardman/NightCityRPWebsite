@@ -16,6 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useQueryClient } from "@tanstack/react-query";
 import CharacterPicker, { type CharacterPickerValue } from "@/components/CharacterPicker";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -1261,8 +1262,8 @@ export function WalletTab() {
         form.reset();
         setTarget(null);
       },
-      onError: (err: any) => {
-        toast({ title: "Adjustment Failed", description: err.message, variant: "destructive" });
+      onError: (err) => {
+        toast({ title: "Adjustment Failed", description: apiErrorMessage(err, "Adjustment failed"), variant: "destructive" });
       }
     });
   };
@@ -1456,8 +1457,8 @@ export function LiveModeSwitchboard() {
         qc.invalidateQueries({ queryKey: getGetMissionConfigQueryKey() });
         toast({ title: "Live-mode updated" });
       },
-      onError: (err: any) =>
-        toast({ title: "Update failed", description: err?.response?.data?.error ?? err.message, variant: "destructive" }),
+      onError: (err) =>
+        toast({ title: "Update failed", description: apiErrorMessage(err, "Update failed"), variant: "destructive" }),
     },
   });
   const master = state?.master === true;
@@ -1550,8 +1551,8 @@ export function LoginRestrictionCard() {
         qc.invalidateQueries({ queryKey: getAdminGetSiteAccessQueryKey() });
         toast({ title: "Login restriction updated" });
       },
-      onError: (err: any) =>
-        toast({ title: "Update failed", description: err?.response?.data?.error ?? err.message, variant: "destructive" }),
+      onError: (err) =>
+        toast({ title: "Update failed", description: apiErrorMessage(err, "Update failed"), variant: "destructive" }),
     },
   });
   const restricted = state?.loginRestricted === true;
@@ -1602,8 +1603,8 @@ export function VrchatCalendarSyncCard() {
         qc.invalidateQueries({ queryKey: getAdminGetVrchatCalendarSyncQueryKey() });
         toast({ title: "VRChat calendar sync updated" });
       },
-      onError: (err: any) =>
-        toast({ title: "Update failed", description: err?.response?.data?.error ?? err.message, variant: "destructive" }),
+      onError: (err) =>
+        toast({ title: "Update failed", description: apiErrorMessage(err, "Update failed"), variant: "destructive" }),
     },
   });
   const enabled = state?.enabled === true;
@@ -1650,8 +1651,8 @@ export function CharacterSubmissionsCard() {
         qc.invalidateQueries({ queryKey: getAdminListBotConfigQueryKey() });
         toast({ title: "Character submissions updated" });
       },
-      onError: (err: any) =>
-        toast({ title: "Update failed", description: err?.response?.data?.error ?? err.message, variant: "destructive" }),
+      onError: (err) =>
+        toast({ title: "Update failed", description: apiErrorMessage(err, "Update failed"), variant: "destructive" }),
     },
   });
   const disabled = rows?.find((r) => r.key === CHARACTER_SUBMISSIONS_DISABLED_KEY)?.value === true;
@@ -1693,8 +1694,8 @@ function VrchatScanButton() {
         setResult(r);
         toast({ title: "VRChat links refreshed", description: `${r.linkedPlayers} players linked from ${r.scannedMessages} messages.` });
       },
-      onError: (err: any) =>
-        toast({ title: "Scan failed", description: err?.response?.data?.error ?? err.message, variant: "destructive" }),
+      onError: (err) =>
+        toast({ title: "Scan failed", description: apiErrorMessage(err, "Scan failed"), variant: "destructive" }),
     },
   });
   return (
@@ -1775,7 +1776,7 @@ export function JobsTab() {
   const setFlag = useAdminSetBotConfig({
     mutation: {
       onSuccess: () => queryClient.invalidateQueries({ queryKey: getAdminListBotConfigQueryKey() }),
-      onError: (err: any) => toast({ title: "Flag update failed", description: err.message, variant: "destructive" }),
+      onError: (err) => toast({ title: "Flag update failed", description: apiErrorMessage(err, "Flag update failed"), variant: "destructive" }),
     },
   });
 
@@ -1785,8 +1786,8 @@ export function JobsTab() {
         queryClient.invalidateQueries({ queryKey: getAdminListJobsQueryKey() });
         toast({ title: "Job Dispatched", description: `Task ${jobId} initiated.` });
       },
-      onError: (err: any) => {
-        toast({ title: "Job Failed", description: err.message, variant: "destructive" });
+      onError: (err) => {
+        toast({ title: "Job Failed", description: apiErrorMessage(err, "Job failed"), variant: "destructive" });
       }
     });
   };

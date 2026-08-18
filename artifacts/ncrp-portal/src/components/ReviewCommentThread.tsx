@@ -1,4 +1,5 @@
 import { formatDateTime } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -78,8 +79,7 @@ export default function ReviewCommentThread({
         qc.invalidateQueries({ queryKey: getGetReviewUnreadDetailQueryKey() });
       },
       onError: (err) => {
-        const msg = (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? "Could not post comment";
-        toast({ title: "Comment failed", description: msg, variant: "destructive" });
+        toast({ title: "Comment failed", description: apiErrorMessage(err, "Could not post comment"), variant: "destructive" });
       },
     },
   });

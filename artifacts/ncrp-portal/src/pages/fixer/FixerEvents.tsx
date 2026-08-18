@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiErrorMessage } from "@/lib/apiError";
 import { formatDateTime } from "@/lib/format";
 import { Link, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -40,8 +41,7 @@ import SingleImageUpload from "@/components/SingleImageUpload";
 import { MissionTestModeBanner } from "@/components/MissionTestModeBanner";
 
 function errOf(e: unknown): string | null {
-  const r = (e as { response?: { data?: { error?: string } } } | null)?.response?.data?.error;
-  return r ?? (e ? "Save failed" : null);
+  return e ? apiErrorMessage(e, "Save failed") : null;
 }
 
 // datetime-local has no timezone, so values are treated as local time.

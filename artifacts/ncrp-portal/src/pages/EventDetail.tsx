@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatEddies, formatDateTime } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { Link, useParams, useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffectiveMe } from "@/contexts/ViewAsContext";
@@ -67,14 +68,7 @@ import { NpcStateBadge, PaymentBadge } from "@/components/RosterBadges";
 import { useToast } from "@/hooks/use-toast";
 
 function errOf(e: unknown): string | null {
-  if (!e) return null;
-  // The generated API client throws ApiError with the server JSON on `.data`
-  // (NOT axios's `.response.data`) and a readable `HTTP <status>: <msg>` on
-  // `.message` — surface the real server error instead of "Request failed".
-  const data = (e as { data?: { error?: string } }).data;
-  if (typeof data?.error === "string" && data.error) return data.error;
-  const msg = (e as { message?: string }).message;
-  return msg || "Request failed";
+  return e ? apiErrorMessage(e, "Request failed") : null;
 }
 
 const EVENT_TYPE_LABEL: Record<string, string> = {

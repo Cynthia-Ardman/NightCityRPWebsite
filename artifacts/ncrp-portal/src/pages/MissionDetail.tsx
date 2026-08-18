@@ -1,4 +1,5 @@
 import { formatDate, formatEddies } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -114,8 +115,7 @@ import Markdown from "@/components/Markdown";
 import { stripColorTags } from "@/lib/remarkColor";
 
 function errOf(e: unknown): string | null {
-  const r = (e as { response?: { data?: { error?: string } } } | null)?.response?.data?.error;
-  return r ?? (e ? "Request failed" : null);
+  return e ? apiErrorMessage(e, "Request failed") : null;
 }
 
 function fmtDateTime(iso: string | null | undefined): string {

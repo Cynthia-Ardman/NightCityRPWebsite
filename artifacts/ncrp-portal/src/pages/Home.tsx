@@ -1,4 +1,5 @@
 import { formatDate, formatEddies, formatDateTime } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useGetDashboardSummary, useGetRecentActivity, useListMyCharacters, useListMyStores, useListMyRipperdocs, useGetUpcomingBills, useListMyMissions, useListMissions, useListEvents, getListMissionsQueryKey, getListEventsQueryKey, useGetReviewUnseenCounts, getGetReviewUnseenCountsQueryKey, getCharacterStatus, updateCharacterStatus, getGetCharacterStatusQueryKey, useGetIncomeStatus, useRunIncomeWork, useRunIncomeSlut, getGetIncomeStatusQueryKey, type MissionSummary, type EventView, type IncomeCommandResult } from "@workspace/api-client-react";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
@@ -1293,8 +1294,7 @@ function IncomeCard() {
     onDone();
   };
   const handleError = (err: unknown) => {
-    const d = (err as { response?: { data?: { error?: string } } } | null)?.response?.data;
-    setErrorMsg(d?.error ?? "Command failed. Try again shortly.");
+    setErrorMsg(apiErrorMessage(err, "Command failed. Try again shortly."));
     onDone();
   };
 

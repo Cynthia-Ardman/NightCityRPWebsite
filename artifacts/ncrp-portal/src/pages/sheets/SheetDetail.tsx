@@ -1,4 +1,5 @@
 import { formatDateTime } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useParams, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -82,8 +83,7 @@ export default function SheetDetail() {
     qc.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
     qc.invalidateQueries({ queryKey: getGetReviewUnseenCountsQueryKey() });
   };
-  const errMsg = (err: unknown, fallback: string) =>
-    (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? fallback;
+  const errMsg = (err: unknown, fallback: string) => apiErrorMessage(err, fallback);
 
   const vote = useVoteSheet({
     mutation: {

@@ -1,4 +1,5 @@
 import { formatDateTime } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -84,8 +85,7 @@ export default function BreachHub() {
   const previewMut = usePreviewBreachPuzzle();
   const createMut = useCreateBreachPuzzle();
 
-  const errMsg = (e: unknown) =>
-    (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Request failed";
+  const errMsg = (e: unknown) => apiErrorMessage(e, "Request failed");
 
   // Client-side filter of the breach log, combining a free-text context match
   // with status and difficulty dropdowns. All filters are AND-combined; any

@@ -1,4 +1,5 @@
 import { formatDate, formatEddies } from "@/lib/format";
+import { apiErrorMessage } from "@/lib/apiError";
 import { useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -42,9 +43,7 @@ export const INBOX_REQUEST_TYPES = new Set<CustomRequest["type"]>([
 ]);
 
 function fineApiError(err: unknown): string | null {
-  const data = (err as { data?: unknown } | null)?.data;
-  const msg = (data as { error?: unknown } | null)?.error;
-  return typeof msg === "string" && msg.trim() ? msg : null;
+  return err ? apiErrorMessage(err, "Payment failed") : null;
 }
 
 export default function Inbox() {
@@ -98,8 +97,7 @@ export default function Inbox() {
     qc.invalidateQueries({ queryKey: getListMyCustomRequestsQueryKey() });
     qc.invalidateQueries({ queryKey: getGetMyUnseenQueryKey() });
   };
-  const errText = (err: unknown, fallback: string) =>
-    (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? fallback;
+  const errText = (err: unknown, fallback: string) => apiErrorMessage(err, fallback);
   const decideInvite = useDecideEmployeeInvite({
     mutation: {
       onSuccess: (_res, variables) => {
@@ -142,10 +140,9 @@ export default function Inbox() {
   }, [offers]);
 
   const busy = approve.isPending || deny.isPending;
-  const errMsg =
-    (approve.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-    (deny.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
-    null;
+  const errMsg = approve.error || deny.error
+    ? apiErrorMessage(approve.error ?? deny.error, "Action failed")
+    : null;
 
   return (
     <div className="space-y-8 max-w-[1600px] mx-auto pb-12">
