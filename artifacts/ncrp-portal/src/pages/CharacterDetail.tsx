@@ -1,5 +1,6 @@
 import { formatDate, formatEddies, formatDateTime } from "@/lib/format";
 import { apiErrorMessage } from "@/lib/apiError";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   useGetCharacter,
   useSetCharacterKind,
@@ -971,6 +972,9 @@ function InventoryTab({ characterId }: { characterId: number }) {
   const [cyber, setCyber] = useState({ slot: "", cwp: "" });
   // Whether the cyberware NAME picker is in free-text ("custom") mode.
   const [customCyberName, setCustomCyberName] = useState(false);
+  // Whether the chrome is being added as INSTALLED (counts against CWP, one
+  // per capped slot) or as an uninstalled spare in the stash.
+  const [cyberInstalled, setCyberInstalled] = useState(true);
   const cyberCatalogNames = useMemo(() => new Set((cyberCatalog ?? []).map((c) => c.name)), [cyberCatalog]);
   const [transferItemId, setTransferItemId] = useState<number | null>(null);
   const [sellItemId, setSellItemId] = useState<number | null>(null);
@@ -988,6 +992,7 @@ function InventoryTab({ characterId }: { characterId: number }) {
     setCustomWeaponType(false);
     setCyber({ slot: "", cwp: "" });
     setCustomCyberName(false);
+    setCyberInstalled(true);
   };
 
   const gunComplete =
@@ -1019,8 +1024,11 @@ function InventoryTab({ characterId }: { characterId: number }) {
       if (notes.trim()) parts.push(notes.trim());
       finalNotes = parts.join(" · ");
     } else if (category === "Cyberware") {
-      finalCategory = "cyberware";
-      equipped = true;
+      // Uninstalled spares use the "cyberware (removed)" category: they keep
+      // the CWP/slot note for a later install but don't count against the
+      // character's CWP, don't bill meds, and don't trip the one-per-slot cap.
+      finalCategory = cyberInstalled ? "cyberware" : "cyberware (removed)";
+      equipped = cyberInstalled;
       finalNotes = buildCyberNotes({ points: Number(cyber.cwp) || 0, notes: notes.trim(), slot: cyber.slot.trim() });
     }
     addItem.mutate(
@@ -1281,6 +1289,21 @@ function InventoryTab({ characterId }: { characterId: number }) {
                 <div className="sm:col-span-3">
                   <Label className="text-xs font-mono">CWP</Label>
                   <Input type="number" min={0} value={cyber.cwp} onChange={(e) => setCyber({ ...cyber, cwp: e.target.value })} data-testid="input-cyber-cwp" />
+                </div>
+                <div className="sm:col-span-3">
+                  <label className="flex items-center gap-2 text-xs font-mono cursor-pointer select-none">
+                    <Checkbox
+                      checked={cyberInstalled}
+                      onCheckedChange={(v) => setCyberInstalled(v === true)}
+                      data-testid="checkbox-cyber-installed"
+                    />
+                    INSTALLED
+                  </label>
+                  <div className="text-[10px] font-mono text-muted-foreground mt-1">
+                    {cyberInstalled
+                      ? "Counts against CWP; one per capped slot."
+                      : "Added to stash as an uninstalled spare."}
+                  </div>
                 </div>
               </div>
             )}
