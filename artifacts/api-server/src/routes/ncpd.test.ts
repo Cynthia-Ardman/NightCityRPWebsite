@@ -1,9 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import request from "supertest";
-import { db, characters, stores, storeEmployees, ripperdocs, housing, users, botConfig } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, characters, stores, storeEmployees, ripperdocs, housing, users, botConfig, ncpdFines, walletTransactions } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
 import { buildTestApp } from "../test/app";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
+import { _setNcpdPayBeforeFlipHook } from "./ncpd";
 
 const app = buildTestApp();
 
@@ -543,6 +544,113 @@ describe("NCPD fines", () => {
     await request(app).post(`/api/ncpd/fines/${paidFine.id}/pay`).set("x-test-user", owner.id);
     const cannotVoid = await request(app).delete(`/api/ncpd/fines/${paidFine.id}`).set("x-test-user", commissioner.id);
     expect(cannotVoid.status).toBe(409);
+  });
+
+  // Reset the before-flip hook after every test so a failing test can't poison
+  // subsequent ones.
+  afterEach(() => _setNcpdPayBeforeFlipHook(null));
+
+  it("refunds the debit when the fine is voided between the debit and the status flip", async () => {
+    // This test exercises the compensating-refund branch: the wallet debit
+    // commits (economy "enabled" → status "synced") but a concurrent void wins
+    // the unpaid→paid flip, so the endpoint must issue a keyed refund and leave
+    // the player's balance unchanged.
+    const officer = await createOfficer();
+    const commissioner = await createCommissioner();
+    const owner = await createUser();
+    const c = await createCharacter({ ownerId: owner.id });
+    await setEconomyMode("enabled");
+    await fund(owner.id, 1000);
+
+    const fine = (
+      await request(app)
+        .post("/api/ncpd/fines")
+        .set("x-test-user", officer.id)
+        .send({ characterId: c.id, amount: 500, reason: "Speeding" })
+    ).body;
+
+    // Install the seam: immediately before the unpaid→paid flip, a commissioner
+    // voids the fine, simulating the concurrent window.
+    _setNcpdPayBeforeFlipHook(async () => {
+      await request(app)
+        .delete(`/api/ncpd/fines/${fine.id}`)
+        .set("x-test-user", commissioner.id);
+    });
+
+    const pay = await request(app)
+      .post(`/api/ncpd/fines/${fine.id}/pay`)
+      .set("x-test-user", owner.id);
+
+    // The flip failed because the fine is now void → 409.
+    expect(pay.status).toBe(409);
+
+    // Net wallet effect must be zero: debit happened, refund compensated it.
+    const [u] = await db.select({ balance: users.walletBalance }).from(users).where(eq(users.id, owner.id));
+    expect(u.balance).toBe(1000);
+
+    // Both the debit and the refund ledger rows must exist (auditable trail).
+    const ledger = await db
+      .select({ key: walletTransactions.idempotencyKey, amount: walletTransactions.amount })
+      .from(walletTransactions)
+      .where(eq(walletTransactions.userId, owner.id));
+    const debitRow = ledger.find((r) => r.key === `ncpd-fine:${fine.id}`);
+    const refundRow = ledger.find((r) => r.key === `ncpd-fine:${fine.id}:refund`);
+    expect(debitRow, "debit ledger row").toBeTruthy();
+    expect(debitRow!.amount).toBe(-500);
+    expect(refundRow, "refund ledger row").toBeTruthy();
+    expect(refundRow!.amount).toBe(500);
+
+    // The fine itself must be void (not stuck in unpaid or spuriously paid).
+    const [fineRow] = await db
+      .select({ status: ncpdFines.status })
+      .from(ncpdFines)
+      .where(eq(ncpdFines.id, fine.id));
+    expect(fineRow.status).toBe("void");
+  });
+
+  it("concurrent double-pay results in exactly one net charge", async () => {
+    // Fire two pay requests simultaneously. The idempotency key on the wallet
+    // delta ensures the debit lands exactly once, and the guarded flip ensures
+    // only one call sees the fine as unpaid.
+    const officer = await createOfficer();
+    const owner = await createUser();
+    const c = await createCharacter({ ownerId: owner.id });
+    await setEconomyMode("enabled");
+    await fund(owner.id, 1000);
+
+    const fine = (
+      await request(app)
+        .post("/api/ncpd/fines")
+        .set("x-test-user", officer.id)
+        .send({ characterId: c.id, amount: 300, reason: "Traffic violation" })
+    ).body;
+
+    const [res1, res2] = await Promise.all([
+      request(app).post(`/api/ncpd/fines/${fine.id}/pay`).set("x-test-user", owner.id),
+      request(app).post(`/api/ncpd/fines/${fine.id}/pay`).set("x-test-user", owner.id),
+    ]);
+
+    const statuses = [res1.status, res2.status].sort((a, b) => a - b);
+    expect(statuses).toEqual([200, 409]);
+
+    // Wallet debited exactly once (300 eddies).
+    const [u] = await db.select({ balance: users.walletBalance }).from(users).where(eq(users.id, owner.id));
+    expect(u.balance).toBe(700);
+
+    // The idempotency key is unique — only one debit ledger row.
+    const ledger = await db
+      .select()
+      .from(walletTransactions)
+      .where(and(eq(walletTransactions.userId, owner.id), eq(walletTransactions.idempotencyKey, `ncpd-fine:${fine.id}`)));
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0].amount).toBe(-300);
+
+    // Fine is marked paid exactly once.
+    const [fineRow] = await db
+      .select({ status: ncpdFines.status })
+      .from(ncpdFines)
+      .where(eq(ncpdFines.id, fine.id));
+    expect(fineRow.status).toBe("paid");
   });
 });
 

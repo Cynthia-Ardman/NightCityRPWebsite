@@ -27,6 +27,15 @@ import { applyWalletDelta } from "../lib/economy";
 
 const router: IRouter = Router();
 
+// Test-only seam: called inside POST /ncpd/fines/:id/pay between the wallet
+// debit and the unpaid→paid flip. Lets tests simulate a concurrent void race
+// deterministically without real thread-level parallelism.
+let _ncpdPayBeforeFlipHook: (() => Promise<void>) | null = null;
+/** Test-only: set the hook that fires between debit and flip. Reset to null after each test. */
+export function _setNcpdPayBeforeFlipHook(fn: (() => Promise<void>) | null): void {
+  _ncpdPayBeforeFlipHook = fn;
+}
+
 // NCPD records (arrest reports, warrants, notes, character lookup) are visible
 // to NCPD officers, the Commissioner, fixers and admins — NEVER to the
 // character's owner just because they own the character. Officer access is
@@ -647,6 +656,8 @@ router.post("/ncpd/fines/:id/pay", requireAuth, async (req, res): Promise<void> 
     }
     // Test mode: no money moved. Still mark the fine paid so flows are testable.
   }
+  // Test seam: allows deterministic simulation of concurrent void races in tests.
+  if (_ncpdPayBeforeFlipHook) await _ncpdPayBeforeFlipHook();
   const [row] = await db
     .update(ncpdFines)
     .set({ status: "paid", paidAt: new Date(), paidByUserId: req.user!.id })
