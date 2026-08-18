@@ -34,6 +34,7 @@ import {
   botConfig,
   users,
   ubPushOutbox,
+  walletTransactions,
 } from "@workspace/db";
 import { patchBalance } from "../lib/unbelievaboat";
 import {
@@ -323,6 +324,79 @@ describe("Player pay idempotency", () => {
     expect(await outboxFor(player.id)).toHaveLength(1);
     const [a] = await db.select().from(missionAssignments).where(eq(missionAssignments.missionId, m.id));
     expect(a.paymentStatus).toBe("paid");
+  });
+
+  it("re-claims a STALE processing row and heals it to paid without double-crediting", async () => {
+    await setLiveMode(true);
+    const player = await createUser();
+    const m = await seedMission({ playerPay: 100 });
+    // Seed the assignment already in 'processing' with a stale processingAt
+    // (simulating a crash after the wallet credit but before the paid-update).
+    const a = await seedAssignment(m.id, player.id, { paymentStatus: "processing" });
+    const staleAt = new Date(Date.now() - 10 * 60 * 1000); // 10 minutes ago
+    await db
+      .update(missionAssignments)
+      .set({ processingAt: staleAt })
+      .where(eq(missionAssignments.id, a.id));
+
+    // Pre-seed the ledger row that the crashed first run already wrote.
+    // applyWalletDelta will find this via idempotencyKey and return 'duplicate'
+    // (ok: true) without issuing a second credit.
+    await db.update(users).set({ walletBalance: 100 }).where(eq(users.id, player.id));
+    await db.insert(walletTransactions).values({
+      userId: player.id,
+      amount: 100,
+      kind: "mission",
+      source: "mission",
+      syncStatus: "synced",
+      idempotencyKey: `mission_payout:${a.id}`,
+      previousBalance: 0,
+      newBalance: 100,
+    });
+
+    const result = await payMissionPlayers(m.id, { source: "manual" });
+    expect(result!.paid).toBe(1);
+    expect(result!.skipped).toBe(0);
+
+    // Row must be healed to 'paid'.
+    const [after] = await db.select().from(missionAssignments).where(eq(missionAssignments.id, a.id));
+    expect(after.paymentStatus).toBe("paid");
+
+    // Balance must NOT be doubled (still 100, not 200).
+    const [u] = await db.select().from(users).where(eq(users.id, player.id));
+    expect(u.walletBalance).toBe(100);
+
+    // Exactly one ledger row with this idempotency key.
+    const ledger = await db
+      .select()
+      .from(walletTransactions)
+      .where(eq(walletTransactions.idempotencyKey, `mission_payout:${a.id}`));
+    expect(ledger).toHaveLength(1);
+  });
+
+  it("does NOT re-claim a FRESH processing row (concurrent in-flight payer)", async () => {
+    await setLiveMode(true);
+    const player = await createUser();
+    const m = await seedMission({ playerPay: 100 });
+    // Seed 'processing' with a recent processingAt — another worker owns it.
+    const a = await seedAssignment(m.id, player.id, { paymentStatus: "processing" });
+    await db
+      .update(missionAssignments)
+      .set({ processingAt: new Date() })
+      .where(eq(missionAssignments.id, a.id));
+
+    const result = await payMissionPlayers(m.id, { source: "manual" });
+    // The row is in-flight; our run must skip it, not race the other worker.
+    expect(result!.paid).toBe(0);
+    expect(result!.skipped).toBe(1);
+
+    // Row must still be 'processing' — we didn't touch it.
+    const [still] = await db.select().from(missionAssignments).where(eq(missionAssignments.id, a.id));
+    expect(still.paymentStatus).toBe("processing");
+
+    // No wallet movement.
+    const [u] = await db.select().from(users).where(eq(users.id, player.id));
+    expect(u.walletBalance).toBe(0);
   });
 });
 
