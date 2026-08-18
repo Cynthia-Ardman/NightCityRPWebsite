@@ -21,16 +21,24 @@ describe("UB push outbox", () => {
     expect(a.ok).toBe(true);
     expect(b.ok).toBe(true);
 
-    const rows = await db
-      .select()
-      .from(ubPushOutbox)
-      .where(eq(ubPushOutbox.userId, user.id))
-      .orderBy(asc(ubPushOutbox.id));
+    // The fire-and-forget drain kicked by applyWalletDelta may be mid-consume
+    // (rows transiently sit at "inflight" while claimed) — poll until every
+    // row settles. What matters is that nothing EVER reaches "pushed" in the
+    // test env (external pushes are suppressed).
+    let rows: (typeof ubPushOutbox.$inferSelect)[] = [];
+    await vi.waitFor(
+      async () => {
+        rows = await db
+          .select()
+          .from(ubPushOutbox)
+          .where(eq(ubPushOutbox.userId, user.id))
+          .orderBy(asc(ubPushOutbox.id));
+        expect(rows.every((r) => r.status === "pending" || r.status === "suppressed")).toBe(true);
+      },
+      { timeout: 10_000, interval: 100 },
+    );
     expect(rows.map((r) => r.amount)).toEqual([-100, 40]);
-    // The fire-and-forget drain kicked by applyWalletDelta may already have
-    // consumed the rows (test env suppresses external pushes) — either way,
-    // nothing may reach "pushed" here.
-    expect(rows.every((r) => r.status === "pending" || r.status === "suppressed")).toBe(true);
+    expect(rows.some((r) => r.status === "pushed")).toBe(false);
     // Each row points at the ledger row it mirrors.
     expect(rows.every((r) => r.ledgerId !== null)).toBe(true);
   });

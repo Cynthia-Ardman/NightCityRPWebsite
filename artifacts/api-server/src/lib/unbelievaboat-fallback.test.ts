@@ -14,8 +14,6 @@ async function loadUb() {
   return await import("./unbelievaboat");
 }
 
-const flush = () => new Promise((r) => setTimeout(r, 25));
-
 describe("getBalance stale fallback (provider outage)", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -86,12 +84,17 @@ describe("getBalance stale fallback (provider outage)", () => {
     const live = await ub.getBalance(u.discordId!);
     expect(live).toMatchObject({ cash: 250, bank: 750, total: 1000, source: "unbelievaboat" });
 
-    // Snapshot write is fire-and-forget; give it a beat to land.
-    await flush();
-    const [row] = await db
-      .select({ cash: users.lastSyncedUbCash, bank: users.lastSyncedUbBank })
-      .from(users)
-      .where(eq(users.id, u.id));
-    expect(row).toEqual({ cash: 250, bank: 750 });
+    // Snapshot write is fire-and-forget; a fixed sleep flakes under full-suite
+    // load, so poll until it lands.
+    await vi.waitFor(
+      async () => {
+        const [row] = await db
+          .select({ cash: users.lastSyncedUbCash, bank: users.lastSyncedUbBank })
+          .from(users)
+          .where(eq(users.id, u.id));
+        expect(row).toEqual({ cash: 250, bank: 750 });
+      },
+      { timeout: 10_000, interval: 50 },
+    );
   });
 });

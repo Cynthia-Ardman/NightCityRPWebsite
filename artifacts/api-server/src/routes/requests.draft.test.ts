@@ -69,7 +69,10 @@ describe("custom request drafts", () => {
     const submitted = await request(app).post(`/api/requests/${id}/submit`).set("x-test-user", owner.id).send({});
     expect(submitted.status).toBe(200);
     expect(submitted.body.status).toBe("pending");
-    expect(mockPost).toHaveBeenCalledTimes(1);
+    // The announce is fire-and-forget (`void announceRequest(...)`) — the
+    // route responds without awaiting it, so poll instead of asserting
+    // immediately (asserting synchronously races the detached promise).
+    await vi.waitFor(() => expect(mockPost).toHaveBeenCalledTimes(1));
 
     // Re-submitting a now-pending row is a 409 (no longer a draft).
     const again = await request(app).post(`/api/requests/${id}/submit`).set("x-test-user", owner.id).send({});

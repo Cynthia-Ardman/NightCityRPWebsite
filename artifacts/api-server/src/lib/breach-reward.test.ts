@@ -11,12 +11,23 @@ vi.mock("./discord", async (orig) => {
     postToChannel: vi.fn().mockResolvedValue(undefined),
   };
 });
+// UnbelievaBoat is never called synchronously on the reward path under the
+// website-first model — mocked defensively so any regression that reintroduces
+// a synchronous call fails loudly instead of hitting the network.
 vi.mock("./unbelievaboat", () => ({
   getBalance: vi.fn(),
   patchBalance: vi.fn(),
 }));
 
-import { db, breachPuzzles, walletTransactions, inventoryItems, users, botConfig } from "@workspace/db";
+import {
+  db,
+  breachPuzzles,
+  walletTransactions,
+  inventoryItems,
+  users,
+  botConfig,
+  ubPushOutbox,
+} from "@workspace/db";
 import { patchBalance } from "./unbelievaboat";
 import { createUser, createAdmin, createCharacter } from "../test/testDb";
 import { previewPuzzle, createPuzzle, startPuzzle, submitResult } from "./breach";
@@ -67,8 +78,12 @@ async function assignSolvablePuzzle(
   return { id: view.id, solution: body.solutionPath };
 }
 
-describe("breach reward settlement (exactly-once with retry)", () => {
-  it("does not mark the reward paid when the eddies payout fails, then settles on retry", async () => {
+// Website-first economy: the wallet is the source of truth. applyWalletDelta
+// commits the credit locally (ledger row syncStatus "synced") and enqueues the
+// UnbelievaBoat mirror push onto ub_push_outbox — it never calls patchBalance
+// synchronously, so a reward settles on the FIRST successful submit.
+describe("breach reward settlement (exactly-once)", () => {
+  it("settles the eddies reward locally on first submit and never double-credits", async () => {
     await enableEconomy();
     const staff = await createAdmin();
     const player = await createUser();
@@ -78,31 +93,19 @@ describe("breach reward settlement (exactly-once with retry)", () => {
     const { id, solution } = await assignSolvablePuzzle(staff, character.id, { rewardEddies: 500 });
     await startPuzzle(player, id); // anchor the server-side timer
 
-    // First submit: the UB call fails → success recorded, but reward NOT paid.
-    mockPatch.mockResolvedValueOnce(null as unknown as Awaited<ReturnType<typeof patchBalance>>);
+    // First submit: reward settles locally, immediately.
     const first = await submitResult(player, id, solution);
     expect(first.status).toBe(200);
-    expect(first.body).toMatchObject({ success: true, rewardPaid: false });
+    expect(first.body).toMatchObject({ success: true, rewardPaid: true });
 
     let [row] = await db.select().from(breachPuzzles).where(eq(breachPuzzles.id, id));
     expect(row.status).toBe("success");
     expect(row.completedAt).not.toBeNull();
-    expect(row.rewardPaidAt).toBeNull(); // <- the blocking bug: must NOT be stamped
+    expect(row.rewardPaidAt).not.toBeNull(); // settled on first submit
+    expect(row.rewardLedgerId).not.toBeNull();
 
     const [p1] = await db.select().from(users).where(eq(users.id, player.id));
-    expect(p1.walletBalance).toBe(0); // no eddies credited yet
-
-    // Retry submit: UB now succeeds → reward settles exactly once.
-    mockPatch.mockResolvedValue({ cash: 500, bank: 0, total: 500, source: "unbelievaboat" });
-    const retry = await submitResult(player, id, solution);
-    expect(retry.status).toBe(200);
-    expect(retry.body).toMatchObject({ success: true, rewardPaid: true });
-
-    [row] = await db.select().from(breachPuzzles).where(eq(breachPuzzles.id, id));
-    expect(row.rewardPaidAt).not.toBeNull();
-
-    const [p2] = await db.select().from(users).where(eq(users.id, player.id));
-    expect(p2.walletBalance).toBe(500); // credited exactly once
+    expect(p1.walletBalance).toBe(500); // credited exactly once, locally
 
     // Exactly one synced ledger row for this reward (idempotency key holds).
     const ledger = await db
@@ -112,14 +115,31 @@ describe("breach reward settlement (exactly-once with retry)", () => {
     expect(ledger).toHaveLength(1);
     expect(ledger[0].syncStatus).toBe("synced");
 
-    // A third submit is a pure no-op (already fully paid).
-    const third = await submitResult(player, id, solution);
-    expect(third.body).toMatchObject({ rewardPaid: false });
-    const [p3] = await db.select().from(users).where(eq(users.id, player.id));
-    expect(p3.walletBalance).toBe(500);
+    // UB mirroring happens via the outbox, not a synchronous patchBalance call.
+    const outbox = await db.select().from(ubPushOutbox).where(eq(ubPushOutbox.userId, player.id));
+    expect(outbox.length).toBeGreaterThanOrEqual(1);
+    expect(mockPatch).not.toHaveBeenCalled();
+
+    // A second submit is a pure no-op (already fully paid): no new payout, no
+    // second credit, still exactly one ledger row.
+    const second = await submitResult(player, id, solution);
+    expect(second.status).toBe(200);
+    expect(second.body).toMatchObject({ rewardPaid: false });
+
+    [row] = await db.select().from(breachPuzzles).where(eq(breachPuzzles.id, id));
+    expect(row.rewardPaidAt).not.toBeNull();
+
+    const [p2] = await db.select().from(users).where(eq(users.id, player.id));
+    expect(p2.walletBalance).toBe(500);
+
+    const ledgerAfter = await db
+      .select()
+      .from(walletTransactions)
+      .where(eq(walletTransactions.idempotencyKey, `breach-reward-${id}`));
+    expect(ledgerAfter).toHaveLength(1);
   });
 
-  it("never double-mints the item reward when only the eddies leg needs a retry", async () => {
+  it("mints the item reward exactly once alongside the eddies", async () => {
     await enableEconomy();
     const staff = await createAdmin();
     const player = await createUser();
@@ -133,31 +153,28 @@ describe("breach reward settlement (exactly-once with retry)", () => {
     });
     await startPuzzle(player, id);
 
-    // First submit: eddies fail, but the item mints (so something was paid).
-    // The reward as a whole stays unsettled because eddies did not land.
-    mockPatch.mockResolvedValueOnce(null as unknown as Awaited<ReturnType<typeof patchBalance>>);
+    // First submit: both legs (eddies + item) settle immediately.
     const first = await submitResult(player, id, solution);
     expect(first.body).toMatchObject({ success: true, rewardPaid: true });
 
     let [row] = await db.select().from(breachPuzzles).where(eq(breachPuzzles.id, id));
-    expect(row.rewardPaidAt).toBeNull();
-    expect(row.rewardItemId).not.toBeNull(); // item already minted
+    expect(row.rewardPaidAt).not.toBeNull();
+    expect(row.rewardItemId).not.toBeNull();
+    expect(row.rewardLedgerId).not.toBeNull();
 
     let items = await db.select().from(inventoryItems).where(eq(inventoryItems.characterId, character.id));
     expect(items).toHaveLength(1);
 
-    // Retry: eddies succeed; the item must NOT be minted a second time.
-    mockPatch.mockResolvedValue({ cash: 250, bank: 0, total: 250, source: "unbelievaboat" });
-    const retry = await submitResult(player, id, solution);
-    expect(retry.body).toMatchObject({ success: true, rewardPaid: true });
-
-    [row] = await db.select().from(breachPuzzles).where(eq(breachPuzzles.id, id));
-    expect(row.rewardPaidAt).not.toBeNull();
+    // Re-submit: the item must NOT be minted a second time, and no second
+    // credit lands.
+    const second = await submitResult(player, id, solution);
+    expect(second.body).toMatchObject({ rewardPaid: false });
 
     items = await db.select().from(inventoryItems).where(eq(inventoryItems.characterId, character.id));
     expect(items).toHaveLength(1); // still exactly one — no duplicate mint
 
     const [p] = await db.select().from(users).where(eq(users.id, player.id));
     expect(p.walletBalance).toBe(250);
+    expect(mockPatch).not.toHaveBeenCalled();
   });
 });
