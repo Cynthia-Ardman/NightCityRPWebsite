@@ -917,6 +917,7 @@ function CyberwareTab({ characterId }: { characterId: number }) {
 
 type InventoryCategory = "Misc" | "Weapon" | "Cyberware";
 const CUSTOM_CYBER_SLOT = "__custom__";
+const CUSTOM_CYBER_NAME = "__custom_name__";
 // Sentinel for the "Custom" entry in the weapon Category / Weapon type
 // dropdowns. Picking it reveals a free-text input so off-catalog weapons can
 // still be logged.
@@ -967,6 +968,9 @@ function InventoryTab({ characterId }: { characterId: number }) {
   const [customWeaponType, setCustomWeaponType] = useState(false);
   // Cyberware-only fields (packed into the shared "CWP n · … · slot: x" note).
   const [cyber, setCyber] = useState({ slot: "", cwp: "" });
+  // Whether the cyberware NAME picker is in free-text ("custom") mode.
+  const [customCyberName, setCustomCyberName] = useState(false);
+  const cyberCatalogNames = useMemo(() => new Set((cyberCatalog ?? []).map((c) => c.name)), [cyberCatalog]);
   const [transferItemId, setTransferItemId] = useState<number | null>(null);
   const [sellItemId, setSellItemId] = useState<number | null>(null);
   const [editItemId, setEditItemId] = useState<number | null>(null);
@@ -982,6 +986,7 @@ function InventoryTab({ characterId }: { characterId: number }) {
     setCustomGunCategory(false);
     setCustomWeaponType(false);
     setCyber({ slot: "", cwp: "" });
+    setCustomCyberName(false);
   };
 
   const gunComplete =
@@ -1060,7 +1065,59 @@ function InventoryTab({ characterId }: { characterId: number }) {
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
               <div className="sm:col-span-5">
                 <Label className="text-xs font-mono">NAME</Label>
-                <Input value={name} maxLength={500} onChange={(e) => setName(e.target.value)} data-testid="input-item-name" />
+                {category === "Cyberware" ? (
+                  <>
+                    {/* Pick from the cyberware catalog (filtered by the chosen
+                        slot) — selecting one auto-fills slot + CWP. "Custom"
+                        falls back to free text. */}
+                    <Select
+                      value={cyberCatalogNames.has(name) ? name : customCyberName ? CUSTOM_CYBER_NAME : name === "" ? "" : CUSTOM_CYBER_NAME}
+                      onValueChange={(v) => {
+                        if (v === CUSTOM_CYBER_NAME) {
+                          setCustomCyberName(true);
+                          setName("");
+                          return;
+                        }
+                        setCustomCyberName(false);
+                        setName(v);
+                        const hit = (cyberCatalog ?? []).find((c) => c.name === v);
+                        if (hit) {
+                          setCyber({
+                            slot: hit.slot ?? "",
+                            cwp: hit.cwp != null && /\d/.test(String(hit.cwp)) ? String(parseInt(String(hit.cwp).match(/\d+/)![0], 10)) : "",
+                          });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="rounded-none font-mono" data-testid="select-cyber-name">
+                        <SelectValue placeholder="Select from catalog..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(cyberCatalog ?? [])
+                          .filter((c) => !cyber.slot || c.slot === cyber.slot)
+                          .map((c) => (
+                            <SelectItem key={c.id} value={c.name}>
+                              {c.name}
+                              {c.cwp ? ` · CWP ${c.cwp}` : ""}
+                            </SelectItem>
+                          ))}
+                        <SelectItem value={CUSTOM_CYBER_NAME}>Custom / one-off…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {customCyberName && (
+                      <Input
+                        className="mt-2"
+                        placeholder="Custom cyberware name"
+                        value={name}
+                        maxLength={500}
+                        onChange={(e) => setName(e.target.value)}
+                        data-testid="input-item-name"
+                      />
+                    )}
+                  </>
+                ) : (
+                  <Input value={name} maxLength={500} onChange={(e) => setName(e.target.value)} data-testid="input-item-name" />
+                )}
               </div>
               <div className="sm:col-span-4">
                 <Label className="text-xs font-mono">CATEGORY</Label>
