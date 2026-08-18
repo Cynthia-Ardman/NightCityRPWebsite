@@ -40,6 +40,11 @@ Web portal for the Night City RP Cyberpunk Discord community — replaces the le
 - **Sheets workflow**: cap 11 cyberware slots / 6 humanity points at creation; submission posts an embed to `CS_APPROVAL_CHANNEL_ID` via the bot for human review.
 - **No emojis anywhere in UI** (per product spec). Visual identity is type-driven Cyberpunk neon (Chakra Petch + Space Mono).
 
+## CI
+
+- `.github/workflows/ci.yml` runs on every PR (and pushes to main). Three jobs: typecheck (`pnpm run typecheck:libs` + portal `typecheck`), codegen drift (`pnpm --filter @workspace/api-spec run codegen` must leave no git diff in `openapi.yaml` / generated clients), and the api-server vitest suite against a Postgres 16 service container (harness creates its own throwaway databases from `DATABASE_URL`; workers self-cap at 4).
+- Merge is blocked via GitHub branch protection on `main`, which requires all three CI checks ("Typecheck (libs + portal)", "Codegen drift (OpenAPI clients)", "API server tests"). If a job is renamed in ci.yml, update the required check names in the repo's branch-protection settings too.
+
 ## Product
 
 - Discord login → role-based feature gating.

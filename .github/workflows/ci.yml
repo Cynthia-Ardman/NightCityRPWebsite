@@ -1,0 +1,101 @@
+# CI gate: every PR (and pushes to main) must pass typecheck, tests, and a
+# codegen drift check before merge. Jobs are split so a failure is readable at
+# a glance in the PR checks list.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: Typecheck (libs + portal)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lib typecheck (tsc --build project references)
+        run: pnpm run typecheck:libs
+      - name: Portal typecheck
+        run: pnpm --filter @workspace/ncrp-portal run typecheck
+
+  codegen-drift:
+    name: Codegen drift (OpenAPI clients)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Regenerate API clients from openapi.yaml
+        run: pnpm --filter @workspace/api-spec run codegen
+      - name: Fail on drift (generated code must be committed)
+        run: |
+          git add -N .
+          if ! git diff --exit-code -- lib/api-spec/openapi.yaml lib/api-client-react/src lib/api-zod/src; then
+            echo "::error::Generated API clients are out of date. Run 'pnpm --filter @workspace/api-spec run codegen' and commit the result."
+            exit 1
+          fi
+
+  api-server-tests:
+    name: API server tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ncrp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # The test harness derives per-invocation/per-worker databases from this
+      # URL and needs CREATE DATABASE privileges (the postgres superuser has
+      # them). See artifacts/api-server/src/test/globalSetup.ts.
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/ncrp
+      # vitest.config.ts caps forked workers at min(cores, 4) and provisions one
+      # database clone per worker; GitHub runners have 4 cores so this stays <= 4.
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build workspace libs (project references)
+        run: pnpm run typecheck:libs
+      - name: Run api-server test suite
+        run: pnpm --filter @workspace/api-server run test
