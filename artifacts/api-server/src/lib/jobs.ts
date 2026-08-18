@@ -296,7 +296,7 @@ async function chargePersonalFeeWithReservation(opts: {
   return true;
 }
 
-export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile" | "discord_event_sync" | "main_session_backfill" | "mission_thread_backfill" | "notification_prune" | "character_snapshot" | "membership_sync";
+export type JobName = "cyberware_humanity" | "monthly_rent" | "role_sync" | "eviction_sweep" | "mission_autopay" | "mission_npc_announce" | "economy_reconcile" | "discord_event_sync" | "main_session_backfill" | "mission_thread_backfill" | "notification_prune" | "character_snapshot" | "membership_sync" | "session_reset";
 
 // Retention policy for the bell-feed notifications table (append-only
 // otherwise): READ rows older than this are deleted; unread rows are kept
@@ -1085,6 +1085,22 @@ export async function runJob(name: JobName): Promise<{ id: number; status: strin
         .where(and(isNotNull(notifications.readAt), lt(notifications.createdAt, cutoff)));
       affected = result.rowCount ?? 0;
       message = `notification prune: deleted ${affected} read notification(s) older than ${NOTIFICATION_READ_RETENTION_DAYS} days (unread kept)`;
+    } else if (name === "session_reset") {
+      // End-of-session sweep: clear every character's openShop flag so the
+      // dashboard "open shops" count reflects the CURRENT session only.
+      // The paid open-shop flow (POST /characters/:id/open-shop) sets the flag
+      // during the Sunday session window; nothing resets it otherwise, so
+      // the count would grow without bound across weeks.
+      // This job is scheduled for Mondays at 06:00 UTC — safely after 9pm
+      // Pacific on Sunday under both PST (UTC-8, 9pm PT = 05:00 UTC) and
+      // PDT (UTC-7, 9pm PT = 04:00 UTC). Pure internal housekeeping; no
+      // external (Discord/UB) effects, so it is not Test/Live gated.
+      const result = await db
+        .update(characterStatus)
+        .set({ openShop: false })
+        .where(eq(characterStatus.openShop, true));
+      affected = result.rowCount ?? 0;
+      message = `session reset: cleared openShop flag on ${affected} character(s)`;
     } else if (name === "membership_sync") {
       // Community growth timeline: parse Discord join/leave events out of the
       // #ncrp-welcome (system joins) and #bot-logs (Dyno Member Joined/Left)
@@ -1297,6 +1313,14 @@ export function startCron() {
     // its own database. Offset to minute 7 to avoid other */10 ticks.
     cron.schedule("7/10 * * * *", () => {
       runJob("membership_sync").catch((err) => logger.error({ err }, "membership_sync cron"));
+    });
+    // End-of-session openShop flag reset, Mondays at 06:00 UTC. The Sunday
+    // session window closes at 9pm Pacific (04:00 UTC in PDT / 05:00 UTC in
+    // PST), so 06:00 UTC is safely past the window under any DST offset.
+    // Clears the openShop flag set by the paid open-shop flow so the
+    // dashboard "open shops" count reflects the CURRENT session only.
+    cron.schedule("0 6 * * 1", () => {
+      runJob("session_reset").catch((err) => logger.error({ err }, "session_reset cron"));
     });
     // Weekly character Active(60d)/Dormant snapshot, Mondays 06:50 UTC (after
     // the week boundary so each run finalizes the just-closed week and opens
