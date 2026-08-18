@@ -1107,8 +1107,12 @@ export const missionAssignments = pgTable("mission_assignments", {
   characterId: integer("character_id").references(() => characters.id, { onDelete: "set null" }),
   // When attendance was credited by the post-mission cron (null = not yet).
   attendanceCreditedAt: timestamp("attendance_credited_at", { withTimezone: true }),
-  // Player-pay state: unpaid | paid | failed | simulated.
+  // Player-pay state: unpaid | paid | failed | simulated | processing.
   paymentStatus: text("payment_status").notNull().default("unpaid"),
+  // When the row was last claimed into "processing". Lets recovery re-claim
+  // STALE processing rows (crash between wallet credit and paid-update)
+  // without racing a concurrent in-flight payer.
+  processingAt: timestamp("processing_at", { withTimezone: true }),
   payAmount: integer("pay_amount"),
   paymentError: text("payment_error"),
   paidAt: timestamp("paid_at", { withTimezone: true }),

@@ -1743,12 +1743,16 @@ router.patch("/characters/:id/status", requireAuth, async (req, res): Promise<vo
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const { loa, loaReturnsAt, attending, openShop, statusMessage } = req.body ?? {};
+  // openShop is NOT patchable here: the flag is set by the PAID open-shop
+  // flow (POST /characters/:id/open-shop) only. Accepting it via this ungated
+  // PATCH let anyone inflate the dashboard "open shops" count without paying
+  // or holding a venue. Closing happens implicitly (flag is per-session
+  // display state); staff can correct it via SQL if ever needed.
+  const { loa, loaReturnsAt, attending, statusMessage } = req.body ?? {};
   const patch = {
     ...(loa !== undefined ? { loa } : {}),
     ...(loaReturnsAt !== undefined ? { loaReturnsAt: loaReturnsAt ? new Date(loaReturnsAt) : null } : {}),
     ...(attending !== undefined ? { attending } : {}),
-    ...(openShop !== undefined ? { openShop } : {}),
     ...(statusMessage !== undefined ? { statusMessage } : {}),
   };
   const [existing] = await db.select().from(characterStatus).where(eq(characterStatus.characterId, id));
@@ -1761,7 +1765,6 @@ router.patch("/characters/:id/status", requireAuth, async (req, res): Promise<vo
   const flips: string[] = [];
   if (loa !== undefined && loa !== (existing?.loa ?? false)) flips.push(loa ? "set LOA" : "returned from LOA");
   if (attending !== undefined && attending !== (existing?.attending ?? false)) flips.push(attending ? "marked attending" : "no longer attending");
-  if (openShop !== undefined && openShop !== (existing?.openShop ?? false)) flips.push(openShop ? "opened shop" : "closed shop");
   if (statusMessage !== undefined && statusMessage !== (existing?.statusMessage ?? null)) flips.push("updated status message");
   if (loaReturnsAt !== undefined) {
     const prevMs = existing?.loaReturnsAt ? new Date(existing.loaReturnsAt).getTime() : null;
@@ -2011,6 +2014,20 @@ router.post("/characters/:id/open-shop", requireAuth, async (req, res): Promise<
     return;
   }
   const row = outcome.row;
+
+  // Reflect the open in the character's status flag so the dashboard's
+  // "open shops" count tracks PAID opens only (the status PATCH no longer
+  // accepts openShop). Best-effort display state — never blocks the payout.
+  try {
+    const [statusRow] = await db.select({ characterId: characterStatus.characterId }).from(characterStatus).where(eq(characterStatus.characterId, id));
+    if (statusRow) {
+      await db.update(characterStatus).set({ openShop: true }).where(eq(characterStatus.characterId, id));
+    } else {
+      await db.insert(characterStatus).values({ characterId: id, openShop: true });
+    }
+  } catch (err) {
+    logger.warn({ err, characterId: id }, "open-shop status flag update failed");
+  }
 
   // Instant shop income: credit the owner the moment they open shop, like the
   // weekly attendance bonus. loadOwnedChar guarantees the caller IS the owner.

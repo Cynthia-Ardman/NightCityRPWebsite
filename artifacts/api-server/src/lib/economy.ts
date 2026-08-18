@@ -187,6 +187,22 @@ export async function applyWalletDelta(input: ApplyWalletDeltaInput): Promise<Wa
     if (mode === "disabled") {
       return { ok: false, status: "disabled", balance: prev, previousBalance: prev, proposedBalance: proposed };
     }
+    // Dry runs must predict the LIVE outcome, so the same overdraw/overflow
+    // guards apply — otherwise test mode reports success for a charge that
+    // would be refused for real (and callers mark things "paid" off it).
+    if (!input.allowNegative && input.amount < 0 && proposed < 0) {
+      return { ok: false, status: "insufficient_funds", balance: prev, previousBalance: prev, proposedBalance: proposed };
+    }
+    if (input.amount > 0 && proposed > MAX_WALLET_BALANCE) {
+      return {
+        ok: false,
+        status: "exceeds_max",
+        balance: prev,
+        previousBalance: prev,
+        proposedBalance: proposed,
+        error: `This would push the wallet past the maximum balance of ${MAX_WALLET_BALANCE.toLocaleString()} eddies.`,
+      };
+    }
     logger.info(
       { userId: input.userId, amount: input.amount, source: input.source, kind: input.kind, prev, proposed },
       "economy dry-run (test mode): no balance/ledger/outbox writes",
@@ -707,7 +723,30 @@ export async function runEconomyReconcile(): Promise<ReconcileResult> {
     }
 
     result.changed++;
-    const newBalance = u.walletBalance + delta;
+    // Int4 guard (parity with applyWalletDelta): clamp the folded result to
+    // the wallet column's range so a huge external UB swing can't overflow
+    // the int4 write and crash the reconcile mid-run. The baseline still
+    // advances to the real UB total; only the folded delta is clamped.
+    const rawBalance = u.walletBalance + delta;
+    const clamped = clampInt4(rawBalance);
+    if (clamped !== rawBalance) {
+      logger.warn(
+        { userId: u.id, delta, from: u.walletBalance, rawBalance, clamped },
+        "reconcile fold clamped to int4 range",
+      );
+      delta = clamped - u.walletBalance;
+      if (delta === 0) {
+        // Wallet already pinned at the boundary: nothing representable to
+        // fold, but the UB baseline must still advance (under the same guard)
+        // or this delta is retried and warned on every cycle forever.
+        await db
+          .update(users)
+          .set({ lastSyncedUbBalance: ubTotal, lastSyncedAt: new Date(), lastSyncStatus: "synced", lastSyncError: null })
+          .where(and(eq(users.id, u.id), eq(users.lastSyncedUbBalance, lastSynced)));
+        continue;
+      }
+    }
+    const newBalance = clamped;
     if (mode === "test") {
       logger.info(
         { userId: u.id, delta, from: u.walletBalance, to: newBalance },

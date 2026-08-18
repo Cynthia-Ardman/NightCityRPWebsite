@@ -7844,7 +7844,8 @@ export const AdminWalletMirrorHealthResponse = zod.object({
   "queuedAmount": zod.number(),
   "queuedCount": zod.number(),
   "lastSyncedAt": zod.string().nullable()
-})).describe('Users with queued pushes or drift vs the expected UnbelievaBoat total.')
+})).describe('Users with queued pushes or drift vs the expected UnbelievaBoat total.'),
+  "driftedCount": zod.number().describe('Synced users whose wallet_balance differs from last_synced_ub_balance — candidates for the UB balance repair op.')
 })
 
 
@@ -7883,6 +7884,43 @@ export const AdminRehostEventImagesResponse = zod.object({
   "id": zod.number(),
   "title": zod.string()
 })).optional()
+})
+
+
+/**
+ * @summary Repair UnbelievaBoat balances for users whose website wallet drifted from the sync baseline (dryRun previews).
+ */
+export const AdminUbBalanceRepairBody = zod.object({
+  "dryRun": zod.boolean().optional().describe('true = preview only, no writes.')
+})
+
+export const AdminUbBalanceRepairResponse = zod.object({
+  "dryRun": zod.boolean(),
+  "totalDrifted": zod.number().describe('Users whose wallet_balance differs from the last-synced UB baseline.'),
+  "eligible": zod.number().describe('Drifted users that are not skipped (non-negative wallet, no pending pushes).'),
+  "repaired": zod.number().describe('Live run: users whose UB balance was patched and baseline advanced.'),
+  "skippedPendingPushes": zod.number(),
+  "skippedNegativeTarget": zod.number(),
+  "skippedUbUnreachable": zod.number(),
+  "skippedRaced": zod.number().describe('Live run: baseline guard failed due to a concurrent sync.'),
+  "failed": zod.number(),
+  "externalWritesAllowed": zod.boolean().describe('False in dev — a live run would suppress the actual UB patches.'),
+  "users": zod.array(zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "websiteBalance": zod.number(),
+  "lastSyncedUbBalance": zod.number(),
+  "drift": zod.number().describe('wallet_balance - last_synced_ub_balance; negative = UB is ahead.'),
+  "skippedPendingPushes": zod.boolean().optional(),
+  "skippedNegativeTarget": zod.boolean().optional()
+})).optional().describe('Preview only: all drifted users, including those that would be skipped.'),
+  "outcomes": zod.array(zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "drift": zod.number(),
+  "status": zod.string().describe('repaired | skipped_pending | skipped_negative_target | ub_unreachable | raced | failed'),
+  "error": zod.string().optional()
+})).optional().describe('Live run only: per-user outcome.')
 })
 
 

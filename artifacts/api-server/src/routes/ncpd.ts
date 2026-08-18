@@ -21,6 +21,7 @@ import { hasRole, sendDirectMessage } from "../lib/discord";
 import { createNotification } from "../lib/notifications";
 import { hrefInbox } from "../lib/notificationHrefs";
 import { recordAudit } from "../lib/audit";
+import { logger } from "../lib/logger";
 
 import { applyWalletDelta } from "../lib/economy";
 
@@ -35,6 +36,10 @@ const requireNcpd = requireAnyRole([...NCPD_GROUPS]);
 // Book of Laws WRITES are narrower: Commissioner / fixer / admin only —
 // rank-and-file officers can read the restricted fields but not edit statutes.
 const requireLawWriter = requireAnyRole(["NCPD_COMMISSIONER", "FIXER", "ADMIN"]);
+// Hard-DELETES of records (reports, fines, warrants, notes, cases) are just as
+// destructive as statute edits — gate them on the same narrow tier so a
+// rank-and-file officer can't erase case history they could never rewrite.
+const requireNcpdDelete = requireLawWriter;
 
 // Exported so the site-wide search can gate its NCPD result group on the
 // EXACT same predicate this router enforces (never a forked copy).
@@ -416,7 +421,7 @@ router.patch("/ncpd/reports/:id", requireAuth, requireNcpd, async (req, res): Pr
   res.json(row);
 });
 
-router.delete("/ncpd/reports/:id", requireAuth, requireNcpd, async (req, res): Promise<void> => {
+router.delete("/ncpd/reports/:id", requireAuth, requireNcpdDelete, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   const [existing] = await db.select().from(ncpdArrestReports).where(eq(ncpdArrestReports.id, id));
   if (!existing) {
@@ -536,7 +541,7 @@ router.post("/ncpd/fines", requireAuth, requireNcpd, async (req, res): Promise<v
 });
 
 // Officer voids an UNPAID fine (issued in error). Paid fines are permanent.
-router.delete("/ncpd/fines/:id", requireAuth, requireNcpd, async (req, res): Promise<void> => {
+router.delete("/ncpd/fines/:id", requireAuth, requireNcpdDelete, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   const [existing] = await db.select().from(ncpdFines).where(eq(ncpdFines.id, id));
   if (!existing) {
@@ -578,83 +583,125 @@ router.post("/ncpd/fines/:id/pay", requireAuth, async (req, res): Promise<void> 
     res.status(400).json({ error: "invalid fine id" });
     return;
   }
-  const result = await db.transaction(async (tx) => {
-    // Lock the fine row so two concurrent pay attempts can't both debit.
-    const [fine] = await tx.select().from(ncpdFines).where(eq(ncpdFines.id, id)).for("update");
-    if (!fine) return { http: 404 as const, error: "fine not found" };
-    const [c] = await tx.select().from(characters).where(eq(characters.id, fine.characterId));
-    if (!c) return { http: 404 as const, error: "character not found" };
-    // Gate on the CURRENT owner, never a snapshot taken at issue time.
-    if (c.ownerId !== req.user!.id) return { http: 403 as const, error: "you do not own this character" };
-    if (fine.status === "paid") return { http: 409 as const, error: "fine already paid" };
-    if (fine.status !== "unpaid") return { http: 409 as const, error: "fine is not payable" };
-
-    const [owner] = await tx.select({ discordId: users.discordId }).from(users).where(eq(users.id, req.user!.id));
-    if (!owner?.discordId) return { http: 400 as const, error: "your account has no linked Discord wallet" };
-
-    const debit = await applyWalletDelta({
-      userId: req.user!.id,
-      discordId: owner.discordId,
-      amount: -fine.amount,
-      source: "website",
-      kind: "ncpd_fine",
-      reason: `NCPD fine: ${fine.reason}`,
-      characterId: fine.characterId,
-      relatedEntityType: "ncpd_fine",
-      relatedEntityId: fine.id,
-      idempotencyKey: `ncpd-fine:${fine.id}`,
-    });
-    if (!debit.ok) {
-      if (debit.status === "insufficient_funds") {
-        return { http: 402 as const, error: "Insufficient funds to pay this fine." };
-      }
-      if (debit.status === "disabled") {
-        return { http: 409 as const, error: "The economy is currently disabled." };
-      }
-      if (debit.status === "dry_run") {
-        // Test mode: no money moved. Still mark the fine paid so flows are testable.
-      } else {
-        return { http: 409 as const, error: debit.error ?? "Payment could not be processed." };
-      }
-    }
-    const [row] = await tx
-      .update(ncpdFines)
-      .set({ status: "paid", paidAt: new Date(), paidByUserId: req.user!.id })
-      .where(and(eq(ncpdFines.id, id), eq(ncpdFines.status, "unpaid")))
-      .returning();
-    if (!row) return { http: 409 as const, error: "fine is no longer unpaid" };
-    return { http: 200 as const, fine: row, character: c };
-  });
-
-  if (result.http !== 200) {
-    res.status(result.http).json({ error: result.error });
+  // Two-phase, ledger-first flow. applyWalletDelta commits in its OWN
+  // transaction, so it must never run nested inside a transaction that holds
+  // the fine row lock: a crash between the two commits would leave the wallet
+  // debited with the fine still unpaid AND the debit invisible to the outer tx.
+  // Instead: validate (no lock needed — the debit itself is the serialization
+  // point via its idempotency key), debit, then a guarded unpaid→paid flip.
+  // Every leg is retry-safe: the debit key is `ncpd-fine:<id>` so a re-pay
+  // resolves as "duplicate" (ok) and simply heals the fine row to paid.
+  const [fine] = await db.select().from(ncpdFines).where(eq(ncpdFines.id, id));
+  if (!fine) {
+    res.status(404).json({ error: "fine not found" });
+    return;
+  }
+  const [c] = await db.select().from(characters).where(eq(characters.id, fine.characterId));
+  if (!c) {
+    res.status(404).json({ error: "character not found" });
+    return;
+  }
+  // Gate on the CURRENT owner, never a snapshot taken at issue time.
+  if (c.ownerId !== req.user!.id) {
+    res.status(403).json({ error: "you do not own this character" });
+    return;
+  }
+  if (fine.status === "paid") {
+    res.status(409).json({ error: "fine already paid" });
+    return;
+  }
+  if (fine.status !== "unpaid") {
+    res.status(409).json({ error: "fine is not payable" });
+    return;
+  }
+  const [owner] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, req.user!.id));
+  if (!owner?.discordId) {
+    res.status(400).json({ error: "your account has no linked Discord wallet" });
     return;
   }
 
-  const fine = result.fine;
-  const c = result.character;
+  const debit = await applyWalletDelta({
+    userId: req.user!.id,
+    discordId: owner.discordId,
+    amount: -fine.amount,
+    source: "website",
+    kind: "ncpd_fine",
+    reason: `NCPD fine: ${fine.reason}`,
+    characterId: fine.characterId,
+    relatedEntityType: "ncpd_fine",
+    relatedEntityId: fine.id,
+    idempotencyKey: `ncpd-fine:${fine.id}`,
+  });
+  if (!debit.ok) {
+    if (debit.status === "insufficient_funds") {
+      res.status(402).json({ error: "Insufficient funds to pay this fine." });
+      return;
+    }
+    if (debit.status === "disabled") {
+      res.status(409).json({ error: "The economy is currently disabled." });
+      return;
+    }
+    if (debit.status !== "dry_run") {
+      res.status(409).json({ error: debit.error ?? "Payment could not be processed." });
+      return;
+    }
+    // Test mode: no money moved. Still mark the fine paid so flows are testable.
+  }
+  const [row] = await db
+    .update(ncpdFines)
+    .set({ status: "paid", paidAt: new Date(), paidByUserId: req.user!.id })
+    .where(and(eq(ncpdFines.id, id), eq(ncpdFines.status, "unpaid")))
+    .returning();
+  if (!row) {
+    // The flip lost: the fine left "unpaid" between our validation and now
+    // (concurrent double-click, or a commissioner voided it mid-flight). If
+    // THIS call actually moved money (status "synced" — not duplicate/dry-run)
+    // and the fine did not end up paid, compensate with a keyed refund so a
+    // voided fine can never keep the player's eddies.
+    const [now] = await db.select({ status: ncpdFines.status }).from(ncpdFines).where(eq(ncpdFines.id, id));
+    if (debit.ok && debit.status === "synced" && now?.status !== "paid") {
+      const refund = await applyWalletDelta({
+        userId: req.user!.id,
+        discordId: owner.discordId,
+        amount: fine.amount,
+        source: "website",
+        kind: "ncpd_fine_refund",
+        reason: `NCPD fine refund (fine no longer payable): ${fine.reason}`,
+        characterId: fine.characterId,
+        relatedEntityType: "ncpd_fine",
+        relatedEntityId: fine.id,
+        idempotencyKey: `ncpd-fine:${fine.id}:refund`,
+      });
+      if (!refund.ok) {
+        logger.error({ fineId: fine.id, userId: req.user!.id, refund }, "NCPD fine refund failed — manual reconcile needed");
+      }
+    }
+    res.status(409).json({ error: "fine is no longer unpaid" });
+    return;
+  }
+  const paidFine = row;
   void recordAudit({
     req,
     category: "character",
     action: "ncpd_fine_paid",
     targetType: "character",
-    targetId: fine.characterId,
-    message: `NCPD fine #${fine.id} of €$${fine.amount.toLocaleString()} paid`,
-    after: fine,
+    targetId: paidFine.characterId,
+    message: `NCPD fine #${paidFine.id} of €$${paidFine.amount.toLocaleString()} paid`,
+    after: paidFine,
   });
   // Notify the issuing officer that the fine was settled.
-  if (fine.issuedById) {
+  if (paidFine.issuedById) {
     void (async () => {
-      const [officer] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, fine.issuedById!));
+      const [officer] = await db.select({ discordId: users.discordId }).from(users).where(eq(users.id, paidFine.issuedById!));
       if (officer?.discordId) {
         await sendDirectMessage(
           officer.discordId,
-          `✅ **NCPD Fine Paid** — ${c.name} has paid the €$${fine.amount.toLocaleString()} fine you issued.\nReason: ${fine.reason}`,
+          `✅ **NCPD Fine Paid** — ${c.name} has paid the €$${paidFine.amount.toLocaleString()} fine you issued.\nReason: ${paidFine.reason}`,
         );
       }
     })();
   }
-  res.json(fine);
+  res.json(paidFine);
 });
 
 // ---------------------------------------------------------------------------
@@ -751,7 +798,7 @@ router.patch("/ncpd/warrants/:id", requireAuth, requireNcpd, async (req, res): P
   res.json(row);
 });
 
-router.delete("/ncpd/warrants/:id", requireAuth, requireNcpd, async (req, res): Promise<void> => {
+router.delete("/ncpd/warrants/:id", requireAuth, requireNcpdDelete, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   const [existing] = await db.select().from(ncpdWarrants).where(eq(ncpdWarrants.id, id));
   if (!existing) {
@@ -808,7 +855,7 @@ router.post("/ncpd/characters/:id/notes", requireAuth, requireNcpd, async (req, 
   res.status(201).json(row);
 });
 
-router.delete("/ncpd/notes/:id", requireAuth, requireNcpd, async (req, res): Promise<void> => {
+router.delete("/ncpd/notes/:id", requireAuth, requireNcpdDelete, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   const [existing] = await db.select().from(ncpdCharacterNotes).where(eq(ncpdCharacterNotes.id, id));
   if (!existing) {
@@ -946,7 +993,7 @@ router.patch("/ncpd/cases/:id", requireAuth, requireNcpd, async (req, res): Prom
   res.json(row);
 });
 
-router.delete("/ncpd/cases/:id", requireAuth, requireNcpd, async (req, res): Promise<void> => {
+router.delete("/ncpd/cases/:id", requireAuth, requireNcpdDelete, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isSafeInteger(id)) {
     res.status(400).json({ error: "invalid case id" });

@@ -3090,11 +3090,27 @@ export async function payMissionPlayers(
     // Only one worker can transition it out of a non-final state.
     const claimed = await db
       .update(missionAssignments)
-      .set({ paymentStatus: "processing" })
+      .set({ paymentStatus: "processing", processingAt: new Date() })
       .where(
         and(
           eq(missionAssignments.id, a.id),
-          inArray(missionAssignments.paymentStatus, ["unpaid", "failed", "simulated"]),
+          // STALE "processing" is claimable too: it only persists when a prior
+          // run crashed between the wallet credit and the paid-update (nothing
+          // else transitions it out). The 5-minute staleness gate keeps a
+          // concurrent in-flight payer from being re-claimed; re-paying a
+          // genuinely stranded row is money-safe because the credit is
+          // idempotency-keyed on the assignment id — the re-run resolves as
+          // "duplicate" (ok) and simply heals the row to paid.
+          or(
+            inArray(missionAssignments.paymentStatus, ["unpaid", "failed", "simulated"]),
+            and(
+              eq(missionAssignments.paymentStatus, "processing"),
+              or(
+                isNull(missionAssignments.processingAt),
+                sql`${missionAssignments.processingAt} < now() - interval '5 minutes'`,
+              ),
+            ),
+          ),
         ),
       )
       .returning({ id: missionAssignments.id });
@@ -3688,10 +3704,36 @@ export async function payStandaloneActors(
                 },
           )
           .returning({ id: missionActorPayments.id })
-      : await db
-          .insert(missionActorPayments)
-          .values({ ...base, paymentStatus: "paid" })
-          .returning({ id: missionActorPayments.id });
+      : // Standalone (no eventId) payouts have no unique index to lean on, and
+        // deliberate repeat payments on later days must stay possible — so
+        // dedupe them the same way as "general" pay: serialize per recipient
+        // with an advisory lock and skip when an identical payout (same
+        // event name/amount/type) landed within the last 2 minutes.
+        await db.transaction(async (tx) => {
+          await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`standalone_pay:${userId}`}))`);
+          const [dup] = await tx
+            .select({ id: missionActorPayments.id })
+            .from(missionActorPayments)
+            .where(
+              and(
+                isNull(missionActorPayments.missionId),
+                isNull(missionActorPayments.eventId),
+                input.eventType != null
+                  ? eq(missionActorPayments.eventType, input.eventType)
+                  : isNull(missionActorPayments.eventType),
+                eq(missionActorPayments.userId, userId),
+                eq(missionActorPayments.amount, amount),
+                eq(missionActorPayments.missionName, eventName),
+                inArray(missionActorPayments.paymentStatus, ["paid", "simulated"]),
+                sql`${missionActorPayments.createdAt} > now() - interval '2 minutes'`,
+              ),
+            );
+          if (dup) return [];
+          return await tx
+            .insert(missionActorPayments)
+            .values({ ...base, paymentStatus: "paid" })
+            .returning({ id: missionActorPayments.id });
+        });
     const inserted = insertedRows[0];
     if (!inserted) {
       // Already paid for this event — skip silently.
@@ -3869,7 +3911,11 @@ export async function runMissionAutoPay(): Promise<number> {
       .from(missionAssignments)
       .where(
         and(
-          inArray(missionAssignments.paymentStatus, ["simulated", "failed", "unpaid"]),
+          // "processing" rows are recoverable stragglers: a crash between the
+          // wallet credit and the paid-update strands them, and nothing else
+          // re-claims that state. Re-paying is safe — the credit is keyed
+          // mission_payout:<assignmentId>, so a retry resolves as "duplicate".
+          inArray(missionAssignments.paymentStatus, ["simulated", "failed", "unpaid", "processing"]),
           // Exclude permanently-unpayable rows (no Discord account to credit) so
           // the live-retry doesn't re-select the same mission every tick forever.
           // Transient UB-payout failures stay eligible and settle once UB recovers.

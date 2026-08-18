@@ -18,4 +18,6 @@ export interface WalletMirrorHealth {
   recentFailures: WalletMirrorHealthRecentFailuresItem[];
   /** Users with queued pushes or drift vs the expected UnbelievaBoat total. */
   users: WalletMirrorHealthUsersItem[];
+  /** Synced users whose wallet_balance differs from last_synced_ub_balance — candidates for the UB balance repair op. */
+  driftedCount: number;
 }

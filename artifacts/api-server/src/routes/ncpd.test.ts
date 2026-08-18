@@ -288,7 +288,11 @@ describe("NCPD reports CRUD", () => {
     expect(list.status).toBe(200);
     expect(list.body[0]).toMatchObject({ id: created.body.id, characterName: c.name });
 
-    const del = await request(app).delete(`/api/ncpd/reports/${created.body.id}`).set("x-test-user", officer.id);
+    // Hard-deletes are gated to Commissioner/fixer/admin — rank-and-file 403s.
+    const officerDel = await request(app).delete(`/api/ncpd/reports/${created.body.id}`).set("x-test-user", officer.id);
+    expect(officerDel.status).toBe(403);
+    const commissioner = await createCommissioner();
+    const del = await request(app).delete(`/api/ncpd/reports/${created.body.id}`).set("x-test-user", commissioner.id);
     expect(del.status).toBe(200);
     const after = await request(app).get(`/api/ncpd/characters/${c.id}/record`).set("x-test-user", officer.id);
     expect(after.body.reports).toHaveLength(0);
@@ -338,7 +342,10 @@ describe("NCPD warrants", () => {
     expect(filtered.status).toBe(200);
     expect(filtered.body).toHaveLength(0);
 
-    const del = await request(app).delete(`/api/ncpd/warrants/${created.body.id}`).set("x-test-user", officer.id);
+    const officerDel = await request(app).delete(`/api/ncpd/warrants/${created.body.id}`).set("x-test-user", officer.id);
+    expect(officerDel.status).toBe(403);
+    const commissioner = await createCommissioner();
+    const del = await request(app).delete(`/api/ncpd/warrants/${created.body.id}`).set("x-test-user", commissioner.id);
     expect(del.status).toBe(200);
   });
 });
@@ -354,7 +361,10 @@ describe("NCPD notes", () => {
     expect(created.status).toBe(201);
     expect(created.body.authorName).toBe(officer.username);
 
-    const del = await request(app).delete(`/api/ncpd/notes/${created.body.id}`).set("x-test-user", officer.id);
+    const officerDel = await request(app).delete(`/api/ncpd/notes/${created.body.id}`).set("x-test-user", officer.id);
+    expect(officerDel.status).toBe(403);
+    const commissioner = await createCommissioner();
+    const del = await request(app).delete(`/api/ncpd/notes/${created.body.id}`).set("x-test-user", commissioner.id);
     expect(del.status).toBe(200);
     expect(del.body).toEqual({ ok: true });
   });
@@ -517,7 +527,10 @@ describe("NCPD fines", () => {
         .set("x-test-user", officer.id)
         .send({ characterId: c.id, amount: 100, reason: "A" })
     ).body;
-    const voided = await request(app).delete(`/api/ncpd/fines/${unpaid.id}`).set("x-test-user", officer.id);
+    const officerVoid = await request(app).delete(`/api/ncpd/fines/${unpaid.id}`).set("x-test-user", officer.id);
+    expect(officerVoid.status).toBe(403);
+    const commissioner = await createCommissioner();
+    const voided = await request(app).delete(`/api/ncpd/fines/${unpaid.id}`).set("x-test-user", commissioner.id);
     expect(voided.status).toBe(200);
     expect(voided.body.status).toBe("void");
 
@@ -528,7 +541,7 @@ describe("NCPD fines", () => {
         .send({ characterId: c.id, amount: 100, reason: "B" })
     ).body;
     await request(app).post(`/api/ncpd/fines/${paidFine.id}/pay`).set("x-test-user", owner.id);
-    const cannotVoid = await request(app).delete(`/api/ncpd/fines/${paidFine.id}`).set("x-test-user", officer.id);
+    const cannotVoid = await request(app).delete(`/api/ncpd/fines/${paidFine.id}`).set("x-test-user", commissioner.id);
     expect(cannotVoid.status).toBe(409);
   });
 });
@@ -681,7 +694,10 @@ describe("NCPD case files", () => {
     expect(detail.status).toBe(200);
     expect(detail.body.id).toBe(id);
 
-    const deleted = await request(app).delete(`/api/ncpd/cases/${id}`).set("x-test-user", officer.id);
+    const officerDel = await request(app).delete(`/api/ncpd/cases/${id}`).set("x-test-user", officer.id);
+    expect(officerDel.status).toBe(403);
+    const commissioner = await createCommissioner();
+    const deleted = await request(app).delete(`/api/ncpd/cases/${id}`).set("x-test-user", commissioner.id);
     expect(deleted.status).toBe(200);
     const gone = await request(app).get(`/api/ncpd/cases/${id}`).set("x-test-user", officer.id);
     expect(gone.status).toBe(404);
@@ -713,12 +729,15 @@ describe("NCPD case files", () => {
 describe("NCPD case file id validation", () => {
   it("400s on malformed case ids for get/patch/delete", async () => {
     const officer = await createOfficer();
-    for (const [method, url] of [
-      ["get", "/api/ncpd/cases/not-a-number"],
-      ["patch", "/api/ncpd/cases/not-a-number"],
-      ["delete", "/api/ncpd/cases/not-a-number"],
+    // Deletes are gated to the commissioner tier, so the authz check fires
+    // before id validation for rank-and-file — use a commissioner there.
+    const commissioner = await createCommissioner();
+    for (const [method, url, actor] of [
+      ["get", "/api/ncpd/cases/not-a-number", officer],
+      ["patch", "/api/ncpd/cases/not-a-number", officer],
+      ["delete", "/api/ncpd/cases/not-a-number", commissioner],
     ] as const) {
-      const res = await request(app)[method](url).set("x-test-user", officer.id).send({ title: "x" });
+      const res = await request(app)[method](url).set("x-test-user", actor.id).send({ title: "x" });
       expect(res.status, `${method} ${url}`).toBe(400);
     }
   });

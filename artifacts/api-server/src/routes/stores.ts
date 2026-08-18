@@ -2080,14 +2080,18 @@ async function venueDepositWithdraw(opts: {
     return;
   }
 
-  // Prefer the client-supplied idempotency token (a UUID generated once per
+  // Require the client-supplied idempotency token (a UUID generated once per
   // submit and reused across React Query retries) so a network blip or
-  // double-click can't double-debit/credit. Fall back to a timestamp only when
-  // an older client sends none — a fresh key each call is the legacy behavior.
+  // double-click can't double-debit/credit. The old Date.now() fallback minted
+  // a fresh key per attempt, which silently defeated the dedupe on retries.
   const clientKey =
     typeof opts.idempotencyKey === "string" && opts.idempotencyKey.trim().length > 0
       ? opts.idempotencyKey.trim().slice(0, 100)
-      : String(Date.now());
+      : null;
+  if (!clientKey) {
+    res.status(400).json({ error: "idempotencyKey is required" });
+    return;
+  }
   const idempotencyKey = `venue-${kind}-${venueId}-${direction}-${clientKey}-${owner.id}`;
   const result = await applyWalletDelta({
     userId: owner.id,
@@ -2137,10 +2141,22 @@ async function venueDepositWithdraw(opts: {
   // is guarded (balance >= amount) in the same statement so concurrent
   // withdrawals cannot drive the venue negative; if the guard loses the race we
   // reverse the already-applied personal credit below so no money is minted.
+  // The venue leg gets its OWN idempotency key (mirroring venueGive): a retry
+  // whose personal leg resolved as "duplicate" must not increment the venue a
+  // second time. Short-circuit inside the tx when the venue-leg row exists.
+  const venueIdempotencyKey = `${idempotencyKey}-venue`;
   const { ip, ua } = auditMeta(req);
   let finalVenueBalance = venue.balance + venueDelta;
   let venueGuardFailed = false;
   await db.transaction(async (tx) => {
+    const [existingVenueLeg] = await tx
+      .select({ newBalance: walletTransactions.newBalance })
+      .from(walletTransactions)
+      .where(eq(walletTransactions.idempotencyKey, venueIdempotencyKey));
+    if (existingVenueLeg) {
+      finalVenueBalance = existingVenueLeg.newBalance ?? venue.balance;
+      return;
+    }
     const updated = await tx
       .update(venueTable)
       .set({ balance: sql`${venueTable.balance} + ${venueDelta}` })
@@ -2161,6 +2177,7 @@ async function venueDepositWithdraw(opts: {
       kind: `${kind}_${direction}`,
       source: kind,
       syncStatus: "synced",
+      idempotencyKey: venueIdempotencyKey,
       memo: `${direction === "deposit" ? "Owner deposit" : "Owner withdrawal"} — ${venue.name}`,
       previousBalance: finalVenueBalance - venueDelta,
       newBalance: finalVenueBalance,

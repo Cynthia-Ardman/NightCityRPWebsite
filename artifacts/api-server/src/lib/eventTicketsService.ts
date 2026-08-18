@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   db,
@@ -7,6 +7,7 @@ import {
   eventTickets,
   eventCheckinStaff,
   users,
+  walletTransactions,
   type Event,
   type EventTicketType,
 } from "@workspace/db";
@@ -167,6 +168,22 @@ export async function upsertTicketTypes(eventId: number, inputs: TicketTypeInput
           return { ok: false as const, httpStatus: 400, error: `Ticket type ${input.id} does not belong to this event` };
         }
         keepIds.add(input.id);
+        // Guard: never let quantity drop below tickets already sold/reserved —
+        // that would wedge the type as soldOut with no way for holders to see
+        // accurate remaining counts. (0 = unlimited is always allowed.)
+        if (input.quantity > 0) {
+          const [{ n }] = await tx
+            .select({ n: sql<number>`count(*)::int` })
+            .from(eventTickets)
+            .where(and(eq(eventTickets.ticketTypeId, input.id), inArray(eventTickets.status, [...CAPACITY_STATUSES])));
+          if (input.quantity < n) {
+            return {
+              ok: false as const,
+              httpStatus: 400,
+              error: `Ticket type "${input.name}" already has ${n} sold — quantity can't be set below that (use 0 for unlimited)`,
+            };
+          }
+        }
         await tx
           .update(eventTicketTypes)
           .set({
@@ -397,6 +414,28 @@ export async function purchaseTicket(opts: {
           .where(and(eq(eventTickets.ticketTypeId, type.id), inArray(eventTickets.status, [...CAPACITY_STATUSES])));
         if (n >= type.quantity) return { ok: false, httpStatus: 409, error: "Sold out" };
       }
+      // Reuse an existing pending reservation for this buyer+type instead of
+      // minting a new row. A pending row means an earlier attempt crashed or
+      // is in flight between debit and finalize; reusing its id reuses the
+      // SAME wallet idempotency key, so a retry can never double-charge —
+      // the debit resolves as "duplicate" and finalize heals the ticket.
+      const [stale] = await tx
+        .select({ id: eventTickets.id })
+        .from(eventTickets)
+        .where(
+          and(
+            eq(eventTickets.ticketTypeId, type.id),
+            eq(eventTickets.buyerUserId, buyer.id),
+            eq(eventTickets.status, "pending"),
+          ),
+        )
+        .orderBy(asc(eventTickets.id))
+        .limit(1);
+      if (stale) {
+        // Re-pin price to the row's original pricePaid via the type row we
+        // hold — the debit key is ticket-scoped so amount drift can't double-bill.
+        return { ok: true, ticketId: stale.id, type };
+      }
       const [ticket] = await tx
         .insert(eventTickets)
         .values({
@@ -495,6 +534,75 @@ async function creditRunner(opts: {
   });
   if (credit.ok) return { payoutStatus: "paid", payoutError: null };
   return { payoutStatus: "failed", payoutError: credit.error ?? `Runner credit failed (${credit.status})` };
+}
+
+// ---------------------------------------------------------------------------
+// Stale pending-ticket sweep (cron, every 5 minutes).
+//
+// A pending row older than the grace window means a purchase crashed between
+// reserve and finalize. Two cases, decided by the ledger (source of truth):
+//  - A debit ledger row exists for the ticket's idempotency key → the buyer
+//    WAS charged: finalize to purchased (and pay the runner, idempotently).
+//  - No debit row → the buyer was never charged: delete the row to release
+//    the capacity it was holding.
+// The grace window keeps the sweep from racing a live purchase that is
+// legitimately between reserve and finalize.
+// ---------------------------------------------------------------------------
+export async function sweepStalePendingTickets(opts?: { olderThanMinutes?: number }): Promise<{ finalized: number; released: number }> {
+  const cutoff = new Date(Date.now() - (opts?.olderThanMinutes ?? 15) * 60 * 1000);
+  const stale = await db
+    .select({ t: eventTickets, e: events })
+    .from(eventTickets)
+    .innerJoin(events, eq(events.id, eventTickets.eventId))
+    .where(and(eq(eventTickets.status, "pending"), lt(eventTickets.createdAt, cutoff)));
+  let finalized = 0;
+  let released = 0;
+  for (const { t, e } of stale) {
+    try {
+      const [debit] = await db
+        .select({ id: walletTransactions.id })
+        .from(walletTransactions)
+        .where(eq(walletTransactions.idempotencyKey, `event-ticket:${t.id}:debit`))
+        .limit(1);
+      if (!debit && t.pricePaid > 0) {
+        // Never charged — release the reserved capacity. Guarded on status so
+        // a concurrent retry that just debited can't lose its row.
+        const gone = await db
+          .delete(eventTickets)
+          .where(and(eq(eventTickets.id, t.id), eq(eventTickets.status, "pending")))
+          .returning({ id: eventTickets.id });
+        if (gone.length > 0) released++;
+        continue;
+      }
+      // Charged (or free) — finalize. Pay the runner idempotently when due.
+      let payoutStatus = "none";
+      let payoutError: string | null = null;
+      if (debit && t.pricePaid > 0 && e.ticketPayoutMode !== "sink") {
+        const [type] = await db.select({ name: eventTicketTypes.name }).from(eventTicketTypes).where(eq(eventTicketTypes.id, t.ticketTypeId));
+        const credited = await creditRunner({
+          ticketId: t.id,
+          amount: t.pricePaid,
+          runnerUserId: e.ticketRunnerUserId ?? e.createdById,
+          eventTitle: e.title,
+          typeName: type?.name ?? "Ticket",
+        });
+        payoutStatus = credited.payoutStatus;
+        payoutError = credited.payoutError;
+      }
+      const healed = await db
+        .update(eventTickets)
+        .set({ status: "purchased", payoutStatus, payoutError })
+        .where(and(eq(eventTickets.id, t.id), eq(eventTickets.status, "pending")))
+        .returning({ id: eventTickets.id });
+      if (healed.length > 0) {
+        finalized++;
+        logger.warn({ ticketId: t.id, eventId: t.eventId, buyerUserId: t.buyerUserId }, "Recovered charged pending ticket");
+      }
+    } catch (err) {
+      logger.error({ err, ticketId: t.id }, "pending-ticket sweep failed for ticket");
+    }
+  }
+  return { finalized, released };
 }
 
 // Manager retry of a bounced runner credit. Same idempotency key, so a credit

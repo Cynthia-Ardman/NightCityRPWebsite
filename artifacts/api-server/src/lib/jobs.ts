@@ -1245,6 +1245,15 @@ export function startCron() {
         logger.error({ err }, "shift_expiry sweep"),
       );
     });
+    // Stale pending event-ticket sweep: finalizes tickets whose buyer WAS
+    // charged but the purchase crashed before finalize (ledger row exists),
+    // and releases capacity held by never-charged pending rows. Idempotent —
+    // all money legs are keyed on the ticket id.
+    cron.schedule("*/5 * * * *", () => {
+      import("./eventTicketsService").then(({ sweepStalePendingTickets }) => sweepStalePendingTickets()).catch((err) =>
+        logger.error({ err }, "pending_ticket sweep"),
+      );
+    });
     // Bidirectional Discord scheduled-event ↔ calendar sync every 10 minutes.
     // Imports new Discord events and reconciles edits/deletions both ways. Gated
     // on the missions Test/Live switch inside runJob, so Test mode is a no-op.

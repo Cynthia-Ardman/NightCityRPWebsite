@@ -3546,6 +3546,48 @@ export interface EconomyReconcileResult {
   error?: string | null;
 }
 
+export type UbBalanceRepairResultUsersItem = {
+  userId: string;
+  username: string;
+  websiteBalance: number;
+  lastSyncedUbBalance: number;
+  /** wallet_balance - last_synced_ub_balance; negative = UB is ahead. */
+  drift: number;
+  skippedPendingPushes?: boolean;
+  skippedNegativeTarget?: boolean;
+};
+
+export type UbBalanceRepairResultOutcomesItem = {
+  userId: string;
+  username: string;
+  drift: number;
+  /** repaired | skipped_pending | skipped_negative_target | ub_unreachable | raced | failed */
+  status: string;
+  error?: string;
+};
+
+export interface UbBalanceRepairResult {
+  dryRun: boolean;
+  /** Users whose wallet_balance differs from the last-synced UB baseline. */
+  totalDrifted: number;
+  /** Drifted users that are not skipped (non-negative wallet, no pending pushes). */
+  eligible: number;
+  /** Live run: users whose UB balance was patched and baseline advanced. */
+  repaired: number;
+  skippedPendingPushes: number;
+  skippedNegativeTarget: number;
+  skippedUbUnreachable: number;
+  /** Live run: baseline guard failed due to a concurrent sync. */
+  skippedRaced: number;
+  failed: number;
+  /** False in dev — a live run would suppress the actual UB patches. */
+  externalWritesAllowed: boolean;
+  /** Preview only: all drifted users, including those that would be skipped. */
+  users?: UbBalanceRepairResultUsersItem[];
+  /** Live run only: per-user outcome. */
+  outcomes?: UbBalanceRepairResultOutcomesItem[];
+}
+
 export type WalletMirrorHealthCounts = {
   pending: number;
   inflight: number;
@@ -3584,6 +3626,8 @@ export interface WalletMirrorHealth {
   recentFailures: WalletMirrorHealthRecentFailuresItem[];
   /** Users with queued pushes or drift vs the expected UnbelievaBoat total. */
   users: WalletMirrorHealthUsersItem[];
+  /** Synced users whose wallet_balance differs from last_synced_ub_balance — candidates for the UB balance repair op. */
+  driftedCount: number;
 }
 
 export interface WalletMirrorPushResult {

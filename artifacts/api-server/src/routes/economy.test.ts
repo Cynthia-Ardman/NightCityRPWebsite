@@ -58,7 +58,7 @@ describe("POST /stores/:id/deposit & /withdraw", () => {
     const res = await request(app)
       .post(`/api/stores/${store.id}/deposit`)
       .set("x-test-user", stranger.id)
-      .send({ amount: 100 });
+      .send({ amount: 100, idempotencyKey: crypto.randomUUID() });
     expect(res.status).toBe(403);
     expect(mockPatch).not.toHaveBeenCalled();
   });
@@ -74,7 +74,7 @@ describe("POST /stores/:id/deposit & /withdraw", () => {
     const res = await request(app)
       .post(`/api/stores/${store.id}/deposit`)
       .set("x-test-user", owner.id)
-      .send({ amount: 200 });
+      .send({ amount: 200, idempotencyKey: crypto.randomUUID() });
     expect(res.status).toBe(200);
 
     // Website wallet is the source of truth; the UB mirror push is queued in
@@ -109,7 +109,7 @@ describe("POST /stores/:id/deposit & /withdraw", () => {
     const res = await request(app)
       .post(`/api/stores/${store.id}/deposit`)
       .set("x-test-user", owner.id)
-      .send({ amount: 8000 });
+      .send({ amount: 8000, idempotencyKey: crypto.randomUUID() });
     expect(res.status).toBe(200);
     // The debit itself is queued for the UB mirror, not patched inline.
     const queued = await db.select().from(ubPushOutbox).where(eq(ubPushOutbox.userId, owner.id));
@@ -137,7 +137,7 @@ describe("POST /stores/:id/deposit & /withdraw", () => {
     const res = await request(app)
       .post(`/api/stores/${store.id}/deposit`)
       .set("x-test-user", owner.id)
-      .send({ amount: 200 });
+      .send({ amount: 200, idempotencyKey: crypto.randomUUID() });
     // Bank does not count — debits target UB cash only.
     expect(res.status).toBe(400);
     expect(mockPatch).not.toHaveBeenCalled();
@@ -151,7 +151,7 @@ describe("POST /stores/:id/deposit & /withdraw", () => {
     const res = await request(app)
       .post(`/api/stores/${store.id}/withdraw`)
       .set("x-test-user", owner.id)
-      .send({ amount: 100 });
+      .send({ amount: 100, idempotencyKey: crypto.randomUUID() });
     expect(res.status).toBe(400);
     expect(mockPatch).not.toHaveBeenCalled();
     const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
@@ -172,7 +172,7 @@ describe("POST /stores/:id/deposit & /withdraw", () => {
     const res = await request(app)
       .post(`/api/stores/${store.id}/withdraw`)
       .set("x-test-user", owner.id)
-      .send({ amount: 100 });
+      .send({ amount: 100, idempotencyKey: crypto.randomUUID() });
 
     expect(res.status).toBe(400);
     // Rejected before any UB call or balance write.
@@ -196,7 +196,7 @@ describe("POST /stores/:id/deposit & /withdraw", () => {
     const res = await request(app)
       .post(`/api/stores/${store.id}/deposit`)
       .set("x-test-user", owner.id)
-      .send({ amount: 200 });
+      .send({ amount: 200, idempotencyKey: crypto.randomUUID() });
     expect(res.status).toBe(200);
     const [s] = await db.select().from(stores).where(eq(stores.id, store.id));
     expect(s.balance).toBe(200);
@@ -218,7 +218,7 @@ describe("ripperdoc deposit/withdraw", () => {
     const res = await request(app)
       .post(`/api/ripperdocs/${clinic.id}/withdraw`)
       .set("x-test-user", owner.id)
-      .send({ amount: 100 });
+      .send({ amount: 100, idempotencyKey: crypto.randomUUID() });
     expect(res.status).toBe(200);
     const [u] = await db.select().from(users).where(eq(users.id, owner.id));
     expect(u.walletBalance).toBe(600);

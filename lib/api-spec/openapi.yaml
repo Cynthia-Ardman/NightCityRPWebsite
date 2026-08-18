@@ -3181,6 +3181,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/RehostEventImagesResult" }
 
+  /admin/maintenance/ub-balance-repair:
+    post:
+      operationId: adminUbBalanceRepair
+      tags: [admin]
+      summary: "Repair UnbelievaBoat balances for users whose website wallet drifted from the sync baseline (dryRun previews)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MaintenanceRunInput" }
+      responses:
+        "200":
+          description: Preview or run result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UbBalanceRepairResult" }
+
   /admin/maintenance/guidebook-link-repair:
     post:
       operationId: adminGuidebookLinkRepair
@@ -9467,9 +9484,50 @@ components:
         delta: { type: integer }
         error: { type: ["string", "null"] }
 
+    UbBalanceRepairResult:
+      type: object
+      required: [dryRun, totalDrifted, eligible, repaired, skippedPendingPushes, skippedNegativeTarget, skippedUbUnreachable, skippedRaced, failed, externalWritesAllowed]
+      properties:
+        dryRun: { type: boolean }
+        totalDrifted: { type: integer, description: "Users whose wallet_balance differs from the last-synced UB baseline." }
+        eligible: { type: integer, description: "Drifted users that are not skipped (non-negative wallet, no pending pushes)." }
+        repaired: { type: integer, description: "Live run: users whose UB balance was patched and baseline advanced." }
+        skippedPendingPushes: { type: integer }
+        skippedNegativeTarget: { type: integer }
+        skippedUbUnreachable: { type: integer }
+        skippedRaced: { type: integer, description: "Live run: baseline guard failed due to a concurrent sync." }
+        failed: { type: integer }
+        externalWritesAllowed: { type: boolean, description: "False in dev — a live run would suppress the actual UB patches." }
+        users:
+          type: array
+          description: "Preview only: all drifted users, including those that would be skipped."
+          items:
+            type: object
+            required: [userId, username, websiteBalance, lastSyncedUbBalance, drift]
+            properties:
+              userId: { type: string }
+              username: { type: string }
+              websiteBalance: { type: integer }
+              lastSyncedUbBalance: { type: integer }
+              drift: { type: integer, description: "wallet_balance - last_synced_ub_balance; negative = UB is ahead." }
+              skippedPendingPushes: { type: boolean }
+              skippedNegativeTarget: { type: boolean }
+        outcomes:
+          type: array
+          description: "Live run only: per-user outcome."
+          items:
+            type: object
+            required: [userId, username, drift, status]
+            properties:
+              userId: { type: string }
+              username: { type: string }
+              drift: { type: integer }
+              status: { type: string, description: "repaired | skipped_pending | skipped_negative_target | ub_unreachable | raced | failed" }
+              error: { type: string }
+
     WalletMirrorHealth:
       type: object
-      required: [counts, oldestPendingAt, lastPushedAt, recentFailures, users]
+      required: [counts, oldestPendingAt, lastPushedAt, recentFailures, users, driftedCount]
       properties:
         counts:
           type: object
@@ -9507,6 +9565,9 @@ components:
               queuedAmount: { type: integer }
               queuedCount: { type: integer }
               lastSyncedAt: { type: ["string", "null"] }
+        driftedCount:
+          type: integer
+          description: "Synced users whose wallet_balance differs from last_synced_ub_balance — candidates for the UB balance repair op."
 
     WalletMirrorPushResult:
       type: object
