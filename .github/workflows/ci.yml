@@ -58,6 +58,86 @@ jobs:
             exit 1
           fi
 
+  migration-checks:
+    name: Migration checks (drift · unsafe DDL · smoke test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ncrp_migrate_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/ncrp_migrate_ci
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build workspace libs (project references)
+        run: pnpm run typecheck:libs
+
+      # ── 1. Schema drift ───────────────────────────────────────────────────
+      # drizzle-kit generate reads the Drizzle schema and compares it to the
+      # existing migration snapshots. It does NOT connect to a database; the
+      # DATABASE_URL above satisfies the config-file guard without a live DB.
+      # If someone edited the schema without running generate, new SQL files
+      # appear and the git-diff check fails.
+      - name: Check schema matches committed migrations (no drift)
+        run: |
+          pnpm --filter @workspace/db run generate
+          # Mark any untracked migration files so git diff picks them up
+          git add -N lib/db/migrations/
+          if ! git diff --exit-code -- lib/db/migrations/; then
+            echo "::error::Drizzle schema has uncommitted changes. Run 'pnpm --filter @workspace/db run generate' and commit the result."
+            exit 1
+          fi
+
+      # ── 2. Unsafe DDL lint ────────────────────────────────────────────────
+      # Drizzle's migrator wraps each migration file in a single transaction.
+      # Certain DDL statements cannot run inside a transaction and will abort
+      # the migration (e.g. CREATE/DROP INDEX CONCURRENTLY, ALTER TYPE…ADD
+      # VALUE before PG 12, VACUUM). Catch them before they reach prod.
+      - name: Reject non-transactional DDL in migration files
+        run: |
+          bad=$(grep -rEin \
+            'CREATE[[:space:]]+UNIQUE[[:space:]]+INDEX[[:space:]]+CONCURRENTLY|CREATE[[:space:]]+INDEX[[:space:]]+CONCURRENTLY|DROP[[:space:]]+INDEX[[:space:]]+CONCURRENTLY|ALTER[[:space:]]+TYPE[[:space:]]+\S+[[:space:]]+ADD[[:space:]]+VALUE|VACUUM|CLUSTER[[:space:]]' \
+            lib/db/migrations/*.sql 2>/dev/null || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Migration files contain non-transactional DDL that will break the deploy-time migrator:"
+            echo "$bad"
+            echo "Use a plain CREATE INDEX (without CONCURRENTLY) or split the migration manually."
+            exit 1
+          fi
+          echo "No non-transactional DDL found."
+
+      # ── 3. Migration smoke test ───────────────────────────────────────────
+      # First boot: all pending migrations must apply cleanly to a blank DB.
+      - name: Smoke test – first boot (apply migrations)
+        run: pnpm --filter @workspace/scripts run ci-migrate
+
+      # Second boot: running the migrator again must be a no-op (idempotent).
+      # A failure here means migrations are not idempotent or the journal is
+      # corrupt.
+      - name: Smoke test – second boot (idempotency / no-op)
+        run: pnpm --filter @workspace/scripts run ci-migrate
+
   api-server-tests:
     name: API server tests
     runs-on: ubuntu-latest

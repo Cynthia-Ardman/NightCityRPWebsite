@@ -25,6 +25,7 @@
     "db:guards": "tsx ./src/apply-db-guards.ts",
     "db:baseline-migrations": "tsx ./src/db-baseline-migrations.ts",
     "migrate-guidebook-sections": "tsx ./src/migrate-guidebook-sections.ts",
+    "ci-migrate": "tsx ./src/ci-migrate.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
