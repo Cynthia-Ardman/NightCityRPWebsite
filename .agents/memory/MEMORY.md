@@ -11,6 +11,7 @@
 - [Prod-import legacy tags](prod-import-legacy-tags.md) — characters.background AND missionLog.summary/title may contain `[legacy:<uuid>]` / `[legacy-mission:<id>:<discordId>]` anchors; scrub at API/UI layer.
 - One-off scripts: [tsx -e await silently no-ops](tsx-top-level-await.md) use a `.ts` file; [raw pg scripts](pg-oneoff-scripts.md) force process.exit on error + bulk `= ANY($1)` loads, not per-row loops.
 - [Versioned DB migrations](db-versioned-migrations.md) — generate+commit migrations, never push dev/prod; baseline marked applied via hash insert; deploy migrates at api-server boot (advisory-locked).
+- [Prod cron deployment target](prod-cron-deployment.md) — Reserved VM required: autoscale scale-out double-fired every cron on 2 instances; verify via job_runs zero-hours + <30s same-job pairs.
 - [NCRP database targets](db-targets.md) — three DBs (dev, legacy-bot source, live deployed); PROD_DATABASE_URL is the legacy source, NOT the live target.
 - [Character-sheet thread structure](character-sheet-thread-structure.md) — #character-sheets threads span many OP-author messages and use markdown headings, not inline `Label:` lines.
 - [Express sub-router auth scope](express-router-auth-scope.md) — path-less `router.use(requireAuth)` in a sub-router mounted at root gates every later sibling route, not just its own paths.

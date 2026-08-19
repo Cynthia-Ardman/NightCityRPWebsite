@@ -77,7 +77,8 @@ Post-merge setup runs `migrate` then re-asserts the append-only history guards (
 ## Deployment / Custom domain
 
 - Target domain: `nightcityroleplay.com`.
-- Deployment target: **Reserved VM** (always-on; the API server hosts the cron jobs in `lib/jobs.ts` — Autoscale would put them to sleep between requests).
+- Deployment target: **Reserved VM** (`deploymentTarget = "vm"` in `.replit`; always-on; the API server hosts the cron jobs in `lib/jobs.ts`).
+- Why not Autoscale (verified 2026-08-18 against live `job_runs`): steady player traffic kept crons firing every hour for 14 straight days, **but** autoscale ran 2 instances concurrently during a scale-out window (2026-08-17 23:55–00:40 UTC) and every cron fired twice per tick. Idempotency guards absorbed it, yet duplicate cron runners are exactly the double-billing failure mode this project has hit before — Reserved VM guarantees a single always-on cron runner. (Brief old/new instance overlap during a redeploy is still possible; crons must keep their idempotency guards.)
 - Production secrets that must be set on the deployment (in addition to the dev set): `SESSION_SECRET`, `DISCORD_BOT_TOKEN`, `UNBELIEVABOAT_TOKEN`, `CS_APPROVAL_CHANNEL_ID`, and `PUBLIC_BASE_URL=https://nightcityroleplay.com`.
 - After publishing:
   1. Open the Deployments tab → **Custom domains** → add `nightcityroleplay.com`.
