@@ -13,7 +13,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import * as XLSX from "xlsx";
+import * as XLSX from "@e965/xlsx";
 import { sql } from "drizzle-orm";
 import { db, pool } from "@workspace/db";
 
