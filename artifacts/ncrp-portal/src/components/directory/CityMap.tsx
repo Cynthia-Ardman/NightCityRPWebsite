@@ -319,15 +319,15 @@ export default function CityMap() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <p className="font-mono text-xs text-muted-foreground">
+      <div className="grid grid-cols-[minmax(0,1fr)_220px] items-center gap-4">
+        <p className="min-w-0 truncate font-mono text-xs text-muted-foreground">
           Hover a district to highlight it. Hover a neighborhood name to highlight just that area. Click to open its lore entry.
         </p>
         {/* Fixed single-line box: long lore names truncate instead of
             wrapping, so hovering never changes the header height and the
             map below stays put. */}
         <div
-          className="font-mono text-xs border border-border bg-card/50 px-3 min-w-[220px] max-w-full h-8 flex items-center overflow-hidden whitespace-nowrap"
+          className="h-8 min-w-0 overflow-hidden whitespace-nowrap border border-border bg-card/50 px-3 font-mono text-xs flex items-center"
           data-testid="text-map-hover-info"
         >
           {hoveredSubShape || hovered ? (
