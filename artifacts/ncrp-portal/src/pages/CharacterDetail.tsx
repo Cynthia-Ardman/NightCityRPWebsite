@@ -1545,7 +1545,7 @@ function EditItemDialog({
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="dialog-edit-item">
       <Card
-        className="rounded-none border-nc-cyan bg-card w-[min(96vw,64rem)] max-h-[90vh] overflow-hidden flex flex-col"
+        className="rounded-none border-nc-cyan bg-card w-[min(96vw,max(64rem,33vw))] max-h-[90vh] overflow-hidden flex flex-col"
         data-layout="responsive-editor"
       >
         <CardHeader className="flex flex-row items-start justify-between gap-4 shrink-0">

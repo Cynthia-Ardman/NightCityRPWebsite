@@ -60,7 +60,10 @@ describe("CatalogRequestSection — request-type picker", () => {
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveAttribute("data-layout", "responsive-editor");
-    expect(dialog).toHaveClass("sm:max-w-5xl");
+    // Proportional width: fills the viewport on phones, is at least 64rem on
+    // desktops, and grows to a third of the screen on ultrawide displays.
+    expect(dialog).toHaveClass("w-[min(100vw_-_2rem,max(64rem,33vw))]");
+    expect(dialog).toHaveClass("sm:max-w-none");
     expect(screen.getByTestId("input-description-item")).toHaveAttribute("rows", "8");
     expect(screen.getByTestId("input-description-item")).toHaveClass("lg:min-h-56");
   });

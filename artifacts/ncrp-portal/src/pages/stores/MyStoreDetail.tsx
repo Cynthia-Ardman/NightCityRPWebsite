@@ -874,7 +874,7 @@ export default function MyStoreDetail() {
       )}
       <Dialog open={gunReqOpen} onOpenChange={setGunReqOpen}>
         <DialogContent
-          className="w-[calc(100vw-2rem)] max-w-5xl sm:max-w-5xl max-h-[90vh] overflow-y-auto rounded-none border-border bg-card"
+          className="w-[min(100vw_-_2rem,max(64rem,33vw))] max-w-none sm:max-w-none max-h-[90vh] overflow-y-auto rounded-none border-border bg-card"
           data-layout="responsive-editor"
         >
           <DialogHeader>
@@ -1031,7 +1031,7 @@ export default function MyStoreDetail() {
       </Dialog>
       <Dialog open={stockReqOpen} onOpenChange={setStockReqOpen}>
         <DialogContent
-          className="w-[calc(100vw-2rem)] max-w-4xl sm:max-w-4xl max-h-[90vh] overflow-y-auto rounded-none border-border bg-card"
+          className="w-[min(100vw_-_2rem,max(56rem,33vw))] max-w-none sm:max-w-none max-h-[90vh] overflow-y-auto rounded-none border-border bg-card"
           data-layout="responsive-editor"
         >
           <DialogHeader>
