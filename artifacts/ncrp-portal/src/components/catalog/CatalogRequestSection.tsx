@@ -1,4 +1,3 @@
-import { formatDate } from "@/lib/format";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -33,7 +32,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiErrorMessage } from "@/lib/apiError";
-import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
+import { ActiveRequestGrid } from "@/components/catalog/ActiveRequestGrid";
 import MultiImageUpload from "@/components/MultiImageUpload";
 
 type RequestType = "property" | "gun" | "cyberware" | "item";
@@ -72,10 +71,6 @@ const TYPE_CHOICE_META: Record<
     titlePlaceholder: "e.g. Apartment in Watson",
   },
 };
-
-// Resolved/terminal request states hidden from the per-catalog "Your Requests"
-// banner — the banner only tracks requests that still need attention.
-const TERMINAL_REQUEST_STATUSES = new Set(["approved", "rejected", "closed", "cancelled"]);
 
 export default function CatalogRequestSection({
   type,
@@ -191,13 +186,7 @@ export default function CatalogRequestSection({
     ...(asDraft ? { asDraft: true } : {}),
   });
 
-  // Only surface still-actionable requests in the per-catalog banner: drafts
-  // (unsubmitted), pending review, and changes-requested. Terminal outcomes
-  // (approved/rejected/closed/cancelled) drop off so the banner stays a live
-  // to-do list, not a permanent history. The full history lives on My Submissions.
-  const myRequests = ((mine ?? []) as CustomRequest[]).filter(
-    (r) => !TERMINAL_REQUEST_STATUSES.has((r.status ?? "").toLowerCase()),
-  );
+  const myRequests = (mine ?? []) as CustomRequest[];
 
   return (
     <div className="space-y-4">
@@ -211,27 +200,7 @@ export default function CatalogRequestSection({
         </Button>
       </div>
 
-      {!presetCharacterId && myRequests.length > 0 && (
-        <div className="border border-border bg-card/30 p-4 space-y-2" data-testid={`my-submissions-${type}`}>
-          <div className="font-display text-sm tracking-widest text-nc-cyan uppercase">Your Requests</div>
-          {myRequests.map((r) => (
-            <div
-              key={r.id}
-              className="flex items-center justify-between gap-3 border-b border-border/30 py-2 last:border-0"
-              data-testid={`my-request-row-${r.id}`}
-            >
-              <div className="min-w-0">
-                <div className="font-mono text-sm text-foreground truncate">{r.title}</div>
-                <div className="font-mono text-[11px] text-muted-foreground">
-                  {r.characterName} · {formatDate(r.createdAt)}
-                  {r.reviewerNote ? ` · "${r.reviewerNote}"` : ""}
-                </div>
-              </div>
-              <div className="shrink-0"><RequestStatusBadge status={r.status} stagedApproval /></div>
-            </div>
-          ))}
-        </div>
-      )}
+      {!presetCharacterId ? <ActiveRequestGrid requests={myRequests} /> : null}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="rounded-none border-border bg-card sm:max-w-md">

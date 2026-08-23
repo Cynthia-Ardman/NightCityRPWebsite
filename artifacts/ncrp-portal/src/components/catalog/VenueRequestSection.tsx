@@ -1,4 +1,4 @@
-import { formatDate, formatEddies } from "@/lib/format";
+import { formatEddies } from "@/lib/format";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiErrorMessage } from "@/lib/apiError";
-import { RequestStatusBadge } from "@/components/catalog/requestStatusBadge";
+import { ActiveRequestGrid } from "@/components/catalog/ActiveRequestGrid";
 
 type VenueType = "store" | "ripperdoc";
 
@@ -162,27 +162,7 @@ export default function VenueRequestSection({
         </Button>
       </div>
 
-      {myRequests.length > 0 && (
-        <div className="border border-border bg-card/30 p-4 space-y-2" data-testid={`my-submissions-${type}`}>
-          <div className="font-display text-sm tracking-widest text-nc-cyan uppercase">Your Requests</div>
-          {myRequests.map((r) => (
-            <div
-              key={r.id}
-              className="flex items-center justify-between gap-3 border-b border-border/30 py-2 last:border-0"
-              data-testid={`my-request-row-${r.id}`}
-            >
-              <div className="min-w-0">
-                <div className="font-mono text-sm text-foreground truncate">{r.title}</div>
-                <div className="font-mono text-[11px] text-muted-foreground">
-                  {r.characterName} · {formatDate(r.createdAt)}
-                  {r.reviewerNote ? ` · "${r.reviewerNote}"` : ""}
-                </div>
-              </div>
-              <div className="shrink-0"><RequestStatusBadge status={r.status} stagedApproval /></div>
-            </div>
-          ))}
-        </div>
-      )}
+      <ActiveRequestGrid requests={myRequests} />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="rounded-none border-border bg-card sm:max-w-md">
