@@ -873,7 +873,10 @@ export default function MyStoreDetail() {
         />
       )}
       <Dialog open={gunReqOpen} onOpenChange={setGunReqOpen}>
-        <DialogContent className="rounded-none border-border bg-card sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          className="w-[calc(100vw-2rem)] max-w-5xl sm:max-w-5xl max-h-[90vh] overflow-y-auto rounded-none border-border bg-card"
+          data-layout="responsive-editor"
+        >
           <DialogHeader>
             <DialogTitle className="font-display tracking-widest text-nc-magenta">Request a Custom Gun</DialogTitle>
             <DialogDescription className="font-mono text-xs">
@@ -881,8 +884,8 @@ export default function MyStoreDetail() {
               buyer and sale price and they'll get a purchase offer in their Inbox to approve and pay.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-1 gap-4 py-2 lg:grid-cols-2">
+            <div className="space-y-1.5 lg:col-span-2">
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Gun Name</Label>
               <Input
                 value={gunReqName}
@@ -892,17 +895,18 @@ export default function MyStoreDetail() {
                 data-testid="input-gun-request-name"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 lg:col-span-2">
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Description</Label>
               <Textarea
                 value={gunReqDescription}
                 onChange={(e) => setGunReqDescription(e.target.value)}
                 placeholder="What is it, and why does the store want it? The fixers read this."
-                className="rounded-none font-mono min-h-[100px]"
+                rows={8}
+                className="min-h-40 resize-y rounded-none font-mono lg:min-h-56"
                 data-testid="input-gun-request-description"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-4">
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Category</Label>
                 <SelectOrCustom
@@ -954,7 +958,7 @@ export default function MyStoreDetail() {
                 />
               </div>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 lg:col-span-2">
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Manufacturer (optional)</Label>
               <Input
                 value={gunReqManufacturer}
@@ -1026,14 +1030,17 @@ export default function MyStoreDetail() {
         </DialogContent>
       </Dialog>
       <Dialog open={stockReqOpen} onOpenChange={setStockReqOpen}>
-        <DialogContent className="rounded-none border-border bg-card sm:max-w-md">
+        <DialogContent
+          className="w-[calc(100vw-2rem)] max-w-4xl sm:max-w-4xl max-h-[90vh] overflow-y-auto rounded-none border-border bg-card"
+          data-layout="responsive-editor"
+        >
           <DialogHeader>
             <DialogTitle className="font-display tracking-widest text-nc-cyan">Request Custom Stock</DialogTitle>
             <DialogDescription className="font-mono text-xs">
               Ask a fixer to price a custom item for this store. Once they set a cost, you approve it from My Submissions and pay to stock it.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="grid grid-cols-1 gap-4 py-2 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Item</Label>
               <Input
@@ -1054,13 +1061,14 @@ export default function MyStoreDetail() {
                 data-testid="input-stock-request-category"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 md:col-span-2">
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Description</Label>
               <Textarea
                 value={stockReqDescription}
                 onChange={(e) => setStockReqDescription(e.target.value)}
                 placeholder="Tell the fixer what you want and any details."
-                className="rounded-none font-mono min-h-[100px]"
+                rows={8}
+                className="min-h-40 resize-y rounded-none font-mono lg:min-h-56"
                 data-testid="input-stock-request-description"
               />
             </div>

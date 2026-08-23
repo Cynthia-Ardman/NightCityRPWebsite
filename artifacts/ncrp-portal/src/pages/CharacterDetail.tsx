@@ -1544,16 +1544,21 @@ function EditItemDialog({
   const errMsg = update.error ? apiErrorMessage(update.error, "Update failed") : null;
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="dialog-edit-item">
-      <Card className="rounded-none border-nc-cyan bg-card w-full max-w-lg">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="font-display tracking-widest text-nc-cyan">EDIT: {item.name}</CardTitle>
-          <Button variant="ghost" size="icon" onClick={onClose} data-testid="button-close-edit-item">
+      <Card
+        className="rounded-none border-nc-cyan bg-card w-[min(96vw,64rem)] max-h-[90vh] overflow-hidden flex flex-col"
+        data-layout="responsive-editor"
+      >
+        <CardHeader className="flex flex-row items-start justify-between gap-4 shrink-0">
+          <CardTitle className="min-w-0 break-words font-display tracking-widest text-nc-cyan">
+            EDIT: {item.name}
+          </CardTitle>
+          <Button className="shrink-0" variant="ghost" size="icon" onClick={onClose} data-testid="button-close-edit-item">
             <X className="w-4 h-4" />
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-y-auto">
           <form
-            className="space-y-4 font-mono text-sm"
+            className="grid grid-cols-1 gap-5 font-mono text-sm lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]"
             onSubmit={(e) => {
               e.preventDefault();
               if (!name.trim() || quantity < 1) return;
@@ -1570,60 +1575,68 @@ function EditItemDialog({
               });
             }}
           >
-            <div>
-              <Label className="text-xs">NAME</Label>
-              <Input value={name} maxLength={500} onChange={(e) => setName(e.target.value)} data-testid="input-edit-item-name" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-4">
               <div>
-                <Label className="text-xs">CATEGORY</Label>
-                <Select value={editCategoryValue} onValueChange={(v) => setCategory(v === KEEP_CATEGORY ? (item.category ?? "") : v)}>
-                  <SelectTrigger className="rounded-none font-mono" data-testid="select-edit-item-category">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Misc">Misc</SelectItem>
-                    <SelectItem value="Weapon">Weapon</SelectItem>
-                    <SelectItem value="Cyberware">Cyberware</SelectItem>
-                    {isOtherCategory && (
-                      <SelectItem value={KEEP_CATEGORY}>Keep: {item.category}</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                <Label className="text-xs">NAME</Label>
+                <Input value={name} maxLength={500} onChange={(e) => setName(e.target.value)} data-testid="input-edit-item-name" />
               </div>
-              <div>
-                <Label className="text-xs">QUANTITY</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={quantity}
-                  onChange={(e) => setQuantity(Number(e.target.value))}
-                  data-testid="input-edit-item-qty"
-                />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="text-xs">CATEGORY</Label>
+                  <Select value={editCategoryValue} onValueChange={(v) => setCategory(v === KEEP_CATEGORY ? (item.category ?? "") : v)}>
+                    <SelectTrigger className="rounded-none font-mono" data-testid="select-edit-item-category">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Misc">Misc</SelectItem>
+                      <SelectItem value="Weapon">Weapon</SelectItem>
+                      <SelectItem value="Cyberware">Cyberware</SelectItem>
+                      {isOtherCategory && (
+                        <SelectItem value={KEEP_CATEGORY}>Keep: {item.category}</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">QUANTITY</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={quantity}
+                    onChange={(e) => setQuantity(Number(e.target.value))}
+                    data-testid="input-edit-item-qty"
+                  />
+                </div>
               </div>
+              {!isCyberware && (
+                <div>
+                  <Label className="text-xs">REQUIRED CYBERWARE TO OPERATE</Label>
+                  <CyberwareReqInput
+                    value={cyberwareReq}
+                    onChange={setCyberwareReq}
+                    suggestions={(cyberCatalog ?? []).map((c) => c.name)}
+                    placeholder="e.g. Smart Link (optional)"
+                    testId="input-edit-item-cyberreq"
+                  />
+                </div>
+              )}
             </div>
-            <div>
+            <div className="flex min-h-0 flex-col">
               <Label className="text-xs">NOTES</Label>
-              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} data-testid="input-edit-item-notes" />
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={12}
+                className="min-h-48 flex-1 resize-y rounded-none font-mono lg:min-h-72"
+                data-testid="input-edit-item-notes"
+              />
             </div>
-            {!isCyberware && (
-              <div>
-                <Label className="text-xs">REQUIRED CYBERWARE TO OPERATE</Label>
-                <CyberwareReqInput
-                  value={cyberwareReq}
-                  onChange={setCyberwareReq}
-                  suggestions={(cyberCatalog ?? []).map((c) => c.name)}
-                  placeholder="e.g. Smart Link (optional)"
-                  testId="input-edit-item-cyberreq"
-                />
-              </div>
-            )}
             {errMsg && (
-              <div className="text-destructive text-sm" data-testid="text-edit-item-error">
+              <div className="text-destructive text-sm lg:col-span-2" data-testid="text-edit-item-error">
                 {errMsg}
               </div>
             )}
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2 border-t border-border/50 pt-4 lg:col-span-2">
               <Button type="button" variant="ghost" onClick={onClose} className="rounded-none">
                 CANCEL
               </Button>

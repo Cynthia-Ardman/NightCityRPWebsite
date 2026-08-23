@@ -165,12 +165,15 @@ export default function VenueRequestSection({
       <ActiveRequestGrid requests={myRequests} />
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="rounded-none border-border bg-card sm:max-w-md">
+        <DialogContent
+          className="w-[calc(100vw-2rem)] max-w-5xl sm:max-w-5xl max-h-[90vh] overflow-y-auto rounded-none border-border bg-card"
+          data-layout="responsive-editor"
+        >
           <DialogHeader>
             <DialogTitle className="font-display tracking-widest text-nc-cyan">{dialogTitle}</DialogTitle>
             <DialogDescription className="font-mono text-xs">{dialogDescription}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="grid grid-cols-1 gap-4 py-2 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Character</Label>
               <Select value={characterId} onValueChange={setCharacterId}>
@@ -304,13 +307,14 @@ export default function VenueRequestSection({
                 </>
               )}
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 md:col-span-2">
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Description</Label>
               <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Describe the venue and why you want it."
-                className="rounded-none font-mono min-h-[100px]"
+                rows={8}
+                className="min-h-40 resize-y rounded-none font-mono lg:min-h-56"
                 data-testid={`input-description-${type}`}
               />
             </div>

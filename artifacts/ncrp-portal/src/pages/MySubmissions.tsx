@@ -32,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -810,13 +811,19 @@ export default function MySubmissions() {
       </Dialog>
 
       <Dialog open={editing != null} onOpenChange={(o) => { if (!o) setEditing(null); }}>
-        <DialogContent className="rounded-none border-nc-cyan bg-card">
+        <DialogContent
+          className="w-[calc(100vw-2rem)] max-w-5xl sm:max-w-5xl max-h-[90vh] overflow-y-auto rounded-none border-nc-cyan bg-card"
+          data-layout="responsive-editor"
+        >
           <DialogHeader>
             <DialogTitle className="font-display tracking-widest text-nc-cyan">{editing?.mode === "save" ? "EDIT REQUEST" : "EDIT & RESUBMIT"}</DialogTitle>
+            <DialogDescription className="font-mono text-xs">
+              Update the request details and reference images before saving.
+            </DialogDescription>
           </DialogHeader>
           {editing && (
-            <div className="space-y-3">
-              <div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="md:col-span-2">
                 <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Title</label>
                 <Input
                   value={editing.title}
@@ -825,17 +832,17 @@ export default function MySubmissions() {
                   data-testid="input-edit-title"
                 />
               </div>
-              <div>
+              <div className="md:col-span-2">
                 <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Description</label>
                 <Textarea
                   value={editing.description}
                   onChange={(e) => setEditing({ ...editing, description: e.target.value })}
-                  rows={4}
-                  className="rounded-none mt-1"
+                  rows={10}
+                  className="min-h-48 resize-y rounded-none mt-1 lg:min-h-64"
                   data-testid="input-edit-description"
                 />
               </div>
-              <div>
+              <div className="md:col-span-2">
                 <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Reference Images (optional)</label>
                 <div className="mt-1">
                   <MultiImageUpload

@@ -52,6 +52,19 @@ beforeEach(() => {
 });
 
 describe("CatalogRequestSection — request-type picker", () => {
+  it("uses the scalable editor layout with a substantial description area", async () => {
+    const user = userEvent.setup();
+    renderSection();
+
+    await user.click(screen.getByTestId("button-request-item"));
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAttribute("data-layout", "responsive-editor");
+    expect(dialog).toHaveClass("sm:max-w-5xl");
+    expect(screen.getByTestId("input-description-item")).toHaveAttribute("rows", "8");
+    expect(screen.getByTestId("input-description-item")).toHaveClass("lg:min-h-56");
+  });
+
   it("offers gun / cyberware / general item and defaults to the entry type", async () => {
     const user = userEvent.setup();
     renderSection();

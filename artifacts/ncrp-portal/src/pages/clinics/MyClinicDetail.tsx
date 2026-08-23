@@ -626,14 +626,17 @@ export default function MyClinicDetail() {
         />
       )}
       <Dialog open={stockReqOpen} onOpenChange={setStockReqOpen}>
-        <DialogContent className="rounded-none border-border bg-card sm:max-w-md">
+        <DialogContent
+          className="w-[calc(100vw-2rem)] max-w-4xl sm:max-w-4xl max-h-[90vh] overflow-y-auto rounded-none border-border bg-card"
+          data-layout="responsive-editor"
+        >
           <DialogHeader>
             <DialogTitle className="font-display tracking-widest text-nc-cyan">Request Custom Stock</DialogTitle>
             <DialogDescription className="font-mono text-xs">
               Ask a fixer to price custom cyberware for this clinic. Once they set a cost, you approve it from My Submissions and pay to stock it.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="grid grid-cols-1 gap-4 py-2 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Cyberware</Label>
               <Input
@@ -654,13 +657,14 @@ export default function MyClinicDetail() {
                 data-testid="input-stock-request-category"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 md:col-span-2">
               <Label className="text-[10px] uppercase tracking-widest font-display text-nc-cyan">Description</Label>
               <Textarea
                 value={stockReqDescription}
                 onChange={(e) => setStockReqDescription(e.target.value)}
                 placeholder="Tell the fixer what you want and any details."
-                className="rounded-none font-mono min-h-[100px]"
+                rows={8}
+                className="min-h-40 resize-y rounded-none font-mono lg:min-h-56"
                 data-testid="input-stock-request-description"
               />
             </div>
