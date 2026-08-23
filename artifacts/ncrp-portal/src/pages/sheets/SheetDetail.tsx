@@ -25,6 +25,7 @@ import ReviewCommentThread, { AwaitingVoteBanner } from "@/components/ReviewComm
 import DiscordThreadDrawer from "@/components/DiscordThreadDrawer";
 import { ReviewerRoster } from "@/components/review/ReviewerRoster";
 import { useMemo, useState } from "react";
+import { ImageLightbox, type LightboxState } from "@/components/ImageLightbox";
 
 function sheetStatusBadge(status: string, stagedApproval = false) {
   // Sheets are deferred-apply: "approved" only STAGES the decision — a reviewer
@@ -103,6 +104,9 @@ export default function SheetDetail() {
       onError: (err) => toast({ title: "Resubmit failed", description: errMsg(err, "Resubmit failed"), variant: "destructive" }),
     },
   });
+  // In-app viewer for the submitted images; one combined set so reviewers can
+  // arrow through every image on the sheet without leaving the page.
+  const [lightbox, setLightbox] = useState<LightboxState>(null);
 
   if (isLoading) return <div className="font-display text-nc-cyan animate-pulse">LOADING SHEET...</div>;
   if (!sheet) return <div className="font-display text-destructive">SHEET NOT FOUND</div>;
@@ -165,6 +169,7 @@ export default function SheetDetail() {
       ),
     ),
   );
+  const allSheetImages = [...portraitImages, ...statsImages];
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -236,7 +241,13 @@ export default function SheetDetail() {
                 <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2">Portraits</p>
                 <div className="flex flex-wrap gap-3">
                   {portraitImages.map((url, i) => (
-                    <a key={url} href={url} target="_blank" rel="noopener noreferrer" data-testid={`link-sheet-portrait-${i}`}>
+                    <button
+                      type="button"
+                      key={url}
+                      onClick={() => setLightbox({ images: allSheetImages, index: i })}
+                      className="cursor-zoom-in"
+                      data-testid={`link-sheet-portrait-${i}`}
+                    >
                       <img
                         src={url}
                         alt={`Portrait ${i + 1}`}
@@ -244,7 +255,7 @@ export default function SheetDetail() {
                         className="h-40 w-40 object-contain border border-border hover:border-nc-cyan transition-colors"
                         data-testid={`img-sheet-portrait-${i}`}
                       />
-                    </a>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -254,7 +265,13 @@ export default function SheetDetail() {
                 <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2">Stat Screenshots</p>
                 <div className="flex flex-wrap gap-3">
                   {statsImages.map((url, i) => (
-                    <a key={url} href={url} target="_blank" rel="noopener noreferrer" data-testid={`link-sheet-stats-${i}`}>
+                    <button
+                      type="button"
+                      key={url}
+                      onClick={() => setLightbox({ images: allSheetImages, index: portraitImages.length + i })}
+                      className="cursor-zoom-in"
+                      data-testid={`link-sheet-stats-${i}`}
+                    >
                       <img
                         src={url}
                         alt={`Stats ${i + 1}`}
@@ -262,11 +279,12 @@ export default function SheetDetail() {
                         className="max-h-80 w-auto object-contain border border-border hover:border-nc-cyan transition-colors"
                         data-testid={`img-sheet-stats-${i}`}
                       />
-                    </a>
+                    </button>
                   ))}
                 </div>
               </div>
             )}
+            <ImageLightbox state={lightbox} onChange={setLightbox} title="Submitted image" />
           </CardContent>
         </Card>
       )}

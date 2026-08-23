@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ImageLightbox, type LightboxState } from "@/components/ImageLightbox";
 import { apiErrorMessage } from "@/lib/apiError";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useSearch, useLocation } from "wouter";
@@ -155,6 +156,8 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
   const [editing, setEditing] = useState<
     { id: number; title: string; description: string; isVenue: boolean; purpose: string; location: string; imageUrls: string[] } | null
   >(null);
+  // In-app viewer for a ticket's reference images (arrows page through them).
+  const [lightbox, setLightbox] = useState<LightboxState>(null);
 
   const isReviewer = !!(me?.isFixer || me?.isCsApprover || me?.isAdmin);
   // Approver pool: only Cs Approvers cast counted votes. Fixers and admins are
@@ -469,13 +472,12 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
           ) : null
         }
       >
-        {(r.imageUrls?.length ? r.imageUrls : r.imageUrl ? [r.imageUrl] : []).map((url, i) => (
-          <a
+        {(r.imageUrls?.length ? r.imageUrls : r.imageUrl ? [r.imageUrl] : []).map((url, i, all) => (
+          <button
+            type="button"
             key={url}
-            href={url}
-            target="_blank"
-            rel="noreferrer"
-            className="block border border-border bg-background"
+            onClick={() => setLightbox({ images: all, index: i })}
+            className="block w-full cursor-zoom-in border border-border bg-background"
             data-testid={`link-misc-image-${r.id}-${i}`}
           >
             <img
@@ -485,7 +487,7 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
               loading="lazy"
               data-testid={`img-misc-request-${r.id}-${i}`}
             />
-          </a>
+          </button>
         ))}
         {det ? (
           <div className="space-y-1 font-mono text-xs" data-testid={`venue-details-${r.id}`}>
@@ -635,6 +637,7 @@ function MiscRequestsTab({ focusId }: { focusId?: number | null }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ImageLightbox state={lightbox} onChange={setLightbox} title="Request image" />
     </div>
   );
 }

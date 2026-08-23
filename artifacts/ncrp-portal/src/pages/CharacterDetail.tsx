@@ -36,6 +36,7 @@ import { useParams, Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect } from "react";
+import { ImageLightbox, type LightboxState } from "@/components/ImageLightbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -2312,6 +2313,7 @@ function SheetSections({
 }
 
 function ImageGallery({ title, urls }: { title: string; urls: string[] }) {
+  const [lightbox, setLightbox] = useState<LightboxState>(null);
   if (!urls || urls.length === 0) return null;
   return (
     <Card className="rounded-none border-border bg-card/50" data-testid={`gallery-${title}`}>
@@ -2321,17 +2323,18 @@ function ImageGallery({ title, urls }: { title: string; urls: string[] }) {
       <CardContent>
         <div className="flex flex-wrap gap-3">
           {urls.map((u, i) => (
-            <a
+            <button
+              type="button"
               key={`${u}-${i}`}
-              href={u}
-              target="_blank"
-              rel="noreferrer"
-              className="block border border-border bg-background p-1 hover:border-nc-cyan transition"
+              onClick={() => setLightbox({ images: urls, index: i })}
+              className="block cursor-zoom-in border border-border bg-background p-1 hover:border-nc-cyan transition"
+              data-testid={`button-gallery-image-${i}`}
             >
               <img src={u} alt={`${title} ${i + 1}`} loading="lazy" className="max-h-56 object-contain" />
-            </a>
+            </button>
           ))}
         </div>
+        <ImageLightbox state={lightbox} onChange={setLightbox} title={title} />
       </CardContent>
     </Card>
   );

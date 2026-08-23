@@ -52,6 +52,15 @@ Nix `which chromium` executablePath; test-login backdoor gated by NODE_ENV+ENABL
   inject a CSS kill via `page.addInitScript`:
   `vite-error-overlay{display:none!important;pointer-events:none!important;}`.
 
+## e2e accounts keep losing verified18 (age-verification gate)
+- The hourly role_sync recomputes Discord-role-derived flags BOTH directions, and
+  `e2e-*` fixtures aren't in the guild, so their `verified18` drifts back to
+  false and character pages render the AGE VERIFICATION gate (plus 403 resource
+  noise) mid-test-session.
+- This is fixture state, not protected data: re-flip it in the dev DB
+  (`UPDATE users SET verified18 = true WHERE username LIKE 'e2e-%'`) before
+  browser checks that need character detail pages. Expect it to drift again.
+
 ## Journey-spec gotchas (journeys.spec.ts)
 - Multi-role serial journeys: `browser.newContext({storageState: stateFile(role)})`
   per step inside `test.describe.serial`; look up ids by seeded names via

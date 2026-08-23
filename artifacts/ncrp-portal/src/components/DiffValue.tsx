@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { diffWords, diffLines, collapseContext, isDiffSafe, multisetDiff, valuesDiffer, type DiffOp } from "@/lib/textDiff";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { ImageLightbox, type LightboxState } from "@/components/ImageLightbox";
 
 // Shared renderer for a single field's before -> after change on the review
 // screens. The default "unified" view highlights only what changed (red strike
@@ -27,24 +27,31 @@ const isImageUrlVal = (v: unknown): v is string => typeof v === "string" && isIm
 // A thumbnail that opens a full-size, readable lightbox on click. Used for every
 // image surfaced in a field diff so reviewers can actually read text-heavy stat
 // sheet scans instead of squinting at a tiny thumbnail.
-function ZoomImg({ src, className }: { src: string; className?: string }) {
-  const [open, setOpen] = useState(false);
+function ZoomImg({
+  src,
+  className,
+  images,
+  index,
+}: {
+  src: string;
+  className?: string;
+  // Optional sibling set: when this thumbnail belongs to a gallery (an image
+  // array in the diff), the lightbox pages through the whole set with arrows.
+  images?: string[];
+  index?: number;
+}) {
+  const [lightbox, setLightbox] = useState<LightboxState>(null);
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => setLightbox({ images: images?.length ? images : [src], index: index ?? 0 })}
         className="block w-full cursor-zoom-in"
         aria-label="View full-size image"
       >
         <img src={src} alt="Diff image preview" className={`${className ?? ""} hover:border-nc-cyan transition`} />
       </button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-5xl w-full rounded-none border-border bg-background p-2">
-          <DialogTitle className="sr-only">Image preview</DialogTitle>
-          <img src={src} alt="Enlarged diff image" className="w-full max-h-[85vh] object-contain" />
-        </DialogContent>
-      </Dialog>
+      <ImageLightbox state={lightbox} onChange={setLightbox} title="Image preview" />
     </>
   );
 }
@@ -78,7 +85,7 @@ function renderPlain(v: unknown, compact?: boolean) {
     return (
       <div className="grid grid-cols-2 gap-2 p-2 border border-border/60 bg-card/30">
         {v.map((url, i) => (
-          <ZoomImg key={i} src={url} className={`w-full ${compact ? "h-20" : "h-24"} object-contain border border-border bg-background`} />
+          <ZoomImg key={i} src={url} images={v} index={i} className={`w-full ${compact ? "h-20" : "h-24"} object-contain border border-border bg-background`} />
         ))}
       </div>
     );
@@ -227,7 +234,7 @@ export default function DiffValue({
             <div className={`font-mono ${compact ? "text-[10px]" : "text-xs"} text-destructive mb-1`}>— REMOVED</div>
             <div className="grid grid-cols-3 gap-2 p-2 border border-destructive/40 bg-destructive/5">
               {removed.map((url, i) => (
-                <ZoomImg key={i} src={url} className={`w-full ${compact ? "h-16" : "h-20"} object-contain border border-border bg-background`} />
+                <ZoomImg key={i} src={url} images={removed} index={i} className={`w-full ${compact ? "h-16" : "h-20"} object-contain border border-border bg-background`} />
               ))}
             </div>
           </div>
@@ -237,7 +244,7 @@ export default function DiffValue({
             <div className={`font-mono ${compact ? "text-[10px]" : "text-xs"} text-nc-green mb-1`}>+ ADDED</div>
             <div className="grid grid-cols-3 gap-2 p-2 border border-nc-green/40 bg-nc-green/5">
               {added.map((url, i) => (
-                <ZoomImg key={i} src={url} className={`w-full ${compact ? "h-16" : "h-20"} object-contain border border-border bg-background`} />
+                <ZoomImg key={i} src={url} images={added} index={i} className={`w-full ${compact ? "h-16" : "h-20"} object-contain border border-border bg-background`} />
               ))}
             </div>
           </div>
